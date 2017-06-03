@@ -22,14 +22,12 @@ var mapStyleNeutralBlue = [{"featureType":"water","elementType":"geometry","styl
 
 var mapStyleLightGray = [{"featureType":"water","elementType":"geometry.fill","stylers":[{"color":"#d3d3d3"}]},{"featureType":"transit","stylers":[{"color":"#808080"},{"visibility":"off"}]},{"featureType":"road.highway","elementType":"geometry.stroke","stylers":[{"visibility":"on"},{"color":"#b3b3b3"}]},{"featureType":"road.highway","elementType":"geometry.fill","stylers":[{"color":"#ffffff"}]},{"featureType":"road.local","elementType":"geometry.fill","stylers":[{"visibility":"on"},{"color":"#ffffff"},{"weight":1.8}]},{"featureType":"road.local","elementType":"geometry.stroke","stylers":[{"color":"#d7d7d7"}]},{"featureType":"poi","elementType":"geometry.fill","stylers":[{"visibility":"on"},{"color":"#ebebeb"}]},{"featureType":"administrative","elementType":"geometry","stylers":[{"color":"#a7a7a7"}]},{"featureType":"road.arterial","elementType":"geometry.fill","stylers":[{"color":"#ffffff"}]},{"featureType":"road.arterial","elementType":"geometry.fill","stylers":[{"color":"#ffffff"}]},{"featureType":"landscape","elementType":"geometry.fill","stylers":[{"visibility":"on"},{"color":"#efefef"}]},{"featureType":"road","elementType":"labels.text.fill","stylers":[{"color":"#696969"}]},{"featureType":"administrative","elementType":"labels.text.fill","stylers":[{"visibility":"on"},{"color":"#737373"}]},{"featureType":"poi","elementType":"labels.icon","stylers":[{"visibility":"off"}]},{"featureType":"poi","elementType":"labels","stylers":[{"visibility":"off"}]},{"featureType":"road.arterial","elementType":"geometry.stroke","stylers":[{"color":"#d6d6d6"}]},{"featureType":"road","elementType":"labels.icon","stylers":[{"visibility":"off"}]},{},{"featureType":"poi","elementType":"geometry.fill","stylers":[{"color":"#dadada"}]}];
 
-function debug(str)
-{
-    if (DEBUG)
-        {
-            try {
-                console.log(str);
-            } catch (e) {};
-        }
+function debug(str) {
+	if (DEBUG) {
+		try {
+			console.log(str);
+		} catch (e) { };
+	}
 }
 
 function initMap() {
@@ -199,55 +197,57 @@ function bearingLine(map, lat, lon, direction, range)
 //        path.setMap(map);
 }
 
-function hideRadarGuides () {
+function hideRadarGuides() {
 
-    $.each( radars, function( site, radar ) {
-	    for (var bearing = 0; bearing < 360; bearing=bearing+45) {
-		radars[site].bearingLine[bearing].setVisible(false);
-	    }
-	    for (var radius = 50; radius <= 250; radius = radius+50) {
-		radars[site].rangeMarker[radius].setVisible(false);
-	    }
+	$.each(radars, function (site, radar) {
+		for (var bearing = 0; bearing < 360; bearing = bearing + 45) {
+			radars[site].bearingLine[bearing].setVisible(false);
+		}
+		for (var radius = 50; radius <= 250; radius = radius + 50) {
+			radars[site].rangeMarker[radius].setVisible(false);
+		}
 	});
 
 }
 
 function selectParameter(parameter) {
-    localStorage.setItem("metParameter",parameter);
-    metParameter = parameter;
-    if (typeof selectedLayer !== 'undefined') {
-	selectedLayer.removeFromMap(map);
-    }
-    selectedLayer = new WmsMapType(
-				   "Historical NEXRAD Base Reflectivity",
-				   "https://meteo.fi/geoserver/wms",
-				   {layers: "radar_"+metSite+"_"+parameter, transparent: true});
-    selectedLayer.addToMap(map);
-    updateRadarInfo(metSite);
+	localStorage.setItem("metParameter", parameter);
+	metParameter = parameter;
+	if (typeof selectedLayer !== 'undefined') {
+		selectedLayer.removeFromMap(map);
+	}
+	selectedLayer = new WmsMapType(
+		"Historical NEXRAD Base Reflectivity",
+		"https://meteo.fi/geoserver/wms",
+		{ layers: "radar_" + metSite + "_" + parameter, transparent: true });
+	selectedLayer.addToMap(map);
+	updateRadarInfo(metSite);
+	debug("Selected parameter " + parameter)
 }
 
 function selectRadar(site) {
 
-    localStorage.setItem("metSite",site);
-    metSite = site;
-    if (typeof selectedLayer !== 'undefined') {
-	selectedLayer.removeFromMap(map);
-    }
-    selectedLayer = new WmsMapType(
-				   "Historical NEXRAD Base Reflectivity",
-				   "https://meteo.fi/geoserver/wms",
-				   {layers: "radar_"+site+"_dbz", transparent: true});
-    selectedLayer.addToMap(map);
-    
-    map.fitBounds(radars[site].rangeMarker[250].getBounds());
-    hideRadarGuides();
-    for (var bearing = 0; bearing < 360; bearing=bearing+45) {
-	radars[site].bearingLine[bearing].setVisible(true);
-    }
-    for (var radius = 50; radius <= 250; radius = radius+50) {
-	radars[site].rangeMarker[radius].setVisible(true);
-    }
-    updateRadarInfo(site);
+	localStorage.setItem("metSite", site);
+	metSite = site;
+	if (typeof selectedLayer !== 'undefined') {
+		selectedLayer.removeFromMap(map);
+	}
+	selectedLayer = new WmsMapType(
+		"Historical NEXRAD Base Reflectivity",
+		"https://meteo.fi/geoserver/wms",
+		{ layers: "radar_" + site + "_dbz", transparent: true });
+	selectedLayer.addToMap(map);
+
+	map.fitBounds(radars[site].rangeMarker[250].getBounds());
+	hideRadarGuides();
+	for (var bearing = 0; bearing < 360; bearing = bearing + 45) {
+		radars[site].bearingLine[bearing].setVisible(true);
+	}
+	for (var radius = 50; radius <= 250; radius = radius + 50) {
+		radars[site].rangeMarker[radius].setVisible(true);
+	}
+	updateRadarInfo(site);
+	debug("Selected radar site " + site)
 }
 
 Number.prototype.pad = function(size) { 
@@ -269,16 +269,16 @@ function updateCursorInfo(lat,lon) {
 
 function updatePixelValue(json) {
 
-    window.setTimeout(function () {
-	    featureInfoDone = true;
-        }, 500);
+	window.setTimeout(function () {
+		featureInfoDone = true;
+	}, 500);
 
-    if (json.features[0].properties.GRAY_INDEX < 255 && json.features[0].properties.GRAY_INDEX != 0) {
-	$('#valueTxt').html( Math.round((json.features[0].properties.GRAY_INDEX - 64) / 2) + " dBZ");
-    }
-    else {
-	$('#valueTxt').html(" -  dBZ");
-    }
+	if (json.features[0].properties.GRAY_INDEX < 255 && json.features[0].properties.GRAY_INDEX != 0) {
+		$('#valueTxt').html(Math.round((json.features[0].properties.GRAY_INDEX - 64) / 2) + " dBZ");
+	}
+	else {
+		$('#valueTxt').html(" -  dBZ");
+	}
 }
 
 
@@ -314,22 +314,21 @@ function updateClock() {
     setTimeout(updateClock, 1000);
 }
 
-function geoLocationFail(error)
-{
-    switch(error.code) {
-    case error.PERMISSION_DENIED:
-	debug("User denied the request for Geolocation.");
-	break;
-    case error.POSITION_UNAVAILABLE:
-	debug("Location information is unavailable.");
-	break;
-    case error.TIMEOUT:
-	debug("The request to get user location timed out.");
-	break;
-    case error.UNKNOWN_ERROR:
-	debug("An unknown error occurred.");
-	break;
-    }
+function geoLocationFail(error) {
+	switch (error.code) {
+		case error.PERMISSION_DENIED:
+			debug("ERROR: User denied the request for Geolocation.");
+			break;
+		case error.POSITION_UNAVAILABLE:
+			debug("ERROR: Location information is unavailable.");
+			break;
+		case error.TIMEOUT:
+			debug("ERROR: The request to get user location timed out.");
+			break;
+		case error.UNKNOWN_ERROR:
+			debug("ERROR: An unknown error occurred.");
+			break;
+	}
 }
 
 function geoLocationUpdate(location)
