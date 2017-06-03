@@ -2,7 +2,6 @@
 // Geodesy functions The MIT Licence Copyright (c) 2014 Chris Veness [https://github.com/chrisveness/geodesy]
 
 var map;
-var siteMarker;
 var DEBUG = true;
 var selectedLayer;
 var featureInfoDone = true;
@@ -12,7 +11,7 @@ var metLatitude  = localStorage.getItem("metLatitude")  ? localStorage.getItem("
 var metLongitude = localStorage.getItem("metLongitude") ? localStorage.getItem("metLongitude") : 24.8725;
 var metSite      = localStorage.getItem("metSite")      ? localStorage.getItem("metSite")      : "vantaa";
 var metParameter = localStorage.getItem("metParameter") ? localStorage.getItem("metParameter") : "dbz";
-var metMapZoom   = localStorage.getItem("metMapZoom")   ? localStorage.getItem("metMapZoom") : 8;
+var metMapZoom   = localStorage.getItem("metMapZoom")   ? localStorage.getItem("metMapZoom")   : 8;
 
 var mapStyleDefault = [{"featureType":"water","elementType":"geometry.fill","stylers":[{"color":"#d3d3d3"}]},{"featureType":"transit","stylers":[{"color":"#808080"},{"visibility":"off"}]},{"featureType":"road.highway","elementType":"geometry.stroke","stylers":[{"visibility":"on"},{"color":"#b3b3b3"}]},{"featureType":"road.highway","elementType":"geometry.fill","stylers":[{"color":"#ffffff"}]},{"featureType":"road.local","elementType":"geometry.fill","stylers":[{"visibility":"on"},{"color":"#ffffff"},{"weight":1.8}]},{"featureType":"road.local","elementType":"geometry.stroke","stylers":[{"color":"#d7d7d7"}]},{"featureType":"poi","elementType":"geometry.fill","stylers":[{"visibility":"on"},{"color":"#ebebeb"}]},{"featureType":"administrative","elementType":"geometry","stylers":[{"color":"#a7a7a7"}]},{"featureType":"road.arterial","elementType":"geometry.fill","stylers":[{"color":"#ffffff"}]},{"featureType":"road.arterial","elementType":"geometry.fill","stylers":[{"color":"#ffffff"}]},{"featureType":"landscape","elementType":"geometry.fill","stylers":[{"visibility":"on"},{"color":"#efefef"}]},{"featureType":"road","elementType":"labels.text.fill","stylers":[{"color":"#696969"}]},{"featureType":"administrative","elementType":"labels.text.fill","stylers":[{"visibility":"on"},{"color":"#737373"}]},{"featureType":"poi","elementType":"labels.icon","stylers":[{"visibility":"off"}]},{"featureType":"poi","elementType":"labels","stylers":[{"visibility":"off"}]},{"featureType":"road.arterial","elementType":"geometry.stroke","stylers":[{"color":"#d6d6d6"}]},{"featureType":"road","elementType":"labels.icon","stylers":[{"visibility":"off"}]},{},{"featureType":"poi","elementType":"geometry.fill","stylers":[{"color":"#dadada"}]}];
 
@@ -46,11 +45,6 @@ function initMap() {
         });
     map.fitBounds(bounds.finland);
     debug("Map initiated: " + bounds.finland);
-    var wxRadarHistory = new WmsMapType(
-					"Historical NEXRAD Base Reflectivity",
-					"http://mesonet.agron.iastate.edu/cgi-bin/wms/nexrad/n0q-t.cgi",
-					{layers: "nexrad-n0q-wmst", time: "2014-04-28T21:00:00Z"},
-					{cache: true});
 
     var borders = new WmsMapType(
 					"Historical NEXRAD Base Reflectivity",
@@ -317,13 +311,13 @@ function updateClock() {
 function geoLocationFail(error) {
 	switch (error.code) {
 		case error.PERMISSION_DENIED:
-			debug("ERROR: User denied the request for Geolocation.");
+			debug("ERROR: User denied the request for geolocation.");
 			break;
 		case error.POSITION_UNAVAILABLE:
-			debug("ERROR: Location information is unavailable.");
+			debug("ERROR: Geolocation information is unavailable.");
 			break;
 		case error.TIMEOUT:
-			debug("ERROR: The request to get user location timed out.");
+			debug("ERROR: The request to get user geolocation timed out.");
 			break;
 		case error.UNKNOWN_ERROR:
 			debug("ERROR: An unknown error occurred.");
