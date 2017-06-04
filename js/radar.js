@@ -113,21 +113,21 @@ function initMap() {
 		    }
 		});
 
-	    //	if (radar == "vantaa") {
 
-	    radars[site].bearingLine = [];
-	    for (var bearing = 0; bearing < 360; bearing=bearing+45) {
-		radars[site].bearingLine[bearing]=bearingLine(map,radars[site].marker.position.lat(), radars[site].marker.position.lng(), bearing, 250);
-		radars[site].bearingLine[bearing].setVisible(false);
-	    }
+
+		radars[site].bearingLine = [];
+		for (var bearing = 0; bearing < 360; bearing = bearing + 45) {
+			radars[site].bearingLine[bearing] = bearingLine(map, radars[site].marker.position.lat(), radars[site].marker.position.lng(), bearing, 250);
+			radars[site].bearingLine[bearing].setVisible(false);
+		}
+
+		radars[site].rangeMarker = [];
+		for (var radius = 50; radius <= 250; radius = radius + 50) {
+			radars[site].rangeMarker[radius] = rangeMarker(map, radars[site].marker.position.lat(), radars[site].marker.position.lng(), radius);
+			radars[site].rangeMarker[radius].setVisible(false);
+		}
 	    
-	    radars[site].rangeMarker = [];
-	    for (var radius = 50; radius <= 250; radius = radius+50) {
-		radars[site].rangeMarker[radius]=rangeMarker(map,radars[site].marker.position.lat(), radars[site].marker.position.lng(), radius);
-		radars[site].rangeMarker[radius].setVisible(false);
-	    }
-	    
-	    //}
+
 	    
 	    radars[site].marker.addListener('click', function() {
 		    selectRadar(this.site);
@@ -241,7 +241,7 @@ function selectRadar(site) {
 		radars[site].rangeMarker[radius].setVisible(true);
 	}
 	updateRadarInfo(site);
-	debug("Selected radar site " + site)
+	debug("Selected radar site " + radars[site].name)
 }
 
 Number.prototype.pad = function(size) { 
@@ -323,13 +323,14 @@ function geoLocationFail(error) {
 			debug("ERROR: An unknown error occurred.");
 			break;
 	}
+	$('#infoItemPosition').hide();
 }
 
-function geoLocationUpdate(location)
-{
-    localStorage.setItem("metLatitude",location.coords.latitude);
-    localStorage.setItem("metLongitude",location.coords.longitude);
-    metLatitude = location.coords.latitude;
-    metLongitude = location.coords.longitude;
-    $('#positionTxt').html("&#966; " + Dms.toLat(metLatitude, "dm", 3) + "<br/>" + "&#955; " + Dms.toLon(metLongitude, "dm", 3));
+function geoLocationUpdate(location) {
+	localStorage.setItem("metLatitude", location.coords.latitude);
+	localStorage.setItem("metLongitude", location.coords.longitude);
+	metLatitude = location.coords.latitude;
+	metLongitude = location.coords.longitude;
+	$('#positionTxt').html("&#966; " + Dms.toLat(metLatitude, "dm", 3) + "<br/>" + "&#955; " + Dms.toLon(metLongitude, "dm", 3));
+	$('#infoItemPosition').show();
 }
