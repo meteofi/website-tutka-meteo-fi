@@ -5,6 +5,13 @@ var map;
 var DEBUG = true;
 var selectedLayer;
 var featureInfoDone = true;
+var radars = [];
+var animationTimeout;
+
+var options = {
+    defaultLanguage: 'en-US',
+    bearingLineStep: 45
+}
 
 // Remember previous state
 var metLatitude  = localStorage.getItem("metLatitude")  ? localStorage.getItem("metLatitude")  : 60.2706;
@@ -44,7 +51,7 @@ function initMap() {
 	    //	    styles: [{"featureType":"water","elementType":"geometry.fill","stylers":[{"color":"#d3d3d3"}]},{"featureType":"transit","stylers":[{"color":"#808080"},{"visibility":"off"}]},{"featureType":"road.highway","elementType":"geometry.stroke","stylers":[{"visibility":"on"},{"color":"#b3b3b3"}]},{"featureType":"road.highway","elementType":"geometry.fill","stylers":[{"color":"#ffffff"}]},{"featureType":"road.local","elementType":"geometry.fill","stylers":[{"visibility":"on"},{"color":"#ffffff"},{"weight":1.8}]},{"featureType":"road.local","elementType":"geometry.stroke","stylers":[{"color":"#d7d7d7"}]},{"featureType":"poi","elementType":"geometry.fill","stylers":[{"visibility":"on"},{"color":"#ebebeb"}]},{"featureType":"administrative","elementType":"geometry","stylers":[{"color":"#a7a7a7"}]},{"featureType":"road.arterial","elementType":"geometry.fill","stylers":[{"color":"#ffffff"}]},{"featureType":"road.arterial","elementType":"geometry.fill","stylers":[{"color":"#ffffff"}]},{"featureType":"landscape","elementType":"geometry.fill","stylers":[{"visibility":"on"},{"color":"#efefef"}]},{"featureType":"road","elementType":"labels.text.fill","stylers":[{"color":"#696969"}]},{"featureType":"administrative","elementType":"labels.text.fill","stylers":[{"visibility":"on"},{"color":"#737373"}]},{"featureType":"poi","elementType":"labels.icon","stylers":[{"visibility":"off"}]},{"featureType":"poi","elementType":"labels","stylers":[{"visibility":"off"}]},{"featureType":"road.arterial","elementType":"geometry.stroke","stylers":[{"color":"#d6d6d6"}]},{"featureType":"road","elementType":"labels.icon","stylers":[{"visibility":"off"}]},{},{"featureType":"poi","elementType":"geometry.fill","stylers":[{"color":"#dadada"}]}],
         });
     map.fitBounds(bounds.finland);
-    debug("Map initiated: " + bounds.finland);
+    debug("Map initiated: " + bounds.finland.toString());
 
     var borders = new WmsMapType(
 					"Historical NEXRAD Base Reflectivity",
@@ -99,46 +106,15 @@ function initMap() {
     //    turvalaitteet.addToMap(map);
     //turvalaitteet.setOpacity(1);
 
-    $.each( radars, function( site, radar ) {
-	    debug("New site marker for: " + radar.name);
+    $.each( radarsFinland, function( site, radar ) {
+		radars[site] = new Radar(site,radar.location,radar.name,radar.acronym,radar.country);
+		radars[site].createMarker(map);
+		radars[site].addRadarGuides(map);
+	});
 
-	    radars[site].marker = new google.maps.Marker({
-		    position: radar.location,
-		    map: map,
-		    site: site,
-		    icon: {
-			url: 'https://maps.google.com/mapfiles/kml/pal4/icon49.png',
-			anchor: new google.maps.Point(12,12),
-			scaledSize: new google.maps.Size(24,24)
-		    }
-		});
-
-
-
-		radars[site].bearingLine = [];
-		for (var bearing = 0; bearing < 360; bearing = bearing + 45) {
-			radars[site].bearingLine[bearing] = bearingLine(map, radars[site].marker.position.lat(), radars[site].marker.position.lng(), bearing, 250);
-			radars[site].bearingLine[bearing].setVisible(false);
-		}
-
-		radars[site].rangeMarker = [];
-		for (var radius = 50; radius <= 250; radius = radius + 50) {
-			radars[site].rangeMarker[radius] = rangeMarker(map, radars[site].marker.position.lat(), radars[site].marker.position.lng(), radius);
-			radars[site].rangeMarker[radius].setVisible(false);
-		}
-	    
-
-	    
-	    radars[site].marker.addListener('click', function() {
-		    selectRadar(this.site);
-		});
-	}); // each
-
-    
     google.maps.event.addListener(map, 'mousemove', function (event) {
 	    updateCursorInfo(event.latLng.lat(),event.latLng.lng());               
 	});
-
 
     // Start Position Watch
     if ("geolocation" in navigator) {
@@ -153,27 +129,135 @@ function initMap() {
 
 }
 
-function rangeMarker(map, lat, lon, radius)
+function getTimeSteps(site)
 {
+	debug("Get new data for site " + site)
+    $.getJSON("https://tutka.meteo.fi/radar-json-single-v1.php?radar="+site,updateTimeSteps);
+	clearTimeout(radars[site].TIMEOUT);
+    radars[site].TIMEOUT = setTimeout(getTimeSteps, 60000, site);
+}
+
+function updateTimeSteps(timesteps)
+{
+    debug("Received timesteps. " + timesteps);
+	console.log(timesteps);
+	radars[timesteps.site].timesteps = timesteps;
+	//updateLayer("radar_" + metSite + "_"+metParameter,timesteps.layers["radar_" + metSite + "_dbz"]["0.5"][0]);
+	//nextFrame();
+	updateLayers(timesteps.site,"radar_" + metSite + "_"+metParameter);
+}
+
+function nextFrame() {
+	clearTimeout(animationTimeout);
+	frame = radars[metSite].frame;
+	radars[metSite].wmsLayers[frame].setOpacity(0);
+	if (radars[metSite].frame == 0)
+		radars[metSite].frame = 11;
+	else
+		radars[metSite].frame = radars[metSite].frame - 1;
+	frame = radars[metSite].frame;
+	radars[metSite].wmsLayers[frame].setOpacity(0.5);
+	if (frame==0)
+		timeout = 2000;
+	else
+		timeout = 300;
+	animationTimeout = setTimeout(nextFrame, timeout);
+}
+
+function Radar(id,location,name,acronym,country) {
+	this.id = id;
+	this.name = name;
+	this.acronym = acronym;
+	this.country = country;
+	this.location = location;
+	this.marker = this.marker || {};
+	this.bearingLines = this.bearingLines || [];
+	this.rangeMarkers = this.rangeMarkers || [];
+	this.frame = 0;
+	this.wmsLayers = [];
+
+	this.createMarker = function (map) {
+		this.marker = new google.maps.Marker({
+			position: this.location,
+			map: map,
+			site: id,
+			icon: {
+				url: 'https://maps.google.com/mapfiles/kml/pal4/icon49.png',
+				anchor: new google.maps.Point(12, 12),
+				scaledSize: new google.maps.Size(24, 24)
+			}
+		});
+		this.marker.addListener('click', function () {
+			selectRadar(id);
+		});
+		  debug("New site marker for: " + this.id);
+	};
+
+
+	this.createBearingLines = function (map) {
+		for (var bearing = 0; bearing < 360; bearing = bearing + options.bearingLineStep) {
+			this.bearingLines[bearing] = bearingLine(this.location.lat, this.location.lng, bearing, 250);
+			this.bearingLines[bearing].setMap(map);
+			this.bearingLines[bearing].setVisible(false);
+			debug(this.id.toUpperCase() + ": New bearing line from " + this.location.lat + " " + this.location.lat + " " + bearing);
+		}
+	};
+	this.hideBearingLines = function () {
+		for (var i in this.bearingLines) {
+			this.bearingLines[i].setVisible(false);
+			debug(this.id.toUpperCase() + ": Hide bearing line " + i);
+		}
+	};
+	this.showBearingLines = function () {
+		for (var i in this.bearingLines) {
+			this.bearingLines[i].setVisible(true);
+			debug(this.id.toUpperCase() + ": Show bearing line " + i);
+		}
+	};
+	this.createRangeMarkers = function (map) {
+		for (var radius = 50; radius <= 250; radius = radius + 50) {
+			this.rangeMarkers[radius] = rangeMarker(this.location,radius);
+			this.rangeMarkers[radius].setMap(map);
+			this.rangeMarkers[radius].setVisible(false);
+			debug(this.id.toUpperCase() + ": New range marker " + radius) + " km";
+		}
+	};
+	this.hideRangeMarkers = function () {
+		for (var i in this.rangeMarkers) {
+			this.rangeMarkers[i].setVisible(false);
+			debug(this.id.toUpperCase() + ": Hide range marker " + i);
+		}
+	};
+	this.showRangeMarkers = function () {
+		for (var i in this.rangeMarkers) {
+			this.rangeMarkers[i].setVisible(true);
+			debug(this.id.toUpperCase() + ": Show range marker " + i);
+		}
+	};	
+	this.addRadarGuides = function (map) {
+		this.createBearingLines(map);
+		this.createRangeMarkers(map);
+	}
+}
+
+function rangeMarker(location, radius) {
 	var rangeMarker = new google.maps.Circle({
 		strokeColor: '#333333',
 		strokeOpacity: 0.5,
 		strokeWeight: 1,
 		//fillColor: '#FF0000',
-				fillOpacity: 0,
-		map: map,
-		center: {lat: lat, lng: lon},
-		radius: radius*1000
-	    });
+		fillOpacity: 0,
+		center: location,
+		radius: radius * 1000
+	});
 
-	rangeMarker.addListener('mousemove', function(event) {
-	        updateCursorInfo(event.latLng.lat(),event.latLng.lng());               
-	    });
+	rangeMarker.addListener('mousemove', function (event) {
+		updateCursorInfo(event.latLng.lat(), event.latLng.lng());
+	});
 	return rangeMarker;
 }
 
-
-function bearingLine(map, lat, lon, direction, range)
+function bearingLine(lat, lon, direction, range)
 {
     var c = new LatLon(lat, lon);
     var p1 = c.destinationPoint(50000, direction);
@@ -185,23 +269,16 @@ function bearingLine(map, lat, lon, direction, range)
 	    strokeColor: '#333333',
 	    strokeOpacity: 0.5,
 	    strokeWeight: 1,
-	    map: map
 	});
     return bearingLine;
-//        path.setMap(map);
 }
 
+
 function hideRadarGuides() {
-
-	$.each(radars, function (site, radar) {
-		for (var bearing = 0; bearing < 360; bearing = bearing + 45) {
-			radars[site].bearingLine[bearing].setVisible(false);
-		}
-		for (var radius = 50; radius <= 250; radius = radius + 50) {
-			radars[site].rangeMarker[radius].setVisible(false);
-		}
-	});
-
+	for (var id in radars) {
+		radars[id].hideBearingLines();
+		radars[id].hideRangeMarkers();
+	};
 }
 
 function selectParameter(parameter) {
@@ -223,23 +300,15 @@ function selectRadar(site) {
 
 	localStorage.setItem("metSite", site);
 	metSite = site;
-	if (typeof selectedLayer !== 'undefined') {
-		selectedLayer.removeFromMap(map);
-	}
-	selectedLayer = new WmsMapType(
-		"Historical NEXRAD Base Reflectivity",
-		"https://meteo.fi/geoserver/wms",
-		{ layers: "radar_" + site + "_dbz", transparent: true });
-	selectedLayer.addToMap(map);
-
-	map.fitBounds(radars[site].rangeMarker[250].getBounds());
+	
+	getTimeSteps(site);
 	hideRadarGuides();
-	for (var bearing = 0; bearing < 360; bearing = bearing + 45) {
-		radars[site].bearingLine[bearing].setVisible(true);
-	}
-	for (var radius = 50; radius <= 250; radius = radius + 50) {
-		radars[site].rangeMarker[radius].setVisible(true);
-	}
+	radars[site].showBearingLines();
+	radars[site].showRangeMarkers();
+	//map.fitBounds(radars[site].rangeMarker[250].getBounds());
+	map.fitBounds(radars[site].rangeMarkers[250].getBounds());
+	
+
 	updateRadarInfo(site);
 	debug("Selected radar site " + radars[site].name)
 }
@@ -248,7 +317,35 @@ Number.prototype.pad = function(size) {
     return ('000000000' + this).substr(-size);
 } 
 
+function updateLayer(layer,time) {
+	if (typeof selectedLayer !== 'undefined') {
+		selectedLayer.removeFromMap(map);
+	}
+	selectedLayer = new WmsMapType(
+		"Historical NEXRAD Base Reflectivity",
+		"https://meteo.fi/geoserver/wms",
+		{ layers: layer, transparent: true, time: time });
+	selectedLayer.addToMap(map);	
+}
+
+function updateLayers(site, layer) {
+	for (var i = 0; i < radars[site].timesteps.layers[layer]['0.5'].length; i++) {
+		debug("Add layer " + layer + " frame " + i);
+		if (typeof radars[site].wmsLayers[i] !== 'undefined') {
+			radars[site].wmsLayers[i].removeFromMap(map);
+		}
+		radars[site].wmsLayers[i] = new WmsMapType(
+			"Historical NEXRAD Base Reflectivity",
+			"https://meteo.fi/geoserver/wms",
+			{ layers: layer, transparent: true, time: radars[metSite].timesteps.layers["radar_" + metSite + "_dbz"]["0.5"][i] });
+		radars[site].wmsLayers[i].addToMap(map);
+		radars[site].wmsLayers[i].setOpacity(0);
+	}
+	nextFrame();
+}
+
 function updateCursorInfo(lat,lon) {
+	var p0 = new LatLon(radars[metSite].location.lat, radars[metSite].location.lng);
     var p1 = new LatLon(metLatitude, metLongitude);
     var p2 = new LatLon(lat, lon);
     var d = p1.distanceTo(p2)/1000; 
@@ -278,7 +375,7 @@ function updatePixelValue(json) {
 
 
 function updateRadarInfo(site) {
-    var p1 = new LatLon(radars[site].marker.position.lat(), radars[site].marker.position.lng());
+    var p1 = new LatLon(radars[site].location.lat, radars[site].location.lng);
     var p2 = new LatLon(metLatitude, metLongitude);
     var d = p1.distanceTo(p2)/1000; 
     $('#radarTxt').html(radars[site].name.toUpperCase()+" ("+radars[site].country.toUpperCase()+")"+"<br/>"+metParameter.toUpperCase()+" &#x29A3; 0 &deg;<br/>&#x2194;"+Math.round(d)+" km \u2195 " + Math.round(100) + "m");
