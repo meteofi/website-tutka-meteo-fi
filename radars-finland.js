@@ -1,6 +1,6 @@
 // MeteoFI / Mikko Rauhala / 2017
 // Radar Configuration for Finland
-var radars = {
+var radarsFinland = {
 	anjalankoski: {
 		name: "Anjalankoski",
 		acronym: "ANJ",
