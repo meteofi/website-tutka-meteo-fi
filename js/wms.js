@@ -58,7 +58,8 @@ function WmsMapType(name, url, params, options) {
      */
     this.options = {
 	opacity: 0.5,
-	cache: false
+    visibility: 'visible',
+	cache: true
     };
     
     for (var key in options) {
@@ -144,7 +145,15 @@ function WmsMapType(name, url, params, options) {
             this.tiles[i].style.opacity = opacity;
         }
     }
-    
+
+     this.setVisibility = function(visibility) {
+        this.options['visibility'] = visibility;
+
+        for (var i in this.tiles) {
+            this.tiles[i].style.visibility = visibility;
+        }
+    }
+
     /*
      * ---------------
      * Private methods
