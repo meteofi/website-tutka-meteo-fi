@@ -10,7 +10,7 @@ html, body {
 }
 
 .infoItem {
-    padding: 0px;
+    padding: 0px 0px 2px 0px;
 }
 
 .infoLabel {
@@ -19,12 +19,14 @@ html, body {
     font-weight: bold;
     text-align: center;
     padding: 2px;
-    margin: 0px;
+    margin: 2px;
 }
 
 .infoValue {
     text-align: center;
     vertical-align: middle;
+     border: 1px solid;
+     margin: 2px;
 }
 
 #valueTxt {
@@ -36,15 +38,14 @@ html, body {
         position: absolute;
         top: 0px;
         left: 0px;
-        width: 120px;
+        width: 140px;
         height: 100%;
         z-index: 5;
-        background-color: rgba(0,0,0,0.6);
-        color: #5BD5FD;
+        background-color: rgba(0,0,0,0.7);
+        color: #cccccc;
 	font-family: 'Noto Sans', sans-serif;
-        font-size: 1em;
+        font-size: 0.9em;
         margin: 0px;
-        padding: 0px;
-	border-width: 2px 10px 4px 20px;
+        padding: 2px;
     }
 }
