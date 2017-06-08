@@ -126,7 +126,8 @@ function initMap() {
     
     // default action
     selectRadar(metSite);
-
+	$('#infoItemCursor').hide();
+	$('#infoItemPosition').hide();
 }
 
 function getTimeSteps(site)
@@ -306,10 +307,8 @@ function selectRadar(site) {
 	hideRadarGuides();
 	radars[site].showBearingLines();
 	radars[site].showRangeMarkers();
-	//map.fitBounds(radars[site].rangeMarker[250].getBounds());
 	map.fitBounds(radars[site].rangeMarkers[250].getBounds());
 	
-
 	updateRadarInfo(site);
 	debug("Selected radar site " + radars[site].name)
 }
@@ -345,20 +344,21 @@ function updateLayers(site, layer) {
 	nextFrame();
 }
 
-function updateCursorInfo(lat,lon) {
+function updateCursorInfo(lat, lon) {
 	var p0 = new LatLon(radars[metSite].location.lat, radars[metSite].location.lng);
-    var p1 = new LatLon(metLatitude, metLongitude);
-    var p2 = new LatLon(lat, lon);
-    var d = p1.distanceTo(p2)/1000; 
-    var b = p1.bearingTo(p2); 
-	var drad = p0.distanceTo(p2)/1000; 
-    var brad = p0.bearingTo(p2); 
-    $('#cursorTxt').html("&#966; " + Dms.toLat(lat, "dm", 3) + "<br/>" + "&#955; " + Dms.toLon(lon, "dm", 3)+ "<br/>&#9786; &#x2194; " + Math.round(d) + " km &#x29A3; " + Math.round(b).pad(3) + "&deg;<br>&#9737; &#x2194; " + Math.round(drad) + " km &#x29A3; " + Math.round(brad).pad(3) + "&deg;<br><div id='dbz'></div>");
-    url="https://meteo.fi/geoserver/wms?REQUEST=GetFeatureInfo&BBOX="+lat+","+lon+","+(lat+0.0001)+","+(lon+0.0001)+"&SERVICE=WMS&INFO_FORMAT=application/json&QUERY_LAYERS=MeteoFI%3Aradar_"+metSite+"_dbz&FEATURE_COUNT=50&Layers=MeteoFI%3Aradar_"+metSite+"_dbz&WIDTH=1&HEIGHT=1&format=image%2Fjpeg&styles=&crs=EPSG:4326&version=1.3.0&j=0&i=0";
-    if (featureInfoDone == true) {
-	featureInfoDone = false;
-	$.getJSON(url,updatePixelValue);
-    }
+	var p1 = new LatLon(metLatitude, metLongitude);
+	var p2 = new LatLon(lat, lon);
+	var d = p1.distanceTo(p2) / 1000;
+	var b = p1.bearingTo(p2);
+	var drad = p0.distanceTo(p2) / 1000;
+	var brad = p0.bearingTo(p2);
+	$('#infoItemCursor').show();
+	$('#cursorTxt').html("&#966; " + Dms.toLat(lat, "dm", 3) + "<br/>" + "&#955; " + Dms.toLon(lon, "dm", 3) + "<br/>&#9786; &#x2194; " + Math.round(d) + " km &#x29A3; " + Math.round(b).pad(3) + "&deg;<br>&#9737; &#x2194; " + Math.round(drad) + " km &#x29A3; " + Math.round(brad).pad(3) + "&deg;<br><div id='dbz'></div>");
+	url = "https://meteo.fi/geoserver/wms?REQUEST=GetFeatureInfo&BBOX=" + lat + "," + lon + "," + (lat + 0.0001) + "," + (lon + 0.0001) + "&SERVICE=WMS&INFO_FORMAT=application/json&QUERY_LAYERS=MeteoFI%3Aradar_" + metSite + "_dbz&FEATURE_COUNT=50&Layers=MeteoFI%3Aradar_" + metSite + "_dbz&WIDTH=1&HEIGHT=1&format=image%2Fjpeg&styles=&crs=EPSG:4326&version=1.3.0&j=0&i=0";
+	if (featureInfoDone == true) {
+		featureInfoDone = false;
+		$.getJSON(url, updatePixelValue);
+	}
 }
 
 function updatePixelValue(json) {
@@ -374,7 +374,6 @@ function updatePixelValue(json) {
 		$('#valueTxt').html(" -  dBZ");
 	}
 }
-
 
 
 function updateRadarInfo(site) {
