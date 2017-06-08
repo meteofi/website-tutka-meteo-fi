@@ -157,6 +157,7 @@ function nextFrame() {
 		radars[metSite].frame = radars[metSite].frame - 1;
 	frame = radars[metSite].frame;
 	radars[metSite].wmsLayers[frame].setOpacity(0.5);
+	$('#radarTimeTxt').html(isoTimeToString(radars[metSite].timesteps.layers["radar_" + metSite + "_dbz"]["0.5"][frame]));
 	if (frame==0)
 		timeout = 2000;
 	else
@@ -350,7 +351,9 @@ function updateCursorInfo(lat,lon) {
     var p2 = new LatLon(lat, lon);
     var d = p1.distanceTo(p2)/1000; 
     var b = p1.bearingTo(p2); 
-    $('#cursorTxt').html("&#966; " + Dms.toLat(lat, "dm", 3) + "<br/>" + "&#955; " + Dms.toLon(lon, "dm", 3)+ "<br/>&#x2194; " + Math.round(d) + " km &#x29A3; " + Math.round(b).pad(3) + "&deg;<br><div id='dbz'></div>");
+	var drad = p0.distanceTo(p2)/1000; 
+    var brad = p0.bearingTo(p2); 
+    $('#cursorTxt').html("&#966; " + Dms.toLat(lat, "dm", 3) + "<br/>" + "&#955; " + Dms.toLon(lon, "dm", 3)+ "<br/>&#9786; &#x2194; " + Math.round(d) + " km &#x29A3; " + Math.round(b).pad(3) + "&deg;<br>&#9737; &#x2194; " + Math.round(drad) + " km &#x29A3; " + Math.round(brad).pad(3) + "&deg;<br><div id='dbz'></div>");
     url="https://meteo.fi/geoserver/wms?REQUEST=GetFeatureInfo&BBOX="+lat+","+lon+","+(lat+0.0001)+","+(lon+0.0001)+"&SERVICE=WMS&INFO_FORMAT=application/json&QUERY_LAYERS=MeteoFI%3Aradar_"+metSite+"_dbz&FEATURE_COUNT=50&Layers=MeteoFI%3Aradar_"+metSite+"_dbz&WIDTH=1&HEIGHT=1&format=image%2Fjpeg&styles=&crs=EPSG:4326&version=1.3.0&j=0&i=0";
     if (featureInfoDone == true) {
 	featureInfoDone = false;
@@ -403,6 +406,19 @@ function updateClock() {
 
     // call this function again in 1000ms
     setTimeout(updateClock, 1000);
+}
+
+function isoTimeToString(str)
+{
+    // 2013-04-21T10:30:00Z
+    runstr =
+    str.substr(8,2) + '.' +
+    str.substr(5,2) + '.' +
+    str.substr(0,4) + '<br/><b style="font-size: 140%;">' +
+    str.substr(11,2) + ':' +
+    str.substr(14,2) +
+    ' UTC</b>';
+    return runstr;
 }
 
 function geoLocationFail(error) {
