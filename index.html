@@ -11,15 +11,15 @@
   <title>Säätutka & Ukkostutka Suomi NYT - MeteoFI</title>
   <script src="https://code.jquery.com/jquery-3.2.1.min.js" integrity="sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4="
     crossorigin="anonymous"></script>
-  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyADhP-_lXilmbGWpwjRx8reoSWsRKZwBDg&callback=initMap" deferred
-    async></script>
+
   <script type="text/javascript" src="js/latlon-spherical.js"></script>
   <script type="text/javascript" src="js/dms.js"></script>
   <script type="text/javascript" src="radar-config.js"></script>
   <script type="text/javascript" src="radars-finland.js"></script>
   <script type="text/javascript" src="js/radar.js"></script>
   <script type="text/javascript" src="js/wms.js"></script>
-  </script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyADhP-_lXilmbGWpwjRx8reoSWsRKZwBDg&callback=initMap" deferred
+    async></script>
 </head>
 
 <body>
@@ -46,7 +46,7 @@
     </div>
     <div class="infoItem" id="infoItemUpdate">
       <div class="infoLabel">UPDATE</div>
-      <div class="infoValue" id="updateTxt"></div>
+      <div class="infoValue" id="radarTimeTxt"></div>
     </div>
     <div class="infoItem" id="infoItemPosition">
       <div class="infoLabel">POSITION</div>
