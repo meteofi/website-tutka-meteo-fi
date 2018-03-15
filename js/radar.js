@@ -133,7 +133,7 @@ function initMap() {
 function getTimeSteps(site)
 {
 	debug("Get new data for site " + site)
-    $.getJSON("https://tutka.meteo.fi/radar-json-single-v1.php?radar="+site,updateTimeSteps);
+    $.getJSON("https://api.meteo.fi/radar/radar-json-single-v1.php?radar="+site,updateTimeSteps);
 	clearTimeout(radars[site].TIMEOUT);
     radars[site].TIMEOUT = setTimeout(getTimeSteps, 60000, site);
 }
