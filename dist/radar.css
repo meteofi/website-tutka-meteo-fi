@@ -32,8 +32,8 @@
     font-size: 0.9em;
 }
 
-#radarTimeValue {
-    font-size: 2.0em; 
+#radarTimeValue, #currentLocalTimeValue {
+    font-size: 1.5em; 
 }
 
 @media screen {
@@ -70,10 +70,14 @@
     #infoItemCursor, #infoItemRadar, #infoItemRadars, #infoItemLocation, #infoItemMarkers, #infoItemLicense, #infoItemOverlays, .infoLabel {
         display: none;
     }
-    .infoValue {
+
+    #currentLocalTimeValue, #radarTimeValue {
+        display: flex;
+        align-items: center;
+        justify-content: center;
         height: 100%;
     }
-    #radarDateValue {
+    #radarDateValue, #currentDateValue, #currentUTCTimeValue {
         display: none;
     }
 }

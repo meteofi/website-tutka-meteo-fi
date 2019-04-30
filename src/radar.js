@@ -109,7 +109,7 @@ var layers = [
 			url: 'radars-finland.json'
 		})//,
 		//style: function(feature) {
-		//	style.getText().setText(feature.get('name'));
+		//	style.getText().setText(feature.get('acronym'));
 		//	return style;
 		//}
 	}),
@@ -198,7 +198,9 @@ function updateClock() {
 	var utc = moment.utc();
 
 	// set the content of the element with the ID time to the formatted string
-	document.getElementById("currentTimeTxt").innerHTML = [lt.format('l'), lt.format('LTS')+' LT', utc.format('LTS')+" UTC"].join('<br/>');
+	document.getElementById("currentDateValue").innerHTML = lt.format('l');
+	document.getElementById("currentLocalTimeValue").innerHTML = lt.format('LTS') + ' LT';
+	document.getElementById("currentUTCTimeValue").innerHTML = utc.format('LTS') + " UTC";
 
 	// call this function again in 1000ms
 	setTimeout(updateClock, 1000);
@@ -281,12 +283,13 @@ var displayFeatureInfo = function (pixel) {
 	});
 
 	var info = document.getElementById('radarTxt');
-	if (feature) {
-		var distance = getDistance(ownPosition,[24,60]);
-		info.innerHTML = feature.get('acronym') + ': ' + feature.get('name') + ' ' + Math.round(distance/1000) + 'km';
-	} else {
-		info.innerHTML = '&nbsp;';
-	}
+//	if (feature) {
+//		var distance = getDistance(ownPosition,[24,60]);
+//		info.innerHTML = feature.get('acronym') + ': ' + feature.get('name') + ' ' + Math.round(distance/1000) + 'km';
+
+//	} else {
+//		info.innerHTML = '&nbsp;';
+//	}
 
 	if (feature !== highlight) {
 		if (highlight) {
@@ -294,7 +297,7 @@ var displayFeatureInfo = function (pixel) {
 		}
 		if (feature) {
 			featureOverlay.getSource().addFeature(feature);
-			//featureOverlay.getSource().addFeature(circular(feature.getGeometry().getCoordinates(), 240000));
+			//featureOverlay.getSource().addFeature(new Feature(circular(feature.getGeometry().getCoordinates(), 240000)));
 		}
 		highlight = feature;
 	}
