@@ -45,17 +45,17 @@ var style = new Style({
 		color: 'rgba(255, 255, 255, 0.6)'
 	}),
 	stroke: new Stroke({
-		color: '#319FD3',
+		color: '#D32D25',
 		width: 1
 	}),
 	text: new Text({
-		font: '12px Calibri,sans-serif',
+		font: '16px Calibri,sans-serif',
 		fill: new Fill({
-			color: '#000'
+			color: '#fff'
 		}),
 		stroke: new Stroke({
-			color: '#fff',
-			width: 3
+			color: '#000',
+			width: 2
 		})
 	})
 });
