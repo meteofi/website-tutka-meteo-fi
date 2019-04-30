@@ -1,5 +1,5 @@
 import {Map, View} from 'ol';
-import {defaults as defaultControls, FullScreen, MousePosition} from 'ol/control.js';
+import {FullScreen, MousePosition} from 'ol/control.js';
 import TileLayer from 'ol/layer/Tile';
 import ImageLayer from 'ol/layer/Image';
 import VectorLayer from 'ol/layer/Vector';
@@ -267,8 +267,8 @@ var featureOverlay = new VectorLayer({
 	source: new Vector(),
 	map: map,
 	style: function (feature) {
-		highlightStyle.getText().setText(feature.get('name'));
-		return highlightStyle;
+		style.getText().setText(feature.get('name'));
+		return style;
 	}
 });
 var highlight;
