@@ -56,7 +56,9 @@ var style = new Style({
 		stroke: new Stroke({
 			color: '#000',
 			width: 2
-		})
+		}),
+		offsetX: 0,
+		offsetY: -20
 	})
 });
 
