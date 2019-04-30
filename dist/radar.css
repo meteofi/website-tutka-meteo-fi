@@ -71,7 +71,7 @@
         display: none;
     }
 
-    #currentLocalTimeValue, #radarTimeValue {
+    #currentLocalTimeValue, #radarTimeValue, #positionTxt {
         display: flex;
         align-items: center;
         justify-content: center;
