@@ -27,7 +27,8 @@
     html,
     body,
     #map {
-      margin: 0;
+      margin: 0px;
+      padding: 0px;
       height: 100%;
       width: 100%;
       font-family: sans-serif;
@@ -50,7 +51,7 @@
       <div class="infoLabel" id="infoLabelRadar">RADAR</div>
       <div class="infoValue" id="radarTxt"></div>
       <div class="infoValue" id="selectParameter">
-        <table style="width: 100%; text-align: middle;">
+        <table style="width: 100%; text-align: center;">
           <tr>
             <td id="dbz">DBZ</td>
             <td id="vrad">VRAD</td>
@@ -64,25 +65,25 @@
     </div>
     <div class="infoItem" id="infoItemTime">
       <div class="infoLabel">TIME</div>
-      <div class="infoValue" id="currentTimeTxt"><div id="currentDateValue"></div><div id="currentLocalTimeValue"></div><div id="currentUTCTimeValue"></div></div>
-      <span class="tooltiptext">Displays current date, localtime and UTC time.</span>
+      <div class="infoValue" id="currentTimeTxt"><div id="currentDateValue"></div><div class="valueTxtBig" id="currentLocalTimeValue"></div><div id="currentUTCTimeValue"></div></div>
+      <!--span class="tooltiptext">Displays current date, localtime and UTC time.</span-->
     </div>
     <div class="infoItem" id="infoItemUpdate">
       <div class="infoLabel">UPDATE</div>
-      <div class="infoValue" id="radarTimeTxt"><div id="radarDateValue"></div><div id="radarTimeValue"></div>
-      </div>
+      <div class="infoValue" id="radarTimeTxt"><div id="radarDateValue"></div><div class="valueTxtBig" id="radarTimeValue"></div></div>
+      <!--span class="tooltiptext">Displays data time.</span-->
     </div>
     <div class="infoItem" id="infoItemPosition">
       <div class="infoLabel">POSITION</div>
-      <div class="infoValue" id="positionTxt"></div>
-      <span class="tooltiptext">Displays location of the user if allowed.</span>
+      <div class="infoValue" id="positionTxt"><div id="positionLatValue"></div><div id="positionLonValue"></div></div>
+      <!--span class="tooltiptext">Displays location of the user if allowed.</span-->
     </div>
     <div class="infoItem" id="infoItemCursor">
       <div class="infoLabel">CURSOR</div>
-      <div class="infoValue" id="cursorTxt"></div>
-      <div class="infoValue" id="valueTxt"></div>
-      <span class="tooltiptext">Displays coordinates of the pointer. Displays distance and bearing from user to pointer
-        location. Displays distance and bearing from selected radar to pointer location.</span>
+      <div class="infoValue" id="cursorTxt">foo</div>
+      <div class="infoValue" id="valueTxt">baa</div>
+      <!--span class="tooltiptext">Displays coordinates of the pointer. Displays distance and bearing from user to pointer
+        location. Displays distance and bearing from selected radar to pointer location.</span-->
     </div>
   </div>
   <script src="./radar.js"></script>

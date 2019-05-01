@@ -151,7 +151,8 @@ navigator.geolocation.watchPosition(function(pos) {
 	const coords = [pos.coords.longitude, pos.coords.latitude];
 	ownPosition = coords;
 	const accuracy = circular(coords, pos.coords.accuracy);
-	document.getElementById("positionTxt").innerHTML = "&#966; " + Dms.toLat(pos.coords.latitude, "dm", 3) + "<br/>" + "&#955; " + Dms.toLon(pos.coords.longitude, "dm", 3);
+	document.getElementById("positionLatValue").innerHTML = "&#966; " + Dms.toLat(pos.coords.latitude, "dm", 3);
+	document.getElementById("positionLonValue").innerHTML = "&#955; " + Dms.toLon(pos.coords.longitude, "dm", 3);
 	//document.getElementById("infoItemPosition").style.display = "initial";
   layers[4].getSource().clear(true);
   layers[4].getSource().addFeatures([
