@@ -22,7 +22,7 @@ var DEBUG = true;
 var metLatitude  = localStorage.getItem("metLatitude")  ? localStorage.getItem("metLatitude")  : 60.2706;
 var metLongitude = localStorage.getItem("metLongitude") ? localStorage.getItem("metLongitude") : 24.8725;
 var metRadarLayer = localStorage.getItem("metRadarLayer") ? localStorage.getItem("metRadarLayer") : "MeteoFI:radar_finland_dbz";
-var ownPosition;
+var ownPosition = [];
 var startDate = threeHoursAgo();
 var frameRate = 0.5; // frames per second
 var animationId = null;
@@ -132,14 +132,26 @@ var layers = [
 
 ]; // layers
 
+
+function mouseCoordinateFormat (coordinate) {
+	var distance = getDistance(coordinate,ownPosition);
+	var distance_km = distance/1000;
+	var distance_nm = distance/1852;
+	document.getElementById("infoItemCursor").style.display = "block";
+	document.getElementById("cursorDistanceValueKM").innerHTML = distance_km.toFixed(3) + " km";
+	document.getElementById("cursorDistanceValueNM").innerHTML = distance_nm.toFixed(3) + " NM";
+	return Dms.toLat(coordinate[1], "dm", 3) + " " + Dms.toLon(coordinate[0], "dm", 3);
+
+}
+
 var mousePositionControl = new MousePosition({
-	coordinateFormat: createStringXY(4),
+	coordinateFormat: mouseCoordinateFormat,
 	projection: 'EPSG:4326',
 	// comment the following two lines to have the mouse position
 	// be placed within the map.
-	//className: 'custom-mouse-position',
-	//target: document.getElementById('mouse-position'),
-	undefinedHTML: '&nbsp;'
+	className: 'custom-mouse-position',
+	target: document.getElementById('cursorTxt'),
+	undefinedHTML: 'Cursor not on map'
 });
 
 const map = new Map({
@@ -164,7 +176,9 @@ navigator.geolocation.watchPosition(function(pos) {
 	const accuracy = circular(coords, pos.coords.accuracy);
 	document.getElementById("positionLatValue").innerHTML = "&#966; " + Dms.toLat(pos.coords.latitude, "dm", 3);
 	document.getElementById("positionLonValue").innerHTML = "&#955; " + Dms.toLon(pos.coords.longitude, "dm", 3);
-	//document.getElementById("infoItemPosition").style.display = "initial";
+	document.getElementById("infoItemPosition").style.display = "block";
+	document.getElementById("cursorDistanceTxtKM").style.display = "block";
+	document.getElementById("cursorDistanceTxtNM").style.display = "block";
   layers[4].getSource().clear(true);
   layers[4].getSource().addFeatures([
     new Feature(accuracy.transform('EPSG:4326', map.getView().getProjection())),
@@ -232,8 +246,10 @@ var play = function () {
 };
 
 // Start Animation
-//document.getElementById("infoItemPosition").style.display = "none";
-
+document.getElementById("infoItemPosition").style.display = "none";
+document.getElementById("infoItemCursor").style.display = "none";
+document.getElementById("cursorDistanceTxtKM").style.display = "none";
+document.getElementById("cursorDistanceTxtNM").style.display = "none";
 play();
 updateClock();
 updateLayerInfo();
