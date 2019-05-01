@@ -81,6 +81,16 @@ readWMSCapabilities();
 		})
 	});
 
+	// Lightning Layer
+	var lightningLayer = new ImageLayer({
+		source: new ImageWMS({
+			url: 'https://wms.meteo.fi/geoserver/wms',
+			params: { 'LAYERS': 'observation:lightning' },
+			ratio: 1,
+			serverType: 'geoserver'
+		})
+	});
+
 var layers = [
 
 	new TileLayer({
@@ -92,7 +102,8 @@ var layers = [
 		})
 	}),
 
-  radarLayer,
+	radarLayer,
+	lightningLayer,
 
 	new TileLayer({
 		source: new XYZ({
@@ -169,11 +180,12 @@ function updateLayer(layer) {
 	radarLayer.getSource().updateParams({ 'LAYERS': layer });
 }
 
-function setLayerTime (layer, time) {
+function setLayerTime(layer, time) {
 	layer.getSource().updateParams({ 'TIME': time });
-  
-	document.getElementById("radarDateValue").innerHTML = moment(time).format('l');
-	document.getElementById("radarTimeValue").innerHTML = moment(time).format('LT');
+	if (moment(time).isValid()) {
+		document.getElementById("radarDateValue").innerHTML = moment(time).format('l');
+		document.getElementById("radarTimeValue").innerHTML = moment(time).format('LT');
+	}
 }
 
 function setTime() {
@@ -185,6 +197,7 @@ function setTime() {
 	}
 
 	setLayerTime(radarLayer,startDate.toISOString());
+	setLayerTime(lightningLayer,'PT5M/'+startDate.toISOString());
 }
 
 var stop = function () {
