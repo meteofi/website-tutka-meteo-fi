@@ -13,7 +13,7 @@ import Feature from 'ol/Feature';
 import {circular} from 'ol/geom/Polygon';
 import {getDistance} from 'ol/sphere.js';
 import Point from 'ol/geom/Point';
-import {Fill, Stroke, Style, Text} from 'ol/style.js';
+import {Circle as CircleStyle, Fill, Stroke, Style, Text} from 'ol/style.js';
 import Dms from 'geodesy/dms.js';
 import WMSCapabilities from 'ol/format/WMSCapabilities.js';
 import { connect } from 'mqtt';
@@ -27,11 +27,18 @@ var startDate = threeHoursAgo();
 var frameRate = 0.5; // frames per second
 var animationId = null;
 var moment = require('moment');
+moment.locale('fi');
 var layerInfo = {};
 const client  = connect('wss://meri.digitraffic.fi:61619/mqtt',{username: 'digitraffic', password: 'digitrafficPassword'});
-moment.locale('fi');
+const WMSURL = "https://wms.meteo.fi/geoserver/wms";
 
 
+
+var image = new CircleStyle({
+	radius: 5,
+	fill: null,
+	stroke: new Stroke({color: 'red', width: 2})
+});
 
 
 function debug(str)
@@ -45,8 +52,32 @@ function debug(str)
 }
 
 var style = new Style({
+
 	fill: new Fill({
 		color: 'rgba(255, 255, 255, 0.6)'
+	}),
+	stroke: new Stroke({
+		color: '#D32D25',
+		width: 1
+	}),
+	text: new Text({
+		font: '16px Calibri,sans-serif',
+		fill: new Fill({
+			color: '#fff'
+		}),
+		stroke: new Stroke({
+			color: '#000',
+			width: 2
+		}),
+		offsetX: 0,
+		offsetY: -20
+	})
+});
+
+var vesselStyle = new Style({
+	image: image,
+	fill: new Fill({
+		color: 'rgba(255, 0, 0, 0.6)'
 	}),
 	stroke: new Stroke({
 		color: '#D32D25',
@@ -78,7 +109,7 @@ function threeHoursAgo() {
 	var radarLayer = new ImageLayer({
 		opacity: 0.7,
 		source: new ImageWMS({
-			url: 'https://wms.meteo.fi/geoserver/wms',
+			url: WMSURL,
 			//params: { 'LAYERS': metRadarLayer, 'STYLES': 'radar_finland_bookbinder' },
 			params: { 'LAYERS': metRadarLayer },
 			ratio: 1,
@@ -89,7 +120,7 @@ function threeHoursAgo() {
 	// Lightning Layer
 	var lightningLayer = new ImageLayer({
 		source: new ImageWMS({
-			url: 'https://wms.meteo.fi/geoserver/wms',
+			url: WMSURL,
 			params: { 'LAYERS': 'observation:lightning' },
 			ratio: 1,
 			serverType: 'geoserver'
@@ -97,7 +128,11 @@ function threeHoursAgo() {
 	});
 
 	var smpsLayer = new VectorLayer({
-		source: new Vector()
+		source: new Vector(),
+		style: function(feature) {
+			vesselStyle.getText().setText(feature.get('heading')+"° " + feature.get('sog')+"kn");
+			return vesselStyle;
+		}
 	});
 
 var layers = [
@@ -422,15 +457,13 @@ debug(event);
 function readWMSCapabilities() {
 	var parser = new WMSCapabilities();
 	debug("Get WMS Capabilities");
-	fetch('https://wms.meteo.fi/geoserver/ows?service=wms&version=1.3.0&request=GetCapabilities').then(function (response) {
+	fetch(WMSURL + '?version=1.3.0&request=GetCapabilities').then(function (response) {
 		return response.text();
 	}).then(function (text) {
 		debug("Received WMS Capabilities");
 		var result = parser.read(text);
 		getLayers(result.Capability.Layer.Layer);
 		play();
-	//	debug(products);
-	//	return products;
 	});
 }
 
