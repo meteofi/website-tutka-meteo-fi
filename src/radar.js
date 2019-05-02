@@ -105,9 +105,48 @@ function threeHoursAgo() {
 
 // Setup Layers
 
+
+var lightGrayBaseLayer = new TileLayer({
+	visible: false,
+	source: new XYZ({
+		attributions: 'Tiles © <a href="https://services.arcgisonline.com/ArcGIS/' +
+			'rest/services/Canvas/World_Light_Gray_Base/MapServer">ArcGIS</a>',
+		url: 'https://server.arcgisonline.com/ArcGIS/rest/services/' +
+			'Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}'
+	})
+});
+
+var lightGrayReferenceLayer = new TileLayer({
+	visible: false,
+	source: new XYZ({
+		attributions: 'Tiles © <a href="https://services.arcgisonline.com/ArcGIS/' +
+			'rest/services/Canvas/World_Light_Gray_Reference/MapServer">ArcGIS</a>',
+		url: 'https://server.arcgisonline.com/ArcGIS/rest/services/' +
+			'Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}'
+	})
+});
+
+var darkGrayBaseLayer = new TileLayer({
+	source: new XYZ({
+		attributions: 'Tiles © <a href="https://services.arcgisonline.com/ArcGIS/' +
+			'rest/services/Canvas/World_Dark_Gray_Base/MapServer">ArcGIS</a>',
+		url: 'https://server.arcgisonline.com/ArcGIS/rest/services/' +
+			'Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}'
+	})
+});
+
+var darkGrayReferenceLayer = new TileLayer({
+	source: new XYZ({
+		attributions: 'Tiles © <a href="https://services.arcgisonline.com/ArcGIS/' +
+			'rest/services/Canvas/World_Dark_Gray_Reference/MapServer">ArcGIS</a>',
+		url: 'https://server.arcgisonline.com/ArcGIS/rest/services/' +
+			'Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}'
+	})
+});
+
 	// Radar Layer
 	var radarLayer = new ImageLayer({
-		opacity: 0.7,
+		opacity: 0.6,
 		source: new ImageWMS({
 			url: WMSURL,
 			//params: { 'LAYERS': metRadarLayer, 'STYLES': 'radar_finland_bookbinder' },
@@ -138,26 +177,13 @@ function threeHoursAgo() {
 
 var layers = [
 
-	new TileLayer({
-		source: new XYZ({
-			attributions: 'Tiles © <a href="https://services.arcgisonline.com/ArcGIS/' +
-				'rest/services/Canvas/World_Dark_Gray_Base/MapServer">ArcGIS</a>',
-			url: 'https://server.arcgisonline.com/ArcGIS/rest/services/' +
-				'Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}'
-		})
-	}),
-
+	lightGrayBaseLayer,
+	darkGrayBaseLayer,
 	radarLayer,
 	lightningLayer,
 
-	new TileLayer({
-		source: new XYZ({
-			attributions: 'Tiles © <a href="https://services.arcgisonline.com/ArcGIS/' +
-				'rest/services/Canvas/World_Dark_Gray_Reference/MapServer">ArcGIS</a>',
-			url: 'https://server.arcgisonline.com/ArcGIS/rest/services/' +
-				'Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}'
-		})
-	}),
+	lightGrayReferenceLayer,
+	darkGrayReferenceLayer,
 
 	new VectorLayer({
 		source: new Vector({
@@ -225,8 +251,8 @@ navigator.geolocation.watchPosition(function(pos) {
 	document.getElementById("infoItemPosition").style.display = "block";
 	document.getElementById("cursorDistanceTxtKM").style.display = "block";
 	document.getElementById("cursorDistanceTxtNM").style.display = "block";
-  layers[5].getSource().clear(true);
-  layers[5].getSource().addFeatures([
+  layers[7].getSource().clear(true);
+  layers[7].getSource().addFeatures([
     new Feature(accuracy.transform('EPSG:4326', map.getView().getProjection())),
     new Feature(new Point(fromLonLat(coords)))
   ]);
@@ -340,6 +366,26 @@ client.on("message", function (topic, payload) {
 });
 
 	play();
+
+document.getElementById('darkBase').addEventListener('click', function(event) {
+		debug("darkBase")
+		event.target.classList.add("selected");
+		document.getElementById("lightBase").classList.remove("selected");
+		darkGrayBaseLayer.setVisible(true);
+		darkGrayReferenceLayer.setVisible(true);
+		lightGrayBaseLayer.setVisible(false);
+		lightGrayReferenceLayer.setVisible(false);
+});
+
+document.getElementById('lightBase').addEventListener('click', function(event) {
+	debug("lightBase")
+	event.target.classList.add("selected");
+	document.getElementById("darkBase").classList.remove("selected");
+	darkGrayBaseLayer.setVisible(false);
+	darkGrayReferenceLayer.setVisible(false);
+	lightGrayBaseLayer.setVisible(true);
+	lightGrayReferenceLayer.setVisible(true);
+});
 
 document.getElementById('dbz').addEventListener('click', function(event) {
 	debug("DBZ")
