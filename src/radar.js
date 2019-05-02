@@ -31,7 +31,7 @@ moment.locale('fi');
 var layerInfo = {};
 const client  = connect('wss://meri.digitraffic.fi:61619/mqtt',{username: 'digitraffic', password: 'digitrafficPassword'});
 const WMSURL = "https://wms.meteo.fi/geoserver/wms";
-
+var trackedVessels = {'230994270': {}, '230939100': {}, '230051170': {}, '230059740': {}, '276813000': {} };
 
 
 var image = new CircleStyle({
@@ -129,6 +129,7 @@ function threeHoursAgo() {
 
 	var smpsLayer = new VectorLayer({
 		source: new Vector(),
+		visible: false,
 		style: function(feature) {
 			vesselStyle.getText().setText(feature.get('heading')+"° " + feature.get('sog')+"kn");
 			return vesselStyle;
@@ -250,15 +251,17 @@ function setLayerTime(layer, time) {
 }
 
 function setTime() {
-	var resolution = layerInfo[metRadarLayer].time.resolution;
-	startDate.setMinutes(startDate.getMinutes() + resolution / 60000);
+	if (typeof (layerInfo[metRadarLayer]) !== "undefined") {
+		var resolution = layerInfo[metRadarLayer].time.resolution;
+		startDate.setMinutes(startDate.getMinutes() + resolution / 60000);
 
-	if (startDate.getTime() > layerInfo[metRadarLayer].time.end) {
-		startDate = new Date(Math.round(Date.now() / resolution) * resolution - resolution * 12);
+		if (startDate.getTime() > layerInfo[metRadarLayer].time.end) {
+			startDate = new Date(Math.round(Date.now() / resolution) * resolution - resolution * 12);
+		}
+
+		setLayerTime(radarLayer, startDate.toISOString());
+		setLayerTime(lightningLayer, 'PT5M/' + startDate.toISOString());
 	}
-
-	setLayerTime(radarLayer,startDate.toISOString());
-	setLayerTime(lightningLayer,'PT5M/'+startDate.toISOString());
 }
 
 var stop = function () {
@@ -311,28 +314,44 @@ document.getElementById("cursorDistanceTxtNM").style.display = "none";
 updateClock();
 updateLayerInfo();
 
-client.subscribe("vessels/230994270/locations");
+Object.keys(trackedVessels).forEach(function (item) {
+	debug("Subscribed vessel " + item + " locations");
+	client.subscribe("vessels/" + item + "/locations");
+});
+
+//client.subscribe("vessels/230994270/locations");
 //client.subscribe("vessels/230939100/locations");
- 
-  client.on("message", function (topic, payload) {
-		var vessel = JSON.parse(payload.toString());
-		//debug(vessel);
-		var format = new GeoJSON({
-			dataProjection: 'EPSG:4326',
-			featureProjection:"EPSG:3857"
-			});
-		smpsLayer.getSource().clear(true);
-		smpsLayer.getSource().addFeature(format.readFeature(vessel));
-    //client.end()
-  });
+
+client.on("message", function (topic, payload) {
+	var vessel = JSON.parse(payload.toString());
+	//debug(vessel);
+	var format = new GeoJSON({
+		dataProjection: 'EPSG:4326',
+		featureProjection: "EPSG:3857"
+	});
+	trackedVessels[vessel.mmsi] = vessel;
+	smpsLayer.getSource().clear(true);
+	Object.keys(trackedVessels).forEach(function (item) {
+		if (typeof trackedVessels[item].mmsi !== "undefined") {
+			smpsLayer.getSource().addFeature(format.readFeature(trackedVessels[item]));
+		}
+	});
+	//client.end()
+});
+
+	play();
 
 document.getElementById('dbz').addEventListener('click', function(event) {
 	debug("DBZ")
+	event.target.classList.add("selected");
+	document.getElementById("rate").classList.remove("selected");
 	updateLayer("MeteoFI:radar_finland_dbz");
 });
 
-document.getElementById('vrad').addEventListener('click', function(event) {
+document.getElementById('rate').addEventListener('click', function(event) {
 	debug("RR")
+	event.target.classList.add("selected");
+	document.getElementById("dbz").classList.remove("selected");
 	updateLayer("MeteoFI:radar_finland_rr");
 });
 
@@ -406,6 +425,16 @@ var displayFeatureInfo = function (pixel) {
 
 };
 
+function toggleLayerVisibility(layer) {
+	var visibility = layer.getVisible();
+	if (visibility == false) {
+		layer.setVisible(true);
+	}
+	if (visibility == true) {
+		layer.setVisible(false);
+	}
+}
+
 function geoLocationFail(error) {
 	switch (error.code) {
 	case error.PERMISSION_DENIED:
@@ -457,14 +486,15 @@ map.on('click', function(evt) {
 
 document.addEventListener('keyup', function (event) {
 	if (event.defaultPrevented) {
-			return;
+		return;
 	}
 
 	var key = event.key || event.keyCode;
-debug(event);
+	debug(event);
 	if (key === ' ' || key === 'Space' || key === 32) {
-
 		playstop();
+	} else if (key === 's' || key === 'KeyS' || key === 83) {
+		toggleLayerVisibility(smpsLayer);
 	}
 });
 
@@ -477,7 +507,7 @@ function readWMSCapabilities() {
 		debug("Received WMS Capabilities");
 		var result = parser.read(text);
 		getLayers(result.Capability.Layer.Layer);
-		play();
+
 	});
 }
 
