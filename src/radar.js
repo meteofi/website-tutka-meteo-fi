@@ -238,6 +238,7 @@ navigator.geolocation.watchPosition(function(pos) {
 function updateLayer(layer) {
 	metRadarLayer=layer;
 	radarLayer.getSource().updateParams({ 'LAYERS': layer });
+	//gtag('event', 'screen_view', { 'screen_name': layer});
 }
 
 function setLayerTime(layer, time) {
