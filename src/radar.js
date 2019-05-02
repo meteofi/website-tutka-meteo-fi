@@ -236,6 +236,7 @@ navigator.geolocation.watchPosition(function(pos) {
 });
 
 function updateLayer(layer) {
+	metRadarLayer=layer;
 	radarLayer.getSource().updateParams({ 'LAYERS': layer });
 }
 
@@ -326,12 +327,12 @@ client.subscribe("vessels/230994270/locations");
 
 document.getElementById('dbz').addEventListener('click', function(event) {
 	debug("DBZ")
-	updateLayer(metRadarLayer);
+	updateLayer("MeteoFI:radar_finland_dbz");
 });
 
 document.getElementById('vrad').addEventListener('click', function(event) {
 	debug("RR")
-	updateLayer(metRadarLayer);
+	updateLayer("MeteoFI:radar_finland_rr");
 });
 
 
