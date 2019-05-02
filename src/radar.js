@@ -84,7 +84,7 @@ var vesselStyle = new Style({
 		width: 1
 	}),
 	text: new Text({
-		font: '16px Calibri,sans-serif',
+		font: '14px Calibri,sans-serif',
 		fill: new Fill({
 			color: '#fff'
 		}),
@@ -294,8 +294,10 @@ var playstop = function () {
 	if (animationId !== null) {
 		window.clearInterval(animationId);
 		animationId = null;
+		document.getElementById("playstop").innerHTML = "play_arrow";
 	} else {
 		animationId = window.setInterval(setTime, 500);
+		document.getElementById("playstop").innerHTML = "pause";
 	}
 };
 
@@ -331,6 +333,8 @@ document.getElementById('vrad').addEventListener('click', function(event) {
 	debug("RR")
 	updateLayer(metRadarLayer);
 });
+
+
 
 
     // Start Position Watch
@@ -427,7 +431,15 @@ function geoLocationUpdate(location) {
 //	$('#infoItemPosition').show();
 }
 
-// Events
+//
+// EVENTS
+//
+
+document.getElementById('playstop').addEventListener('click', function(event) {
+	debug("playstop");
+	playstop();
+});
+
 
 map.on('pointermove', function(evt) {
 	if (evt.dragging) {
