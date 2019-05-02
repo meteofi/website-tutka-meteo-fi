@@ -14,6 +14,7 @@
     "geodesy": "^2.0.1",
     "moment": "^2.24.0",
     "moment-locales-webpack-plugin": "^1.0.7",
+    "mqtt": "^2.18.8",
     "ol": "^5.1.2",
     "ol-hashed": "^2.0.0"
   }

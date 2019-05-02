@@ -13,10 +13,10 @@ import Feature from 'ol/Feature';
 import {circular} from 'ol/geom/Polygon';
 import {getDistance} from 'ol/sphere.js';
 import Point from 'ol/geom/Point';
-import {createStringXY} from 'ol/coordinate.js';
 import {Fill, Stroke, Style, Text} from 'ol/style.js';
 import Dms from 'geodesy/dms.js';
 import WMSCapabilities from 'ol/format/WMSCapabilities.js';
+import { connect } from 'mqtt';
 
 var DEBUG = true;
 var metLatitude  = localStorage.getItem("metLatitude")  ? localStorage.getItem("metLatitude")  : 60.2706;
@@ -28,7 +28,11 @@ var frameRate = 0.5; // frames per second
 var animationId = null;
 var moment = require('moment');
 var layerInfo = {};
+const client  = connect('wss://meri.digitraffic.fi:61619/mqtt',{username: 'digitraffic', password: 'digitrafficPassword'});
 moment.locale('fi');
+
+
+
 
 function debug(str)
 {
@@ -66,8 +70,9 @@ function threeHoursAgo() {
 	return new Date(Math.round(Date.now() / 3600000) * 3600000 - 3600000 * 1);
 }
 
-readWMSCapabilities();
+//readWMSCapabilities();
 
+// Setup Layers
 
 	// Radar Layer
 	var radarLayer = new ImageLayer({
@@ -89,6 +94,10 @@ readWMSCapabilities();
 			ratio: 1,
 			serverType: 'geoserver'
 		})
+	});
+
+	var smpsLayer = new VectorLayer({
+		source: new Vector()
 	});
 
 var layers = [
@@ -120,7 +129,7 @@ var layers = [
 			url: 'radars-finland.json'
 		})//,
 		//style: function(feature) {
-		//	style.getText().setText(feature.get('acronym'));
+		//	style.getText().setText(feature.get('mmsi'));
 		//	return style;
 		//}
 	}),
@@ -128,7 +137,9 @@ var layers = [
 
 	new VectorLayer({
 		source: new Vector()
-	})
+	}),
+
+	smpsLayer
 
 ]; // layers
 
@@ -137,7 +148,6 @@ function mouseCoordinateFormat (coordinate) {
 	var distance = getDistance(coordinate,ownPosition);
 	var distance_km = distance/1000;
 	var distance_nm = distance/1852;
-	document.getElementById("infoItemCursor").style.display = "block";
 	document.getElementById("cursorDistanceValueKM").innerHTML = distance_km.toFixed(3) + " km";
 	document.getElementById("cursorDistanceValueNM").innerHTML = distance_nm.toFixed(3) + " NM";
 	return Dms.toLat(coordinate[1], "dm", 3) + " " + Dms.toLon(coordinate[0], "dm", 3);
@@ -179,8 +189,8 @@ navigator.geolocation.watchPosition(function(pos) {
 	document.getElementById("infoItemPosition").style.display = "block";
 	document.getElementById("cursorDistanceTxtKM").style.display = "block";
 	document.getElementById("cursorDistanceTxtNM").style.display = "block";
-  layers[4].getSource().clear(true);
-  layers[4].getSource().addFeatures([
+  layers[5].getSource().clear(true);
+  layers[5].getSource().addFeatures([
     new Feature(accuracy.transform('EPSG:4326', map.getView().getProjection())),
     new Feature(new Point(fromLonLat(coords)))
   ]);
@@ -245,16 +255,37 @@ var play = function () {
 	animationId = window.setInterval(setTime, 500);
 };
 
+var playstop = function () {
+	if (animationId !== null) {
+		window.clearInterval(animationId);
+		animationId = null;
+	} else {
+		animationId = window.setInterval(setTime, 500);
+	}
+};
+
 // Start Animation
 document.getElementById("infoItemPosition").style.display = "none";
-document.getElementById("infoItemCursor").style.display = "none";
 document.getElementById("cursorDistanceTxtKM").style.display = "none";
 document.getElementById("cursorDistanceTxtNM").style.display = "none";
-play();
+
 updateClock();
 updateLayerInfo();
 
-
+client.subscribe("vessels/230994270/locations");
+//client.subscribe("vessels/230939100/locations");
+ 
+  client.on("message", function (topic, payload) {
+		var vessel = JSON.parse(payload.toString());
+		//debug(vessel);
+		var format = new GeoJSON({
+			dataProjection: 'EPSG:4326',
+			featureProjection:"EPSG:3857"
+			});
+		smpsLayer.getSource().clear(true);
+		smpsLayer.getSource().addFeature(format.readFeature(vessel));
+    //client.end()
+  });
 
 document.getElementById('dbz').addEventListener('click', function(event) {
 	debug("DBZ")
@@ -376,7 +407,6 @@ map.on('click', function(evt) {
 });
 
 document.addEventListener('keyup', function (event) {
-	debug("stop");
 	if (event.defaultPrevented) {
 			return;
 	}
@@ -385,17 +415,20 @@ document.addEventListener('keyup', function (event) {
 debug(event);
 	if (key === ' ' || key === 'Space' || key === 32) {
 
-		stop();
+		playstop();
 	}
 });
 
 function readWMSCapabilities() {
 	var parser = new WMSCapabilities();
+	debug("Get WMS Capabilities");
 	fetch('https://wms.meteo.fi/geoserver/ows?service=wms&version=1.3.0&request=GetCapabilities').then(function (response) {
 		return response.text();
 	}).then(function (text) {
+		debug("Received WMS Capabilities");
 		var result = parser.read(text);
-		getLayers(result.Capability.Layer.Layer)
+		getLayers(result.Capability.Layer.Layer);
+		play();
 	//	debug(products);
 	//	return products;
 	});
@@ -415,7 +448,7 @@ function getLayers(parentlayer) {
 }
 
 function getLayerInfo(layer) {
-	console.log('Title: ' + layer.Title + ' Name: ' + layer.Name)
+	//console.log('Title: ' + layer.Title + ' Name: ' + layer.Name)
 	let product =
 	{
 		title: layer.Title,
@@ -464,6 +497,6 @@ function getTimeDimension(dimensions) {
 	}) // forEach
 	var currentTime = new Date().getTime()
 	var type = endTime > currentTime ? "for" : "obs"
-	console.log("start: " + beginTime + " end: " + endTime + " resolution: " + resolutionTime + " type: " + type + " default: " + defaultTime)
+	//console.log("start: " + beginTime + " end: " + endTime + " resolution: " + resolutionTime + " type: " + type + " default: " + defaultTime)
 	return { start: beginTime, end: endTime, resolution: resolutionTime, type: type, default: defaultTime }
 }
