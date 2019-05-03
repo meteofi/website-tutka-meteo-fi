@@ -59,8 +59,12 @@
     <div class="infoItem" id="infoItemRadar">
       <div class="infoLabel" id="infoLabelRadar">RADAR</div>
       <!--div class="infoValue" id="radarTxt"></div-->
-      <div class="infoValue flexColumn" id="selectParameter"><div id="dbz" class="selected flexCell">DBZ</div><div id="rate" class="flexCell">RATE</div>      </div>
+      <div class="infoValue flexColumn" id="radarLayer"><div id="radarOff" class="flexCell">OFF</div><div id="MeteoFI:radar_finland_dbz" class="selected flexCell">DBZ</div><div id="MeteoFI:radar_finland_rr" class="flexCell">RATE</div><!--div id="MeteoFI:radar_finland_rr1h" class="flexCell">RR1H</div--></div>
     </div>
+    <div class="infoItem" id="infoItemObservation">
+        <div class="infoLabel" id="infoLabelObservation">OBSERVATION</div>
+        <div class="infoValue flexColumn" id="observationLayer"><div id="obsOff" class="flexCell selected">OFF</div><div id="observation:air_temperature" class="flexCell">TMP</div><div id="observation:wind_speed" class="flexCell">WIND</div></div>
+      </div>
     <div class="infoItem" id="infoItemTime">
       <div class="infoLabel">TIME</div>
       <div class="infoValue" id="currentTimeTxt"><div id="currentDateValue"></div><div class="valueTxtBig" id="currentLocalTimeValue"></div><div id="currentUTCTimeValue"></div></div>
@@ -74,7 +78,7 @@
     </div>
     <div class="infoItem" id="infoItemPosition">
       <div class="infoLabel">POSITION</div>
-      <div class="infoValue" id="positionTxt"><div id="positionLatValue"></div><div id="positionLonValue"></div></div>
+      <div class="infoValue" id="positionTxt"><div id="positionLatValue">φ 00° 00.000′ N</div><div id="positionLonValue">λ 000° 00.000′ E</div></div>
       <!--span class="tooltiptext">Displays location of the user if allowed.</span-->
     </div>
     <div class="infoItem" id="infoItemCursor">

@@ -146,7 +146,7 @@ var darkGrayReferenceLayer = new TileLayer({
 
 	// Radar Layer
 	var radarLayer = new ImageLayer({
-		opacity: 0.6,
+		opacity: 0.7,
 		source: new ImageWMS({
 			url: WMSURL,
 			//params: { 'LAYERS': metRadarLayer, 'STYLES': 'radar_finland_bookbinder' },
@@ -166,6 +166,17 @@ var darkGrayReferenceLayer = new TileLayer({
 		})
 	});
 
+	// Observation Layer
+	var observationLayer = new ImageLayer({
+		visible: false,
+		source: new ImageWMS({
+			url: WMSURL,
+			params: { 'LAYERS': 'observation:air_temperature' },
+			ratio: 1,
+			serverType: 'geoserver'
+		})
+	});
+
 	var smpsLayer = new VectorLayer({
 		source: new Vector(),
 		visible: false,
@@ -175,12 +186,18 @@ var darkGrayReferenceLayer = new TileLayer({
 		}
 	});
 
+var layerss = {
+	"radarLayer": radarLayer,
+	"observationLayer": observationLayer,
+}
+
 var layers = [
 
 	lightGrayBaseLayer,
 	darkGrayBaseLayer,
 	radarLayer,
 	lightningLayer,
+	observationLayer,
 
 	lightGrayReferenceLayer,
 	darkGrayReferenceLayer,
@@ -248,11 +265,11 @@ navigator.geolocation.watchPosition(function(pos) {
 	const accuracy = circular(coords, pos.coords.accuracy);
 	document.getElementById("positionLatValue").innerHTML = "&#966; " + Dms.toLat(pos.coords.latitude, "dm", 3);
 	document.getElementById("positionLonValue").innerHTML = "&#955; " + Dms.toLon(pos.coords.longitude, "dm", 3);
-	document.getElementById("infoItemPosition").style.display = "block";
+	//document.getElementById("infoItemPosition").style.display = "block";
 	document.getElementById("cursorDistanceTxtKM").style.display = "block";
 	document.getElementById("cursorDistanceTxtNM").style.display = "block";
-  layers[7].getSource().clear(true);
-  layers[7].getSource().addFeatures([
+  layers[8].getSource().clear(true);
+  layers[8].getSource().addFeatures([
     new Feature(accuracy.transform('EPSG:4326', map.getView().getProjection())),
     new Feature(new Point(fromLonLat(coords)))
   ]);
@@ -262,9 +279,9 @@ navigator.geolocation.watchPosition(function(pos) {
   enableHighAccuracy: true
 });
 
-function updateLayer(layer) {
-	metRadarLayer=layer;
-	radarLayer.getSource().updateParams({ 'LAYERS': layer });
+function updateLayer(layer,wmslayer) {
+	metRadarLayer=wmslayer;
+	layer.getSource().updateParams({ 'LAYERS': wmslayer });
 	//gtag('event', 'screen_view', { 'screen_name': layer});
 }
 
@@ -287,6 +304,7 @@ function setTime() {
 
 		setLayerTime(radarLayer, startDate.toISOString());
 		setLayerTime(lightningLayer, 'PT5M/' + startDate.toISOString());
+		setLayerTime(observationLayer, startDate.toISOString());
 	}
 }
 
@@ -333,7 +351,7 @@ var playstop = function () {
 };
 
 // Start Animation
-document.getElementById("infoItemPosition").style.display = "none";
+//document.getElementById("infoItemPosition").style.display = "none";
 document.getElementById("cursorDistanceTxtKM").style.display = "none";
 document.getElementById("cursorDistanceTxtNM").style.display = "none";
 
@@ -367,17 +385,17 @@ client.on("message", function (topic, payload) {
 
 	play();
 
-document.getElementById('darkBase').addEventListener('click', function(event) {
-		debug("darkBase")
-		event.target.classList.add("selected");
-		document.getElementById("lightBase").classList.remove("selected");
-		darkGrayBaseLayer.setVisible(true);
-		darkGrayReferenceLayer.setVisible(true);
-		lightGrayBaseLayer.setVisible(false);
-		lightGrayReferenceLayer.setVisible(false);
+document.getElementById('darkBase').addEventListener('click', function (event) {
+	debug("darkBase")
+	event.target.classList.add("selected");
+	document.getElementById("lightBase").classList.remove("selected");
+	darkGrayBaseLayer.setVisible(true);
+	darkGrayReferenceLayer.setVisible(true);
+	lightGrayBaseLayer.setVisible(false);
+	lightGrayReferenceLayer.setVisible(false);
 });
 
-document.getElementById('lightBase').addEventListener('click', function(event) {
+document.getElementById('lightBase').addEventListener('click', function (event) {
 	debug("lightBase")
 	event.target.classList.add("selected");
 	document.getElementById("darkBase").classList.remove("selected");
@@ -387,22 +405,34 @@ document.getElementById('lightBase').addEventListener('click', function(event) {
 	lightGrayReferenceLayer.setVisible(true);
 });
 
-document.getElementById('dbz').addEventListener('click', function(event) {
-	debug("DBZ")
-	event.target.classList.add("selected");
-	document.getElementById("rate").classList.remove("selected");
-	updateLayer("MeteoFI:radar_finland_dbz");
-});
+function removeSelectedParameter (selector) {
+	var els = document.querySelectorAll(selector);
+	els.forEach(function(elem) {
+    elem.classList.remove('selected');
+	});
+}
 
-document.getElementById('rate').addEventListener('click', function(event) {
-	debug("RR")
-	event.target.classList.add("selected");
-	document.getElementById("dbz").classList.remove("selected");
-	updateLayer("MeteoFI:radar_finland_rr");
-});
+function addEventListeners(selector) {
+	let elementsArray = document.querySelectorAll(selector);
+	elementsArray.forEach(function (elem) {
+		debug("Activated event listener for " + elem);
+		elem.addEventListener("click", function () {
+			removeSelectedParameter("#" + event.target.parentElement.id + " > div");
+			event.target.classList.add("selected");
+			if (event.target.id.indexOf("Off") !== -1) {
+				debug("Deactivated layer " + event.target.parentElement.id);
+				layerss[event.target.parentElement.id].setVisible(false);
+			} else {
+				debug("Activated layer " + event.target.id);
+				updateLayer(layerss[event.target.parentElement.id], event.target.id);
+				layerss[event.target.parentElement.id].setVisible(true);
+			}
+		});
+	});
+}
 
-
-
+addEventListeners("#radarLayer > div");
+addEventListeners("#observationLayer > div");
 
     // Start Position Watch
  //   if ("geolocation" in navigator) {
