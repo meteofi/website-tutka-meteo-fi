@@ -576,7 +576,7 @@ document.addEventListener('keyup', function (event) {
 
 function readWMSCapabilities() {
 	var parser = new WMSCapabilities();
-	debug("Get WMS Capabilities");
+	debug("Request WMS Capabilities");
 	fetch(WMSURL + '?version=1.3.0&request=GetCapabilities').then(function (response) {
 		return response.text();
 	}).then(function (text) {
