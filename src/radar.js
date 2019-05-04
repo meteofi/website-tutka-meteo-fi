@@ -31,24 +31,15 @@ moment.locale('fi');
 var layerInfo = {};
 const client  = connect('wss://meri.digitraffic.fi:61619/mqtt',{username: 'digitraffic', password: 'digitrafficPassword'});
 const WMSURL = "https://wms.meteo.fi/geoserver/wms";
-var trackedVessels = {'230994270': {}, '230939100': {}, '230051170': {}, '230059740': {}, '276813000': {} };
+var trackedVessels = {'230059770': {}, '230994270': {}, '230939100': {}, '230051170': {}, '230059740': {}, '230108850': {}, '230937480': {}, '230051160': {}, '230983250': {}, '230012240': {}, '230980890': {}, '230061400': {}, '230059760': {}, '230005610': {}, '230987580': {}, '230983340': {}, '230111580': {}, '230059750': {}, '230994810': {}, '230993590': {}, '230051150': {} };
 
 
-var image = new CircleStyle({
-	radius: 5,
-	fill: null,
-	stroke: new Stroke({color: 'red', width: 2})
-});
-
-
-function debug(str)
-{
-    if (DEBUG)
-        {
-            try {
-                console.log(str);
-            } catch (e) {};
-        }
+function debug(str) {
+	if (DEBUG) {
+		try {
+			console.log(str);
+		} catch (e) { };
+	}
 }
 
 var style = new Style({
@@ -75,16 +66,13 @@ var style = new Style({
 });
 
 var vesselStyle = new Style({
-	image: image,
-	fill: new Fill({
-		color: 'rgba(255, 0, 0, 0.6)'
-	}),
-	stroke: new Stroke({
-		color: '#D32D25',
-		width: 1
+	image: new CircleStyle({
+		radius: 5,
+		fill: null,
+		stroke: new Stroke({ color: 'red', width: 2 })
 	}),
 	text: new Text({
-		font: '14px Calibri,sans-serif',
+		font: '10px Calibri,sans-serif',
 		fill: new Fill({
 			color: '#fff'
 		}),
@@ -181,10 +169,13 @@ var darkGrayReferenceLayer = new TileLayer({
 		source: new Vector(),
 		visible: false,
 		style: function(feature) {
-			vesselStyle.getText().setText(feature.get('heading')+"° " + feature.get('sog')+"kn");
+			vesselStyle.getText().setText(getVesselName(feature.get('mmsi')) + " " + feature.get('sog')+"kn");
 			return vesselStyle;
 		}
 	});
+
+
+
 
 var layerss = {
 	"radarLayer": radarLayer,
@@ -197,10 +188,9 @@ var layers = [
 	darkGrayBaseLayer,
 	radarLayer,
 	lightningLayer,
-	observationLayer,
-
 	lightGrayReferenceLayer,
 	darkGrayReferenceLayer,
+	observationLayer,
 
 	new VectorLayer({
 		source: new Vector({
@@ -336,7 +326,7 @@ function updateLayerInfo() {
 
 var play = function () {
 	stop();
-	animationId = window.setInterval(setTime, 500);
+	animationId = window.setInterval(setTime, 250);
 };
 
 var playstop = function () {
@@ -360,24 +350,42 @@ updateLayerInfo();
 
 Object.keys(trackedVessels).forEach(function (item) {
 	debug("Subscribed vessel " + item + " locations");
-	client.subscribe("vessels/" + item + "/locations");
+	client.subscribe("vessels/" + item + "/+");
 });
 
 //client.subscribe("vessels/230994270/locations");
 //client.subscribe("vessels/230939100/locations");
 
+function getVesselName(mmsi) {
+	if (typeof trackedVessels[mmsi].metadata !== "undefined") {
+			return trackedVessels[mmsi].metadata.name;
+	} else {
+		return mmsi;
+	}
+}
+
 client.on("message", function (topic, payload) {
-	var vessel = JSON.parse(payload.toString());
-	//debug(vessel);
+	var vessel = {};
+	var metadata = {};
+	if (topic.indexOf('location') !== -1) {
+		vessel = JSON.parse(payload.toString());
+	}	
+	debug(topic);
+	if (topic.indexOf('metadata') !== -1) {
+		metadata = JSON.parse(payload.toString());
+		trackedVessels[metadata.mmsi].metadata = metadata;
+		return;
+	}	
 	var format = new GeoJSON({
 		dataProjection: 'EPSG:4326',
 		featureProjection: "EPSG:3857"
 	});
-	trackedVessels[vessel.mmsi] = vessel;
+	trackedVessels[vessel.mmsi].location = vessel;
+	trackedVessels[vessel.mmsi].location.properties.mmsi = vessel.mmsi;
 	smpsLayer.getSource().clear(true);
 	Object.keys(trackedVessels).forEach(function (item) {
-		if (typeof trackedVessels[item].mmsi !== "undefined") {
-			smpsLayer.getSource().addFeature(format.readFeature(trackedVessels[item]));
+		if (typeof trackedVessels[item].location !== "undefined") {
+			smpsLayer.getSource().addFeature(format.readFeature(trackedVessels[item].location));
 		}
 	});
 	//client.end()
@@ -513,20 +521,19 @@ function toggleLayerVisibility(layer) {
 
 function geoLocationFail(error) {
 	switch (error.code) {
-	case error.PERMISSION_DENIED:
-debug("ERROR: User denied the request for geolocation.");
-break;
-	case error.POSITION_UNAVAILABLE:
-debug("ERROR: Geolocation information is unavailable.");
-break;
-	case error.TIMEOUT:
-debug("ERROR: The request to get user geolocation timed out.");
-break;
-	case error.UNKNOWN_ERROR:
-debug("ERROR: An unknown error occurred.");
-break;
+		case error.PERMISSION_DENIED:
+			debug("ERROR: User denied the request for geolocation.");
+			break;
+		case error.POSITION_UNAVAILABLE:
+			debug("ERROR: Geolocation information is unavailable.");
+			break;
+		case error.TIMEOUT:
+			debug("ERROR: The request to get user geolocation timed out.");
+			break;
+		case error.UNKNOWN_ERROR:
+			debug("ERROR: An unknown error occurred.");
+			break;
 	}
-//	$('#infoItemPosition').hide();
 }
 
 function geoLocationUpdate(location) {
