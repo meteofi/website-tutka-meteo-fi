@@ -2,3 +2,4 @@ node_modules/
 .firebase/
 dist/radar.js
 dist/radar.js.gz
+firebase-debug.log
