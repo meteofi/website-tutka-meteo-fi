@@ -137,7 +137,7 @@ var darkGrayReferenceLayer = new TileLayer({
 		opacity: 0.7,
 		source: new ImageWMS({
 			url: WMSURL,
-			//params: { 'LAYERS': metRadarLayer, 'STYLES': 'radar_finland_bookbinder' },
+			//params: { 'LAYERS': metRadarLayer, 'STYLES': 'radar_finland_dbz_fmi' },
 			params: { 'LAYERS': metRadarLayer },
 			ratio: 1,
 			serverType: 'geoserver'
@@ -180,6 +180,7 @@ var darkGrayReferenceLayer = new TileLayer({
 var layerss = {
 	"radarLayer": radarLayer,
 	"observationLayer": observationLayer,
+	"lightningLayer": lightningLayer
 }
 
 var layers = [
@@ -220,7 +221,6 @@ function mouseCoordinateFormat (coordinate) {
 	document.getElementById("cursorDistanceValueKM").innerHTML = distance_km.toFixed(3) + " km";
 	document.getElementById("cursorDistanceValueNM").innerHTML = distance_nm.toFixed(3) + " NM";
 	return Dms.toLat(coordinate[1], "dm", 3) + " " + Dms.toLon(coordinate[0], "dm", 3);
-
 }
 
 var mousePositionControl = new MousePosition({
@@ -271,6 +271,10 @@ navigator.geolocation.watchPosition(function(pos) {
 
 function updateLayer(layer,wmslayer) {
 	metRadarLayer=wmslayer;
+	debug(layerInfo[wmslayer]);
+	if (typeof (layerInfo[metRadarLayer]) !== "undefined") {
+		layer.time = layerInfo[wmslayer].time;
+	}
 	layer.getSource().updateParams({ 'LAYERS': wmslayer });
 	//gtag('event', 'screen_view', { 'screen_name': layer});
 }
@@ -289,13 +293,13 @@ function setTime() {
 		startDate.setMinutes(startDate.getMinutes() + resolution / 60000);
 
 		if (startDate.getTime() > layerInfo[metRadarLayer].time.end) {
-			startDate = new Date(Math.round(Date.now() / resolution) * resolution - resolution * 12);
+			startDate = new Date(Math.round(moment(layerInfo[metRadarLayer].time.end).valueOf() / resolution) * resolution - resolution * 12);
 		}
 
 		setLayerTime(radarLayer, startDate.toISOString());
 		setLayerTime(lightningLayer, 'PT5M/' + startDate.toISOString());
 		setLayerTime(observationLayer, startDate.toISOString());
-	}
+	} 
 }
 
 var stop = function () {
@@ -320,7 +324,6 @@ function updateClock() {
 
 function updateLayerInfo() {
 	readWMSCapabilities();
-	// call this function again in 1000ms
 	setTimeout(updateLayerInfo, 60000);
 }
 
@@ -335,7 +338,7 @@ var playstop = function () {
 		animationId = null;
 		document.getElementById("playstop").innerHTML = "play_arrow";
 	} else {
-		animationId = window.setInterval(setTime, 500);
+		animationId = window.setInterval(setTime, 250);
 		document.getElementById("playstop").innerHTML = "pause";
 	}
 };
@@ -440,6 +443,7 @@ function addEventListeners(selector) {
 }
 
 addEventListeners("#radarLayer > div");
+addEventListeners("#lightningLayer > div");
 addEventListeners("#observationLayer > div");
 
     // Start Position Watch
