@@ -13,10 +13,16 @@ import Feature from 'ol/Feature';
 import {circular} from 'ol/geom/Polygon';
 import {getDistance} from 'ol/sphere.js';
 import Point from 'ol/geom/Point';
+import Polygon from 'ol/geom/Polygon';
 import {Circle as CircleStyle, Fill, Stroke, Style, Text} from 'ol/style.js';
-import Dms from 'geodesy/dms.js';
+import Dms from 'geodesy/dms';
+import LatLon from 'geodesy/latlon-spherical'
 import WMSCapabilities from 'ol/format/WMSCapabilities.js';
 import { connect } from 'mqtt';
+
+var options = {
+	frameRate: 0.5,
+}
 
 var DEBUG = true;
 var metLatitude  = localStorage.getItem("metLatitude")  ? localStorage.getItem("metLatitude")  : 60.2706;
@@ -294,6 +300,17 @@ function radarRangeRings (layer, coordinates, range) {
 	]);	
 }
 
+function bearingLine(layer, coordinates, range, direction)
+{
+    var c = new LatLon(coordinates[1], coordinates[0]);
+    var p1 = c.destinationPoint(50000, direction);
+		var p2 = c.destinationPoint(range*1000, direction);
+		var line = new Polygon([[[p1.lon, p1.lat], [p2.lon, p2.lat]]]);
+		layer.getSource().addFeatures([
+			new Feature(line.transform('EPSG:4326', map.getView().getProjection()))
+		]);	
+}
+
 navigator.geolocation.watchPosition(function(pos) {
 	const coords = [pos.coords.longitude, pos.coords.latitude];
 	ownPosition = coords;
@@ -545,6 +562,8 @@ var displayFeatureInfo = function (pixel) {
 			featureOverlay.getSource().addFeature(feature);
 			var coords = transform(feature.getGeometry().getCoordinates(), map.getView().getProjection(), 'EPSG:4326');
 			[50000,100000,150000,200000,250000].forEach(range => radarRangeRings(guideLayer, coords, range));
+			[0,45,90,135,180,225,270,315].forEach(bearing => bearingLine(guideLayer, coords, 250, bearing));
+			map.getView().fit(guideLayer.getSource().getExtent(), map.getSize()); 
 		}
 		highlight = feature;
 	}
@@ -591,7 +610,7 @@ function geoLocationUpdate(location) {
 // EVENTS
 //
 
-document.getElementById('playstop').addEventListener('click', function(event) {
+document.getElementById('playstop').addEventListener('click', function() {
 	debug("playstop");
 	playstop();
 });
