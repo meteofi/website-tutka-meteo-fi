@@ -51,7 +51,7 @@
         display: flex;
     }
    
-     #infoItemMap, #infoItemCursor, #infoItemObservation, #infoItemPosition, .infoLabel {
+     #infoItemMap, #infoItemCursor, #infoItemObservation, #infoItemLightning, #infoItemPosition, .infoLabel {
         display: none;
     }
 
