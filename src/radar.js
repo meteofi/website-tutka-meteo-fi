@@ -597,13 +597,13 @@ document.getElementById('playstop').addEventListener('click', function(event) {
 });
 
 
-map.on('pointermove', function(evt) {
-	if (evt.dragging) {
-		return;
-	}
-	var pixel = map.getEventPixel(evt.originalEvent);
-	displayFeatureInfo(pixel);
-});
+// map.on('pointermove', function(evt) {
+// 	if (evt.dragging) {
+// 		return;
+// 	}
+// 	var pixel = map.getEventPixel(evt.originalEvent);
+// 	displayFeatureInfo(pixel);
+// });
 
 map.on('click', function(evt) {
 	displayFeatureInfo(evt.pixel);
