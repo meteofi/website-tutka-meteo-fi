@@ -7,7 +7,7 @@ import XYZ from 'ol/source/XYZ';
 import ImageWMS from 'ol/source/ImageWMS';
 import GeoJSON from 'ol/format/GeoJSON.js';
 import Vector from 'ol/source/Vector';
-import {fromLonLat} from 'ol/proj';
+import {fromLonLat, transform} from 'ol/proj';
 import sync from 'ol-hashed';
 import Feature from 'ol/Feature';
 import {circular} from 'ol/geom/Polygon';
@@ -82,6 +82,33 @@ var vesselStyle = new Style({
 		}),
 		offsetX: 0,
 		offsetY: -20
+	})
+});
+
+var ownStyle = new Style({
+	image: new CircleStyle({
+		radius: 5,
+		fill: null,
+		stroke: new Stroke({ color: 'red', width: 2 })
+	}),
+	text: new Text({
+		font: '10px Calibri,sans-serif',
+		fill: new Fill({
+			color: '#fff'
+		}),
+		stroke: new Stroke({
+			color: '#000',
+			width: 2
+		}),
+		offsetX: 0,
+		offsetY: -20
+	})
+});
+
+var rangeStyle = new Style({
+	stroke: new Stroke({
+		color: 'gray',
+		width: 1
 	})
 });
 
@@ -165,6 +192,18 @@ var darkGrayReferenceLayer = new TileLayer({
 		})
 	});
 
+
+	var positionLayer = new VectorLayer({
+		source: new Vector({
+			format: new GeoJSON(),
+			url: 'radars-finland.json'
+		})//,
+		//style: function(feature) {
+		//	style.getText().setText(feature.get('mmsi'));
+		//	return style;
+		//}
+	});
+
 	var smpsLayer = new VectorLayer({
 		source: new Vector(),
 		visible: false,
@@ -172,6 +211,11 @@ var darkGrayReferenceLayer = new TileLayer({
 			vesselStyle.getText().setText(getVesselName(feature.get('mmsi')) + " " + feature.get('sog')+"kn");
 			return vesselStyle;
 		}
+	});
+
+	var guideLayer = new VectorLayer({
+		source: new Vector(),
+		style: rangeStyle
 	});
 
 
@@ -188,21 +232,13 @@ var layers = [
 	lightGrayBaseLayer,
 	darkGrayBaseLayer,
 	radarLayer,
+	guideLayer,
 	lightningLayer,
 	lightGrayReferenceLayer,
 	darkGrayReferenceLayer,
 	observationLayer,
 
-	new VectorLayer({
-		source: new Vector({
-			format: new GeoJSON(),
-			url: 'radars-finland.json'
-		})//,
-		//style: function(feature) {
-		//	style.getText().setText(feature.get('mmsi'));
-		//	return style;
-		//}
-	}),
+  positionLayer,
 
 
 	new VectorLayer({
@@ -248,6 +284,15 @@ const map = new Map({
 
 sync(map);
 
+//radarRangeRings([24.8690,60.2706],"250000");
+
+//	new Feature(ring.transform('EPSG:4326', map.getView().getProjection()))"
+function radarRangeRings (layer, coordinates, range) {
+	const ring = circular(coordinates, range);
+	layer.getSource().addFeatures([
+		new Feature(ring.transform('EPSG:4326', map.getView().getProjection()))
+	]);	
+}
 
 navigator.geolocation.watchPosition(function(pos) {
 	const coords = [pos.coords.longitude, pos.coords.latitude];
@@ -258,8 +303,8 @@ navigator.geolocation.watchPosition(function(pos) {
 	//document.getElementById("infoItemPosition").style.display = "block";
 	document.getElementById("cursorDistanceTxtKM").style.display = "block";
 	document.getElementById("cursorDistanceTxtNM").style.display = "block";
-  layers[8].getSource().clear(true);
-  layers[8].getSource().addFeatures([
+  positionLayer.getSource().clear(true);
+  positionLayer.getSource().addFeatures([
     new Feature(accuracy.transform('EPSG:4326', map.getView().getProjection())),
     new Feature(new Point(fromLonLat(coords)))
   ]);
@@ -491,22 +536,15 @@ var displayFeatureInfo = function (pixel) {
 		return feature;
 	});
 
-	var info = document.getElementById('radarTxt');
-//	if (feature) {
-//		var distance = getDistance(ownPosition,[24,60]);
-//		info.innerHTML = feature.get('acronym') + ': ' + feature.get('name') + ' ' + Math.round(distance/1000) + 'km';
-
-//	} else {
-//		info.innerHTML = '&nbsp;';
-//	}
-
 	if (feature !== highlight) {
 		if (highlight) {
 			featureOverlay.getSource().removeFeature(highlight);
+			guideLayer.getSource().clear(true);
 		}
 		if (feature) {
 			featureOverlay.getSource().addFeature(feature);
-			//featureOverlay.getSource().addFeature(new Feature(circular(feature.getGeometry().getCoordinates(), 240000)));
+			var coords = transform(feature.getGeometry().getCoordinates(), map.getView().getProjection(), 'EPSG:4326');
+			[50000,100000,150000,200000,250000].forEach(range => radarRangeRings(guideLayer, coords, range));
 		}
 		highlight = feature;
 	}
@@ -582,7 +620,20 @@ document.addEventListener('keyup', function (event) {
 		playstop();
 	} else if (key === 's' || key === 'KeyS' || key === 83) {
 		toggleLayerVisibility(smpsLayer);
+	} else if (key === '+' || key === 'NumpadAdd') {
+		map.getView().setZoom(map.getView().getZoom()+1);    
+	} else if (key === '-' || key === 'NumpadSubtract') {
+		map.getView().setZoom(map.getView().getZoom()-1);    
+	} else if (key === '1' || key === 'Digit1') {
+		toggleLayerVisibility(radarLayer);
+		removeSelectedParameter("#radarLayer > div");
+		document.getElementById("radarOff").classList.add("selected");
+	} else if (key === '2' || key === 'Digit2') {
+		toggleLayerVisibility(lightningLayer);    
+	} else if (key === '3' || key === 'Digit3') {
+		toggleLayerVisibility(observationLayer);    
 	}
+
 });
 
 function readWMSCapabilities() {
