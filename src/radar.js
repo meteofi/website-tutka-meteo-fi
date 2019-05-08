@@ -113,8 +113,8 @@ var ownStyle = new Style({
 
 var rangeStyle = new Style({
 	stroke: new Stroke({
-		color: 'gray',
-		width: 1
+		color: [128,128,128,0.7],
+		width: 0.5
 	})
 });
 
@@ -122,10 +122,9 @@ function threeHoursAgo() {
 	return new Date(Math.round(Date.now() / 3600000) * 3600000 - 3600000 * 1);
 }
 
-//readWMSCapabilities();
+
 
 // Setup Layers
-
 
 var lightGrayBaseLayer = new TileLayer({
 	visible: false,
@@ -248,7 +247,8 @@ var layers = [
 
 
 	new VectorLayer({
-		source: new Vector()
+		source: new Vector(),
+		style: ownStyle,
 	}),
 
 	smpsLayer
@@ -285,7 +285,8 @@ const map = new Map({
 		enableRotation: false,
     center: fromLonLat([26, 65]),
     zoom: 5
-  })
+	}),
+	keyboardEventTarget: document
 });
 
 sync(map);
@@ -638,11 +639,7 @@ document.addEventListener('keyup', function (event) {
 	if (key === ' ' || key === 'Space' || key === 32) {
 		playstop();
 	} else if (key === 's' || key === 'KeyS' || key === 83) {
-		toggleLayerVisibility(smpsLayer);
-	} else if (key === '+' || key === 'NumpadAdd') {
-		map.getView().setZoom(map.getView().getZoom()+1);    
-	} else if (key === '-' || key === 'NumpadSubtract') {
-		map.getView().setZoom(map.getView().getZoom()-1);    
+		toggleLayerVisibility(smpsLayer); 
 	} else if (key === '1' || key === 'Digit1') {
 		toggleLayerVisibility(radarLayer);
 		removeSelectedParameter("#radarLayer > div");
