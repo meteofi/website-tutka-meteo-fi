@@ -21,7 +21,17 @@ import WMSCapabilities from 'ol/format/WMSCapabilities.js';
 import { connect } from 'mqtt';
 
 var options = {
-	frameRate: 0.5,
+	defaultRadarLayer: "MeteoFI:radar_finland_dbz",
+	rangeRing: 50,
+	bearingLine: 30,
+	frameRate: 4, // fps
+	wmsServer: {
+		'meteo': "https://wms.meteo.fi/geoserver/wms", // "MeteoFI:radar_finland_dbz"
+		'fmi': "https://openwms.fmi.fi/geoserver/wms",
+		'dwd': "https://maps.dwd.de/geoserver/wms", // "dwd:RX-Produkt"
+		'knmi': "https://geoservices.knmi.nl/cgi-bin/RADNL_OPER_R___25PCPRR_L3.cgi", // "RADNL_OPER_R___25PCPRR_L3_COLOR"
+		"nws": "https://idpgis.ncep.noaa.gov/arcgis/services/radar/radar_base_reflectivity_time/ImageServer/WMSServer", // "0"
+	}
 }
 
 var DEBUG = true;
@@ -30,13 +40,13 @@ var metLongitude = localStorage.getItem("metLongitude") ? localStorage.getItem("
 var metRadarLayer = localStorage.getItem("metRadarLayer") ? localStorage.getItem("metRadarLayer") : "MeteoFI:radar_finland_dbz";
 var ownPosition = [];
 var startDate = threeHoursAgo();
-var frameRate = 0.5; // frames per second
 var animationId = null;
 var moment = require('moment');
 moment.locale('fi');
 var layerInfo = {};
 const client  = connect('wss://meri.digitraffic.fi:61619/mqtt',{username: 'digitraffic', password: 'digitrafficPassword'});
-const WMSURL = "https://wms.meteo.fi/geoserver/wms";
+//const WMSURL = "https://wms.meteo.fi/geoserver/wms";
+var WMSURL = options.wmsServer.meteo;
 var trackedVessels = {'230059770': {}, '230994270': {}, '230939100': {}, '230051170': {}, '230059740': {}, '230108850': {}, '230937480': {}, '230051160': {}, '230983250': {}, '230012240': {}, '230980890': {}, '230061400': {}, '230059760': {}, '230005610': {}, '230987580': {}, '230983340': {}, '230111580': {}, '230059750': {}, '230994810': {}, '230993590': {}, '230051150': {} };
 
 
@@ -178,6 +188,7 @@ var darkGrayReferenceLayer = new TileLayer({
 
 	// Lightning Layer
 	var lightningLayer = new ImageLayer({
+		visible: false,
 		source: new ImageWMS({
 			url: WMSURL,
 			params: { 'LAYERS': 'observation:lightning' },
@@ -351,12 +362,12 @@ function setLayerTime(layer, time) {
 }
 
 function setTime() {
-	if (typeof (layerInfo[metRadarLayer]) !== "undefined") {
-		var resolution = layerInfo[metRadarLayer].time.resolution;
+	if (typeof (radarLayer.time) !== "undefined") {
+		var resolution = Math.max(300000,layerInfo[metRadarLayer].time.resolution);
 		startDate.setMinutes(startDate.getMinutes() + resolution / 60000);
 
-		if (startDate.getTime() > layerInfo[metRadarLayer].time.end) {
-			startDate = new Date(Math.round(moment(layerInfo[metRadarLayer].time.end).valueOf() / resolution) * resolution - resolution * 12);
+		if (startDate.getTime() > radarLayer.time.end) {
+			startDate = new Date(Math.round(moment(radarLayer.time.end).valueOf() / resolution) * resolution - resolution * 12);
 		}
 
 		setLayerTime(radarLayer, startDate.toISOString());
@@ -392,7 +403,7 @@ function updateLayerInfo() {
 
 var play = function () {
 	stop();
-	animationId = window.setInterval(setTime, 250);
+	animationId = window.setInterval(setTime, 1000/options.frameRate);
 };
 
 var playstop = function () {
@@ -401,7 +412,7 @@ var playstop = function () {
 		animationId = null;
 		document.getElementById("playstop").innerHTML = "play_arrow";
 	} else {
-		animationId = window.setInterval(setTime, 250);
+		animationId = window.setInterval(setTime, options.frameRate);
 		document.getElementById("playstop").innerHTML = "pause";
 	}
 };
@@ -489,7 +500,7 @@ function removeSelectedParameter (selector) {
 function addEventListeners(selector) {
 	let elementsArray = document.querySelectorAll(selector);
 	elementsArray.forEach(function (elem) {
-		debug("Activated event listener for " + elem);
+		debug("Activated event listener for " + elem.id);
 		elem.addEventListener("click", function () {
 			removeSelectedParameter("#" + event.target.parentElement.id + " > div");
 			event.target.classList.add("selected");
@@ -563,7 +574,7 @@ var displayFeatureInfo = function (pixel) {
 			featureOverlay.getSource().addFeature(feature);
 			var coords = transform(feature.getGeometry().getCoordinates(), map.getView().getProjection(), 'EPSG:4326');
 			[50000,100000,150000,200000,250000].forEach(range => radarRangeRings(guideLayer, coords, range));
-			[0,45,90,135,180,225,270,315].forEach(bearing => bearingLine(guideLayer, coords, 250, bearing));
+			Array.from({length:360/options.bearingLine},(x,index)=>index*30).forEach(bearing => bearingLine(guideLayer, coords, 250, bearing));
 			map.getView().fit(guideLayer.getSource().getExtent(), map.getSize()); 
 		}
 		highlight = feature;
@@ -655,13 +666,13 @@ document.addEventListener('keyup', function (event) {
 function readWMSCapabilities() {
 	var parser = new WMSCapabilities();
 	debug("Request WMS Capabilities");
-	fetch(WMSURL + '?version=1.3.0&request=GetCapabilities').then(function (response) {
+	fetch(WMSURL + '?SERVICE=WMS&version=1.3.0&request=GetCapabilities').then(function (response) {
 		return response.text();
 	}).then(function (text) {
 		debug("Received WMS Capabilities");
 		var result = parser.read(text);
 		getLayers(result.Capability.Layer.Layer);
-
+		radarLayer.time = layerInfo[metRadarLayer].time;
 	});
 }
 
@@ -670,7 +681,7 @@ function getLayers(parentlayer) {
 	parentlayer.forEach((layer) => {
 		if (Array.isArray(layer.Layer)) {
 			//console.log(layer.Title)
-			//products = products.concat(getLayers(layer.Layer))
+			getLayers(layer.Layer)
 		} else {
 			layerInfo[layer.Name] = getLayerInfo(layer)
 		}
