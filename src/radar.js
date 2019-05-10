@@ -672,7 +672,9 @@ function readWMSCapabilities() {
 		debug("Received WMS Capabilities");
 		var result = parser.read(text);
 		getLayers(result.Capability.Layer.Layer);
-		radarLayer.time = layerInfo[metRadarLayer].time;
+		if (typeof (radarLayer.time) === "undefined") {
+			radarLayer.time = layerInfo[metRadarLayer].time;
+		}
 	});
 }
 
