@@ -370,7 +370,11 @@ function setLayerTime(layer, time) {
 	}
 }
 
-function setTime() {
+function setLayerStyle(layer, style) {
+	layer.getSource().updateParams({ 'STYLES': style });
+}
+
+function setTime(reverse=false) {
 	var resolution = 300000;
 	var end;
 
@@ -380,15 +384,19 @@ function setTime() {
 			resolution = Math.max(resolution, layerInfo[wmslayer].time.resolution)
 			end = Math.max(resolution, layerInfo[wmslayer].time.resolution)
 		}
-		//var resolution = Math.max(300000,layerInfo[metRadarLayer].time.resolution);
-		startDate.setMinutes(startDate.getMinutes() + resolution / 60000);
+		
+		if (reverse) {
+			startDate.setMinutes(startDate.getMinutes() - resolution / 60000);
+		} else {
+			startDate.setMinutes(startDate.getMinutes() + resolution / 60000);
+		}
 
 		if (startDate.getTime() > layerInfo[radarLayer.getSource().getParams().LAYERS].time.end) {
 			startDate = new Date(Math.round(moment(layerInfo[radarLayer.getSource().getParams().LAYERS].time.end).valueOf() / resolution) * resolution - resolution * 12);
 		}
 
 		if (startDate.getTime() < new Date(Math.round(moment(layerInfo[radarLayer.getSource().getParams().LAYERS].time.end).valueOf() / resolution) * resolution - resolution * 12) ) {
-			startDate = new Date(Math.round(moment(layerInfo[radarLayer.getSource().getParams().LAYERS].time.end).valueOf() / resolution) * resolution - resolution * 12);
+			startDate = new Date(Math.round(moment(layerInfo[radarLayer.getSource().getParams().LAYERS].time.end).valueOf() / resolution) * resolution);
 		}
 
 		setLayerTime(radarLayer, startDate.toISOString());
@@ -433,8 +441,15 @@ var stop = function () {
 };
 
 var skip_next = function () {
+	debug("NEXT");
 	stop();
 	setTime();
+}
+
+var skip_previous = function () {
+	debug("PREVIOUS");
+	stop();
+	setTime(true);
 }
 
 var playstop = function () {
@@ -652,13 +667,15 @@ function geoLocationUpdate(location) {
 //
 
 document.getElementById('playstop').addEventListener('click', function() {
-	debug("playstop");
 	playstop();
 });
 
 document.getElementById('skip_next').addEventListener('click', function() {
-	debug("skip_next");
 	skip_next();
+});
+
+document.getElementById('skip_previous').addEventListener('click', function() {
+	skip_previous();
 });
 
 
@@ -685,6 +702,10 @@ document.addEventListener('keyup', function (event) {
 		skip_next();
 	} else if (key === 's' || key === 'KeyS' || key === 83) {
 		toggleLayerVisibility(smpsLayer); 
+	} else if (key === 'f' || key === 'KeyF') {
+		setLayerStyle(radarLayer,"radar_finland_dbz_fmi"); 
+	} else if (key === 'g' || key === 'KeyG') {
+		setLayerStyle(radarLayer,""); 
 	} else if (key === '1' || key === 'Digit1') {
 		toggleLayerVisibility(radarLayer);
 		removeSelectedParameter("#radarLayer > div");
