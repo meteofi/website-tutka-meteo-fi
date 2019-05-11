@@ -108,6 +108,8 @@ var ownStyle = new Style({
 		fill: null,
 		stroke: new Stroke({ color: 'red', width: 2 })
 	}),
+	fill: null,
+	stroke: new Stroke({ color: 'red', width: 2 }),
 	text: new Text({
 		font: '10px Calibri,sans-serif',
 		fill: new Fill({
@@ -217,7 +219,8 @@ var darkGrayReferenceLayer = new TileLayer({
 		source: new Vector({
 			format: new GeoJSON(),
 			url: 'radars-finland.json'
-		})//,
+		}),
+		//,
 		//style: function(feature) {
 		//	style.getText().setText(feature.get('mmsi'));
 		//	return style;
@@ -238,7 +241,10 @@ var darkGrayReferenceLayer = new TileLayer({
 		style: rangeStyle
 	});
 
-
+	var ownPositionLayer = new VectorLayer({
+		source: new Vector(),
+		style: ownStyle,
+	});
 
 
 var layerss = {
@@ -261,10 +267,7 @@ var layers = [
   positionLayer,
 
 
-	new VectorLayer({
-		source: new Vector(),
-		style: ownStyle,
-	}),
+	ownPositionLayer,
 
 	smpsLayer
 
@@ -336,8 +339,8 @@ navigator.geolocation.watchPosition(function(pos) {
 	//document.getElementById("infoItemPosition").style.display = "block";
 	document.getElementById("cursorDistanceTxtKM").style.display = "block";
 	document.getElementById("cursorDistanceTxtNM").style.display = "block";
-  positionLayer.getSource().clear(true);
-  positionLayer.getSource().addFeatures([
+  ownPositionLayer.getSource().clear(true);
+  ownPositionLayer.getSource().addFeatures([
     new Feature(accuracy.transform('EPSG:4326', map.getView().getProjection())),
     new Feature(new Point(fromLonLat(coords)))
   ]);
