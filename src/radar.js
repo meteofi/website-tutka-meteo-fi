@@ -27,7 +27,7 @@ var options = {
 	frameRate: 4, // fps
 	wmsServer: {
 		'meteo': "https://wms.meteo.fi/geoserver/wms", // "MeteoFI:radar_finland_dbz"
-		'fmi': "https://openwms.fmi.fi/geoserver/wms",
+		'fmi': "https://openwms.fmi.fi/geoserver/wms", //"Radar:suomi_dbz_eureffin"
 		'dwd': "https://maps.dwd.de/geoserver/wms", // "dwd:RX-Produkt"
 		'knmi': "https://geoservices.knmi.nl/cgi-bin/RADNL_OPER_R___25PCPRR_L3.cgi", // "RADNL_OPER_R___25PCPRR_L3_COLOR"
 		"nws": "https://idpgis.ncep.noaa.gov/arcgis/services/radar/radar_base_reflectivity_time/ImageServer/WMSServer", // "0"
@@ -48,6 +48,7 @@ const client  = connect('wss://meri.digitraffic.fi:61619/mqtt',{username: 'digit
 //const WMSURL = "https://wms.meteo.fi/geoserver/wms";
 var WMSURL = options.wmsServer.meteo;
 var trackedVessels = {'230059770': {}, '230994270': {}, '230939100': {}, '230051170': {}, '230059740': {}, '230108850': {}, '230937480': {}, '230051160': {}, '230983250': {}, '230012240': {}, '230980890': {}, '230061400': {}, '230059760': {}, '230005610': {}, '230987580': {}, '230983340': {}, '230111580': {}, '230059750': {}, '230994810': {}, '230993590': {}, '230051150': {} };
+var activeLayers =  new Set();
 
 
 function debug(str) {
@@ -176,6 +177,7 @@ var darkGrayReferenceLayer = new TileLayer({
 
 	// Radar Layer
 	var radarLayer = new ImageLayer({
+		name: "radarLayer",
 		opacity: 0.7,
 		source: new ImageWMS({
 			url: WMSURL,
@@ -188,6 +190,7 @@ var darkGrayReferenceLayer = new TileLayer({
 
 	// Lightning Layer
 	var lightningLayer = new ImageLayer({
+		name: "lightningLayer",
 		visible: false,
 		source: new ImageWMS({
 			url: WMSURL,
@@ -199,6 +202,7 @@ var darkGrayReferenceLayer = new TileLayer({
 
 	// Observation Layer
 	var observationLayer = new ImageLayer({
+		name: "observationLayer",
 		visible: false,
 		source: new ImageWMS({
 			url: WMSURL,
@@ -346,8 +350,10 @@ navigator.geolocation.watchPosition(function(pos) {
 function updateLayer(layer,wmslayer) {
 	metRadarLayer=wmslayer;
 	debug(layerInfo[wmslayer]);
-	if (typeof (layerInfo[metRadarLayer]) !== "undefined") {
+	activeLayers.add(layer.get("name"));
+	if (typeof (layerInfo[wmslayer]) !== "undefined") {
 		layer.time = layerInfo[wmslayer].time;
+		debug(layer.getSource().getParams().LAYERS);
 	}
 	layer.getSource().updateParams({ 'LAYERS': wmslayer });
 	//gtag('event', 'screen_view', { 'screen_name': layer});
@@ -362,12 +368,24 @@ function setLayerTime(layer, time) {
 }
 
 function setTime() {
+	var resolution = 300000;
+	var end;
+
 	if (typeof (radarLayer.time) !== "undefined") {
-		var resolution = Math.max(300000,layerInfo[metRadarLayer].time.resolution);
+		for (let item of activeLayers) {
+			var wmslayer = layerss[item].getSource().getParams().LAYERS
+			resolution = Math.max(resolution, layerInfo[wmslayer].time.resolution)
+			end = Math.max(resolution, layerInfo[wmslayer].time.resolution)
+		}
+		//var resolution = Math.max(300000,layerInfo[metRadarLayer].time.resolution);
 		startDate.setMinutes(startDate.getMinutes() + resolution / 60000);
 
-		if (startDate.getTime() > radarLayer.time.end) {
-			startDate = new Date(Math.round(moment(radarLayer.time.end).valueOf() / resolution) * resolution - resolution * 12);
+		if (startDate.getTime() > layerInfo[radarLayer.getSource().getParams().LAYERS].time.end) {
+			startDate = new Date(Math.round(moment(layerInfo[radarLayer.getSource().getParams().LAYERS].time.end).valueOf() / resolution) * resolution - resolution * 12);
+		}
+
+		if (startDate.getTime() < new Date(Math.round(moment(layerInfo[radarLayer.getSource().getParams().LAYERS].time.end).valueOf() / resolution) * resolution - resolution * 12) ) {
+			startDate = new Date(Math.round(moment(layerInfo[radarLayer.getSource().getParams().LAYERS].time.end).valueOf() / resolution) * resolution - resolution * 12);
 		}
 
 		setLayerTime(radarLayer, startDate.toISOString());
@@ -507,6 +525,7 @@ function addEventListeners(selector) {
 			if (event.target.id.indexOf("Off") !== -1) {
 				debug("Deactivated layer " + event.target.parentElement.id);
 				layerss[event.target.parentElement.id].setVisible(false);
+				activeLayers.delete(event.target.parentElement.id);
 			} else {
 				debug("Activated layer " + event.target.id);
 				updateLayer(layerss[event.target.parentElement.id], event.target.id);
