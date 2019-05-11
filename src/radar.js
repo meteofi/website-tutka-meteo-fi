@@ -394,13 +394,6 @@ function setTime() {
 	} 
 }
 
-var stop = function () {
-	if (animationId !== null) {
-		window.clearInterval(animationId);
-		animationId = null;
-	}
-};
-
 function updateClock() {
 	var lt = moment();
 	var utc = moment.utc();
@@ -420,18 +413,32 @@ function updateLayerInfo() {
 }
 
 var play = function () {
-	stop();
-	animationId = window.setInterval(setTime, 1000/options.frameRate);
+	if (animationId === null) {
+		debug("PLAY");
+		animationId = window.setInterval(setTime, 1000 / options.frameRate);
+		document.getElementById("playstop").innerHTML = "pause";
+	}
 };
 
-var playstop = function () {
+var stop = function () {
 	if (animationId !== null) {
+		debug("STOP");
 		window.clearInterval(animationId);
 		animationId = null;
 		document.getElementById("playstop").innerHTML = "play_arrow";
+	}
+};
+
+var skip_next = function () {
+	stop();
+	setTime();
+}
+
+var playstop = function () {
+	if (animationId !== null) {
+		stop();
 	} else {
-		animationId = window.setInterval(setTime, options.frameRate);
-		document.getElementById("playstop").innerHTML = "pause";
+		play();
 	}
 };
 
@@ -646,6 +653,11 @@ document.getElementById('playstop').addEventListener('click', function() {
 	playstop();
 });
 
+document.getElementById('skip_next').addEventListener('click', function() {
+	debug("skip_next");
+	skip_next();
+});
+
 
 // map.on('pointermove', function(evt) {
 // 	if (evt.dragging) {
@@ -667,7 +679,7 @@ document.addEventListener('keyup', function (event) {
 	var key = event.key || event.keyCode;
 	debug(event);
 	if (key === ' ' || key === 'Space' || key === 32) {
-		playstop();
+		skip_next();
 	} else if (key === 's' || key === 'KeyS' || key === 83) {
 		toggleLayerVisibility(smpsLayer); 
 	} else if (key === '1' || key === 'Digit1') {
