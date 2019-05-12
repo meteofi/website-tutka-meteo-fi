@@ -360,17 +360,7 @@ navigator.geolocation.watchPosition(function(pos) {
   enableHighAccuracy: true
 });
 
-function updateLayer(layer,wmslayer) {
-	metRadarLayer=wmslayer;
-	debug(layerInfo[wmslayer]);
-	activeLayers.add(layer.get("name"));
-	if (typeof (layerInfo[wmslayer]) !== "undefined") {
-		layer.time = layerInfo[wmslayer].time;
-		debug(layer.getSource().getParams().LAYERS);
-	}
-	layer.getSource().updateParams({ 'LAYERS': wmslayer });
-	//gtag('event', 'screen_view', { 'screen_name': layer});
-}
+
 
 function setLayerTime(layer, time) {
 	layer.getSource().updateParams({ 'TIME': time });
@@ -480,7 +470,6 @@ document.getElementById("cursorDistanceTxtKM").style.display = "none";
 document.getElementById("cursorDistanceTxtNM").style.display = "none";
 
 updateClock();
-//updateLayerInfo();
 readWMSCapabilities(options.wmsServer.meteo,60000);
 readWMSCapabilities(options.wmsServer.eumetsat,300000);
 
@@ -488,9 +477,6 @@ Object.keys(trackedVessels).forEach(function (item) {
 	debug("Subscribed vessel " + item + " locations");
 	client.subscribe("vessels/" + item + "/+");
 });
-
-//client.subscribe("vessels/230994270/locations");
-//client.subscribe("vessels/230939100/locations");
 
 function getVesselName(mmsi) {
 	if (typeof trackedVessels[mmsi].metadata !== "undefined") {
@@ -556,21 +542,30 @@ function removeSelectedParameter (selector) {
 	});
 }
 
+
+function updateLayer(layer, wmslayer) {
+	debug("Activated layer " + wmslayer);
+	debug(layerInfo[wmslayer]);
+	removeSelectedParameter("#" + layer.get("name") + " > div");
+	document.getElementById(wmslayer).classList.add("selected");
+	activeLayers.add(layer.get("name"));
+	layer.getSource().updateParams({ 'LAYERS': wmslayer });
+	layer.setVisible(true);
+}
+
 function addEventListeners(selector) {
 	let elementsArray = document.querySelectorAll(selector);
 	elementsArray.forEach(function (elem) {
 		debug("Activated event listener for " + elem.id);
 		elem.addEventListener("click", function () {
-			removeSelectedParameter("#" + event.target.parentElement.id + " > div");
-			event.target.classList.add("selected");
 			if (event.target.id.indexOf("Off") !== -1) {
+				removeSelectedParameter("#" + event.target.parentElement.id + " > div");
+				event.target.classList.add("selected");
 				debug("Deactivated layer " + event.target.parentElement.id);
 				layerss[event.target.parentElement.id].setVisible(false);
 				activeLayers.delete(event.target.parentElement.id);
 			} else {
-				debug("Activated layer " + event.target.id);
 				updateLayer(layerss[event.target.parentElement.id], event.target.id);
-				layerss[event.target.parentElement.id].setVisible(true);
 			}
 		});
 	});
@@ -645,11 +640,16 @@ var displayFeatureInfo = function (pixel) {
 
 function toggleLayerVisibility(layer) {
 	var visibility = layer.getVisible();
+	removeSelectedParameter("#" + layer.get("name") + " > div");
 	if (visibility == false) {
 		layer.setVisible(true);
+		activeLayers.add(layer.get("name"));
+		document.getElementById(layer.getSource().getParams().LAYERS).classList.add("selected");
 	}
 	if (visibility == true) {
 		layer.setVisible(false);
+		activeLayers.delete(layer.get("name"));
+		document.getElementById(layer.get("name")+"Off").classList.add("selected");
 	}
 }
 
@@ -724,12 +724,12 @@ document.addEventListener('keyup', function (event) {
 	} else if (key === 'g' || key === 'KeyG') {
 		setLayerStyle(radarLayer,""); 
 	} else if (key === '1' || key === 'Digit1') {
-		toggleLayerVisibility(radarLayer);
-		removeSelectedParameter("#radarLayer > div");
-		document.getElementById("radarOff").classList.add("selected");
+		toggleLayerVisibility(satelliteLayer);
 	} else if (key === '2' || key === 'Digit2') {
-		toggleLayerVisibility(lightningLayer);    
+		toggleLayerVisibility(radarLayer);    
 	} else if (key === '3' || key === 'Digit3') {
+		toggleLayerVisibility(lightningLayer);    
+	} else if (key === '4' || key === 'Digit4') {
 		toggleLayerVisibility(observationLayer);    
 	}
 
