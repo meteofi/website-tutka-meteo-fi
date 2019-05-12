@@ -31,6 +31,7 @@ var options = {
 		'dwd': "https://maps.dwd.de/geoserver/wms", // "dwd:RX-Produkt"
 		'knmi': "https://geoservices.knmi.nl/cgi-bin/RADNL_OPER_R___25PCPRR_L3.cgi", // "RADNL_OPER_R___25PCPRR_L3_COLOR"
 		"nws": "https://idpgis.ncep.noaa.gov/arcgis/services/radar/radar_base_reflectivity_time/ImageServer/WMSServer", // "0"
+		"eumetsat": "https://eumetview.eumetsat.int/geoserv/wms", // "meteosat:msg_eview"
 	}
 }
 
@@ -177,6 +178,19 @@ var darkGrayReferenceLayer = new TileLayer({
 	})
 });
 
+	// Satellite Layer
+	var satelliteLayer = new ImageLayer({
+		name: "satelliteLayer",
+		visible: false,
+		opacity: 0.7,
+		source: new ImageWMS({
+			url: options.wmsServer.eumetsat,
+			params: { 'LAYERS': "meteosat:msg_eview" },
+			ratio: 1,
+			serverType: 'geoserver'
+		})
+	});
+
 	// Radar Layer
 	var radarLayer = new ImageLayer({
 		name: "radarLayer",
@@ -248,6 +262,7 @@ var darkGrayReferenceLayer = new TileLayer({
 
 
 var layerss = {
+	"satelliteLayer": satelliteLayer,
 	"radarLayer": radarLayer,
 	"observationLayer": observationLayer,
 	"lightningLayer": lightningLayer
@@ -257,6 +272,7 @@ var layers = [
 
 	lightGrayBaseLayer,
 	darkGrayBaseLayer,
+	satelliteLayer,
 	radarLayer,
 	guideLayer,
 	lightningLayer,
@@ -399,6 +415,7 @@ function setTime(reverse=false) {
 			startDate = new Date(Math.round(moment(layerInfo[radarLayer.getSource().getParams().LAYERS].time.end).valueOf() / resolution) * resolution);
 		}
 
+		setLayerTime(satelliteLayer, startDate.toISOString());
 		setLayerTime(radarLayer, startDate.toISOString());
 		setLayerTime(lightningLayer, 'PT5M/' + startDate.toISOString());
 		setLayerTime(observationLayer, startDate.toISOString());
@@ -419,7 +436,8 @@ function updateClock() {
 }
 
 function updateLayerInfo() {
-	readWMSCapabilities();
+	readWMSCapabilities(WMSURL);
+	readWMSCapabilities(options.wmsServer.eumetsat);
 	setTimeout(updateLayerInfo, 60000);
 }
 
@@ -560,6 +578,7 @@ function addEventListeners(selector) {
 	});
 }
 
+addEventListeners("#satelliteLayer > div");
 addEventListeners("#radarLayer > div");
 addEventListeners("#lightningLayer > div");
 addEventListeners("#observationLayer > div");
@@ -718,10 +737,10 @@ document.addEventListener('keyup', function (event) {
 
 });
 
-function readWMSCapabilities() {
+function readWMSCapabilities(url) {
 	var parser = new WMSCapabilities();
 	debug("Request WMS Capabilities");
-	fetch(WMSURL + '?SERVICE=WMS&version=1.3.0&request=GetCapabilities').then(function (response) {
+	fetch(url + '?SERVICE=WMS&version=1.3.0&request=GetCapabilities').then(function (response) {
 		return response.text();
 	}).then(function (text) {
 		debug("Received WMS Capabilities");

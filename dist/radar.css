@@ -51,7 +51,7 @@
         display: flex;
     }
    
-     #infoItemMap, #infoItemCursor, #infoItemObservation, #infoItemLightning, #infoItemPosition, .infoLabel {
+     #infoItemMap, #infoItemCursor, #infoItemObservation, #infoItemLightning, #infoItemPosition, #infoItemSatellite, .infoLabel {
         display: none;
     }
 
@@ -91,7 +91,7 @@
     border-radius: 3px;
 }
 
-#radarPlayTxt, #infoItemRadar, #infoItemMap {
+#radarPlayTxt, #infoItemRadar, #infoItemMap, #infoItemSatellite, #infoItemObservation, #infoItemLightning {
     cursor: default;
 }
 
