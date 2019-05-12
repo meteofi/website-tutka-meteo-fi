@@ -5,7 +5,7 @@ import ImageLayer from 'ol/layer/Image';
 import VectorLayer from 'ol/layer/Vector';
 import XYZ from 'ol/source/XYZ';
 import ImageWMS from 'ol/source/ImageWMS';
-import GeoJSON from 'ol/format/GeoJSON.js';
+import GeoJSON from 'ol/format/GeoJSON';
 import Vector from 'ol/source/Vector';
 import {fromLonLat, transform} from 'ol/proj';
 import sync from 'ol-hashed';
@@ -31,7 +31,7 @@ var options = {
 		'dwd': "https://maps.dwd.de/geoserver/wms", // "dwd:RX-Produkt"
 		'knmi': "https://geoservices.knmi.nl/cgi-bin/RADNL_OPER_R___25PCPRR_L3.cgi", // "RADNL_OPER_R___25PCPRR_L3_COLOR"
 		"nws": "https://idpgis.ncep.noaa.gov/arcgis/services/radar/radar_base_reflectivity_time/ImageServer/WMSServer", // "0"
-		"eumetsat": "https://eumetview.eumetsat.int/geoserv/wms", // "meteosat:msg_eview"
+		"eumetsat": "https://eumetview.eumetsat.int/geoserv/meteosat/wms", // "meteosat:msg_eview"
 	}
 }
 
@@ -40,7 +40,7 @@ var metLatitude  = localStorage.getItem("metLatitude")  ? localStorage.getItem("
 var metLongitude = localStorage.getItem("metLongitude") ? localStorage.getItem("metLongitude") : 24.8725;
 var metRadarLayer = localStorage.getItem("metRadarLayer") ? localStorage.getItem("metRadarLayer") : "MeteoFI:radar_finland_dbz";
 var ownPosition = [];
-var startDate = threeHoursAgo();
+var startDate = new Date(Math.floor(Date.now() / 300000) * 300000 - 300000 * 12);
 var animationId = null;
 var moment = require('moment');
 moment.locale('fi');
@@ -50,7 +50,7 @@ const client  = connect('wss://meri.digitraffic.fi:61619/mqtt',{username: 'digit
 var WMSURL = options.wmsServer.meteo;
 var trackedVessels = {'230059770': {}, '230994270': {}, '230939100': {}, '230051170': {}, '230059740': {}, '230108850': {}, '230937480': {}, '230051160': {}, '230983250': {}, '230012240': {}, '230980890': {}, '230061400': {}, '230059760': {}, '230005610': {}, '230987580': {}, '230983340': {}, '230111580': {}, '230059750': {}, '230994810': {}, '230993590': {}, '230051150': {} };
 var activeLayers =  new Set();
-
+activeLayers.add("radarLayer");
 
 function debug(str) {
 	if (DEBUG) {
@@ -132,12 +132,6 @@ var rangeStyle = new Style({
 	})
 });
 
-function threeHoursAgo() {
-	return new Date(Math.round(Date.now() / 3600000) * 3600000 - 3600000 * 1);
-}
-
-
-
 // Setup Layers
 
 var lightGrayBaseLayer = new TileLayer({
@@ -185,7 +179,7 @@ var darkGrayReferenceLayer = new TileLayer({
 		opacity: 0.7,
 		source: new ImageWMS({
 			url: options.wmsServer.eumetsat,
-			params: { 'LAYERS': "meteosat:msg_eview" },
+			params: { 'LAYERS': "msg_eview" },
 			ratio: 1,
 			serverType: 'geoserver'
 		})
@@ -392,13 +386,17 @@ function setLayerStyle(layer, style) {
 
 function setTime(reverse=false) {
 	var resolution = 300000;
-	var end;
+	var end = Math.floor(Date.now() / resolution) * resolution - resolution;
+  var start = end - resolution * 12;
 
-	if (typeof (radarLayer.time) !== "undefined") {
+	if (typeof (layerInfo[radarLayer.getSource().getParams().LAYERS]) !== "undefined") {
 		for (let item of activeLayers) {
 			var wmslayer = layerss[item].getSource().getParams().LAYERS
 			resolution = Math.max(resolution, layerInfo[wmslayer].time.resolution)
-			end = Math.max(resolution, layerInfo[wmslayer].time.resolution)
+			if (item == "radarLayer" || item == "satelliteLayer") {
+				end = Math.min(end, Math.floor(layerInfo[wmslayer].time.end / resolution) * resolution);
+			}
+			start = Math.floor(end / resolution) * resolution - resolution * 12;
 		}
 		
 		if (reverse) {
@@ -407,17 +405,15 @@ function setTime(reverse=false) {
 			startDate.setMinutes(startDate.getMinutes() + resolution / 60000);
 		}
 
-		if (startDate.getTime() > layerInfo[radarLayer.getSource().getParams().LAYERS].time.end) {
-			startDate = new Date(Math.round(moment(layerInfo[radarLayer.getSource().getParams().LAYERS].time.end).valueOf() / resolution) * resolution - resolution * 12);
-		}
-
-		if (startDate.getTime() < new Date(Math.round(moment(layerInfo[radarLayer.getSource().getParams().LAYERS].time.end).valueOf() / resolution) * resolution - resolution * 12) ) {
-			startDate = new Date(Math.round(moment(layerInfo[radarLayer.getSource().getParams().LAYERS].time.end).valueOf() / resolution) * resolution);
+		if (startDate.getTime() > end) {
+			startDate = new Date(start);
+		} else if (startDate.getTime() < start) {
+			startDate = new Date(end);
 		}
 
 		setLayerTime(satelliteLayer, startDate.toISOString());
 		setLayerTime(radarLayer, startDate.toISOString());
-		setLayerTime(lightningLayer, 'PT5M/' + startDate.toISOString());
+		setLayerTime(lightningLayer, 'PT'+(resolution/60000)+'M/' + startDate.toISOString());
 		setLayerTime(observationLayer, startDate.toISOString());
 	} 
 }
@@ -436,8 +432,8 @@ function updateClock() {
 }
 
 function updateLayerInfo() {
-	readWMSCapabilities(WMSURL);
-	readWMSCapabilities(options.wmsServer.eumetsat);
+	readWMSCapabilities(WMSURL,60000);
+	readWMSCapabilities(options.wmsServer.eumetsat,300000);
 	setTimeout(updateLayerInfo, 60000);
 }
 
@@ -484,7 +480,9 @@ document.getElementById("cursorDistanceTxtKM").style.display = "none";
 document.getElementById("cursorDistanceTxtNM").style.display = "none";
 
 updateClock();
-updateLayerInfo();
+//updateLayerInfo();
+readWMSCapabilities(options.wmsServer.meteo,60000);
+readWMSCapabilities(options.wmsServer.eumetsat,300000);
 
 Object.keys(trackedVessels).forEach(function (item) {
 	debug("Subscribed vessel " + item + " locations");
@@ -737,19 +735,20 @@ document.addEventListener('keyup', function (event) {
 
 });
 
-function readWMSCapabilities(url) {
+function readWMSCapabilities(url,timeout) {
 	var parser = new WMSCapabilities();
-	debug("Request WMS Capabilities");
+	debug("Request WMS Capabilities " + url);
 	fetch(url + '?SERVICE=WMS&version=1.3.0&request=GetCapabilities').then(function (response) {
 		return response.text();
 	}).then(function (text) {
-		debug("Received WMS Capabilities");
+		debug("Received WMS Capabilities " + url);
 		var result = parser.read(text);
 		getLayers(result.Capability.Layer.Layer);
 		if (typeof (radarLayer.time) === "undefined") {
 			radarLayer.time = layerInfo[metRadarLayer].time;
 		}
 	});
+	setTimeout(function() {readWMSCapabilities(url,timeout)}, timeout);
 }
 
 function getLayers(parentlayer) {
