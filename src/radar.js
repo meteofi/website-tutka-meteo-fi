@@ -22,8 +22,8 @@ import { connect } from 'mqtt';
 
 var options = {
 	defaultRadarLayer: "MeteoFI:radar_finland_dbz",
-	rangeRing: 50,
-	bearingLine: 30,
+	rangeRingSpacing: 50,
+	radialSpacing: 30,
 	frameRate: 4, // fps
 	wmsServer: {
 		'meteo': "https://wms.meteo.fi/geoserver/wms", // "MeteoFI:radar_finland_dbz"
@@ -46,7 +46,6 @@ var moment = require('moment');
 moment.locale('fi');
 var layerInfo = {};
 const client  = connect('wss://meri.digitraffic.fi:61619/mqtt',{username: 'digitraffic', password: 'digitrafficPassword'});
-//const WMSURL = "https://wms.meteo.fi/geoserver/wms";
 var WMSURL = options.wmsServer.meteo;
 var trackedVessels = {'230059770': {}, '230994270': {}, '230939100': {}, '230051170': {}, '230059740': {}, '230108850': {}, '230937480': {}, '230051160': {}, '230983250': {}, '230012240': {}, '230980890': {}, '230061400': {}, '230059760': {}, '230005610': {}, '230987580': {}, '230983340': {}, '230111580': {}, '230059750': {}, '230994810': {}, '230993590': {}, '230051150': {} };
 var activeLayers =  new Set();
@@ -132,8 +131,9 @@ var rangeStyle = new Style({
 	})
 });
 
-// Setup Layers
-
+//
+// LAYERS
+//
 var lightGrayBaseLayer = new TileLayer({
 	visible: false,
 	source: new XYZ({
@@ -172,87 +172,86 @@ var darkGrayReferenceLayer = new TileLayer({
 	})
 });
 
-	// Satellite Layer
-	var satelliteLayer = new ImageLayer({
-		name: "satelliteLayer",
-		visible: false,
-		opacity: 0.7,
-		source: new ImageWMS({
-			url: options.wmsServer.eumetsat,
-			params: { 'LAYERS': "msg_eview" },
-			ratio: 1,
-			serverType: 'geoserver'
-		})
-	});
+// Satellite Layer
+var satelliteLayer = new ImageLayer({
+	name: "satelliteLayer",
+	visible: false,
+	opacity: 0.7,
+	source: new ImageWMS({
+		url: options.wmsServer.eumetsat,
+		params: { 'LAYERS': "msg_eview" },
+		ratio: 1,
+		serverType: 'geoserver'
+	})
+});
 
-	// Radar Layer
-	var radarLayer = new ImageLayer({
-		name: "radarLayer",
-		opacity: 0.7,
-		source: new ImageWMS({
-			url: WMSURL,
-			//params: { 'LAYERS': metRadarLayer, 'STYLES': 'radar_finland_dbz_fmi' },
-			params: { 'LAYERS': metRadarLayer },
-			ratio: 1,
-			serverType: 'geoserver'
-		})
-	});
+// Radar Layer
+var radarLayer = new ImageLayer({
+	name: "radarLayer",
+	opacity: 0.7,
+	source: new ImageWMS({
+		url: WMSURL,
+		params: { 'LAYERS': metRadarLayer },
+		ratio: 1,
+		serverType: 'geoserver'
+	})
+});
 
-	// Lightning Layer
-	var lightningLayer = new ImageLayer({
-		name: "lightningLayer",
-		visible: false,
-		source: new ImageWMS({
-			url: WMSURL,
-			params: { 'LAYERS': 'observation:lightning' },
-			ratio: 1,
-			serverType: 'geoserver'
-		})
-	});
+// Lightning Layer
+var lightningLayer = new ImageLayer({
+	name: "lightningLayer",
+	visible: false,
+	source: new ImageWMS({
+		url: WMSURL,
+		params: { 'LAYERS': 'observation:lightning' },
+		ratio: 1,
+		serverType: 'geoserver'
+	})
+});
 
-	// Observation Layer
-	var observationLayer = new ImageLayer({
-		name: "observationLayer",
-		visible: false,
-		source: new ImageWMS({
-			url: WMSURL,
-			params: { 'LAYERS': 'observation:air_temperature' },
-			ratio: 1,
-			serverType: 'geoserver'
-		})
-	});
+// Observation Layer
+var observationLayer = new ImageLayer({
+	name: "observationLayer",
+	visible: false,
+	source: new ImageWMS({
+		url: WMSURL,
+		params: { 'LAYERS': 'observation:air_temperature' },
+		ratio: 1,
+		serverType: 'geoserver'
+	})
+});
 
 
-	var positionLayer = new VectorLayer({
-		source: new Vector({
-			format: new GeoJSON(),
-			url: 'radars-finland.json'
-		}),
-		//,
-		//style: function(feature) {
-		//	style.getText().setText(feature.get('mmsi'));
-		//	return style;
-		//}
-	});
+var positionLayer = new VectorLayer({
+	source: new Vector({
+		format: new GeoJSON(),
+		url: 'radars-finland.json'
+	}),
+	//,
+	//style: function(feature) {
+	//	style.getText().setText(feature.get('mmsi'));
+	//	return style;
+	//}
+});
 
-	var smpsLayer = new VectorLayer({
-		source: new Vector(),
-		visible: false,
-		style: function(feature) {
-			vesselStyle.getText().setText(getVesselName(feature.get('mmsi')) + " " + feature.get('sog')+"kn");
-			return vesselStyle;
-		}
-	});
+var smpsLayer = new VectorLayer({
+	source: new Vector(),
+	visible: false,
+	style: function (feature) {
+		vesselStyle.getText().setText(getVesselName(feature.get('mmsi')) + " " + feature.get('sog') + "kn");
+		return vesselStyle;
+	}
+});
 
-	var guideLayer = new VectorLayer({
-		source: new Vector(),
-		style: rangeStyle
-	});
+var guideLayer = new VectorLayer({
+	source: new Vector(),
+	style: rangeStyle
+});
 
-	var ownPositionLayer = new VectorLayer({
-		source: new Vector(),
-		style: ownStyle,
-	});
+var ownPositionLayer = new VectorLayer({
+	source: new Vector(),
+	style: ownStyle,
+});
 
 
 var layerss = {
@@ -263,7 +262,6 @@ var layerss = {
 }
 
 var layers = [
-
 	lightGrayBaseLayer,
 	darkGrayBaseLayer,
 	satelliteLayer,
@@ -273,16 +271,10 @@ var layers = [
 	lightGrayReferenceLayer,
 	darkGrayReferenceLayer,
 	observationLayer,
-
   positionLayer,
-
-
 	ownPositionLayer,
-
 	smpsLayer
-
-]; // layers
-
+];
 
 function mouseCoordinateFormat (coordinate) {
 	var distance = getDistance(coordinate,ownPosition);
@@ -296,8 +288,6 @@ function mouseCoordinateFormat (coordinate) {
 var mousePositionControl = new MousePosition({
 	coordinateFormat: mouseCoordinateFormat,
 	projection: 'EPSG:4326',
-	// comment the following two lines to have the mouse position
-	// be placed within the map.
 	className: 'custom-mouse-position',
 	target: document.getElementById('cursorTxt'),
 	undefinedHTML: 'Cursor not on map'
@@ -319,25 +309,22 @@ const map = new Map({
 
 sync(map);
 
-//radarRangeRings([24.8690,60.2706],"250000");
 
-//	new Feature(ring.transform('EPSG:4326', map.getView().getProjection()))"
-function radarRangeRings (layer, coordinates, range) {
+function rangeRings (layer, coordinates, range) {
 	const ring = circular(coordinates, range);
 	layer.getSource().addFeatures([
 		new Feature(ring.transform('EPSG:4326', map.getView().getProjection()))
 	]);	
 }
 
-function bearingLine(layer, coordinates, range, direction)
-{
-    var c = new LatLon(coordinates[1], coordinates[0]);
-    var p1 = c.destinationPoint(50000, direction);
-		var p2 = c.destinationPoint(range*1000, direction);
-		var line = new Polygon([[[p1.lon, p1.lat], [p2.lon, p2.lat]]]);
-		layer.getSource().addFeatures([
-			new Feature(line.transform('EPSG:4326', map.getView().getProjection()))
-		]);	
+function bearingLine(layer, coordinates, range, direction) {
+	var c = new LatLon(coordinates[1], coordinates[0]);
+	var p1 = c.destinationPoint(50000, direction);
+	var p2 = c.destinationPoint(range * 1000, direction);
+	var line = new Polygon([[[p1.lon, p1.lat], [p2.lon, p2.lat]]]);
+	layer.getSource().addFeatures([
+		new Feature(line.transform('EPSG:4326', map.getView().getProjection()))
+	]);
 }
 
 navigator.geolocation.watchPosition(function(pos) {
@@ -419,12 +406,6 @@ function updateClock() {
 
 	// call this function again in 1000ms
 	setTimeout(updateClock, 1000);
-}
-
-function updateLayerInfo() {
-	readWMSCapabilities(WMSURL,60000);
-	readWMSCapabilities(options.wmsServer.eumetsat,300000);
-	setTimeout(updateLayerInfo, 60000);
 }
 
 var play = function () {
@@ -548,6 +529,7 @@ function updateLayer(layer, wmslayer) {
 	debug(layerInfo[wmslayer]);
 	removeSelectedParameter("#" + layer.get("name") + " > div");
 	document.getElementById(wmslayer).classList.add("selected");
+	document.getElementById(layer.get("name")+"Button").classList.add("selectedButton");
 	activeLayers.add(layer.get("name"));
 	layer.getSource().updateParams({ 'LAYERS': wmslayer });
 	layer.setVisible(true);
@@ -560,6 +542,7 @@ function addEventListeners(selector) {
 		elem.addEventListener("click", function () {
 			if (event.target.id.indexOf("Off") !== -1) {
 				removeSelectedParameter("#" + event.target.parentElement.id + " > div");
+				document.getElementById(event.target.parentElement.id+"Button").classList.remove('selectedButton');
 				event.target.classList.add("selected");
 				debug("Deactivated layer " + event.target.parentElement.id);
 				layerss[event.target.parentElement.id].setVisible(false);
@@ -629,8 +612,8 @@ var displayFeatureInfo = function (pixel) {
 		if (feature) {
 			featureOverlay.getSource().addFeature(feature);
 			var coords = transform(feature.getGeometry().getCoordinates(), map.getView().getProjection(), 'EPSG:4326');
-			[50000,100000,150000,200000,250000].forEach(range => radarRangeRings(guideLayer, coords, range));
-			Array.from({length:360/options.bearingLine},(x,index)=>index*30).forEach(bearing => bearingLine(guideLayer, coords, 250, bearing));
+			[50000,100000,150000,200000,250000].forEach(range => rangeRings(guideLayer, coords, range));
+			Array.from({length:360/options.radialSpacing},(x,index)=>index*options.radialSpacing).forEach(bearing => bearingLine(guideLayer, coords, 250, bearing));
 			map.getView().fit(guideLayer.getSource().getExtent(), map.getSize()); 
 		}
 		highlight = feature;
@@ -645,11 +628,13 @@ function toggleLayerVisibility(layer) {
 		layer.setVisible(true);
 		activeLayers.add(layer.get("name"));
 		document.getElementById(layer.getSource().getParams().LAYERS).classList.add("selected");
+		document.getElementById(layer.get("name")+"Button").classList.add("selectedButton");
 	}
 	if (visibility == true) {
 		layer.setVisible(false);
 		activeLayers.delete(layer.get("name"));
 		document.getElementById(layer.get("name")+"Off").classList.add("selected");
+		document.getElementById(layer.get("name")+"Button").classList.remove("selectedButton");
 	}
 }
 
@@ -695,14 +680,21 @@ document.getElementById('skip_previous').addEventListener('click', function() {
 	skip_previous();
 });
 
+document.getElementById('satelliteLayerButton').addEventListener('click', function() {
+	toggleLayerVisibility(satelliteLayer);
+});
 
-// map.on('pointermove', function(evt) {
-// 	if (evt.dragging) {
-// 		return;
-// 	}
-// 	var pixel = map.getEventPixel(evt.originalEvent);
-// 	displayFeatureInfo(pixel);
-// });
+document.getElementById('radarLayerButton').addEventListener('click', function() {
+	toggleLayerVisibility(radarLayer);
+});
+
+document.getElementById('lightningLayerButton').addEventListener('click', function() {
+	toggleLayerVisibility(lightningLayer);
+});
+
+document.getElementById('observationLayerButton').addEventListener('click', function() {
+	toggleLayerVisibility(observationLayer);
+});
 
 map.on('click', function(evt) {
 	displayFeatureInfo(evt.pixel);
@@ -755,7 +747,6 @@ function getLayers(parentlayer) {
 	let products = {}
 	parentlayer.forEach((layer) => {
 		if (Array.isArray(layer.Layer)) {
-			//console.log(layer.Title)
 			getLayers(layer.Layer)
 		} else {
 			layerInfo[layer.Name] = getLayerInfo(layer)
@@ -765,7 +756,6 @@ function getLayers(parentlayer) {
 }
 
 function getLayerInfo(layer) {
-	//console.log('Title: ' + layer.Title + ' Name: ' + layer.Name)
 	let product =
 	{
 		title: layer.Title,

@@ -44,6 +44,29 @@
       overflow: hidden;
       position: relative;
       background-color: black;
+      box-sizing: border-box;
+    }
+
+    .navbar {
+      position: absolute;
+      top: 0px;
+      left: 80px;
+      right: 80px;
+      height: 40px;
+      background-color: rgba(0,0,0,0.5);
+      z-index: 100;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      color: #cccccc;
+      flex-flow: row wrap;
+      padding: 8px;
+      border-radius: 10px;
+    }
+    .navbar > div {
+      flex-grow: 1;
+      text-align: center;
+      font-size: 2em;
     }
   </style>
   <title>Säätutka (sadetutka) ja ukkostutka Suomi - Meteo.fi</title>
@@ -51,6 +74,12 @@
 
 <body>
   <div id="map"></div>
+  <div class="navbar">
+    <div id="satelliteLayerButton"><i class="material-icons">satellite</i></div>
+    <div id="radarLayerButton" class="selectedButton"><i class="material-icons">filter_tilt_shift</i></div>
+    <div id="lightningLayerButton"><i class="material-icons">flash_on</i></div>
+    <div id="observationLayerButton"><i class="material-icons">place</i></div>
+  </div>
   <div id="infopanel">
     <div class="infoItem" id="infoItemMap">
       <div class="infoLabel" id="infoLabelMap">MAPS</div>
@@ -71,7 +100,7 @@
     </div>
     <div class="infoItem" id="infoItemObservation">
         <div class="infoLabel" id="infoLabelObservation">OBSERVATION</div>
-        <div class="infoValue flexColumn" id="observationLayer"><div id="observationLayerOff" class="flexCell selected">OFF</div><div id="observation:air_temperature" class="flexCell">TMP</div><div id="observation:wind_speed" class="flexCell">WIND</div></div>
+        <div class="infoValue flexColumn" id="observationLayer"><div id="observationLayerOff" class="flexCell selected">OFF</div><div id="observation:air_temperature" class="flexCell">TMP</div><!--div id="observation:dew_point_temperature" class="flexCell">DPT</div--><div id="observation:wind_speed" class="flexCell">WIND</div></div>
       </div>
     <div class="infoItem" id="infoItemTime">
       <div class="infoLabel">TIME</div>

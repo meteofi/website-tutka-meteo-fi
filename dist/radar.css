@@ -77,6 +77,10 @@
     color: #000000;
 }
 
+.selectedButton {
+    color: #5BD5FD;
+}
+
 .flexColumn {
     display: flex;
     flex-direction: row;
@@ -89,9 +93,10 @@
     flex: 1;
     padding: 4px;
     border-radius: 3px;
+   /* flex-basis: 20%;*/
 }
 
-#radarPlayTxt, #infoItemRadar, #infoItemMap, #infoItemSatellite, #infoItemObservation, #infoItemLightning {
+#radarPlayTxt, #infoItemRadar, #infoItemMap, #infoItemSatellite, #infoItemObservation, #infoItemLightning, #radar, #satellite {
     cursor: default;
 }
 
