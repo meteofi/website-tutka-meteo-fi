@@ -100,6 +100,10 @@
     }
 }
 
+#infoItemSatellite {
+    display: none;
+}
+
 .valueTxtBig {
     font-size: 1.5em;
 }
