@@ -297,7 +297,8 @@ const map = new Map({
   target: 'map',
 	layers: layers,
 	controls: [
-		new FullScreen(), mousePositionControl
+		mousePositionControl
+		//		new FullScreen(), mousePositionControl
 	],
   view: new View({
 		enableRotation: false,
@@ -354,6 +355,7 @@ function setLayerTime(layer, time) {
 	if (moment(time).isValid()) {
 		document.getElementById("radarDateValue").innerHTML = moment(time).format('l');
 		document.getElementById("radarTimeValue").innerHTML = moment(time).format('LT');
+		document.getElementById("currentMapTime").innerHTML = moment(time).format('LT');
 	}
 }
 
@@ -413,6 +415,7 @@ var play = function () {
 		debug("PLAY");
 		animationId = window.setInterval(setTime, 1000 / options.frameRate);
 		document.getElementById("playstop").innerHTML = "pause";
+		document.getElementById("playstopButton").innerHTML = "pause";
 	}
 };
 
@@ -422,6 +425,7 @@ var stop = function () {
 		window.clearInterval(animationId);
 		animationId = null;
 		document.getElementById("playstop").innerHTML = "play_arrow";
+		document.getElementById("playstopButton").innerHTML = "play_arrow";
 	}
 };
 
@@ -668,6 +672,18 @@ function geoLocationUpdate(location) {
 // EVENTS
 //
 
+document.getElementById('playButton').addEventListener('click', function() {
+	playstop();
+});
+
+document.getElementById('skipNextButton').addEventListener('click', function() {
+	skip_next();
+});
+
+document.getElementById('skipPreviousButton').addEventListener('click', function() {
+	skip_previous();
+});
+
 document.getElementById('playstop').addEventListener('click', function() {
 	playstop();
 });
@@ -678,6 +694,10 @@ document.getElementById('skip_next').addEventListener('click', function() {
 
 document.getElementById('skip_previous').addEventListener('click', function() {
 	skip_previous();
+});
+
+document.getElementById('locationLayerButton').addEventListener('click', function() {
+	map.getView().setCenter(fromLonLat(ownPosition));
 });
 
 document.getElementById('satelliteLayerButton').addEventListener('click', function() {
