@@ -1,5 +1,6 @@
 import {Map, View} from 'ol';
-import {FullScreen, MousePosition} from 'ol/control.js';
+import {MousePosition} from 'ol/control.js';
+import Geolocation from 'ol/Geolocation';
 import TileLayer from 'ol/layer/Tile';
 import ImageLayer from 'ol/layer/Image';
 import VectorLayer from 'ol/layer/Vector';
@@ -40,6 +41,7 @@ var metLatitude  = localStorage.getItem("metLatitude")  ? localStorage.getItem("
 var metLongitude = localStorage.getItem("metLongitude") ? localStorage.getItem("metLongitude") : 24.8725;
 var metRadarLayer = localStorage.getItem("metRadarLayer") ? localStorage.getItem("metRadarLayer") : "MeteoFI:radar_finland_dbz";
 var ownPosition = [];
+var ownPosition4326 = [];
 var startDate = new Date(Math.floor(Date.now() / 300000) * 300000 - 300000 * 12);
 var animationId = null;
 var moment = require('moment');
@@ -130,6 +132,25 @@ var rangeStyle = new Style({
 		width: 0.5
 	})
 });
+
+//
+// FEATURES
+// 
+var positionFeature = new Feature();
+positionFeature.setStyle(new Style({
+	image: new CircleStyle({
+		radius: 6,
+		fill: new Fill({
+			color: '#3399CC'
+		}),
+		stroke: new Stroke({
+			color: '#fff',
+			width: 2
+		})
+	})
+}));
+
+var accuracyFeature = new Feature();
 
 //
 // LAYERS
@@ -249,8 +270,9 @@ var guideLayer = new VectorLayer({
 });
 
 var ownPositionLayer = new VectorLayer({
-	source: new Vector(),
-	style: ownStyle,
+	source: new Vector({
+		features: [accuracyFeature, positionFeature]
+	})
 });
 
 
@@ -277,7 +299,7 @@ var layers = [
 ];
 
 function mouseCoordinateFormat (coordinate) {
-	var distance = getDistance(coordinate,ownPosition);
+	var distance = getDistance(coordinate,ownPosition4326);
 	var distance_km = distance/1000;
 	var distance_nm = distance/1852;
 	document.getElementById("cursorDistanceValueKM").innerHTML = distance_km.toFixed(3) + " km";
@@ -328,26 +350,35 @@ function bearingLine(layer, coordinates, range, direction) {
 	]);
 }
 
-navigator.geolocation.watchPosition(function(pos) {
-	const coords = [pos.coords.longitude, pos.coords.latitude];
-	ownPosition = coords;
-	const accuracy = circular(coords, pos.coords.accuracy);
-	document.getElementById("positionLatValue").innerHTML = "&#966; " + Dms.toLat(pos.coords.latitude, "dm", 3);
-	document.getElementById("positionLonValue").innerHTML = "&#955; " + Dms.toLon(pos.coords.longitude, "dm", 3);
-	//document.getElementById("infoItemPosition").style.display = "block";
-	document.getElementById("cursorDistanceTxtKM").style.display = "block";
-	document.getElementById("cursorDistanceTxtNM").style.display = "block";
-  ownPositionLayer.getSource().clear(true);
-  ownPositionLayer.getSource().addFeatures([
-    new Feature(accuracy.transform('EPSG:4326', map.getView().getProjection())),
-    new Feature(new Point(fromLonLat(coords)))
-  ]);
-}, function(error) {
-  debug(`ERROR: ${error.message}`);
-}, {
-  enableHighAccuracy: true
+var geolocation = new Geolocation({
+	trackingOptions: {
+		enableHighAccuracy: true
+	},
+	projection: map.getView().getProjection()
 });
 
+geolocation.on('error', function (error) {
+	debug(error.message);
+});
+
+geolocation.on('change:accuracyGeometry', function() {
+	accuracyFeature.setGeometry(geolocation.getAccuracyGeometry());
+});
+
+geolocation.on('change:position', function() {
+	var coordinates = geolocation.getPosition();
+	ownPosition = coordinates;
+	ownPosition4326 = transform(coordinates,map.getView().getProjection(),'EPSG:4326');
+	positionFeature.setGeometry(coordinates ?
+		new Point(coordinates) : null);
+	document.getElementById("gpsStatus").innerHTML = "gps_fixed";
+	document.getElementById("positionLatValue").innerHTML = "&#966; " + Dms.toLat(ownPosition4326[1], "dm", 3);
+	document.getElementById("positionLonValue").innerHTML = "&#955; " + Dms.toLon(ownPosition4326[0], "dm", 3);
+	document.getElementById("cursorDistanceTxtKM").style.display = "block";
+  document.getElementById("cursorDistanceTxtNM").style.display = "block";
+});
+
+geolocation.setTracking(true);
 
 
 function setLayerTime(layer, time) {
@@ -563,14 +594,6 @@ addEventListeners("#radarLayer > div");
 addEventListeners("#lightningLayer > div");
 addEventListeners("#observationLayer > div");
 
-    // Start Position Watch
- //   if ("geolocation" in navigator) {
-//			var watchIdG  = navigator.geolocation.watchPosition(geoLocationUpdate,geoLocationFail,{enableHighAccuracy:true});
-//			debug("Started geolocation watch position. ("+watchIdG+")");
-//	} else {
-//			debug("Geolocation is not supported by this browser.");
-//	}
-
 var highlightStyle = new Style({
 	stroke: new Stroke({
 		color: '#f00',
@@ -659,14 +682,6 @@ function geoLocationFail(error) {
 	}
 }
 
-function geoLocationUpdate(location) {
-	localStorage.setItem("metLatitude", location.coords.latitude);
-	localStorage.setItem("metLongitude", location.coords.longitude);
-	metLatitude = location.coords.latitude;
-	metLongitude = location.coords.longitude;
-//	$('#positionTxt').html("&#966; " + Dms.toLat(metLatitude, "dm", 3) + "<br/>" + "&#955; " + Dms.toLon(metLongitude, "dm", 3));
-//	$('#infoItemPosition').show();
-}
 
 //
 // EVENTS
@@ -697,7 +712,7 @@ document.getElementById('skip_previous').addEventListener('click', function() {
 });
 
 document.getElementById('locationLayerButton').addEventListener('click', function() {
-	map.getView().setCenter(fromLonLat(ownPosition));
+	map.getView().setCenter(ownPosition);
 });
 
 document.getElementById('satelliteLayerButton').addEventListener('click', function() {
