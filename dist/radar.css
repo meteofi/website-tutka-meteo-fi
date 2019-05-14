@@ -22,6 +22,31 @@
     padding-top: env(safe-area-inset-top);
   }
 
+  .playbar {
+    position: absolute;
+    left: 50%;
+    bottom: 0px;
+    width: 380px;
+    height: auto;
+    margin: 0px 0 0 -198px;
+    background-color: rgba(0,0,0,0.5);
+    z-index: 100;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    color: #cccccc;
+    flex-flow: row wrap;
+    padding: 8px;
+    border-radius: 10px;
+  }
+
+  .playbar > div {
+    flex-grow: 1;
+    text-align: center;
+    font-size: 2em;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
 #infopanel {
     position: absolute;
     background-color: rgba(0,0,0,0.7);
@@ -74,13 +99,21 @@
         margin: 0;
       }
 
+    .playbar {
+        left: 0;
+        bottom: 0;
+        width: 100%;
+        border-radius: 0px;
+        margin: 0;
+    }
+
     #infopanel {
         top: auto;
         bottom: 0px;
         left: 0px;
         width: 100%;
         height: 70px;
-        display: flex;
+        display: none;
     }
    
      #infoItemMap, #infoItemCursor, #infoItemObservation, #infoItemLightning, #infoItemPosition, #infoItemSatellite, .infoLabel {
