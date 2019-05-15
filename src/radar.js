@@ -53,7 +53,9 @@ var trackedVessels = {'230059770': {}, '230994270': {}, '230939100': {}, '230051
 var activeLayers =  new Set();
 activeLayers.add("radarLayer");
 
-
+document.ontouchmove = function(e){ 
+	e.preventDefault(); 
+}
 // STATUS Variables
 var IS_TRACKING = false;
 
