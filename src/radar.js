@@ -53,6 +53,10 @@ var trackedVessels = {'230059770': {}, '230994270': {}, '230939100': {}, '230051
 var activeLayers =  new Set();
 activeLayers.add("radarLayer");
 
+
+// STATUS Variables
+var IS_TRACKING = false;
+
 function debug(str) {
 	if (DEBUG) {
 		try {
@@ -292,9 +296,9 @@ var layers = [
 	lightningLayer,
 	lightGrayReferenceLayer,
 	darkGrayReferenceLayer,
-	observationLayer,
   positionLayer,
 	ownPositionLayer,
+	observationLayer,
 	smpsLayer
 ];
 
@@ -375,7 +379,10 @@ geolocation.on('change:position', function() {
 	document.getElementById("positionLatValue").innerHTML = "&#966; " + Dms.toLat(ownPosition4326[1], "dm", 3);
 	document.getElementById("positionLonValue").innerHTML = "&#955; " + Dms.toLon(ownPosition4326[0], "dm", 3);
 	document.getElementById("cursorDistanceTxtKM").style.display = "block";
-  document.getElementById("cursorDistanceTxtNM").style.display = "block";
+	document.getElementById("cursorDistanceTxtNM").style.display = "block";
+	if (IS_TRACKING) {
+		map.getView().setCenter(ownPosition);
+	}
 });
 
 geolocation.setTracking(true);
@@ -712,7 +719,14 @@ document.getElementById('skip_previous').addEventListener('click', function() {
 });
 
 document.getElementById('locationLayerButton').addEventListener('click', function() {
-	map.getView().setCenter(ownPosition);
+	if (IS_TRACKING) {
+		IS_TRACKING = false;
+		document.getElementById("locationLayerButton").classList.remove("selectedButton");
+	} else {
+		IS_TRACKING = true;
+		map.getView().setCenter(ownPosition);
+		document.getElementById("locationLayerButton").classList.add("selectedButton");
+	}
 });
 
 document.getElementById('satelliteLayerButton').addEventListener('click', function() {
