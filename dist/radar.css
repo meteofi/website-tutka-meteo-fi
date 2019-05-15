@@ -1,3 +1,25 @@
+html,
+body,
+#map {
+  margin: 0px;
+  padding: 0px;
+  height: 100%;
+  background-color: black;
+  font-family: sans-serif;
+  cursor: crosshair;
+}
+
+@supports (padding-top: constant(safe-area-inset-top)) {
+    html, body, #map {
+        height: calc(100% + constant(safe-area-inset-top) + constant(safe-area-inset-bottom));
+    }
+}
+@supports (padding-top: env(safe-area-inset-top)) {
+  html, body, #map {
+        height: calc(100% + env(safe-area-inset-top) + env(safe-area-inset-bottom));
+  }
+}
+
 .navbar {
     position: absolute;
     left: 50%;
@@ -52,6 +74,7 @@
       -webkit-user-select: none; /* Safari */
          -moz-user-select: none; /* Firefox */
               user-select: none;
+                   cursor: default;
 }
 
 #infopanel {
