@@ -43,6 +43,8 @@
     body {
       position: fixed;
       overflow: hidden;
+      top: 0;
+      bottom: 0;
       background-color: black;
     }
   </style>
@@ -51,7 +53,7 @@
 
 <body>
   <div id="map"></div>
-  <div class="navbar">
+  <div class="navbar noselect">
       <div id="locationLayerButton"><i id="gpsStatus" class="material-icons">gps_not_fixed</i></div>
       <div id="satelliteLayerButton"><i class="material-icons">satellite</i></div>
       <div id="radarLayerButton" class="selectedButton"><i class="material-icons">filter_tilt_shift</i></div>
@@ -59,7 +61,7 @@
       <div id="observationLayerButton"><i class="material-icons">place</i></div>
       <div id="settingsButton"><i class="material-icons">settings</i></div>
   </div>
-  <div class="playbar">
+  <div class="playbar noselect">
     <div id="skipPreviousButton"><i class="material-icons">skip_previous</i></div>
     <div id="playButton"><i id="playstopButton" class="material-icons">pause</i></div>
     <div id="skipNextButton"><i class="material-icons">skip_next</i></div>
