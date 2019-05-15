@@ -12,7 +12,8 @@ body,
 
 html,
 body {
-    position: fixed;
+    position: relative;
+    overflow: hidden;
 }
 
 .navbar {
