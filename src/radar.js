@@ -443,7 +443,7 @@ function updateClock() {
 
 	// set the content of the element with the ID time to the formatted string
 	document.getElementById("currentDateValue").innerHTML = lt.format('l');
-	document.getElementById("currentLocalTimeValue").innerHTML = lt.format('LTS') + ' LT';
+	document.getElementById("currentLocalTimeValue").innerHTML = lt.format('LTS');
 	document.getElementById("currentUTCTimeValue").innerHTML = utc.format('LTS') + " UTC";
 
 	// call this function again in 1000ms
