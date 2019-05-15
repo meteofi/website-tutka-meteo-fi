@@ -55,6 +55,7 @@ body {
     color: #cccccc;
     flex-flow: row wrap;
     padding: 8px;
+    padding-bottom: max(8px,env(safe-area-inset-bottom));
     border-radius: 10px;
   }
 
@@ -62,7 +63,6 @@ body {
     flex-grow: 1;
     text-align: center;
     font-size: 2em;
-    padding-bottom: env(safe-area-inset-bottom);
   }
 
 .noselect {
