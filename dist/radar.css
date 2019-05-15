@@ -133,7 +133,7 @@
     }
 }
 
-#infoItemSatellite {
+#infoItemSatellite, #radarPlayTxt {
     display: none;
 }
 
