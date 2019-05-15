@@ -19,6 +19,7 @@
     flex-grow: 1;
     text-align: center;
     font-size: 2em;
+    user-select: none;
     padding-top: env(safe-area-inset-top);
   }
 
@@ -44,6 +45,7 @@
     flex-grow: 1;
     text-align: center;
     font-size: 2em;
+    user-select: none;
     padding-bottom: env(safe-area-inset-bottom);
   }
 
