@@ -1,5 +1,8 @@
-
-body {
+html
+body,
+#map {
+  width: 100%;
+  height: 100%;
   margin: 0px;
   padding: 0px;
   background-color: black;
@@ -8,11 +11,8 @@ body {
 }
 
 html,
-body,
-#map {
+body {
     position: fixed;
-    width: 100%;
-    height: 100%;
 }
 
 .navbar {
