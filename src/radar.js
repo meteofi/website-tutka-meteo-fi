@@ -307,9 +307,12 @@ var layers = [
 
 function mouseCoordinateFormat (coordinate) {
 	var distance = getDistance(coordinate,ownPosition4326);
+	var p1 = new LatLon(ownPosition4326[1], ownPosition4326[0]);
+	var p2 = new LatLon(coordinate[1], coordinate[0]);
+	var bearing = p1.initialBearingTo(p2);
 	var distance_km = distance/1000;
 	var distance_nm = distance/1852;
-	document.getElementById("cursorDistanceValueKM").innerHTML = distance_km.toFixed(3) + " km";
+	document.getElementById("cursorDistanceValueKM").innerHTML = distance_km.toFixed(3) + " km " + bearing.toFixed(0) + "&deg;";
 	document.getElementById("cursorDistanceValueNM").innerHTML = distance_nm.toFixed(3) + " NM";
 	return Dms.toLat(coordinate[1], "dm", 3) + " " + Dms.toLon(coordinate[0], "dm", 3);
 }
@@ -442,7 +445,6 @@ function updateClock() {
 	var lt = moment();
 	var utc = moment.utc();
 
-	// set the content of the element with the ID time to the formatted string
 	document.getElementById("currentDateValue").innerHTML = lt.format('l');
 	document.getElementById("currentLocalTimeValue").innerHTML = lt.format('LTS');
 	document.getElementById("currentUTCTimeValue").innerHTML = utc.format('LTS') + " UTC";
