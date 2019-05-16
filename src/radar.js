@@ -20,6 +20,7 @@ import Dms from 'geodesy/dms';
 import LatLon from 'geodesy/latlon-spherical'
 import WMSCapabilities from 'ol/format/WMSCapabilities.js';
 import { connect } from 'mqtt';
+import { transformExtent } from 'ol/proj';
 
 var options = {
 	defaultRadarLayer: "MeteoFI:radar_finland_dbz",
@@ -339,7 +340,7 @@ const map = new Map({
 	}),
 	keyboardEventTarget: document
 });
-
+map.getView().fit(transformExtent([19.24, 59.75, 31.59, 70.09],'EPSG:4326', map.getView().getProjection()));
 sync(map);
 
 
