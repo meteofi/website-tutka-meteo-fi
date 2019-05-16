@@ -25,7 +25,8 @@ var options = {
 	defaultRadarLayer: "MeteoFI:radar_finland_dbz",
 	rangeRingSpacing: 50,
 	radialSpacing: 30,
-	frameRate: 4, // fps
+	frameRate: 2, // fps
+	defaultFrameRate: 2, // fps
 	wmsServer: {
 		'meteo': "https://wms.meteo.fi/geoserver/wms", // "MeteoFI:radar_finland_dbz"
 		'fmi': "https://openwms.fmi.fi/geoserver/wms", //"Radar:suomi_dbz_eureffin"
@@ -419,9 +420,9 @@ function setTime(reverse=false) {
 		}
 		
 		if (reverse) {
-			startDate.setMinutes(startDate.getMinutes() - resolution / 60000);
+			startDate.setMinutes(Math.floor(startDate.getMinutes()/(resolution/60000)) * (resolution/60000) - resolution / 60000);
 		} else {
-			startDate.setMinutes(startDate.getMinutes() + resolution / 60000);
+			startDate.setMinutes(Math.floor(startDate.getMinutes()/(resolution/60000)) * (resolution/60000) + resolution / 60000);
 		}
 
 		if (startDate.getTime() > end) {
@@ -674,27 +675,26 @@ function toggleLayerVisibility(layer) {
 	}
 }
 
-function geoLocationFail(error) {
-	switch (error.code) {
-		case error.PERMISSION_DENIED:
-			debug("ERROR: User denied the request for geolocation.");
-			break;
-		case error.POSITION_UNAVAILABLE:
-			debug("ERROR: Geolocation information is unavailable.");
-			break;
-		case error.TIMEOUT:
-			debug("ERROR: The request to get user geolocation timed out.");
-			break;
-		case error.UNKNOWN_ERROR:
-			debug("ERROR: An unknown error occurred.");
-			break;
-	}
-}
-
-
 //
 // EVENTS
 //
+
+document.getElementById('speedButton').addEventListener('click', function() {
+	switch(options.frameRate) {
+		case options.defaultFrameRate:
+			options.frameRate = options.defaultFrameRate * 2;
+			break;
+		case options.defaultFrameRate * 2:
+			options.frameRate = options.defaultFrameRate * 0.5;
+			break;
+		default:
+		options.frameRate = options.defaultFrameRate
+	}
+	document.getElementById('speedButton').innerHTML = options.frameRate / options.defaultFrameRate + "×";
+	stop();
+	play();
+	debug("SPEED: " + options.frameRate);
+});
 
 document.getElementById('playButton').addEventListener('click', function() {
 	playstop();
@@ -857,4 +857,30 @@ function getTimeDimension(dimensions) {
 	var type = endTime > currentTime ? "for" : "obs"
 	//console.log("start: " + beginTime + " end: " + endTime + " resolution: " + resolutionTime + " type: " + type + " default: " + defaultTime)
 	return { start: beginTime, end: endTime, resolution: resolutionTime, type: type, default: defaultTime }
+}
+
+// Get the modal
+var modal = document.getElementById("myModal");
+
+// Get the button that opens the modal
+var btn = document.getElementById("settingsButton");
+
+// Get the <span> element that closes the modal
+var span = document.getElementsByClassName("close")[0];
+
+// When the user clicks on the button, open the modal 
+btn.onclick = function() {
+  modal.style.display = "block";
+}
+
+// When the user clicks on <span> (x), close the modal
+span.onclick = function() {
+  modal.style.display = "none";
+}
+
+// When the user clicks anywhere outside of the modal, close it
+window.onclick = function(event) {
+  if (event.target == modal) {
+    modal.style.display = "none";
+  }
 }
