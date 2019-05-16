@@ -1,25 +1,22 @@
-html
-body,
-#map {
-  width: 100%;
-  height: 100%;
-  margin: 0px;
-  padding: 0px;
-  background-color: black;
-  font-family: sans-serif;
-  cursor: crosshair;
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: black;
+    font-family: sans-serif;
+    cursor: crosshair;
 }
 
-html,
-body {
-    position: fixed;
-    overflow: hidden;
+#map {
+    background-color: gray;
+    height: 100%;
 }
 
 .navbar {
-    position: absolute;
+    position: fixed;
     left: 50%;
-    top: 0px;
+    top: 0;
     width: 380px;
     height: auto;
     margin: 0px 0 0 -198px;
@@ -31,19 +28,19 @@ body {
     color: #cccccc;
     flex-flow: row wrap;
     padding: 8px;
+    padding-top: env(safe-area-inset-top);
     border-radius: 10px;
   }
   .navbar > div {
     flex-grow: 1;
     text-align: center;
     font-size: 2em;
-    padding-top: env(safe-area-inset-top);
   }
 
   .playbar {
-    position: absolute;
+    position: fixed;
     left: 50%;
-    bottom: 0px;
+    bottom: 0;
     width: 380px;
     height: auto;
     margin: 0px 0 0 -198px;
@@ -56,13 +53,15 @@ body {
     flex-flow: row wrap;
     padding: 8px;
     border-radius: 10px;
+    padding-bottom: env(safe-area-inset-bottom);
+
   }
 
   .playbar > div {
     flex-grow: 1;
     text-align: center;
     font-size: 2em;
-    padding-bottom: env(safe-area-inset-bottom);
+
   }
 
 .noselect {

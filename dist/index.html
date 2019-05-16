@@ -15,7 +15,8 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Säätutka">
-  <meta name="viewport" content="initial-scale=1.0, user-scalable=no, width=device-width, viewport-fit=cover">
+  <!--meta name="viewport" content="initial-scale=1.0, user-scalable=no, width=device-width, viewport-fit=cover"-->
+  <meta name="viewport" content="initial-scale=1, width=device-width, height=device-height, viewport-fit=cover">
   <meta name="description"
     content="Suomen säätutkaverko ja salamapaikannusverkko näyttävät missä sataa ja salamoi. Kuvasarjasta saa käsityksen sadealueiden liikkeestä ja voi tehdä lyhyen ennusteen sitä, missä sataa kohta. Tiedot päivittyvät 5 minuutin välein. Tutkahavainnon tarkkuus on 1km. dBZ datan tarkkuus on 500m. Palvelu perustuu Ilmatieteen laitoksen avoimeen dataan." />
   <meta name="keywords"
@@ -31,15 +32,15 @@
 </head>
 
 <body>
-  <div id="map"></div>
   <div class="navbar noselect">
-      <div id="locationLayerButton"><i id="gpsStatus" class="material-icons">gps_not_fixed</i></div>
-      <div id="satelliteLayerButton"><i class="material-icons">satellite</i></div>
-      <div id="radarLayerButton" class="selectedButton"><i class="material-icons">filter_tilt_shift</i></div>
-      <div id="lightningLayerButton"><i class="material-icons">flash_on</i></div>
-      <div id="observationLayerButton"><i class="material-icons">place</i></div>
-      <div id="settingsButton"><i class="material-icons">settings</i></div>
+    <div id="locationLayerButton"><i id="gpsStatus" class="material-icons">gps_not_fixed</i></div>
+    <div id="satelliteLayerButton"><i class="material-icons">satellite</i></div>
+    <div id="radarLayerButton" class="selectedButton"><i class="material-icons">filter_tilt_shift</i></div>
+    <div id="lightningLayerButton"><i class="material-icons">flash_on</i></div>
+    <div id="observationLayerButton"><i class="material-icons">place</i></div>
+    <div id="settingsButton"><i class="material-icons">settings</i></div>
   </div>
+  <div id="map"></div>
   <div class="playbar noselect">
     <div id="speedButton" style="font-size: 1em;">1×</div>
     <div id="skipPreviousButton"><i class="material-icons">skip_previous</i></div>
