@@ -416,12 +416,16 @@ function setTime(reverse=false) {
 		for (let item of activeLayers) {
 			var wmslayer = layerss[item].getSource().getParams().LAYERS
 			resolution = Math.max(resolution, layerInfo[wmslayer].time.resolution)
-			if (item == "radarLayer" || item == "satelliteLayer") {
+			if (item == "radarLayer" || item == "satelliteLayer" || item == "observationLayer" || item == "satelliteLayer") {
 				end = Math.min(end, Math.floor(layerInfo[wmslayer].time.end / resolution) * resolution);
 			}
-			start = Math.floor(end / resolution) * resolution - resolution * 12;
+//			start = Math.floor(end / resolution) * resolution - resolution * 12;
 		}
+
+		end = Math.floor(end / resolution) * resolution ;
+		start = Math.floor(end / resolution) * resolution - resolution * 12;
 		
+
 		if (reverse) {
 			startDate.setMinutes(Math.floor(startDate.getMinutes()/(resolution/60000)) * (resolution/60000) - resolution / 60000);
 		} else {
