@@ -27,7 +27,7 @@ import { transformExtent } from 'ol/proj';
 
 
 var options = {
-	defaultRadarLayer: "MeteoFI:radar_finland_dbz",
+	defaultRadarLayer: "radar:radar_finland_dbz",
 	rangeRingSpacing: 50,
 	radialSpacing: 30,
 	frameRate: 2, // fps
@@ -45,7 +45,7 @@ var options = {
 var DEBUG = true;
 var metLatitude  = localStorage.getItem("metLatitude")  ? localStorage.getItem("metLatitude")  : 60.2706;
 var metLongitude = localStorage.getItem("metLongitude") ? localStorage.getItem("metLongitude") : 24.8725;
-var metRadarLayer = localStorage.getItem("metRadarLayer") ? localStorage.getItem("metRadarLayer") : "MeteoFI:radar_finland_dbz";
+var metRadarLayer = localStorage.getItem("metRadarLayer") ? localStorage.getItem("metRadarLayer") : "radar:radar_finland_dbz";
 var ownPosition = [];
 var ownPosition4326 = [];
 var startDate = new Date(Math.floor(Date.now() / 300000) * 300000 - 300000 * 12);
