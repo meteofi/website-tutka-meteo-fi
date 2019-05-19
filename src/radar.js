@@ -6,6 +6,7 @@ import ImageLayer from 'ol/layer/Image';
 import VectorLayer from 'ol/layer/Vector';
 import XYZ from 'ol/source/XYZ';
 import ImageWMS from 'ol/source/ImageWMS';
+import WMTS, {optionsFromCapabilities} from 'ol/source/WMTS.js';
 import GeoJSON from 'ol/format/GeoJSON';
 import Vector from 'ol/source/Vector';
 import {fromLonLat, transform} from 'ol/proj';
@@ -19,8 +20,11 @@ import {Circle as CircleStyle, Fill, Stroke, Style, Text} from 'ol/style.js';
 import Dms from 'geodesy/dms';
 import LatLon from 'geodesy/latlon-spherical'
 import WMSCapabilities from 'ol/format/WMSCapabilities.js';
+import WMTSCapabilities from 'ol/format/WMTSCapabilities.js';
 import { connect } from 'mqtt';
 import { transformExtent } from 'ol/proj';
+
+
 
 var options = {
 	defaultRadarLayer: "MeteoFI:radar_finland_dbz",
@@ -200,6 +204,41 @@ var darkGrayReferenceLayer = new TileLayer({
 			'Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}'
 	})
 });
+
+var merikarttaLayer = new TileLayer();
+var pohjakarttaLayer = new TileLayer();
+
+fetch('https://julkinen.vayla.fi/rasteripalvelu/wmts?request=getcapabilities').then(function (response) {
+	return response.text();
+}).then(function (text) {
+	var parser = new WMTSCapabilities();
+	var result = parser.read(text);
+	debug(result);
+	var options = optionsFromCapabilities(result, {
+		layer: 'liikennevirasto:Merikarttasarjat public',
+		matrixSet: 'WGS84_Pseudo-Mercator'
+	});
+	debug("OPTIONS");
+	debug(options);
+	merikarttaLayer.setSource(new WMTS(options));
+});
+
+
+fetch('https://avoin-karttakuva.maanmittauslaitos.fi/avoin/wmts?service=WMTS&request=GetCapabilities&version=1.0.0').then(function (response) {
+	return response.text();
+}).then(function (text) {
+	var parser = new WMTSCapabilities();
+	var result = parser.read(text);
+	debug(result);
+	var options = optionsFromCapabilities(result, {
+		layer: 'taustakartta',
+		matrixSet: 'WGS84_Pseudo-Mercator'
+	});
+	debug("OPTIONS");
+	debug(options);
+	pohjakarttaLayer.setSource(new WMTS(options));
+});
+
 
 // Satellite Layer
 var satelliteLayer = new ImageLayer({
@@ -579,8 +618,10 @@ function removeSelectedParameter (selector) {
 function updateLayer(layer, wmslayer) {
 	debug("Activated layer " + wmslayer);
 	debug(layerInfo[wmslayer]);
+	if (document.getElementById(wmslayer)) {
 	removeSelectedParameter("#" + layer.get("name") + " > div");
 	document.getElementById(wmslayer).classList.add("selected");
+	}
 	document.getElementById(layer.get("name")+"Button").classList.add("selectedButton");
 	activeLayers.add(layer.get("name"));
 	layer.getSource().updateParams({ 'LAYERS': wmslayer });
@@ -785,6 +826,18 @@ document.addEventListener('keyup', function (event) {
 
 });
 
+function updateLayerSelection(ollayer,type) {
+	document.getElementById(type+"Layer-select").innerHTML="";
+	Object.keys(layerInfo).forEach((layer) => {
+		if (layerInfo[layer].layer.includes(type+":")) { 
+			var div = document.createElement("div");
+			div.innerHTML = layerInfo[layer].title;
+			div.onclick = function () { updateLayer(ollayer,layerInfo[layer].layer); };
+			document.getElementById(type+"Layer-select").appendChild(div);
+		}
+	})
+}
+
 function readWMSCapabilities(url,timeout) {
 	var parser = new WMSCapabilities();
 	debug("Request WMS Capabilities " + url);
@@ -797,6 +850,9 @@ function readWMSCapabilities(url,timeout) {
 		if (typeof (radarLayer.time) === "undefined") {
 			radarLayer.time = layerInfo[metRadarLayer].time;
 		}
+		debug(layerInfo);
+		updateLayerSelection(observationLayer,"observation");
+		updateLayerSelection(radarLayer,"radar");
 	});
 	setTimeout(function() {readWMSCapabilities(url,timeout)}, timeout);
 }
@@ -870,7 +926,7 @@ function getTimeDimension(dimensions) {
 var modal = document.getElementById("myModal");
 
 // Get the button that opens the modal
-var btn = document.getElementById("settingsButton");
+var btn = document.getElementById("layersButton");
 
 // Get the <span> element that closes the modal
 var span = document.getElementsByClassName("close")[0];
