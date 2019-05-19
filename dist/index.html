@@ -37,7 +37,7 @@
     <div id="radarLayerButton" class="selectedButton"><i class="material-icons">filter_tilt_shift</i></div>
     <div id="lightningLayerButton"><i class="material-icons">flash_on</i></div>
     <div id="observationLayerButton"><i class="material-icons">place</i></div>
-    <div id="settingsButton"><i class="material-icons">settings</i></div>
+    <div id="layersButton"><i class="material-icons">layers</i></div>
   </div>
   <div id="map"></div>
   <div class="playbar noselect">
@@ -98,9 +98,12 @@
 <!-- The Modal -->
 <div id="myModal" class="modal">
     <!-- Modal content -->
-    <div class="modal-content">
+    <div id="modal-content" class="modal-content">
       <span class="close">&times;</span>
-      <p>Some text in the Modal..</p>
+      <h2>Radar Composites</h2>
+      <div id="radarLayer-select" class="layer-select"></div>
+      <h2>Surface Observations</h2>
+      <div id="observationLayer-select" class="layer-select"></div>
     </div>
   </div>
 
