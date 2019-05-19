@@ -166,7 +166,7 @@ html, body {
     }
 }
 
-#infoItemSatellite, #radarPlayTxt, #layersButton {
+#infoItemSatelliteD, #radarPlayTxt, #layersButtonD {
     display: none;
 }
 
