@@ -165,7 +165,7 @@ html, body {
         margin: 0;
       }
 
-    .playbar {
+    #timecontrol {
         left: 0;
         bottom: 0;
         width: 100%;
