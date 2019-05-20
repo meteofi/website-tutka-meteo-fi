@@ -63,7 +63,11 @@ document.ontouchmove = function(e){
 	e.preventDefault(); 
 }
 // STATUS Variables
-var IS_TRACKING = false;
+var IS_TRACKING = localStorage.getItem("IS_TRACKING")  ? JSON.parse(localStorage.getItem("IS_TRACKING"))  : false;
+var IS_RADAR = true;
+var IS_LIGHTNING = false;
+
+setButtonStates();
 
 function debug(str) {
 	if (DEBUG) {
@@ -447,6 +451,20 @@ function setLayerStyle(layer, style) {
 	layer.getSource().updateParams({ 'STYLES': style });
 }
 
+function createTimeline (count) {
+	var i = 0;
+	document.getElementById("timeline").innerHTML = "";
+	for (i = 0; i < count; i++) { 
+		var div = document.createElement("div");
+		//div.innerHTML = i;
+		div.id = "timeline-item-" + i;
+		div.classList.add("timeline-off");
+		document.getElementById("timeline").appendChild(div);
+	}
+}
+
+createTimeline(13);
+
 function setTime(reverse=false) {
 	var resolution = 300000;
 	var end = Math.floor(Date.now() / resolution) * resolution - resolution;
@@ -465,6 +483,9 @@ function setTime(reverse=false) {
 		end = Math.floor(end / resolution) * resolution ;
 		start = Math.floor(end / resolution) * resolution - resolution * 12;
 		
+		//var div = document.createElement("div");
+		//div.onclick = function () { updateLayer(ollayer,layerInfo[layer].layer); };
+		//document.getElementById("timeline").appendChild(div);
 
 		if (reverse) {
 			startDate.setMinutes(Math.floor(startDate.getMinutes()/(resolution/60000)) * (resolution/60000) - resolution / 60000);
@@ -474,9 +495,14 @@ function setTime(reverse=false) {
 
 		if (startDate.getTime() > end) {
 			startDate = new Date(start);
+			createTimeline(13);
 		} else if (startDate.getTime() < start) {
 			startDate = new Date(end);
 		}
+
+		var div = document.getElementById("timeline-item-" + (startDate.getTime()-start)/resolution);
+		div.classList.remove("timeline-off");
+		div.classList.add("timeline-on");
 
 		setLayerTime(satelliteLayer, startDate.toISOString());
 		setLayerTime(radarLayer, startDate.toISOString());
@@ -768,15 +794,26 @@ document.getElementById('skip_previous').addEventListener('click', function() {
 	skip_previous();
 });
 
+function setButtonStates() {
+	if (IS_TRACKING) {
+		document.getElementById("locationLayerButton").classList.add("selectedButton");
+	} else {
+		document.getElementById("locationLayerButton").classList.remove("selectedButton");
+	}
+}
+
 document.getElementById('locationLayerButton').addEventListener('click', function() {
 	if (IS_TRACKING) {
 		IS_TRACKING = false;
-		document.getElementById("locationLayerButton").classList.remove("selectedButton");
+		localStorage.setItem("IS_TRACKING",JSON.stringify(false));
+		//document.getElementById("locationLayerButton").classList.remove("selectedButton");
 	} else {
 		IS_TRACKING = true;
+		localStorage.setItem("IS_TRACKING",JSON.stringify(true));
 		map.getView().setCenter(ownPosition);
-		document.getElementById("locationLayerButton").classList.add("selectedButton");
+		//document.getElementById("locationLayerButton").classList.add("selectedButton");
 	}
+	setButtonStates();
 });
 
 document.getElementById('satelliteLayerButton').addEventListener('click', function() {
