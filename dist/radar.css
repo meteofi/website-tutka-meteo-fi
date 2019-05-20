@@ -97,7 +97,7 @@ html, body {
   }
 
 @supports (padding: max(0px)) {
-    #timecontrol {
+    .navbar {
         padding-top: max(8px, env(safe-area-inset-top));
     }
     #timecontrol {
