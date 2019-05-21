@@ -24,8 +24,6 @@ import WMTSCapabilities from 'ol/format/WMTSCapabilities.js';
 import { connect } from 'mqtt';
 import { transformExtent } from 'ol/proj';
 
-
-
 var options = {
 	defaultRadarLayer: "radar:radar_finland_dbz",
 	rangeRingSpacing: 50,
@@ -580,8 +578,10 @@ var skip_previous = function () {
 var playstop = function () {
 	if (animationId !== null) {
 		stop();
+		gtag('event', 'stop', {'event_category' : 'timecontrol'});
 	} else {
 		play();
+		gtag('event', 'play', {'event_category' : 'timecontrol'});
 	}
 };
 
@@ -789,6 +789,7 @@ document.getElementById('speedButton').addEventListener('click', function() {
 	stop();
 	play();
 	debug("SPEED: " + options.frameRate);
+	gtag('event', 'speed', {'event_category' : 'timecontrol', 'event_label' : options.frameRate / options.defaultFrameRate + "×"});
 });
 
 document.getElementById('playButton').addEventListener('click', function() {
@@ -827,12 +828,12 @@ document.getElementById('locationLayerButton').addEventListener('click', functio
 	if (IS_TRACKING) {
 		IS_TRACKING = false;
 		localStorage.setItem("IS_TRACKING",JSON.stringify(false));
-		//document.getElementById("locationLayerButton").classList.remove("selectedButton");
+		gtag('event', 'off', {'event_category' : 'tracking'});
 	} else {
 		IS_TRACKING = true;
 		localStorage.setItem("IS_TRACKING",JSON.stringify(true));
 		map.getView().setCenter(ownPosition);
-		//document.getElementById("locationLayerButton").classList.add("selectedButton");
+		gtag('event', 'on', {'event_category' : 'tracking'});
 	}
 	setButtonStates();
 });
