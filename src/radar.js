@@ -67,8 +67,6 @@ var IS_TRACKING = localStorage.getItem("IS_TRACKING")  ? JSON.parse(localStorage
 var IS_RADAR = true;
 var IS_LIGHTNING = false;
 
-setButtonStates();
-
 function debug(str) {
 	if (DEBUG) {
 		try {
@@ -435,7 +433,7 @@ geolocation.on('change:position', function() {
 	}
 });
 
-geolocation.setTracking(true);
+
 
 
 function setLayerTime(layer, time) {
@@ -462,6 +460,30 @@ function createTimeline (count) {
 		document.getElementById("timeline").appendChild(div);
 	}
 }
+
+function gtag() { dataLayer.push(arguments); }
+
+function updateCanonicalPage() {
+	var page = "";
+	if (satelliteLayer.getVisible()) {
+		var split = satelliteLayer.getSource().getParams().LAYERS.split(":"); 
+		page = page + "/" + ((split.length > 1) ? split[1] : split[0])
+	}
+	if (radarLayer.getVisible()) {
+		var split = radarLayer.getSource().getParams().LAYERS.split(":"); 
+		page = page + "/" + ((split.length > 1) ? split[1] : split[0])
+	}
+	if (lightningLayer.getVisible()) {
+		var split = lightningLayer.getSource().getParams().LAYERS.split(":"); 
+		page = page + "/" + ((split.length > 1) ? split[1] : split[0])
+	}
+	if (observationLayer.getVisible()) {
+		var split = observationLayer.getSource().getParams().LAYERS.split(":"); 
+		page = page + "/" + ((split.length > 1) ? split[1] : split[0])
+	}
+	gtag('config', 'UA-23910741-3', {'page_path': page});
+}
+
 
 createTimeline(13);
 
@@ -567,9 +589,7 @@ var playstop = function () {
 document.getElementById("cursorDistanceTxtKM").style.display = "none";
 document.getElementById("cursorDistanceTxtNM").style.display = "none";
 
-updateClock();
-readWMSCapabilities(options.wmsServer.meteo,60000);
-readWMSCapabilities(options.wmsServer.eumetsat,300000);
+
 
 Object.keys(trackedVessels).forEach(function (item) {
 	debug("Subscribed vessel " + item + " locations");
@@ -611,7 +631,7 @@ client.on("message", function (topic, payload) {
 	//client.end()
 });
 
-	play();
+
 
 document.getElementById('darkBase').addEventListener('click', function (event) {
 	debug("darkBase")
@@ -652,6 +672,7 @@ function updateLayer(layer, wmslayer) {
 	activeLayers.add(layer.get("name"));
 	layer.getSource().updateParams({ 'LAYERS': wmslayer });
 	layer.setVisible(true);
+	updateCanonicalPage();
 }
 
 function addEventListeners(selector) {
@@ -673,10 +694,7 @@ function addEventListeners(selector) {
 	});
 }
 
-addEventListeners("#satelliteLayer > div");
-addEventListeners("#radarLayer > div");
-addEventListeners("#lightningLayer > div");
-addEventListeners("#observationLayer > div");
+
 
 var highlightStyle = new Style({
 	stroke: new Stroke({
@@ -984,3 +1002,26 @@ window.onclick = function(event) {
     modal.style.display = "none";
   }
 }
+
+// MAIN
+
+const main = () => {
+	// Load custom tracking code lazily, so it's non-blocking.
+	import('./analytics.js').then((analytics) => analytics.init());
+
+	updateClock();
+	readWMSCapabilities(options.wmsServer.meteo, 60000);
+	readWMSCapabilities(options.wmsServer.eumetsat, 300000);
+	geolocation.setTracking(true);
+	
+	setButtonStates();
+
+	addEventListeners("#satelliteLayer > div");
+	addEventListeners("#radarLayer > div");
+	addEventListeners("#lightningLayer > div");
+	addEventListeners("#observationLayer > div");
+
+	play();
+};
+
+main();
