@@ -1,5 +1,7 @@
 node_modules/
 .firebase/
+dist/1.radar.js
+dist/1.radar.js.gz
 dist/radar.js
 dist/radar.js.gz
 firebase-debug.log
