@@ -215,13 +215,13 @@ fetch('https://julkinen.vayla.fi/rasteripalvelu/wmts?request=getcapabilities').t
 }).then(function (text) {
 	var parser = new WMTSCapabilities();
 	var result = parser.read(text);
-	debug(result);
+	//debug(result);
 	var options = optionsFromCapabilities(result, {
 		layer: 'liikennevirasto:Merikarttasarjat public',
 		matrixSet: 'WGS84_Pseudo-Mercator'
 	});
-	debug("OPTIONS");
-	debug(options);
+	//debug("OPTIONS");
+	//debug(options);
 	merikarttaLayer.setSource(new WMTS(options));
 });
 
@@ -231,13 +231,13 @@ fetch('https://avoin-karttakuva.maanmittauslaitos.fi/avoin/wmts?service=WMTS&req
 }).then(function (text) {
 	var parser = new WMTSCapabilities();
 	var result = parser.read(text);
-	debug(result);
+	//debug(result);
 	var options = optionsFromCapabilities(result, {
 		layer: 'taustakartta',
 		matrixSet: 'WGS84_Pseudo-Mercator'
 	});
-	debug("OPTIONS");
-	debug(options);
+	//debug("OPTIONS");
+	//debug(options);
 	pohjakarttaLayer.setSource(new WMTS(options));
 });
 
@@ -481,6 +481,7 @@ function updateCanonicalPage() {
 		var split = observationLayer.getSource().getParams().LAYERS.split(":"); 
 		page = page + "/" + ((split.length > 1) ? split[1] : split[0])
 	}
+	debug("Set page: " + page);
 	gtag('config', 'UA-23910741-3', {'page_path': page});
 }
 
@@ -610,7 +611,7 @@ client.on("message", function (topic, payload) {
 	if (topic.indexOf('location') !== -1) {
 		vessel = JSON.parse(payload.toString());
 	}	
-	debug(topic);
+	//debug(topic);
 	if (topic.indexOf('metadata') !== -1) {
 		metadata = JSON.parse(payload.toString());
 		trackedVessels[metadata.mmsi].metadata = metadata;
@@ -687,6 +688,7 @@ function addEventListeners(selector) {
 				debug("Deactivated layer " + event.target.parentElement.id);
 				layerss[event.target.parentElement.id].setVisible(false);
 				activeLayers.delete(event.target.parentElement.id);
+				updateCanonicalPage();
 			} else {
 				updateLayer(layerss[event.target.parentElement.id], event.target.id);
 			}
@@ -765,6 +767,7 @@ function toggleLayerVisibility(layer) {
 		document.getElementById(layer.get("name")+"Off").classList.add("selected");
 		document.getElementById(layer.get("name")+"Button").classList.remove("selectedButton");
 	}
+	updateCanonicalPage();
 }
 
 //
@@ -1013,7 +1016,7 @@ const main = () => {
 	readWMSCapabilities(options.wmsServer.meteo, 60000);
 	readWMSCapabilities(options.wmsServer.eumetsat, 300000);
 	geolocation.setTracking(true);
-	
+
 	setButtonStates();
 
 	addEventListeners("#satelliteLayer > div");
