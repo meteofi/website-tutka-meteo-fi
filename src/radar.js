@@ -25,13 +25,16 @@ import { connect } from 'mqtt';
 import { transformExtent } from 'ol/proj';
 
 var options = {
-	defaultRadarLayer: "radar:radar_finland_dbz",
+	defaultRadarLayer: "radar_finland_dbz",
 	rangeRingSpacing: 50,
 	radialSpacing: 30,
 	frameRate: 2, // fps
 	defaultFrameRate: 2, // fps
 	wmsServer: {
-		'meteo': "https://wms.meteo.fi/geoserver/wms", // "MeteoFI:radar_finland_dbz"
+		'meteo': {
+			'radar': "https://wms.meteo.fi/geoserver/radar/wms",
+			'observation': "https://wms.meteo.fi/geoserver/observation/wms"
+		},
 		'fmi': "https://openwms.fmi.fi/geoserver/wms", //"Radar:suomi_dbz_eureffin"
 		'dwd': "https://maps.dwd.de/geoserver/wms", // "dwd:RX-Produkt"
 		'knmi': "https://geoservices.knmi.nl/cgi-bin/RADNL_OPER_R___25PCPRR_L3.cgi", // "RADNL_OPER_R___25PCPRR_L3_COLOR"
@@ -43,7 +46,6 @@ var options = {
 var DEBUG = true;
 var metLatitude  = localStorage.getItem("metLatitude")  ? localStorage.getItem("metLatitude")  : 60.2706;
 var metLongitude = localStorage.getItem("metLongitude") ? localStorage.getItem("metLongitude") : 24.8725;
-var metRadarLayer = localStorage.getItem("metRadarLayer") ? localStorage.getItem("metRadarLayer") : "radar:radar_finland_dbz";
 var ownPosition = [];
 var ownPosition4326 = [];
 var startDate = new Date(Math.floor(Date.now() / 300000) * 300000 - 300000 * 12);
@@ -258,8 +260,8 @@ var radarLayer = new ImageLayer({
 	name: "radarLayer",
 	opacity: 0.7,
 	source: new ImageWMS({
-		url: WMSURL,
-		params: { 'LAYERS': metRadarLayer },
+		url: options.wmsServer.meteo.radar,
+		params: { 'LAYERS': options.defaultRadarLayer },
 		ratio: 1,
 		serverType: 'geoserver'
 	})
@@ -270,8 +272,8 @@ var lightningLayer = new ImageLayer({
 	name: "lightningLayer",
 	visible: false,
 	source: new ImageWMS({
-		url: WMSURL,
-		params: { 'LAYERS': 'observation:lightning' },
+		url: options.wmsServer.meteo.observation,
+		params: { 'LAYERS': 'lightning' },
 		ratio: 1,
 		serverType: 'geoserver'
 	})
@@ -282,8 +284,8 @@ var observationLayer = new ImageLayer({
 	name: "observationLayer",
 	visible: false,
 	source: new ImageWMS({
-		url: WMSURL,
-		params: { 'LAYERS': 'observation:air_temperature' },
+		url: options.wmsServer.meteo.observation,
+		params: { 'LAYERS': 'air_temperature' },
 		ratio: 1,
 		serverType: 'geoserver'
 	})
@@ -906,9 +908,9 @@ function readWMSCapabilities(url,timeout) {
 		debug("Received WMS Capabilities " + url);
 		var result = parser.read(text);
 		getLayers(result.Capability.Layer.Layer);
-		if (typeof (radarLayer.time) === "undefined") {
-			radarLayer.time = layerInfo[metRadarLayer].time;
-		}
+		// if (typeof (radarLayer.time) === "undefined") {
+		// 	radarLayer.time = layerInfo[metRadarLayer].time;
+		// }
 		debug(layerInfo);
 		updateLayerSelection(observationLayer,"observation");
 		updateLayerSelection(radarLayer,"radar");
@@ -1014,7 +1016,8 @@ const main = () => {
 	import('./analytics.js').then((analytics) => analytics.init());
 
 	updateClock();
-	readWMSCapabilities(options.wmsServer.meteo, 60000);
+	readWMSCapabilities(options.wmsServer.meteo.radar, 60000);
+	readWMSCapabilities(options.wmsServer.meteo.observation, 300000);
 	readWMSCapabilities(options.wmsServer.eumetsat, 300000);
 	geolocation.setTracking(true);
 
