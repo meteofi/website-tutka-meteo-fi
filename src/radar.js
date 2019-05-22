@@ -33,7 +33,8 @@ var options = {
 	wmsServer: {
 		'meteo': {
 			'radar': "https://wms.meteo.fi/geoserver/radar/wms",
-			'observation': "https://wms.meteo.fi/geoserver/observation/wms"
+			'observation': "https://wms.meteo.fi/geoserver/observation/wms",
+			'test': "https://geoserver.apps.meteo.fi/geoserver/observation/wms"
 		},
 		'fmi': "https://openwms.fmi.fi/geoserver/wms", //"Radar:suomi_dbz_eureffin"
 		'dwd': "https://maps.dwd.de/geoserver/wms", // "dwd:RX-Produkt"
@@ -272,7 +273,7 @@ var lightningLayer = new ImageLayer({
 	name: "lightningLayer",
 	visible: false,
 	source: new ImageWMS({
-		url: options.wmsServer.meteo.observation,
+		url: options.wmsServer.meteo.test,
 		params: { 'LAYERS': 'lightning' },
 		ratio: 1.5,
 		serverType: 'geoserver'
