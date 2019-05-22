@@ -1021,7 +1021,7 @@ const main = () => {
 	import('./analytics.js').then((analytics) => analytics.init());
 
 	updateClock();
-	readWMSCapabilities(options.wmsServer.meteo.observation, 300000);
+	readWMSCapabilities(options.wmsServer.meteo.test, 300000);
 	readWMSCapabilities(options.wmsServer.meteo.radar, 60000);
 	readWMSCapabilities(options.wmsServer.eumetsat, 300000);
 	geolocation.setTracking(true);
