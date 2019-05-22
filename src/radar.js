@@ -262,7 +262,7 @@ var radarLayer = new ImageLayer({
 	source: new ImageWMS({
 		url: options.wmsServer.meteo.radar,
 		params: { 'LAYERS': options.defaultRadarLayer },
-		ratio: 1,
+		ratio: 1.5,
 		serverType: 'geoserver'
 	})
 });
@@ -274,7 +274,7 @@ var lightningLayer = new ImageLayer({
 	source: new ImageWMS({
 		url: options.wmsServer.meteo.observation,
 		params: { 'LAYERS': 'lightning' },
-		ratio: 1,
+		ratio: 1.5,
 		serverType: 'geoserver'
 	})
 });
@@ -286,7 +286,7 @@ var observationLayer = new ImageLayer({
 	source: new ImageWMS({
 		url: options.wmsServer.meteo.observation,
 		params: { 'LAYERS': 'air_temperature' },
-		ratio: 1,
+		ratio: 1.5,
 		serverType: 'geoserver'
 	})
 });
