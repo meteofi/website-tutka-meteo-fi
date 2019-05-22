@@ -285,7 +285,7 @@ var observationLayer = new ImageLayer({
 	name: "observationLayer",
 	visible: false,
 	source: new ImageWMS({
-		url: options.wmsServer.meteo.observation,
+		url: options.wmsServer.meteo.test,
 		params: { 'LAYERS': 'air_temperature' },
 		ratio: 1.5,
 		serverType: 'geoserver'
@@ -431,9 +431,9 @@ geolocation.on('change:position', function() {
 	document.getElementById("positionLonValue").innerHTML = "&#955; " + Dms.toLon(ownPosition4326[0], "dm", 3);
 	document.getElementById("cursorDistanceTxtKM").style.display = "block";
 	document.getElementById("cursorDistanceTxtNM").style.display = "block";
-	if (IS_TRACKING) {
-		map.getView().setCenter(ownPosition);
-	}
+//	if (IS_TRACKING) {
+//		map.getView().setCenter(ownPosition);
+//	}
 });
 
 
@@ -1021,8 +1021,8 @@ const main = () => {
 	import('./analytics.js').then((analytics) => analytics.init());
 
 	updateClock();
-	readWMSCapabilities(options.wmsServer.meteo.radar, 60000);
 	readWMSCapabilities(options.wmsServer.meteo.observation, 300000);
+	readWMSCapabilities(options.wmsServer.meteo.radar, 60000);
 	readWMSCapabilities(options.wmsServer.eumetsat, 300000);
 	geolocation.setTracking(true);
 
