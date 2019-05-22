@@ -347,15 +347,17 @@ var layers = [
 	smpsLayer
 ];
 
-function mouseCoordinateFormat (coordinate) {
-	var distance = getDistance(coordinate,ownPosition4326);
-	var p1 = new LatLon(ownPosition4326[1], ownPosition4326[0]);
-	var p2 = new LatLon(coordinate[1], coordinate[0]);
-	var bearing = p1.initialBearingTo(p2);
-	var distance_km = distance/1000;
-	var distance_nm = distance/1852;
-	document.getElementById("cursorDistanceValueKM").innerHTML = distance_km.toFixed(3) + " km " + bearing.toFixed(0) + "&deg;";
-	document.getElementById("cursorDistanceValueNM").innerHTML = distance_nm.toFixed(3) + " NM";
+function mouseCoordinateFormat(coordinate) {
+	if (ownPosition4326.length > 1) {
+		var distance = getDistance(coordinate, ownPosition4326);
+		var p1 = new LatLon(ownPosition4326[1], ownPosition4326[0]);
+		var p2 = new LatLon(coordinate[1], coordinate[0]);
+		var bearing = p1.initialBearingTo(p2);
+		var distance_km = distance / 1000;
+		var distance_nm = distance / 1852;
+		document.getElementById("cursorDistanceValueKM").innerHTML = distance_km.toFixed(3) + " km " + bearing.toFixed(0) + "&deg;";
+		document.getElementById("cursorDistanceValueNM").innerHTML = distance_nm.toFixed(3) + " NM";
+	}
 	return Dms.toLat(coordinate[1], "dm", 3) + " " + Dms.toLon(coordinate[0], "dm", 3);
 }
 
@@ -834,7 +836,9 @@ document.getElementById('locationLayerButton').addEventListener('click', functio
 	} else {
 		IS_TRACKING = true;
 		localStorage.setItem("IS_TRACKING",JSON.stringify(true));
-		map.getView().setCenter(ownPosition);
+		if (ownPosition.length > 1) {
+			map.getView().setCenter(ownPosition);
+		}
 		gtag('event', 'on', {'event_category' : 'tracking'});
 	}
 	setButtonStates();
