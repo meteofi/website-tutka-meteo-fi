@@ -251,7 +251,8 @@ var satelliteLayer = new ImageLayer({
 	source: new ImageWMS({
 		url: options.wmsServer.eumetsat,
 		params: { 'LAYERS': "msg_eview" },
-		ratio: 1,
+		hidpi: false,
+		ratio: 1.1,
 		serverType: 'geoserver'
 	})
 });
@@ -263,7 +264,8 @@ var radarLayer = new ImageLayer({
 	source: new ImageWMS({
 		url: options.wmsServer.fmi,
 		params: { 'LAYERS': options.defaultRadarLayer },
-		ratio: 1.5,
+		ratio: 1.1,
+		hidpi: false,
 		serverType: 'geoserver'
 	})
 });
@@ -275,7 +277,7 @@ var lightningLayer = new ImageLayer({
 	source: new ImageWMS({
 		url: options.wmsServer.meteo.test,
 		params: { 'LAYERS': 'lightning' },
-		ratio: 1.5,
+		ratio: 1.1,
 		serverType: 'geoserver'
 	})
 });
@@ -287,7 +289,7 @@ var observationLayer = new ImageLayer({
 	source: new ImageWMS({
 		url: options.wmsServer.meteo.test,
 		params: { 'LAYERS': 'air_temperature' },
-		ratio: 1.5,
+		ratio: 1,
 		serverType: 'geoserver'
 	})
 });
