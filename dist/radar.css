@@ -199,7 +199,7 @@ html, body {
     }
 }
 
-#infoItemSatellite, #radarPlayTxt, #layersButton {
+#infoItemSatelliteD, #radarPlayTxt, #layersButtonD {
     display: none;
 }
 
@@ -282,6 +282,7 @@ html, body {
     width: 90%; /* Could be more or less, depending on screen size */
     height: 90%;
     border-radius: 6px;
+    overflow: scroll;
   }
 
   .layer-select {
