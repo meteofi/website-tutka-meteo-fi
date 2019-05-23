@@ -25,7 +25,7 @@ import { connect } from 'mqtt';
 import { transformExtent } from 'ol/proj';
 
 var options = {
-	defaultRadarLayer: "radar_finland_dbz",
+	defaultRadarLayer: "suomi_dbz_eureffin",
 	rangeRingSpacing: 50,
 	radialSpacing: 30,
 	frameRate: 2, // fps
@@ -36,7 +36,7 @@ var options = {
 			'observation': "https://wms.meteo.fi/geoserver/observation/wms",
 			'test': "https://geoserver.apps.meteo.fi/geoserver/observation/wms"
 		},
-		'fmi': "https://openwms.fmi.fi/geoserver/wms", //"Radar:suomi_dbz_eureffin"
+		'fmi': "https://openwms.fmi.fi/geoserver/Radar/wms", //"Radar:suomi_dbz_eureffin"
 		'dwd': "https://maps.dwd.de/geoserver/wms", // "dwd:RX-Produkt"
 		'knmi': "https://geoservices.knmi.nl/cgi-bin/RADNL_OPER_R___25PCPRR_L3.cgi", // "RADNL_OPER_R___25PCPRR_L3_COLOR"
 		"nws": "https://idpgis.ncep.noaa.gov/arcgis/services/radar/radar_base_reflectivity_time/ImageServer/WMSServer", // "0"
@@ -261,7 +261,7 @@ var radarLayer = new ImageLayer({
 	name: "radarLayer",
 	opacity: 0.7,
 	source: new ImageWMS({
-		url: options.wmsServer.meteo.radar,
+		url: options.wmsServer.fmi,
 		params: { 'LAYERS': options.defaultRadarLayer },
 		ratio: 1.5,
 		serverType: 'geoserver'
@@ -1023,6 +1023,7 @@ const main = () => {
 	updateClock();
 	readWMSCapabilities(options.wmsServer.meteo.test, 300000);
 	readWMSCapabilities(options.wmsServer.meteo.radar, 60000);
+	readWMSCapabilities(options.wmsServer.fmi, 60000);
 	readWMSCapabilities(options.wmsServer.eumetsat, 300000);
 	geolocation.setTracking(true);
 
