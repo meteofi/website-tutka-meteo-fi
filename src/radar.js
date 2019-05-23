@@ -57,16 +57,13 @@ var layerInfo = {};
 const client  = connect('wss://meri.digitraffic.fi:61619/mqtt',{username: 'digitraffic', password: 'digitrafficPassword'});
 var WMSURL = options.wmsServer.meteo;
 var trackedVessels = {'230059770': {}, '230994270': {}, '230939100': {}, '230051170': {}, '230059740': {}, '230108850': {}, '230937480': {}, '230051160': {}, '230983250': {}, '230012240': {}, '230980890': {}, '230061400': {}, '230059760': {}, '230005610': {}, '230987580': {}, '230983340': {}, '230111580': {}, '230059750': {}, '230994810': {}, '230993590': {}, '230051150': {} };
-var activeLayers =  new Set();
-activeLayers.add("radarLayer");
 
 document.ontouchmove = function(e){ 
 	e.preventDefault(); 
 }
 // STATUS Variables
-var IS_TRACKING = localStorage.getItem("IS_TRACKING")  ? JSON.parse(localStorage.getItem("IS_TRACKING"))  : false;
-var IS_RADAR = true;
-var IS_LIGHTNING = false;
+var VISIBLE = localStorage.getItem("VISIBLE") ? new Set(JSON.parse(localStorage.getItem("VISIBLE")))  : new Set(["radarLayer"]);
+var IS_TRACKING = localStorage.getItem("IS_TRACKING") ? JSON.parse(localStorage.getItem("IS_TRACKING"))  : false;
 
 function debug(str) {
 	if (DEBUG) {
@@ -246,7 +243,7 @@ fetch('https://avoin-karttakuva.maanmittauslaitos.fi/avoin/wmts?service=WMTS&req
 // Satellite Layer
 var satelliteLayer = new ImageLayer({
 	name: "satelliteLayer",
-	visible: false,
+	visible: VISIBLE.has("satelliteLayer"),
 	opacity: 0.7,
 	source: new ImageWMS({
 		url: options.wmsServer.eumetsat,
@@ -260,6 +257,7 @@ var satelliteLayer = new ImageLayer({
 // Radar Layer
 var radarLayer = new ImageLayer({
 	name: "radarLayer",
+	visible: VISIBLE.has("radarLayer"),
 	opacity: 0.7,
 	source: new ImageWMS({
 		url: options.wmsServer.fmi,
@@ -273,7 +271,7 @@ var radarLayer = new ImageLayer({
 // Lightning Layer
 var lightningLayer = new ImageLayer({
 	name: "lightningLayer",
-	visible: false,
+	visible: VISIBLE.has("lightningLayer"),
 	source: new ImageWMS({
 		url: options.wmsServer.meteo.test,
 		params: { 'LAYERS': 'lightning' },
@@ -285,7 +283,7 @@ var lightningLayer = new ImageLayer({
 // Observation Layer
 var observationLayer = new ImageLayer({
 	name: "observationLayer",
-	visible: false,
+	visible: VISIBLE.has("observationLayer"),
 	source: new ImageWMS({
 		url: options.wmsServer.meteo.test,
 		params: { 'LAYERS': 'air_temperature' },
@@ -498,15 +496,16 @@ function setTime(reverse=false) {
 	var end = Math.floor(Date.now() / resolution) * resolution - resolution;
   var start = end - resolution * 12;
 
-	if (typeof (layerInfo[radarLayer.getSource().getParams().LAYERS]) !== "undefined") {
-		for (let item of activeLayers) {
-			var wmslayer = layerss[item].getSource().getParams().LAYERS
-			resolution = Math.max(resolution, layerInfo[wmslayer].time.resolution)
+	
+	for (let item of VISIBLE) {
+		var wmslayer = layerss[item].getSource().getParams().LAYERS
+		if (wmslayer in layerInfo) {
 			if (item == "radarLayer" || item == "satelliteLayer" || item == "observationLayer" || item == "satelliteLayer") {
+				resolution = Math.max(resolution, layerInfo[wmslayer].time.resolution)
 				end = Math.min(end, Math.floor(layerInfo[wmslayer].time.end / resolution) * resolution);
 			}
-//			start = Math.floor(end / resolution) * resolution - resolution * 12;
 		}
+	}
 
 		end = Math.floor(end / resolution) * resolution ;
 		start = Math.floor(end / resolution) * resolution - resolution * 12;
@@ -535,8 +534,8 @@ function setTime(reverse=false) {
 		setLayerTime(satelliteLayer, startDate.toISOString());
 		setLayerTime(radarLayer, startDate.toISOString());
 		setLayerTime(lightningLayer, 'PT'+(resolution/60000)+'M/' + startDate.toISOString());
-		setLayerTime(observationLayer, startDate.toISOString());
-	} 
+		setLayerTime(observationLayer, 'PT'+(resolution/60000)+'M/' + startDate.toISOString());
+
 }
 
 function updateClock() {
@@ -677,7 +676,7 @@ function updateLayer(layer, wmslayer) {
 	document.getElementById(wmslayer).classList.add("selected");
 	}
 	document.getElementById(layer.get("name")+"Button").classList.add("selectedButton");
-	activeLayers.add(layer.get("name"));
+	VISIBLE.add(layer.get("name"));
 	layer.getSource().updateParams({ 'LAYERS': wmslayer });
 	layer.setVisible(true);
 	updateCanonicalPage();
@@ -694,7 +693,7 @@ function addEventListeners(selector) {
 				event.target.classList.add("selected");
 				debug("Deactivated layer " + event.target.parentElement.id);
 				layerss[event.target.parentElement.id].setVisible(false);
-				activeLayers.delete(event.target.parentElement.id);
+				VISIBLE.delete(event.target.parentElement.id);
 				updateCanonicalPage();
 			} else {
 				updateLayer(layerss[event.target.parentElement.id], event.target.id);
@@ -761,18 +760,23 @@ var displayFeatureInfo = function (pixel) {
 
 function toggleLayerVisibility(layer) {
 	var visibility = layer.getVisible();
-	removeSelectedParameter("#" + layer.get("name") + " > div");
+	var name = layer.get("name");
+	removeSelectedParameter("#" + name + " > div");
 	if (visibility == false) {
+		VISIBLE.add(name);
+		localStorage.setItem("VISIBLE",JSON.stringify([...VISIBLE]));
 		layer.setVisible(true);
-		activeLayers.add(layer.get("name"));
+		VISIBLE.add(name);
 		document.getElementById(layer.getSource().getParams().LAYERS).classList.add("selected");
-		document.getElementById(layer.get("name")+"Button").classList.add("selectedButton");
+		document.getElementById(name+"Button").classList.add("selectedButton");
 	}
 	if (visibility == true) {
+		VISIBLE.delete(name);
+		localStorage.setItem("VISIBLE",JSON.stringify([...VISIBLE]));
 		layer.setVisible(false);
-		activeLayers.delete(layer.get("name"));
-		document.getElementById(layer.get("name")+"Off").classList.add("selected");
-		document.getElementById(layer.get("name")+"Button").classList.remove("selectedButton");
+		VISIBLE.delete(name);
+		document.getElementById(name+"Off").classList.add("selected");
+		document.getElementById(name+"Button").classList.remove("selectedButton");
 	}
 	updateCanonicalPage();
 }
@@ -828,6 +832,21 @@ function setButtonStates() {
 		document.getElementById("locationLayerButton").classList.add("selectedButton");
 	} else {
 		document.getElementById("locationLayerButton").classList.remove("selectedButton");
+	}
+	if (VISIBLE.has("satelliteLayer")) {
+		document.getElementById("satelliteLayerButton").classList.add("selectedButton");
+	} else {
+		document.getElementById("satelliteLayerButton").classList.remove("selectedButton");
+	}
+	if (VISIBLE.has("lightningLayer")) {
+		document.getElementById("lightningLayerButton").classList.add("selectedButton");
+	} else {
+		document.getElementById("lightningLayerButton").classList.remove("selectedButton");
+	}
+	if (VISIBLE.has("observationLayer")) {
+		document.getElementById("observationLayerButton").classList.add("selectedButton");
+	} else {
+		document.getElementById("observationLayerButton").classList.remove("selectedButton");
 	}
 }
 
@@ -894,12 +913,12 @@ document.addEventListener('keyup', function (event) {
 
 });
 
-function updateLayerSelection(ollayer,type) {
+function updateLayerSelection(ollayer,type,filter) {
 	document.getElementById(type+"Layer-select").innerHTML="";
 	Object.keys(layerInfo).forEach((layer) => {
-		if (layerInfo[layer].layer.includes(type+":")) { 
+		if (layerInfo[layer].layer.includes(filter)) { 
 			var div = document.createElement("div");
-			div.innerHTML = layerInfo[layer].title;
+			div.innerHTML = layerInfo[layer].title + ' (<i>' + Math.round(layerInfo[layer].time.resolution/60000) + ' min</i>)';
 			div.onclick = function () { updateLayer(ollayer,layerInfo[layer].layer); };
 			document.getElementById(type+"Layer-select").appendChild(div);
 		}
@@ -919,8 +938,11 @@ function readWMSCapabilities(url,timeout) {
 		// 	radarLayer.time = layerInfo[metRadarLayer].time;
 		// }
 		debug(layerInfo);
-		updateLayerSelection(observationLayer,"observation");
-		updateLayerSelection(radarLayer,"radar");
+		updateLayerSelection(satelliteLayer,"satellite","msg_");
+		updateLayerSelection(observationLayer,"observation","air_");
+		updateLayerSelection(radarLayer,"radar","suomi_");
+		updateLayerSelection(radarLayer,"etop","etop_");
+		updateLayerSelection(radarLayer,"hclass","_hclass");
 	});
 	setTimeout(function() {readWMSCapabilities(url,timeout)}, timeout);
 }
@@ -1026,7 +1048,9 @@ const main = () => {
 	readWMSCapabilities(options.wmsServer.meteo.test, 300000);
 	readWMSCapabilities(options.wmsServer.meteo.radar, 60000);
 	readWMSCapabilities(options.wmsServer.fmi, 60000);
-	readWMSCapabilities(options.wmsServer.eumetsat, 300000);
+	//if (IS_SATELLITE) {
+		readWMSCapabilities(options.wmsServer.eumetsat, 300000);
+	//}	
 	geolocation.setTracking(true);
 
 	setButtonStates();
