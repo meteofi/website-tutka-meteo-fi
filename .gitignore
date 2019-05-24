@@ -1,8 +1,5 @@
 node_modules/
 .firebase/
-dist/1.radar.js
-dist/1.radar.js.gz
-dist/radar.js
-dist/radar.js.gz
+dist/*
 firebase-debug.log
 .DS_Store
