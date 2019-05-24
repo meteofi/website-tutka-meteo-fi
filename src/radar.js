@@ -881,41 +881,40 @@ document.getElementById('locationLayerButton').addEventListener('click', functio
 	setButtonStates();
 });
 
-// document.getElementById('satelliteLayerButton').addEventListener('click', function() {
-// 	toggleLayerVisibility(satelliteLayer);
-// });
-
-// document.getElementById('radarLayerButton').addEventListener('click', function() {
-// 	toggleLayerVisibility(radarLayer);
-// });
-
-// document.getElementById('lightningLayerButton').addEventListener('click', function() {
-// 	toggleLayerVisibility(lightningLayer);
-// });
-
-// document.getElementById('observationLayerButton').addEventListener('click', function() {
-// 	toggleLayerVisibility(observationLayer);
-// });
-
-document.addEventListener('click', function (event) {
-	debug(event);
-	if (event.target.closest('#satelliteLayerButton')) {
-		toggleLayerVisibility(satelliteLayer);
-	}
-
-	if (event.target.closest('#radarLayerButton')) {
-		toggleLayerVisibility(radarLayer);
-	}
-
-	if (event.target.closest('#lightningLayerButton')) {
-		toggleLayerVisibility(lightningLayer);
-	}
-
-	if (event.target.closest('#observationLayerButton')) {
-		toggleLayerVisibility(observationLayer);
-	}
-
+document.getElementById('satelliteLayerButton').addEventListener('click', function() {
+	toggleLayerVisibility(satelliteLayer);
 });
+
+document.getElementById('radarLayerButton').addEventListener('click', function() {
+	toggleLayerVisibility(radarLayer);
+});
+
+document.getElementById('lightningLayerButton').addEventListener('click', function() {
+	toggleLayerVisibility(lightningLayer);
+});
+
+document.getElementById('observationLayerButton').addEventListener('click', function() {
+	toggleLayerVisibility(observationLayer);
+});
+
+// document.addEventListener('click', function (event) {
+// 	debug(event);
+// 	if (event.target.closest('#satelliteLayerButton')) {
+// 		toggleLayerVisibility(satelliteLayer);
+// 	}
+
+// 	if (event.target.closest('#radarLayerButton')) {
+// 		toggleLayerVisibility(radarLayer);
+// 	}
+
+// 	if (event.target.closest('#lightningLayerButton')) {
+// 		toggleLayerVisibility(lightningLayer);
+// 	}
+
+// 	if (event.target.closest('#observationLayerButton')) {
+// 		toggleLayerVisibility(observationLayer);
+// 	}
+// });
 
 map.on('click', function(evt) {
 	displayFeatureInfo(evt.pixel);
