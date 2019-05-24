@@ -147,6 +147,13 @@ html, body {
     padding: 5px;
 }
 
+.layer-select {
+  display: grid;
+  grid-column-gap: 50px;
+  grid-row-gap: 25px;
+  grid-template-columns: auto auto auto;
+}
+
 @media screen {
     #infopanel {
         top: 0px;
@@ -196,6 +203,10 @@ html, body {
     }
     #radarDateValue, #currentDateValue, #currentUTCTimeValue {
         display: none;
+    }
+    .layer-select {
+      display: grid;
+      grid-template-columns: auto;
     }
 }
 
@@ -285,12 +296,7 @@ html, body {
     overflow: scroll;
   }
 
-  .layer-select {
-    display: grid;
-    grid-column-gap: 50px;
-    grid-row-gap: 25px;
-    grid-template-columns: auto auto auto;
-  }
+
   
   /* The Close Button */
   .close {
