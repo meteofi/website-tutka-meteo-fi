@@ -45,8 +45,12 @@ var options = {
 }
 
 var DEBUG = true;
-var metLatitude  = localStorage.getItem("metLatitude")  ? localStorage.getItem("metLatitude")  : 60.2706;
-var metLongitude = localStorage.getItem("metLongitude") ? localStorage.getItem("metLongitude") : 24.8725;
+var metLatitude = localStorage.getItem("metLatitude")
+	? localStorage.getItem("metLatitude")
+	: 60.2706;
+var metLongitude = localStorage.getItem("metLongitude")
+	? localStorage.getItem("metLongitude") 
+	: 24.8725;
 var ownPosition = [];
 var ownPosition4326 = [];
 var startDate = new Date(Math.floor(Date.now() / 300000) * 300000 - 300000 * 12);
@@ -62,8 +66,13 @@ document.ontouchmove = function(e){
 	e.preventDefault(); 
 }
 // STATUS Variables
-var VISIBLE = localStorage.getItem("VISIBLE") ? new Set(JSON.parse(localStorage.getItem("VISIBLE")))  : new Set(["radarLayer"]);
-var IS_TRACKING = localStorage.getItem("IS_TRACKING") ? JSON.parse(localStorage.getItem("IS_TRACKING"))  : false;
+var VISIBLE = localStorage.getItem("VISIBLE")
+	? new Set(JSON.parse(localStorage.getItem("VISIBLE")))
+	: new Set(["radarLayer"]);
+
+var IS_TRACKING = localStorage.getItem("IS_TRACKING")
+	? JSON.parse(localStorage.getItem("IS_TRACKING"))
+	: false;
 
 function debug(str) {
 	if (DEBUG) {
@@ -498,12 +507,12 @@ function setTime(reverse=false) {
 
 	
 	for (let item of VISIBLE) {
-		var wmslayer = layerss[item].getSource().getParams().LAYERS
+		var wmslayer = layerss[item].getSource().getParams().LAYERS;
 		if (wmslayer in layerInfo) {
-			if (item == "radarLayer" || item == "satelliteLayer" || item == "observationLayer" || item == "satelliteLayer") {
-				resolution = Math.max(resolution, layerInfo[wmslayer].time.resolution)
+			if (item == "radarLayer" || item == "satelliteLayer" || item == "observationLayer") {
 				end = Math.min(end, Math.floor(layerInfo[wmslayer].time.end / resolution) * resolution);
 			}
+			resolution = Math.max(resolution, layerInfo[wmslayer].time.resolution);
 		}
 	}
 
@@ -672,14 +681,15 @@ function updateLayer(layer, wmslayer) {
 	debug("Activated layer " + wmslayer);
 	debug(layerInfo[wmslayer]);
 	if (document.getElementById(wmslayer)) {
-	removeSelectedParameter("#" + layer.get("name") + " > div");
-	document.getElementById(wmslayer).classList.add("selected");
+		removeSelectedParameter("#" + layer.get("name") + " > div");
+		document.getElementById(wmslayer).classList.add("selected");
 	}
-	document.getElementById(layer.get("name")+"Button").classList.add("selectedButton");
-	VISIBLE.add(layer.get("name"));
 	layer.getSource().updateParams({ 'LAYERS': wmslayer });
-	layer.setVisible(true);
-	updateCanonicalPage();
+	if (layer.getVisible()) {
+		updateCanonicalPage();
+	} else {
+		layer.setVisible(true);
+	}
 }
 
 function addEventListeners(selector) {
@@ -688,13 +698,8 @@ function addEventListeners(selector) {
 		debug("Activated event listener for " + elem.id);
 		elem.addEventListener("click", function () {
 			if (event.target.id.indexOf("Off") !== -1) {
-				removeSelectedParameter("#" + event.target.parentElement.id + " > div");
-				document.getElementById(event.target.parentElement.id+"Button").classList.remove('selectedButton');
 				event.target.classList.add("selected");
-				debug("Deactivated layer " + event.target.parentElement.id);
 				layerss[event.target.parentElement.id].setVisible(false);
-				VISIBLE.delete(event.target.parentElement.id);
-				updateCanonicalPage();
 			} else {
 				updateLayer(layerss[event.target.parentElement.id], event.target.id);
 			}
@@ -758,27 +763,37 @@ var displayFeatureInfo = function (pixel) {
 
 };
 
-function toggleLayerVisibility(layer) {
-	var visibility = layer.getVisible();
-	var name = layer.get("name");
+function onChangeVisible (event) {
+	const layer = event.target;
+	const wmslayer = layer.getSource().getParams().LAYERS;
+	let name = layer.get('name');
+	let isVisible = layer.getVisible();
 	removeSelectedParameter("#" + name + " > div");
-	if (visibility == false) {
+	if (isVisible) {
+		debug("Activated " + name);
 		VISIBLE.add(name);
 		localStorage.setItem("VISIBLE",JSON.stringify([...VISIBLE]));
-		layer.setVisible(true);
-		VISIBLE.add(name);
-		document.getElementById(layer.getSource().getParams().LAYERS).classList.add("selected");
+		if (document.getElementById(wmslayer)) {
+			document.getElementById(wmslayer).classList.add("selected");
+		}
 		document.getElementById(name+"Button").classList.add("selectedButton");
-	}
-	if (visibility == true) {
+	} else {
+		debug("Deactivated " + name);
 		VISIBLE.delete(name);
 		localStorage.setItem("VISIBLE",JSON.stringify([...VISIBLE]));
-		layer.setVisible(false);
-		VISIBLE.delete(name);
 		document.getElementById(name+"Off").classList.add("selected");
 		document.getElementById(name+"Button").classList.remove("selectedButton");
 	}
-	updateCanonicalPage();
+	updateCanonicalPage()
+}
+
+function toggleLayerVisibility(layer) {
+	const isVisible = layer.getVisible();
+	if (isVisible) {
+		layer.setVisible(false);
+	} else {
+		layer.setVisible(true);
+	}
 }
 
 //
@@ -866,20 +881,40 @@ document.getElementById('locationLayerButton').addEventListener('click', functio
 	setButtonStates();
 });
 
-document.getElementById('satelliteLayerButton').addEventListener('click', function() {
-	toggleLayerVisibility(satelliteLayer);
-});
+// document.getElementById('satelliteLayerButton').addEventListener('click', function() {
+// 	toggleLayerVisibility(satelliteLayer);
+// });
 
-document.getElementById('radarLayerButton').addEventListener('click', function() {
-	toggleLayerVisibility(radarLayer);
-});
+// document.getElementById('radarLayerButton').addEventListener('click', function() {
+// 	toggleLayerVisibility(radarLayer);
+// });
 
-document.getElementById('lightningLayerButton').addEventListener('click', function() {
-	toggleLayerVisibility(lightningLayer);
-});
+// document.getElementById('lightningLayerButton').addEventListener('click', function() {
+// 	toggleLayerVisibility(lightningLayer);
+// });
 
-document.getElementById('observationLayerButton').addEventListener('click', function() {
-	toggleLayerVisibility(observationLayer);
+// document.getElementById('observationLayerButton').addEventListener('click', function() {
+// 	toggleLayerVisibility(observationLayer);
+// });
+
+document.addEventListener('click', function (event) {
+	debug(event);
+	if (event.target.closest('#satelliteLayerButton')) {
+		toggleLayerVisibility(satelliteLayer);
+	}
+
+	if (event.target.closest('#radarLayerButton')) {
+		toggleLayerVisibility(radarLayer);
+	}
+
+	if (event.target.closest('#lightningLayerButton')) {
+		toggleLayerVisibility(lightningLayer);
+	}
+
+	if (event.target.closest('#observationLayerButton')) {
+		toggleLayerVisibility(observationLayer);
+	}
+
 });
 
 map.on('click', function(evt) {
@@ -918,7 +953,8 @@ function updateLayerSelection(ollayer,type,filter) {
 	Object.keys(layerInfo).forEach((layer) => {
 		if (layerInfo[layer].layer.includes(filter)) { 
 			var div = document.createElement("div");
-			div.innerHTML = layerInfo[layer].title + ' (<i>' + Math.round(layerInfo[layer].time.resolution/60000) + ' min</i>)';
+			var resolution = Math.round(layerInfo[layer].time.resolution/60000);
+			div.innerHTML = layerInfo[layer].title + ' (<i>' + (resolution > 60 ? (resolution / 60) + ' hours' : resolution + ' minutes') + '</i>)';
 			div.onclick = function () { updateLayer(ollayer,layerInfo[layer].layer); };
 			document.getElementById(type+"Layer-select").appendChild(div);
 		}
@@ -943,6 +979,7 @@ function readWMSCapabilities(url,timeout) {
 		updateLayerSelection(radarLayer,"radar","suomi_");
 		updateLayerSelection(radarLayer,"etop","etop_");
 		updateLayerSelection(radarLayer,"hclass","_hclass");
+		updateLayerSelection(lightningLayer,"lightning","lightning");
 	});
 	setTimeout(function() {readWMSCapabilities(url,timeout)}, timeout);
 }
@@ -1054,6 +1091,11 @@ const main = () => {
 	geolocation.setTracking(true);
 
 	setButtonStates();
+
+  satelliteLayer.on('change:visible', onChangeVisible);
+	radarLayer.on('change:visible', onChangeVisible);
+	lightningLayer.on('change:visible', onChangeVisible);
+	observationLayer.on('change:visible', onChangeVisible);
 
 	addEventListeners("#satelliteLayer > div");
 	addEventListeners("#radarLayer > div");
