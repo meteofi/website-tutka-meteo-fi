@@ -1075,7 +1075,6 @@ window.onclick = function(event) {
 }
 
 // MAIN
-
 const main = () => {
 	// Load custom tracking code lazily, so it's non-blocking.
 	import('./analytics.js').then((analytics) => analytics.init());
