@@ -14,7 +14,9 @@ module.exports = {
         filename: 'radar.[contenthash].js',
     },
     devServer: {
-        contentBase: './dist'
+        contentBase: path.join(__dirname, 'dist'),
+        compress: true,
+        port: 9000
     },
     plugins: [
         // To strip all locales except “en”
