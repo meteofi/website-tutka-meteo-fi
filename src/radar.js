@@ -25,7 +25,7 @@ import { connect } from 'mqtt';
 import { transformExtent } from 'ol/proj';
 
 var options = {
-	defaultRadarLayer: "suomi_dbz_eureffin",
+	defaultRadarLayer: "radar_finland_dbz",
 	rangeRingSpacing: 50,
 	radialSpacing: 30,
 	frameRate: 2, // fps
@@ -269,7 +269,7 @@ var radarLayer = new ImageLayer({
 	visible: VISIBLE.has("radarLayer"),
 	opacity: 0.7,
 	source: new ImageWMS({
-		url: options.wmsServer.fmi,
+		url: options.wmsServer.meteo.radar,
 		params: { 'LAYERS': options.defaultRadarLayer },
 		ratio: 1.1,
 		hidpi: false,
@@ -975,9 +975,9 @@ function readWMSCapabilities(url,timeout) {
 		debug(layerInfo);
 		updateLayerSelection(satelliteLayer,"satellite","msg_");
 		updateLayerSelection(observationLayer,"observation","air_");
-		updateLayerSelection(radarLayer,"radar","suomi_");
-		updateLayerSelection(radarLayer,"etop","etop_");
-		updateLayerSelection(radarLayer,"hclass","_hclass");
+		updateLayerSelection(radarLayer,"radar","radar_");
+		//updateLayerSelection(radarLayer,"etop","etop_");
+		//updateLayerSelection(radarLayer,"hclass","_hclass");
 		updateLayerSelection(lightningLayer,"lightning","lightning");
 	});
 	setTimeout(function() {readWMSCapabilities(url,timeout)}, timeout);
@@ -1082,7 +1082,7 @@ const main = () => {
 	updateClock();
 	readWMSCapabilities(options.wmsServer.meteo.test, 300000);
 	readWMSCapabilities(options.wmsServer.meteo.radar, 60000);
-	readWMSCapabilities(options.wmsServer.fmi, 60000);
+	readWMSCapabilities(options.wmsServer.meteo.radar, 60000);
 	//if (IS_SATELLITE) {
 		readWMSCapabilities(options.wmsServer.eumetsat, 300000);
 	//}	
