@@ -559,6 +559,10 @@ function updateClock() {
 	setTimeout(updateClock, 1000);
 }
 
+//
+// TIME CONTROLS
+//
+
 var play = function () {
 	if (animationId === null) {
 		debug("PLAY");
@@ -929,6 +933,16 @@ document.addEventListener('keyup', function (event) {
 	debug(event);
 	if (key === ' ' || key === 'Space' || key === 32) {
 		skip_next();
+	} else if (key === ',' || key === 'Comma') {
+		skip_previous(); 
+	} else if (key === '.' || key === 'Period') {
+		skip_next(); 
+	} else if (key === 'j' || key === 'KeyJ') {
+		skip_previous(); 
+	} else if (key === 'k' || key === 'KeyK') {
+		playstop(); 
+	} else if (key === 'l' || key === 'KeyL') {
+		skip_next(); 
 	} else if (key === 's' || key === 'KeyS' || key === 83) {
 		toggleLayerVisibility(smpsLayer); 
 	} else if (key === 'f' || key === 'KeyF') {
