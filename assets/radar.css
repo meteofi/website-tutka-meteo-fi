@@ -210,7 +210,7 @@ html, body {
     }
 }
 
-#infoItemSatelliteD, #radarPlayTxt, #layersButtonD {
+#infoItemSatellite, #radarPlayTxt, #layersButton {
     display: none;
 }
 
@@ -285,13 +285,12 @@ html, body {
     background-color: rgba(0,0,0,0.7);
     color: #cccccc;
     top: 50%;
-    left: 50%;  
+    left: 50%;
     margin: 5% auto auto 5%;
-    /*margin: 15% auto; /* 15% from the top and centered */
     padding: 20px;
     border: 1px solid #888;
-    width: 90%; /* Could be more or less, depending on screen size */
-    height: 90%;
+    width: 50%; /* Could be more or less, depending on screen size */
+    height: 50%;
     border-radius: 6px;
     overflow: scroll;
   }
