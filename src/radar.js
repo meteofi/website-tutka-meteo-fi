@@ -967,7 +967,7 @@ function updateLayerSelection(ollayer,type,filter) {
 		if (layerInfo[layer].layer.includes(filter)) { 
 			var div = document.createElement("div");
 			var resolution = Math.round(layerInfo[layer].time.resolution/60000);
-			div.innerHTML = layerInfo[layer].title + ' (<i>' + (resolution > 60 ? (resolution / 60) + ' hours' : resolution + ' minutes') + '</i>)';
+			div.innerHTML = '<b>' + layerInfo[layer].title + '</b><br>' + layerInfo[layer].abstract + ' (<i>' + (resolution > 60 ? (resolution / 60) + ' hours' : resolution + ' minutes') + '</i>)';
 			div.onclick = function () { updateLayer(ollayer,layerInfo[layer].layer); };
 			document.getElementById(type+"Layer-select").appendChild(div);
 		}
