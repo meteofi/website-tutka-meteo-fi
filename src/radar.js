@@ -76,6 +76,10 @@ var IS_TRACKING = localStorage.getItem("IS_TRACKING")
 	? JSON.parse(localStorage.getItem("IS_TRACKING"))
 	: false;
 
+	var IS_NAUTICAL = localStorage.getItem("IS_NAUTICAL")
+	? JSON.parse(localStorage.getItem("IS_NAUTICAL"))
+	: false;
+
 function debug(str) {
 	if (DEBUG) {
 		try {
@@ -373,16 +377,28 @@ var layers = [
 	smpsLayer
 ];
 
+function distanceToString (distance) {
+	var str;
+
+	if (IS_NAUTICAL) {
+		str = (distance / 1852).toFixed(3) + ' NM';
+	} else {
+		if (distance < 1000) {
+			str = Math.round(distance) + ' m';
+		} else {
+			str = (distance / 1000).toFixed(1) + ' km';
+		}
+	}
+	return str;
+}
+
 function mouseCoordinateFormat(coordinate) {
 	if (ownPosition4326.length > 1) {
 		var distance = getDistance(coordinate, ownPosition4326);
 		var p1 = new LatLon(ownPosition4326[1], ownPosition4326[0]);
 		var p2 = new LatLon(coordinate[1], coordinate[0]);
 		var bearing = p1.initialBearingTo(p2);
-		var distance_km = distance / 1000;
-		var distance_nm = distance / 1852;
-		document.getElementById("cursorDistanceValueKM").innerHTML = distance_km.toFixed(3) + " km " + bearing.toFixed(0) + "&deg;";
-		document.getElementById("cursorDistanceValueNM").innerHTML = distance_nm.toFixed(3) + " NM";
+		document.getElementById("cursorDistanceValue").innerHTML = distanceToString(distance) + '<br>' + bearing.toFixed(0) + "&deg;";
 	}
 	return Dms.toLat(coordinate[1], "dm", 3) + " " + Dms.toLon(coordinate[0], "dm", 3);
 }
@@ -454,8 +470,7 @@ geolocation.on('change:position', function() {
 	document.getElementById("gpsStatus").innerHTML = "gps_fixed";
 	document.getElementById("positionLatValue").innerHTML = "&#966; " + Dms.toLat(ownPosition4326[1], "dm", 3);
 	document.getElementById("positionLonValue").innerHTML = "&#955; " + Dms.toLon(ownPosition4326[0], "dm", 3);
-	document.getElementById("cursorDistanceTxtKM").style.display = "block";
-	document.getElementById("cursorDistanceTxtNM").style.display = "block";
+	document.getElementById("cursorDistanceTxt").style.display = "block";
 //	if (IS_TRACKING) {
 //		map.getView().setCenter(ownPosition);
 //	}
@@ -622,8 +637,7 @@ var playstop = function () {
 
 // Start Animation
 //document.getElementById("infoItemPosition").style.display = "none";
-document.getElementById("cursorDistanceTxtKM").style.display = "none";
-document.getElementById("cursorDistanceTxtNM").style.display = "none";
+document.getElementById("cursorDistanceTxt").style.display = "none";
 
 
 
@@ -899,6 +913,11 @@ document.getElementById('locationLayerButton').addEventListener('click', functio
 		gtag('event', 'on', {'event_category' : 'tracking'});
 	}
 	setButtonStates();
+});
+
+document.getElementById('cursorDistanceTxt').addEventListener('click', function() {
+	IS_NAUTICAL = IS_NAUTICAL ? false : true;
+	localStorage.setItem("IS_NAUTICAL",JSON.stringify(IS_NAUTICAL));
 });
 
 document.getElementById('satelliteLayerButton').addEventListener('click', function() {
