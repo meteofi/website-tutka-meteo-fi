@@ -6,6 +6,7 @@ import ImageLayer from 'ol/layer/Image';
 import VectorLayer from 'ol/layer/Vector';
 import XYZ from 'ol/source/XYZ';
 import ImageWMS from 'ol/source/ImageWMS';
+import TileWMS from 'ol/source/TileWMS';
 import WMTS, {optionsFromCapabilities} from 'ol/source/WMTS.js';
 import GeoJSON from 'ol/format/GeoJSON';
 import Vector from 'ol/source/Vector';
@@ -41,10 +42,11 @@ var options = {
 		'knmi': "https://geoservices.knmi.nl/cgi-bin/RADNL_OPER_R___25PCPRR_L3.cgi", // "RADNL_OPER_R___25PCPRR_L3_COLOR"
 		"nws": "https://idpgis.ncep.noaa.gov/arcgis/services/radar/radar_base_reflectivity_time/ImageServer/WMSServer", // "0"
 		"eumetsat": "https://eumetview.eumetsat.int/geoserv/meteosat/wms", // "meteosat:msg_eview"
+		"s57": "https://julkinen.vayla.fi/s57/wms",
 	}
 }
 
-var DEBUG = true;
+var DEBUG = false;
 var metLatitude = localStorage.getItem("metLatitude")
 	? localStorage.getItem("metLatitude")
 	: 60.2706;
@@ -217,37 +219,50 @@ var darkGrayReferenceLayer = new TileLayer({
 var merikarttaLayer = new TileLayer();
 var pohjakarttaLayer = new TileLayer();
 
-fetch('https://julkinen.vayla.fi/rasteripalvelu/wmts?request=getcapabilities').then(function (response) {
-	return response.text();
-}).then(function (text) {
-	var parser = new WMTSCapabilities();
-	var result = parser.read(text);
-	//debug(result);
-	var options = optionsFromCapabilities(result, {
-		layer: 'liikennevirasto:Merikarttasarjat public',
-		matrixSet: 'WGS84_Pseudo-Mercator'
-	});
-	//debug("OPTIONS");
-	//debug(options);
-	merikarttaLayer.setSource(new WMTS(options));
+// fetch('https://julkinen.vayla.fi/rasteripalvelu/wmts?request=getcapabilities').then(function (response) {
+// 	return response.text();
+// }).then(function (text) {
+// 	var parser = new WMTSCapabilities();
+// 	var result = parser.read(text);
+// 	//debug(result);
+// 	var options = optionsFromCapabilities(result, {
+// 		layer: 'liikennevirasto:Merikarttasarjat public',
+// 		matrixSet: 'WGS84_Pseudo-Mercator'
+// 	});
+// 	//debug("OPTIONS");
+// 	//debug(options);
+// 	merikarttaLayer.setSource(new WMTS(options));
+// });
+
+
+// fetch('https://avoin-karttakuva.maanmittauslaitos.fi/avoin/wmts?service=WMTS&request=GetCapabilities&version=1.0.0').then(function (response) {
+// 	return response.text();
+// }).then(function (text) {
+// 	var parser = new WMTSCapabilities();
+// 	var result = parser.read(text);
+// 	//debug(result);
+// 	var options = optionsFromCapabilities(result, {
+// 		layer: 'taustakartta',
+// 		matrixSet: 'WGS84_Pseudo-Mercator'
+// 	});
+// 	//debug("OPTIONS");
+// 	//debug(options);
+// 	pohjakarttaLayer.setSource(new WMTS(options));
+// });
+
+// S-57 Layer
+var s57Layer = new TileLayer({
+	name: "navicationLayer",
+	visible: true,
+	opacity: 1,
+	source: new TileWMS({
+		url: options.wmsServer.s57,
+		params: { 'LAYERS': "cells", 'TILED': true },
+		hidpi: false,
+		ratio: 1.1,
+		serverType: 'geoserver'
+	})
 });
-
-
-fetch('https://avoin-karttakuva.maanmittauslaitos.fi/avoin/wmts?service=WMTS&request=GetCapabilities&version=1.0.0').then(function (response) {
-	return response.text();
-}).then(function (text) {
-	var parser = new WMTSCapabilities();
-	var result = parser.read(text);
-	//debug(result);
-	var options = optionsFromCapabilities(result, {
-		layer: 'taustakartta',
-		matrixSet: 'WGS84_Pseudo-Mercator'
-	});
-	//debug("OPTIONS");
-	//debug(options);
-	pohjakarttaLayer.setSource(new WMTS(options));
-});
-
 
 // Satellite Layer
 var satelliteLayer = new ImageLayer({
@@ -345,6 +360,7 @@ var layerss = {
 var layers = [
 	lightGrayBaseLayer,
 	darkGrayBaseLayer,
+//	s57Layer,
 	satelliteLayer,
 	radarLayer,
 	guideLayer,
@@ -1095,7 +1111,6 @@ const main = () => {
 
 	updateClock();
 	readWMSCapabilities(options.wmsServer.meteo.test, 300000);
-	readWMSCapabilities(options.wmsServer.meteo.radar, 60000);
 	readWMSCapabilities(options.wmsServer.meteo.radar, 60000);
 	//if (IS_SATELLITE) {
 		readWMSCapabilities(options.wmsServer.eumetsat, 300000);
