@@ -182,6 +182,16 @@ var accuracyFeature = new Feature();
 //
 // LAYERS
 //
+var imageryBaseLayer = new TileLayer({
+	visible: false,
+	source: new XYZ({
+		attributions: 'Tiles © <a href="https://services.arcgisonline.com/ArcGIS/' +
+			'rest/services/World_Imagery/MapServer">ArcGIS</a>',
+		url: 'https://server.arcgisonline.com/ArcGIS/rest/services/' +
+			'World_Imagery/MapServer/tile/{z}/{y}/{x}'
+	})
+});
+
 var lightGrayBaseLayer = new TileLayer({
 	visible: false,
 	source: new XYZ({
@@ -302,7 +312,7 @@ var lightningLayer = new ImageLayer({
 	visible: VISIBLE.has("lightningLayer"),
 	source: new ImageWMS({
 		url: options.wmsServer.meteo.test,
-		params: { 'LAYERS': 'lightning' },
+		params: { 'LAYERS': 'lightning_nordic_lightning' },
 		ratio: 1.1,
 		serverType: 'geoserver'
 	})
@@ -364,6 +374,7 @@ var layerss = {
 var layers = [
 	lightGrayBaseLayer,
 	darkGrayBaseLayer,
+	imageryBaseLayer,
 //	s57Layer,
 	satelliteLayer,
 	radarLayer,
