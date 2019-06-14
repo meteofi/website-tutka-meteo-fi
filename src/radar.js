@@ -31,6 +31,7 @@ var options = {
 	radialSpacing: 30,
 	frameRate: 2, // fps
 	defaultFrameRate: 2, // fps
+	imageRatio: 1.4,
 	wmsServer: {
 		'meteo': {
 			'radar': "https://wms.meteo.fi/geoserver/radar/wms",
@@ -61,7 +62,6 @@ var moment = require('moment');
 moment.locale('fi');
 var layerInfo = {};
 const client  = connect('wss://meri.digitraffic.fi:61619/mqtt',{username: 'digitraffic', password: 'digitrafficPassword'});
-var WMSURL = options.wmsServer.meteo;
 var trackedVessels = {'230059770': {}, '230994270': {}, '230939100': {}, '230051170': {}, '230059740': {}, '230108850': {}, '230937480': {}, '230051160': {}, '230983250': {}, '230012240': {}, '230980890': {}, '230061400': {}, '230059760': {}, '230005610': {}, '230987580': {}, '230983340': {}, '230111580': {}, '230059750': {}, '230994810': {}, '230993590': {}, '230051150': {} };
 
 document.ontouchmove = function(e){ 
@@ -71,6 +71,10 @@ document.ontouchmove = function(e){
 var VISIBLE = localStorage.getItem("VISIBLE")
 	? new Set(JSON.parse(localStorage.getItem("VISIBLE")))
 	: new Set(["radarLayer"]);
+
+	var IS_DARK = localStorage.getItem("IS_DARK")
+	? JSON.parse(localStorage.getItem("IS_DARK"))
+	: false;
 
 var IS_TRACKING = localStorage.getItem("IS_TRACKING")
 	? JSON.parse(localStorage.getItem("IS_TRACKING"))
@@ -277,7 +281,7 @@ var s57Layer = new TileLayer({
 		url: options.wmsServer.s57,
 		params: { 'LAYERS': "cells", 'TILED': true },
 		hidpi: false,
-		ratio: 1.1,
+		ratio: options.imageRatio,
 		serverType: 'geoserver'
 	})
 });
@@ -291,7 +295,7 @@ var satelliteLayer = new ImageLayer({
 		url: options.wmsServer.eumetsat,
 		params: { 'LAYERS': "msg_eview" },
 		hidpi: false,
-		ratio: 1.1,
+		ratio: options.imageRatio,
 		serverType: 'geoserver'
 	})
 });
@@ -304,7 +308,7 @@ var radarLayer = new ImageLayer({
 	source: new ImageWMS({
 		url: options.wmsServer.meteo.radar,
 		params: { 'LAYERS': options.defaultRadarLayer },
-		ratio: 1.1,
+		ratio: options.imageRatio,
 		hidpi: false,
 		serverType: 'geoserver'
 	})
@@ -317,7 +321,7 @@ var lightningLayer = new ImageLayer({
 	source: new ImageWMS({
 		url: options.wmsServer.meteo.test,
 		params: { 'LAYERS': 'lightning_nordic_lightning' },
-		ratio: 1.1,
+		ratio: options.imageRatio,
 		serverType: 'geoserver'
 	})
 });
@@ -329,7 +333,7 @@ var observationLayer = new ImageLayer({
 	source: new ImageWMS({
 		url: options.wmsServer.meteo.test,
 		params: { 'LAYERS': 'air_temperature' },
-		ratio: 1,
+		ratio: options.imageRatio,
 		serverType: 'geoserver'
 	})
 });
@@ -557,7 +561,7 @@ function updateCanonicalPage() {
 }
 
 
-createTimeline(13);
+
 
 function setTime(action='next') {
 	var resolution = 300000;
@@ -604,10 +608,12 @@ function setTime(action='next') {
 		
 		if (startDate.getTime() == end && animationId === null) {
 			IS_FOLLOWING = true;
+			localStorage.setItem("IS_FOLLOWING",JSON.stringify(true));
 			debug('MODE: FOLLOW');
 			document.getElementById("skipNextButton").classList.add("selectedButton");
 		} else {
 			IS_FOLLOWING = false;
+			localStorage.setItem("IS_FOLLOWING",JSON.stringify(false));
 			document.getElementById("skipNextButton").classList.remove("selectedButton");
 		}
 
@@ -727,26 +733,38 @@ client.on("message", function (topic, payload) {
 	//client.end()
 });
 
-
+function setMapLayer(maplayer) {
+	debug('Set ' + maplayer + ' map.');
+	switch (maplayer) {
+		case 'light':
+			darkGrayBaseLayer.setVisible(false);
+			darkGrayReferenceLayer.setVisible(false);
+			lightGrayBaseLayer.setVisible(true);
+			lightGrayReferenceLayer.setVisible(true);
+			document.getElementById("mapLayerButton").classList.remove("selectedButton");
+			break;
+		case 'dark':
+			darkGrayBaseLayer.setVisible(true);
+			darkGrayReferenceLayer.setVisible(true);
+			lightGrayBaseLayer.setVisible(false);
+			lightGrayReferenceLayer.setVisible(false);
+			document.getElementById("mapLayerButton").classList.add("selectedButton");
+			break;	
+	}
+}
 
 document.getElementById('darkBase').addEventListener('click', function (event) {
 	debug("darkBase")
 	event.target.classList.add("selected");
 	document.getElementById("lightBase").classList.remove("selected");
-	darkGrayBaseLayer.setVisible(true);
-	darkGrayReferenceLayer.setVisible(true);
-	lightGrayBaseLayer.setVisible(false);
-	lightGrayReferenceLayer.setVisible(false);
+	setMapLayer('dark');
 });
 
 document.getElementById('lightBase').addEventListener('click', function (event) {
 	debug("lightBase")
 	event.target.classList.add("selected");
 	document.getElementById("darkBase").classList.remove("selected");
-	darkGrayBaseLayer.setVisible(false);
-	darkGrayReferenceLayer.setVisible(false);
-	lightGrayBaseLayer.setVisible(true);
-	lightGrayReferenceLayer.setVisible(true);
+	setMapLayer('light');
 });
 
 function removeSelectedParameter (selector) {
@@ -928,6 +946,11 @@ function setButtonStates() {
 	} else {
 		document.getElementById("locationLayerButton").classList.remove("selectedButton");
 	}
+	if (IS_DARK) {
+		document.getElementById("mapLayerButton").classList.add("selectedButton");
+	} else {
+		document.getElementById("mapLayerButton").classList.remove("selectedButton");
+	}
 	if (VISIBLE.has("satelliteLayer")) {
 		document.getElementById("satelliteLayerButton").classList.add("selectedButton");
 	} else {
@@ -964,6 +987,16 @@ document.getElementById('locationLayerButton').addEventListener('click', functio
 document.getElementById('cursorDistanceTxt').addEventListener('click', function() {
 	IS_NAUTICAL = IS_NAUTICAL ? false : true;
 	localStorage.setItem("IS_NAUTICAL",JSON.stringify(IS_NAUTICAL));
+});
+
+document.getElementById('mapLayerButton').addEventListener('click', function() {
+	IS_DARK = IS_DARK ? false : true;
+	localStorage.setItem("IS_DARK",JSON.stringify(IS_DARK));
+	if (IS_DARK) {
+		setMapLayer('dark');
+	} else {
+		setMapLayer('light');
+	}
 });
 
 document.getElementById('satelliteLayerButton').addEventListener('click', function() {
@@ -1177,6 +1210,14 @@ const main = () => {
 	// Load custom tracking code lazily, so it's non-blocking.
 	import('./analytics.js').then((analytics) => analytics.init());
 
+	if (IS_DARK) {
+		setMapLayer('dark');
+	} else {
+		setMapLayer('light');
+	}
+
+	createTimeline(13);
+
 	updateClock();
 	readWMSCapabilities(options.wmsServer.meteo.test, 300000);
 	readWMSCapabilities(options.wmsServer.meteo.radar, 60000);
@@ -1186,6 +1227,7 @@ const main = () => {
 	geolocation.setTracking(true);
 
 	setButtonStates();
+
 
   satelliteLayer.on('change:visible', onChangeVisible);
 	radarLayer.on('change:visible', onChangeVisible);
@@ -1197,7 +1239,11 @@ const main = () => {
 	addEventListeners("#lightningLayer > div");
 	addEventListeners("#observationLayer > div");
 
-	play();
+	if (IS_FOLLOWING) {
+		setTime('last');
+	} else {
+		play();
+	}
 };
 
 main();
