@@ -3,17 +3,20 @@
 ### Näppäinkomennot
 
 #### Karttatasot
+näppäin | komento
 |---|---------------------------|
 | 1 | satelliitti päälle / pois |
 | 2 | säätutka päälle / pois    |
 | 3 | salamat päälle / pois     |
 | 4 | säähavainto päälle / pois |
 
-**Aikakontrolli**
-space askellus
-k play / pause
-j edellinen aika-askel
-l seuraava aika-askel
+#### Aikakontrolli
+näppäin | komento
+|---|---------------------------|
+space | askellus
+k | play / pause
+j | edellinen aika-askel
+l | seuraava aika-askel
 
 ### Markdown
 
