@@ -72,6 +72,10 @@ var VISIBLE = localStorage.getItem("VISIBLE")
 	? new Set(JSON.parse(localStorage.getItem("VISIBLE")))
 	: new Set(["radarLayer"]);
 
+	var IS_DARK = localStorage.getItem("IS_DARK")
+	? JSON.parse(localStorage.getItem("IS_DARK"))
+	: false;
+
 var IS_TRACKING = localStorage.getItem("IS_TRACKING")
 	? JSON.parse(localStorage.getItem("IS_TRACKING"))
 	: false;
@@ -557,7 +561,7 @@ function updateCanonicalPage() {
 }
 
 
-createTimeline(13);
+
 
 function setTime(action='next') {
 	var resolution = 300000;
@@ -729,26 +733,38 @@ client.on("message", function (topic, payload) {
 	//client.end()
 });
 
-
+function setMapLayer(maplayer) {
+	debug('Set ' + maplayer + ' map.');
+	switch (maplayer) {
+		case 'light':
+			darkGrayBaseLayer.setVisible(false);
+			darkGrayReferenceLayer.setVisible(false);
+			lightGrayBaseLayer.setVisible(true);
+			lightGrayReferenceLayer.setVisible(true);
+			document.getElementById("mapLayerButton").classList.remove("selectedButton");
+			break;
+		case 'dark':
+			darkGrayBaseLayer.setVisible(true);
+			darkGrayReferenceLayer.setVisible(true);
+			lightGrayBaseLayer.setVisible(false);
+			lightGrayReferenceLayer.setVisible(false);
+			document.getElementById("mapLayerButton").classList.add("selectedButton");
+			break;	
+	}
+}
 
 document.getElementById('darkBase').addEventListener('click', function (event) {
 	debug("darkBase")
 	event.target.classList.add("selected");
 	document.getElementById("lightBase").classList.remove("selected");
-	darkGrayBaseLayer.setVisible(true);
-	darkGrayReferenceLayer.setVisible(true);
-	lightGrayBaseLayer.setVisible(false);
-	lightGrayReferenceLayer.setVisible(false);
+	setMapLayer('dark');
 });
 
 document.getElementById('lightBase').addEventListener('click', function (event) {
 	debug("lightBase")
 	event.target.classList.add("selected");
 	document.getElementById("darkBase").classList.remove("selected");
-	darkGrayBaseLayer.setVisible(false);
-	darkGrayReferenceLayer.setVisible(false);
-	lightGrayBaseLayer.setVisible(true);
-	lightGrayReferenceLayer.setVisible(true);
+	setMapLayer('light');
 });
 
 function removeSelectedParameter (selector) {
@@ -930,6 +946,11 @@ function setButtonStates() {
 	} else {
 		document.getElementById("locationLayerButton").classList.remove("selectedButton");
 	}
+	if (IS_DARK) {
+		document.getElementById("mapLayerButton").classList.add("selectedButton");
+	} else {
+		document.getElementById("mapLayerButton").classList.remove("selectedButton");
+	}
 	if (VISIBLE.has("satelliteLayer")) {
 		document.getElementById("satelliteLayerButton").classList.add("selectedButton");
 	} else {
@@ -966,6 +987,16 @@ document.getElementById('locationLayerButton').addEventListener('click', functio
 document.getElementById('cursorDistanceTxt').addEventListener('click', function() {
 	IS_NAUTICAL = IS_NAUTICAL ? false : true;
 	localStorage.setItem("IS_NAUTICAL",JSON.stringify(IS_NAUTICAL));
+});
+
+document.getElementById('mapLayerButton').addEventListener('click', function() {
+	IS_DARK = IS_DARK ? false : true;
+	localStorage.setItem("IS_DARK",JSON.stringify(IS_DARK));
+	if (IS_DARK) {
+		setMapLayer('dark');
+	} else {
+		setMapLayer('light');
+	}
 });
 
 document.getElementById('satelliteLayerButton').addEventListener('click', function() {
@@ -1179,6 +1210,14 @@ const main = () => {
 	// Load custom tracking code lazily, so it's non-blocking.
 	import('./analytics.js').then((analytics) => analytics.init());
 
+	if (IS_DARK) {
+		setMapLayer('dark');
+	} else {
+		setMapLayer('light');
+	}
+
+	createTimeline(13);
+
 	updateClock();
 	readWMSCapabilities(options.wmsServer.meteo.test, 300000);
 	readWMSCapabilities(options.wmsServer.meteo.radar, 60000);
@@ -1188,6 +1227,7 @@ const main = () => {
 	geolocation.setTracking(true);
 
 	setButtonStates();
+
 
   satelliteLayer.on('change:visible', onChangeVisible);
 	radarLayer.on('change:visible', onChangeVisible);
