@@ -46,7 +46,7 @@ var options = {
 	}
 }
 
-var DEBUG = false;
+var DEBUG = true;
 var metLatitude = localStorage.getItem("metLatitude")
 	? localStorage.getItem("metLatitude")
 	: 60.2706;
@@ -74,6 +74,10 @@ var VISIBLE = localStorage.getItem("VISIBLE")
 
 var IS_TRACKING = localStorage.getItem("IS_TRACKING")
 	? JSON.parse(localStorage.getItem("IS_TRACKING"))
+	: false;
+
+	var IS_FOLLOWING = localStorage.getItem("IS_FOLLOWING")
+	? JSON.parse(localStorage.getItem("IS_FOLLOWING"))
 	: false;
 
 	var IS_NAUTICAL = localStorage.getItem("IS_NAUTICAL")
@@ -503,6 +507,19 @@ function setLayerStyle(layer, style) {
 	layer.getSource().updateParams({ 'STYLES': style });
 }
 
+function updateTimeLine (position) {
+	let elementsArray = document.querySelectorAll('#timeline > div');
+	elementsArray.forEach(function (elem) {
+		if (elem.id.split("-")[2] <= position) {
+			elem.classList.add("timeline-on");
+			elem.classList.remove("timeline-off");
+		} else {
+			elem.classList.add("timeline-off");
+			elem.classList.remove("timeline-on");
+		}
+	});
+}
+
 function createTimeline (count) {
 	var i = 0;
 	document.getElementById("timeline").innerHTML = "";
@@ -542,7 +559,7 @@ function updateCanonicalPage() {
 
 createTimeline(13);
 
-function setTime(reverse=false) {
+function setTime(action='next') {
 	var resolution = 300000;
 	var end = Math.floor(Date.now() / resolution) * resolution - resolution;
   var start = end - resolution * 12;
@@ -561,15 +578,22 @@ function setTime(reverse=false) {
 		end = Math.floor(end / resolution) * resolution ;
 		start = Math.floor(end / resolution) * resolution - resolution * 12;
 		
-		//var div = document.createElement("div");
-		//div.onclick = function () { updateLayer(ollayer,layerInfo[layer].layer); };
-		//document.getElementById("timeline").appendChild(div);
 
-		if (reverse) {
-			startDate.setMinutes(Math.floor(startDate.getMinutes()/(resolution/60000)) * (resolution/60000) - resolution / 60000);
-		} else {
-			startDate.setMinutes(Math.floor(startDate.getMinutes()/(resolution/60000)) * (resolution/60000) + resolution / 60000);
-		}
+	switch (action) {
+		case 'first':
+			startDate = new Date(start);
+			break;
+		case 'last':
+			startDate = new Date(end);
+			break;
+		case 'previous':
+			startDate.setMinutes(Math.floor(startDate.getMinutes() / (resolution / 60000)) * (resolution / 60000) - resolution / 60000);
+			break;
+		case 'next':
+		default:
+			startDate.setMinutes(Math.floor(startDate.getMinutes() / (resolution / 60000)) * (resolution / 60000) + resolution / 60000);
+	}
+
 
 		if (startDate.getTime() > end) {
 			startDate = new Date(start);
@@ -577,11 +601,17 @@ function setTime(reverse=false) {
 		} else if (startDate.getTime() < start) {
 			startDate = new Date(end);
 		}
+		
+		if (startDate.getTime() == end && animationId === null) {
+			IS_FOLLOWING = true;
+			debug('MODE: FOLLOW');
+			document.getElementById("skipNextButton").classList.add("selectedButton");
+		} else {
+			IS_FOLLOWING = false;
+			document.getElementById("skipNextButton").classList.remove("selectedButton");
+		}
 
-		var div = document.getElementById("timeline-item-" + (startDate.getTime()-start)/resolution);
-		div.classList.remove("timeline-off");
-		div.classList.add("timeline-on");
-
+		updateTimeLine((startDate.getTime()-start)/resolution);
 		setLayerTime(satelliteLayer, startDate.toISOString());
 		setLayerTime(radarLayer, startDate.toISOString());
 		setLayerTime(lightningLayer, 'PT'+(resolution/60000)+'M/' + startDate.toISOString());
@@ -608,6 +638,7 @@ function updateClock() {
 var play = function () {
 	if (animationId === null) {
 		debug("PLAY");
+		IS_FOLLOWING = false;
 		animationId = window.setInterval(setTime, 1000 / options.frameRate);
 		document.getElementById("playstop").innerHTML = "pause";
 		document.getElementById("playstopButton").innerHTML = "pause";
@@ -617,6 +648,7 @@ var play = function () {
 var stop = function () {
 	if (animationId !== null) {
 		debug("STOP");
+		IS_FOLLOWING = false;
 		window.clearInterval(animationId);
 		animationId = null;
 		document.getElementById("playstop").innerHTML = "play_arrow";
@@ -626,17 +658,20 @@ var stop = function () {
 
 var skip_next = function () {
 	debug("NEXT");
+	IS_FOLLOWING = false;
 	stop();
-	setTime();
+	setTime('next');
 }
 
 var skip_previous = function () {
 	debug("PREVIOUS");
+	IS_FOLLOWING = false;
 	stop();
-	setTime(true);
+	setTime('previous');
 }
 
 var playstop = function () {
+	IS_FOLLOWING = false;
 	if (animationId !== null) {
 		stop();
 		gtag('event', 'stop', {'event_category' : 'timecontrol'});
@@ -1039,6 +1074,9 @@ function readWMSCapabilities(url,timeout) {
 		//updateLayerSelection(radarLayer,"etop","etop_");
 		//updateLayerSelection(radarLayer,"hclass","_hclass");
 		updateLayerSelection(lightningLayer,"lightning","lightning");
+		if (IS_FOLLOWING) {
+			setTime('last');
+		}
 	});
 	setTimeout(function() {readWMSCapabilities(url,timeout)}, timeout);
 }
