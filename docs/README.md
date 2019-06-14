@@ -1,6 +1,6 @@
 ## Käyttöohje tutka.meteo.fi
 
-### Näppäinkomennot
+### Pikanäppäimet
 
 #### Karttatasot
 näppäin | toiminto
@@ -14,7 +14,7 @@ näppäin | toiminto
 näppäin | toiminto
 |---|---------------------------|
 space | askellus
-k | play / pause
-j | edellinen aika-askel
-l | seuraava aika-askel
+k     | play / pause
+j     | edellinen aika-askel
+l     | seuraava aika-askel
 
