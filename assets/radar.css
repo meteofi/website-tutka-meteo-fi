@@ -210,7 +210,7 @@ html, body {
     }
 }
 
-#infoItemSatellite, #infoItemUpdate, #radarPlayTxt, #layersButton {
+#infoItemSatellite, #infoItemUpdate, #radarPlayTxt, #layersButton, #infoItemMap {
     display: none;
 }
 
