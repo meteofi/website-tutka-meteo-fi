@@ -1,8 +1,19 @@
 ## Käyttöohje tutka.meteo.fi
 
-You can use the [editor on GitHub](https://github.com/meteofi/website-tutka-meteo-fi/edit/master/README.md) to maintain and preview the content for your website in Markdown files.
+### Näppäinkomennot
 
-Whenever you commit to this repository, GitHub Pages will run [Jekyll](https://jekyllrb.com/) to rebuild the pages in your site, from the content in your Markdown files.
+#### Karttatasot
+|---|---------------------------|
+| 1 | satelliitti päälle / pois |
+| 2 | säätutka päälle / pois    |
+| 3 | salamat päälle / pois     |
+| 4 | säähavainto päälle / pois |
+
+**Aikakontrolli**
+space askellus
+k play / pause
+j edellinen aika-askel
+l seuraava aika-askel
 
 ### Markdown
 
