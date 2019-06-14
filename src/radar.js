@@ -31,6 +31,7 @@ var options = {
 	radialSpacing: 30,
 	frameRate: 2, // fps
 	defaultFrameRate: 2, // fps
+	imageRatio: 1.4,
 	wmsServer: {
 		'meteo': {
 			'radar': "https://wms.meteo.fi/geoserver/radar/wms",
@@ -61,7 +62,6 @@ var moment = require('moment');
 moment.locale('fi');
 var layerInfo = {};
 const client  = connect('wss://meri.digitraffic.fi:61619/mqtt',{username: 'digitraffic', password: 'digitrafficPassword'});
-var WMSURL = options.wmsServer.meteo;
 var trackedVessels = {'230059770': {}, '230994270': {}, '230939100': {}, '230051170': {}, '230059740': {}, '230108850': {}, '230937480': {}, '230051160': {}, '230983250': {}, '230012240': {}, '230980890': {}, '230061400': {}, '230059760': {}, '230005610': {}, '230987580': {}, '230983340': {}, '230111580': {}, '230059750': {}, '230994810': {}, '230993590': {}, '230051150': {} };
 
 document.ontouchmove = function(e){ 
@@ -277,7 +277,7 @@ var s57Layer = new TileLayer({
 		url: options.wmsServer.s57,
 		params: { 'LAYERS': "cells", 'TILED': true },
 		hidpi: false,
-		ratio: 1.1,
+		ratio: options.imageRatio,
 		serverType: 'geoserver'
 	})
 });
@@ -291,7 +291,7 @@ var satelliteLayer = new ImageLayer({
 		url: options.wmsServer.eumetsat,
 		params: { 'LAYERS': "msg_eview" },
 		hidpi: false,
-		ratio: 1.1,
+		ratio: options.imageRatio,
 		serverType: 'geoserver'
 	})
 });
@@ -304,7 +304,7 @@ var radarLayer = new ImageLayer({
 	source: new ImageWMS({
 		url: options.wmsServer.meteo.radar,
 		params: { 'LAYERS': options.defaultRadarLayer },
-		ratio: 1.1,
+		ratio: options.imageRatio,
 		hidpi: false,
 		serverType: 'geoserver'
 	})
@@ -317,7 +317,7 @@ var lightningLayer = new ImageLayer({
 	source: new ImageWMS({
 		url: options.wmsServer.meteo.test,
 		params: { 'LAYERS': 'lightning_nordic_lightning' },
-		ratio: 1.1,
+		ratio: options.imageRatio,
 		serverType: 'geoserver'
 	})
 });
@@ -329,7 +329,7 @@ var observationLayer = new ImageLayer({
 	source: new ImageWMS({
 		url: options.wmsServer.meteo.test,
 		params: { 'LAYERS': 'air_temperature' },
-		ratio: 1,
+		ratio: options.imageRatio,
 		serverType: 'geoserver'
 	})
 });
@@ -604,10 +604,12 @@ function setTime(action='next') {
 		
 		if (startDate.getTime() == end && animationId === null) {
 			IS_FOLLOWING = true;
+			localStorage.setItem("IS_FOLLOWING",JSON.stringify(true));
 			debug('MODE: FOLLOW');
 			document.getElementById("skipNextButton").classList.add("selectedButton");
 		} else {
 			IS_FOLLOWING = false;
+			localStorage.setItem("IS_FOLLOWING",JSON.stringify(false));
 			document.getElementById("skipNextButton").classList.remove("selectedButton");
 		}
 
@@ -1197,7 +1199,11 @@ const main = () => {
 	addEventListeners("#lightningLayer > div");
 	addEventListeners("#observationLayer > div");
 
-	play();
+	if (IS_FOLLOWING) {
+		setTime('last');
+	} else {
+		play();
+	}
 };
 
 main();
