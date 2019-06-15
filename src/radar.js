@@ -447,6 +447,7 @@ const map = new Map({
 map.getView().fit(transformExtent([19.24, 59.75, 31.59, 70.09],'EPSG:4326', map.getView().getProjection()));
 sync(map);
 
+createTimeline(13);
 
 function rangeRings (layer, coordinates, range) {
 	const ring = circular(coordinates, range);
@@ -1213,6 +1214,7 @@ const main = () => {
 	// Load custom tracking code lazily, so it's non-blocking.
 	import('./analytics.js').then((analytics) => analytics.init());
 
+
 	if (IS_DARK) {
 		setMapLayer('dark');
 	} else {
@@ -1250,7 +1252,7 @@ const main = () => {
 		}
 	});
 
-	createTimeline(13);
+
 	if (IS_FOLLOWING) {
 		setTime('last');
 	} else {
