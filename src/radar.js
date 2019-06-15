@@ -74,7 +74,7 @@ var VISIBLE = localStorage.getItem("VISIBLE")
 
 	var IS_DARK = localStorage.getItem("IS_DARK")
 	? JSON.parse(localStorage.getItem("IS_DARK"))
-	: false;
+	: true;
 
 var IS_TRACKING = localStorage.getItem("IS_TRACKING")
 	? JSON.parse(localStorage.getItem("IS_TRACKING"))
