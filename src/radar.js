@@ -1219,7 +1219,7 @@ const main = () => {
 		setMapLayer('light');
 	}
 
-	createTimeline(13);
+	
 
 	updateClock();
 	readWMSCapabilities(options.wmsServer.meteo.test, 300000);
@@ -1250,6 +1250,7 @@ const main = () => {
 		}
 	});
 
+	createTimeline(13);
 	if (IS_FOLLOWING) {
 		setTime('last');
 	} else {
