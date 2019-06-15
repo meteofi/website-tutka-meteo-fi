@@ -447,7 +447,6 @@ const map = new Map({
 map.getView().fit(transformExtent([19.24, 59.75, 31.59, 70.09],'EPSG:4326', map.getView().getProjection()));
 sync(map);
 
-
 function rangeRings (layer, coordinates, range) {
 	const ring = circular(coordinates, range);
 	layer.getSource().addFeatures([
@@ -476,11 +475,14 @@ geolocation.on('error', function (error) {
 	debug(error.message);
 });
 
-geolocation.on('change:accuracyGeometry', function() {
-	accuracyFeature.setGeometry(geolocation.getAccuracyGeometry());
-});
 
-geolocation.on('change:position', function() {
+function onChangeAccuracyGeometry() {
+	debug('Accuracy geometry changed.');
+	accuracyFeature.setGeometry(geolocation.getAccuracyGeometry());
+}
+
+function onChangePosition() {
+	debug('Position changed.');
 	var coordinates = geolocation.getPosition();
 	ownPosition = coordinates;
 	ownPosition4326 = transform(coordinates,map.getView().getProjection(),'EPSG:4326');
@@ -493,9 +495,7 @@ geolocation.on('change:position', function() {
 //	if (IS_TRACKING) {
 //		map.getView().setCenter(ownPosition);
 //	}
-});
-
-
+};
 
 
 function setLayerTime(layer, time) {
@@ -536,7 +536,11 @@ function createTimeline (count) {
 	}
 }
 
-function gtag() { dataLayer.push(arguments); }
+function gtag() { 
+	if (typeof dataLayer !== "undefined") {
+		dataLayer.push(arguments); 
+	}
+}
 
 function updateCanonicalPage() {
 	var page = "";
@@ -759,26 +763,23 @@ function setMapLayer(maplayer) {
 }
 
 document.getElementById('darkBase').addEventListener('click', function (event) {
-	debug("darkBase")
 	event.target.classList.add("selected");
 	document.getElementById("lightBase").classList.remove("selected");
 	setMapLayer('dark');
 });
 
 document.getElementById('lightBase').addEventListener('click', function (event) {
-	debug("lightBase")
 	event.target.classList.add("selected");
 	document.getElementById("darkBase").classList.remove("selected");
 	setMapLayer('light');
 });
 
-function removeSelectedParameter (selector) {
+function removeSelectedParameter(selector) {
 	var els = document.querySelectorAll(selector);
-	els.forEach(function(elem) {
-    elem.classList.remove('selected');
+	els.forEach(function (elem) {
+		elem.classList.remove('selected');
 	});
 }
-
 
 function updateLayer(layer, wmslayer) {
 	debug("Activated layer " + wmslayer);
@@ -1213,13 +1214,13 @@ const main = () => {
 	// Load custom tracking code lazily, so it's non-blocking.
 	import('./analytics.js').then((analytics) => analytics.init());
 
+	createTimeline(13);
+
 	if (IS_DARK) {
 		setMapLayer('dark');
 	} else {
 		setMapLayer('light');
 	}
-
-	createTimeline(13);
 
 	updateClock();
 	readWMSCapabilities(options.wmsServer.meteo.test, 300000);
@@ -1231,6 +1232,8 @@ const main = () => {
 
 	setButtonStates();
 
+	geolocation.on('change:accuracyGeometry',onChangeAccuracyGeometry);
+	geolocation.on('change:position', onChangePosition);
 
   satelliteLayer.on('change:visible', onChangeVisible);
 	radarLayer.on('change:visible', onChangeVisible);
@@ -1249,6 +1252,7 @@ const main = () => {
 			setMapLayer('light');
 		}
 	});
+
 
 	if (IS_FOLLOWING) {
 		setTime('last');
