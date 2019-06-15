@@ -742,6 +742,8 @@ function setMapLayer(maplayer) {
 			lightGrayBaseLayer.setVisible(true);
 			lightGrayReferenceLayer.setVisible(true);
 			document.getElementById("mapLayerButton").classList.remove("selectedButton");
+			IS_DARK = false;
+			gtag('event', 'light', {'event_category' : 'mapcontrol'});
 			break;
 		case 'dark':
 			darkGrayBaseLayer.setVisible(true);
@@ -749,8 +751,11 @@ function setMapLayer(maplayer) {
 			lightGrayBaseLayer.setVisible(false);
 			lightGrayReferenceLayer.setVisible(false);
 			document.getElementById("mapLayerButton").classList.add("selectedButton");
+			IS_DARK = true;
+			gtag('event', 'dark', {'event_category' : 'mapcontrol'});
 			break;	
 	}
+	localStorage.setItem("IS_DARK",JSON.stringify(IS_DARK));
 }
 
 document.getElementById('darkBase').addEventListener('click', function (event) {
@@ -990,12 +995,10 @@ document.getElementById('cursorDistanceTxt').addEventListener('click', function(
 });
 
 document.getElementById('mapLayerButton').addEventListener('click', function() {
-	IS_DARK = IS_DARK ? false : true;
-	localStorage.setItem("IS_DARK",JSON.stringify(IS_DARK));
 	if (IS_DARK) {
-		setMapLayer('dark');
-	} else {
 		setMapLayer('light');
+	} else {
+		setMapLayer('dark');
 	}
 });
 
@@ -1238,6 +1241,14 @@ const main = () => {
 	addEventListeners("#radarLayer > div");
 	addEventListeners("#lightningLayer > div");
 	addEventListeners("#observationLayer > div");
+
+	window.matchMedia("(prefers-color-scheme: dark)").addListener(function(x) {
+		if (x.matches) {
+			setMapLayer('dark');
+		} else {
+			setMapLayer('light');
+		}
+	});
 
 	if (IS_FOLLOWING) {
 		setTime('last');
