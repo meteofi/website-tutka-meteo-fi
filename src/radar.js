@@ -26,12 +26,13 @@ import { connect } from 'mqtt';
 import { transformExtent } from 'ol/proj';
 
 var options = {
-	defaultRadarLayer: "radar_finland_dbz",
+	defaultRadarLayer: 'radar_finland_dbz',
+	defaultLightningLayer: 'lightning',
 	rangeRingSpacing: 50,
 	radialSpacing: 30,
 	frameRate: 2, // fps
 	defaultFrameRate: 2, // fps
-	imageRatio: 1.4,
+	imageRatio: 1.5,
 	wmsServer: {
 		'meteo': {
 			'radar': "https://wms.meteo.fi/geoserver/radar/wms",
@@ -293,7 +294,7 @@ var satelliteLayer = new ImageLayer({
 	opacity: 0.7,
 	source: new ImageWMS({
 		url: options.wmsServer.eumetsat,
-		params: { 'LAYERS': "msg_eview" },
+		params: { 'FORMAT': 'image/jpeg', 'LAYERS': "msg_eview" },
 		hidpi: false,
 		ratio: options.imageRatio,
 		serverType: 'geoserver'
@@ -320,7 +321,7 @@ var lightningLayer = new ImageLayer({
 	visible: VISIBLE.has("lightningLayer"),
 	source: new ImageWMS({
 		url: options.wmsServer.meteo.test,
-		params: { 'LAYERS': 'lightning_nordic_lightning' },
+		params: { 'FORMAT': 'image/png8', 'LAYERS': options.defaultLightningLayer },
 		ratio: options.imageRatio,
 		serverType: 'geoserver'
 	})
@@ -332,7 +333,7 @@ var observationLayer = new ImageLayer({
 	visible: VISIBLE.has("observationLayer"),
 	source: new ImageWMS({
 		url: options.wmsServer.meteo.test,
-		params: { 'LAYERS': 'air_temperature' },
+		params: { 'FORMAT': 'image/png8', 'LAYERS': 'air_temperature' },
 		ratio: options.imageRatio,
 		serverType: 'geoserver'
 	})
@@ -475,11 +476,12 @@ geolocation.on('error', function (error) {
 	debug(error.message);
 });
 
-
 function onChangeAccuracyGeometry() {
 	debug('Accuracy geometry changed.');
 	accuracyFeature.setGeometry(geolocation.getAccuracyGeometry());
 }
+
+
 
 function onChangePosition() {
 	debug('Position changed.');
@@ -497,6 +499,7 @@ function onChangePosition() {
 //	}
 };
 
+// WMS 
 
 function setLayerTime(layer, time) {
 	layer.getSource().updateParams({ 'TIME': time });
@@ -510,6 +513,12 @@ function setLayerTime(layer, time) {
 function setLayerStyle(layer, style) {
 	layer.getSource().updateParams({ 'STYLES': style });
 }
+
+function setLayerElevation(layer, elevation) {
+	layer.getSource().updateParams({ 'ELEVATION': elevation });
+}
+
+// TIMELINE
 
 function updateTimeLine (position) {
 	let elementsArray = document.querySelectorAll('#timeline > div');
@@ -563,9 +572,6 @@ function updateCanonicalPage() {
 	debug("Set page: " + page);
 	gtag('config', 'UA-23910741-3', {'page_path': page});
 }
-
-
-
 
 function setTime(action='next') {
 	var resolution = 300000;
@@ -961,6 +967,11 @@ function setButtonStates() {
 		document.getElementById("satelliteLayerButton").classList.add("selectedButton");
 	} else {
 		document.getElementById("satelliteLayerButton").classList.remove("selectedButton");
+	}
+	if (VISIBLE.has("radarLayer")) {
+		document.getElementById("radarLayerButton").classList.add("selectedButton");
+	} else {
+		document.getElementById("radarLayerButton").classList.remove("selectedButton");
 	}
 	if (VISIBLE.has("lightningLayer")) {
 		document.getElementById("lightningLayerButton").classList.add("selectedButton");
