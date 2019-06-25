@@ -309,6 +309,7 @@ var radarLayer = new ImageLayer({
 	source: new ImageWMS({
 		url: options.wmsServer.meteo.radar,
 		params: { 'LAYERS': options.defaultRadarLayer },
+		attributions: 'FMI',
 		ratio: options.imageRatio,
 		hidpi: false,
 		serverType: 'geoserver'
@@ -873,6 +874,23 @@ var displayFeatureInfo = function (pixel) {
 
 };
 
+function layerInfoPlaylist (layer) {
+	const wmslayer = layer.getSource().getParams().LAYERS;
+	let name = layer.get('name');
+	var resolution = Math.round(layerInfo[wmslayer].time.resolution/60000);
+	var opacity = layer.get('opacity') * 100;
+	var info  = '<b>' + layerInfo[wmslayer].title + '</b><br>' + layerInfo[wmslayer].abstract + 'Time Resolution: ' + (resolution > 60 ? (resolution / 60) + ' hours' : resolution + ' minutes') + '<br>Opacity: <input type="range" min="1" max="100" value="'+opacity+'" class="slider" id="'+name+'Slider">' + opacity;
+	if (layer.getVisible()) {
+		document.getElementById(name+'Info').classList.remove("playListDisabled");
+	} else {
+		document.getElementById(name+'Info').classList.add("playListDisabled");
+	}
+	document.getElementById(name+'Info').innerHTML = info;
+	document.getElementById(name+'Slider').addEventListener('input', function() {
+		layer.setOpacity(event.target.value/100);
+	});
+}
+
 function onChangeVisible (event) {
 	const layer = event.target;
 	const wmslayer = layer.getSource().getParams().LAYERS;
@@ -887,14 +905,21 @@ function onChangeVisible (event) {
 			document.getElementById(wmslayer).classList.add("selected");
 		}
 		document.getElementById(name+"Button").classList.add("selectedButton");
+		document.getElementById(name+'Info').classList.remove("playListDisabled");
 	} else {
 		debug("Deactivated " + name);
 		VISIBLE.delete(name);
 		localStorage.setItem("VISIBLE",JSON.stringify([...VISIBLE]));
 		document.getElementById(name+"Off").classList.add("selected");
 		document.getElementById(name+"Button").classList.remove("selectedButton");
+		document.getElementById(name+'Info').classList.add("playListDisabled");
 	}
 	updateCanonicalPage()
+}
+
+function onChangeSlider () {
+	debug(this.value);
+	radarLayer.setOpacity(this.value/100);
 }
 
 function toggleLayerVisibility(layer) {
@@ -950,6 +975,16 @@ document.getElementById('skip_next').addEventListener('click', function() {
 
 document.getElementById('skip_previous').addEventListener('click', function() {
 	skip_previous();
+});
+
+document.getElementById('playlistButton').addEventListener('click', function() {
+	debug("playlist");
+	var elem = document.getElementById("playList");
+	if (elem.style.bottom === '0px') {
+		elem.style.bottom = '-500px';
+	} else {
+		elem.style.bottom = '0px';
+	}
 });
 
 function setButtonStates() {
@@ -1122,6 +1157,10 @@ function readWMSCapabilities(url,timeout) {
 		//updateLayerSelection(radarLayer,"etop","etop_");
 		//updateLayerSelection(radarLayer,"hclass","_hclass");
 		updateLayerSelection(lightningLayer,"lightning","lightning");
+		layerInfoPlaylist(satelliteLayer);
+		layerInfoPlaylist(radarLayer);
+		layerInfoPlaylist(lightningLayer);
+		layerInfoPlaylist(observationLayer);
 		if (IS_FOLLOWING) {
 			setTime('last');
 		}
