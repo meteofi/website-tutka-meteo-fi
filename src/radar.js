@@ -874,21 +874,36 @@ var displayFeatureInfo = function (pixel) {
 
 };
 
-function layerInfoPlaylist (layer) {
+function layerInfoPlaylist(layer) {
 	const wmslayer = layer.getSource().getParams().LAYERS;
 	let name = layer.get('name');
-	var resolution = Math.round(layerInfo[wmslayer].time.resolution/60000);
+	var resolution = Math.round(layerInfo[wmslayer].time.resolution / 60000);
 	var opacity = layer.get('opacity') * 100;
-	var info  = '<b>' + layerInfo[wmslayer].title + '</b><br>' + layerInfo[wmslayer].abstract + 'Time Resolution: ' + (resolution > 60 ? (resolution / 60) + ' hours' : resolution + ' minutes') + '<br>Opacity: <input type="range" min="1" max="100" value="'+opacity+'" class="slider" id="'+name+'Slider">' + opacity;
-	if (layer.getVisible()) {
-		document.getElementById(name+'Info').classList.remove("playListDisabled");
-	} else {
-		document.getElementById(name+'Info').classList.add("playListDisabled");
+	var styles = "";
+	if (layerInfo[wmslayer].style.length > 1) {
+		styles += "<br>Styles: "
+		layerInfo[wmslayer].style.forEach(style => {
+			styles += '<span class="layerStyle" id="' + style.Name + '">' + style.Title + '</span> ';
+
+		});
 	}
-	document.getElementById(name+'Info').innerHTML = info;
-	document.getElementById(name+'Slider').addEventListener('input', function() {
-		layer.setOpacity(event.target.value/100);
+	var info = '<b>' + layerInfo[wmslayer].title + '</b><p>' + layerInfo[wmslayer].abstract + '</p>Time Resolution: ' + (resolution > 60 ? (resolution / 60) + ' hours' : resolution + ' minutes') + '<br>Opacity: <input type="range" min="1" max="100" value="' + opacity + '" class="slider" id="' + name + 'Slider">' + styles;
+	if (layer.getVisible()) {
+		document.getElementById(name + 'Info').classList.remove("playListDisabled");
+	} else {
+		document.getElementById(name + 'Info').classList.add("playListDisabled");
+	}
+	document.getElementById(name + 'Info').innerHTML = info;
+	document.getElementById(name + 'Slider').addEventListener('input', function () {
+		layer.setOpacity(event.target.value / 100);
 	});
+	if (layerInfo[wmslayer].style.length > 1) {
+	layerInfo[wmslayer].style.forEach(style => {
+		document.getElementById(style.Name).addEventListener('click', function () {
+			setLayerStyle(layer, style.Name);
+		});
+	});
+}
 }
 
 function onChangeVisible (event) {
@@ -1131,7 +1146,7 @@ function updateLayerSelection(ollayer,type,filter) {
 		if (layerInfo[layer].layer.includes(filter)) { 
 			var div = document.createElement("div");
 			var resolution = Math.round(layerInfo[layer].time.resolution/60000);
-			div.innerHTML = '<b>' + layerInfo[layer].title + '</b><br>' + layerInfo[layer].abstract + ' (<i>' + (resolution > 60 ? (resolution / 60) + ' hours' : resolution + ' minutes') + '</i>)';
+			div.innerHTML = '<h4>' + layerInfo[layer].title + '</h4><p>' + layerInfo[layer].abstract + '</p> (<i>' + (resolution > 60 ? (resolution / 60) + ' hours' : resolution + ' minutes') + '</i>)';
 			div.onclick = function () { updateLayer(ollayer,layerInfo[layer].layer); };
 			document.getElementById(type+"Layer-select").appendChild(div);
 		}
@@ -1152,7 +1167,7 @@ function readWMSCapabilities(url,timeout) {
 		// }
 		debug(layerInfo);
 		updateLayerSelection(satelliteLayer,"satellite","msg_");
-		updateLayerSelection(observationLayer,"observation","air_");
+		updateLayerSelection(observationLayer,"observation","_tempe");
 		updateLayerSelection(radarLayer,"radar","radar_");
 		//updateLayerSelection(radarLayer,"etop","etop_");
 		//updateLayerSelection(radarLayer,"hclass","_hclass");
@@ -1190,7 +1205,16 @@ function getLayerInfo(layer) {
 	if (typeof layer.Dimension !== "undefined") {
 		product.time = getTimeDimension(layer.Dimension)
 	}
+	if (typeof layer.Style !== "undefined") {
+		product.style = layer.Style;
+	}
 	return product
+}
+
+function getStyles(styles) {
+	styles.forEach((style) => {
+		debug(style);
+	});
 }
 
 function getTimeDimension(dimensions) {
