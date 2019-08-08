@@ -41,24 +41,24 @@
       <div class="infoValue flexColumn" id="selectMap"><div id="darkBase" class="selected flexCell">Dark</div><div id="lightBase" class="flexCell">Light</div></div>
     </div>
     <div class="infoItem" id="infoItemSatellite">
-      <div class="infoLabel" id="infoLabelSatellite">SATELLITE</div>
+      <div class="infoLabel" id="infoLabelSatellite">SATELLIITTI</div>
       <div class="infoValue flexColumn" id="satelliteLayer"><div id="satelliteLayerOff" class="selected flexCell">OFF</div><div id="msg_eview" class="flexCell">HRV</div><div id="msg_convection" class="flexCell">CNV</div><div id="msg_naturalenhncd" class="flexCell">Natural</div></div>
     </div>
     <div class="infoItem" id="infoItemRadar">
-      <div class="infoLabel" id="infoLabelRadar">RADAR</div>
+      <div class="infoLabel" id="infoLabelRadar">SÄÄTUTKA</div>
       <!--div class="infoValue" id="radarTxt"></div-->
       <div class="infoValue flexColumn" id="radarLayer"><div id="radarLayerOff" class="flexCell">OFF</div><div id="radar_finland_dbz" class="selected flexCell">DBZ</div><div id="radar_finland_rr" class="flexCell">RATE</div><!--div id="MeteoFI:radar_finland_rr1h" class="flexCell">RR1H</div--></div>
     </div>
     <div class="infoItem" id="infoItemLightning">
-      <div class="infoLabel" id="infoLabelLightning">LIGHTNING</div>
+      <div class="infoLabel" id="infoLabelLightning">SALAMAT</div>
       <div class="infoValue flexColumn" id="lightningLayer"><div id="lightningLayerOff" class="selected flexCell">OFF</div><div id="lightning" class="flexCell">FI</div><div id="lightning_nordic_lightning" class="flexCell">NO</div></div>
     </div>
     <div class="infoItem" id="infoItemObservation">
-        <div class="infoLabel" id="infoLabelObservation">OBSERVATION</div>
+        <div class="infoLabel" id="infoLabelObservation">SÄÄHAVAINTO</div>
         <div class="infoValue flexColumn" id="observationLayer"><div id="observationLayerOff" class="flexCell selected">OFF</div><div id="air_temperature" class="flexCell">TMP</div><!--div id="observation:dew_point_temperature" class="flexCell">DPT</div--><div id="wind_speed" class="flexCell">WIND</div></div>
       </div>
     <div class="infoItem" id="infoItemTime">
-      <div class="infoLabel">TIME</div>
+      <div class="infoLabel">AIKA</div>
       <div class="infoValue" id="currentTimeTxt"><div id="currentDateValue"></div><div class="valueTxtBig" id="currentLocalTimeValue"></div><div id="currentUTCTimeValue"></div></div>
       <!--span class="tooltiptext">Displays current date, localtime and UTC time.</span-->
     </div>
@@ -69,7 +69,7 @@
       <!--span class="tooltiptext">Displays data time.</span-->
     </div>
     <div class="infoItem" id="infoItemPosition">
-      <div class="infoLabel">POSITION</div>
+      <div class="infoLabel">SIJAINTI</div>
       <div class="infoValue" id="positionTxt"><div id="positionLatValue">φ 00° 00.000′ N</div><div id="positionLonValue">λ 000° 00.000′ E</div></div>
       <!--span class="tooltiptext">Displays location of the user if allowed.</span-->
     </div>
@@ -77,6 +77,12 @@
       <div class="infoLabel">CURSOR</div>
       <div class="infoValue" id="cursorTxt"></div>
       <div class="infoValue" id="cursorDistanceTxt"><div class="valueTxtBig" id="cursorDistanceValue"></div></div>
+      <!--span class="tooltiptext">Displays coordinates of the pointer. Displays distance and bearing from user to pointer
+        location. Displays distance and bearing from selected radar to pointer location.</span-->
+    </div>
+    <div class="infoItem" id="infoItemAck">
+      <div class="infoLabel">INFO</div>
+      <div class="infoValue" id="cursorTxt">Palvelu hyödyntää avointa dataa tuottajilta FMI, SMHI, MET.no ja EUMETSAT</div>
       <!--span class="tooltiptext">Displays coordinates of the pointer. Displays distance and bearing from user to pointer
         location. Displays distance and bearing from selected radar to pointer location.</span-->
     </div>
