@@ -881,13 +881,13 @@ function layerInfoPlaylist(layer) {
 	var opacity = layer.get('opacity') * 100;
 	var styles = "";
 	if (layerInfo[wmslayer].style.length > 1) {
-		styles += "<br>Styles: "
+		styles += "<br>Tyylit: "
 		layerInfo[wmslayer].style.forEach(style => {
 			styles += '<span class="layerStyle" id="' + style.Name + '">' + style.Title + '</span> ';
 
 		});
 	}
-	var info = '<b>' + layerInfo[wmslayer].title + '</b><p>' + layerInfo[wmslayer].abstract + '</p>Time Resolution: ' + (resolution > 60 ? (resolution / 60) + ' hours' : resolution + ' minutes') + '<br>Opacity: <input type="range" min="1" max="100" value="' + opacity + '" class="slider" id="' + name + 'Slider">' + styles;
+	var info = '<b>' + layerInfo[wmslayer].title + '</b><p>' + layerInfo[wmslayer].abstract + '</p>Aika-askel: ' + (resolution > 60 ? (resolution / 60) + ' tuntia' : resolution + ' min') + '<br>Kirkkaus: <input type="range" min="1" max="100" value="' + opacity + '" class="slider" id="' + name + 'Slider">' + styles;
 	if (layer.getVisible()) {
 		document.getElementById(name + 'Info').classList.remove("playListDisabled");
 	} else {
@@ -1156,6 +1156,10 @@ function updateLayerSelection(ollayer,type,filter) {
 function readWMSCapabilities(url,timeout) {
 	var parser = new WMSCapabilities();
 	debug("Request WMS Capabilities " + url);
+	gtag('event', 'getCapabilities', {
+		'event_category': 'WMS',
+		'event_label': url
+	});
 	fetch(url + '?SERVICE=WMS&version=1.3.0&request=GetCapabilities').then(function (response) {
 		return response.text();
 	}).then(function (text) {
@@ -1286,7 +1290,7 @@ window.onclick = function(event) {
 // MAIN
 const main = () => {
 	// Load custom tracking code lazily, so it's non-blocking.
-	import('./analytics.js').then((analytics) => analytics.init());
+	import('./analytics.js').then((analytics) => { analytics.init(); updateCanonicalPage()});
 
 	createTimeline(13);
 
