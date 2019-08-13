@@ -2,6 +2,13 @@
 <html lang="en">
 
 <head>
+  <!-- preload stylesheet resource via declarative markup -->
+  <link rel="preload" href="https://openlayers.org/en/latest/css/ol.css" as="style">
+  <link rel="preconnect" href="//wms.meteo.fi" crossorigin>
+  <link rel="preconnect" href="//geoserver.apps.meteo.fi" crossorigin>
+  <link rel="preconnect" href="//eumetview.eumetsat.int" crossorigin>
+  <link rel="preconnect" href="//services.arcgisonline.com" crossorigin>
+  <link rel="preconnect" href="//server.arcgisonline.com" crossorigin>
   <script async src="https://www.googletagmanager.com/gtag/js?id=UA-23910741-3"></script>
   <meta charset="utf-8">
   <meta name="mobile-web-app-capable" content="yes">
@@ -80,9 +87,9 @@
       <!--span class="tooltiptext">Displays coordinates of the pointer. Displays distance and bearing from user to pointer
         location. Displays distance and bearing from selected radar to pointer location.</span-->
     </div>
-    <div class="infoItem" id="infoItemAck">
+    <div class="infoItem" id="infoItemCredits">
       <div class="infoLabel">INFO</div>
-      <div class="infoValue" id="cursorTxt">Palvelu hyödyntää avointa dataa tuottajilta FMI, SMHI, MET.no ja EUMETSAT</div>
+      <div class="infoValue" id="creditsTxt">Palvelu hyödyntää avointa dataa tuottajilta FMI, SMHI, MET.no ja EUMETSAT</div>
       <!--span class="tooltiptext">Displays coordinates of the pointer. Displays distance and bearing from user to pointer
         location. Displays distance and bearing from selected radar to pointer location.</span-->
     </div>
