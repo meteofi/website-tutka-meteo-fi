@@ -887,7 +887,7 @@ function layerInfoPlaylist(layer) {
 
 		});
 	}
-	var info = '<b>' + layerInfo[wmslayer].title + '</b><p>' + layerInfo[wmslayer].abstract + '</p>Aika-askel: ' + (resolution > 60 ? (resolution / 60) + ' tuntia' : resolution + ' min') + '<br>Kirkkaus: <input type="range" min="1" max="100" value="' + opacity + '" class="slider" id="' + name + 'Slider">' + styles;
+	var info = '<b>' + layerInfo[wmslayer].title + '</b><p>' + layerInfo[wmslayer].abstract + '</p>Aika-askel: ' + (resolution > 60 ? (resolution / 60) + ' tuntia' : resolution + ' min') + '<br><label for="' + name + 'Slider">Kirkkaus:</label> <input type="range" min="1" max="100" value="' + opacity + '" class="slider" id="' + name + 'Slider">' + styles;
 	if (layer.getVisible()) {
 		document.getElementById(name + 'Info').classList.remove("playListDisabled");
 	} else {
