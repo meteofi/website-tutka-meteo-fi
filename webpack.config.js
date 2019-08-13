@@ -53,6 +53,18 @@ module.exports = {
             {
                 urlPattern: new RegExp('https://fonts.gstatic.com/'),
                 handler: 'StaleWhileRevalidate'
+            },
+            {
+                urlPattern: new RegExp('https://wms.meteo.fi/geoserver/.*request=GetCapabilities'),
+                handler: 'StaleWhileRevalidate'
+            },
+            {
+                urlPattern: new RegExp('https://geoserver.apps.meteo.fi/geoserver/.*request=GetCapabilities'),
+                handler: 'StaleWhileRevalidate'
+            },
+            {
+                urlPattern: new RegExp('https://eumetview.eumetsat.int/geoserv/.*request=GetCapabilities'),
+                handler: 'StaleWhileRevalidate'
             }
         ]
         })
