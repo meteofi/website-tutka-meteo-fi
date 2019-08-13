@@ -5,6 +5,7 @@ const CompressionPlugin = require('compression-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const CleanWebpackPlugin = require('clean-webpack-plugin');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
+const workboxPlugin = require('workbox-webpack-plugin');
  
 module.exports = {
     entry: './src/radar.js',
@@ -36,7 +37,25 @@ module.exports = {
         new CleanWebpackPlugin(),
         new CopyWebpackPlugin([
             { from: 'assets', to: '.' }
-        ])
+        ]),
+        new workboxPlugin.GenerateSW({
+            swDest: 'sw.js',
+            clientsClaim: true,
+            skipWaiting: true,
+            runtimeCaching: [{
+                urlPattern: new RegExp('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/'),
+                handler: 'StaleWhileRevalidate'
+            },
+            {
+                urlPattern: new RegExp('https://openlayers.org/en/latest/css/ol.css'),
+                handler: 'StaleWhileRevalidate'
+            },
+            {
+                urlPattern: new RegExp('https://fonts.gstatic.com/'),
+                handler: 'StaleWhileRevalidate'
+            }
+        ]
+        })
     ],
     optimization: {
         runtimeChunk: 'single',
