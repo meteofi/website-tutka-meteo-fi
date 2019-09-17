@@ -321,7 +321,7 @@ html, body {
     background-color: rgba(0,0,0,0.7);
     color:#FFF;
     position: absolute;
-    bottom: -500px;
+    bottom: -600px;
     left: 0;
     width: 100%;
     height: auto;
@@ -336,10 +336,26 @@ html, body {
 
  #playList > div {
   flex-grow: 1;
-  padding-top: 5px;
+  padding-top: 10px;
   padding-bottom: 10px;
-  border-bottom-color: #00D8FF;
-  border-bottom: 10px;
+  border-bottom: 2px solid #00D8FF;
+}
+
+#playList > div:last-child {
+  border-style: none;
+}
+
+#playList > div > div {
+  padding: 1px;
+}
+
+#playList > div > h4 {
+  margin: 0px;
+}
+
+#playList > div > div > i {
+  vertical-align: middle;
+  font-size: 0.98em;
 }
 
 #playList > div > p {
@@ -371,6 +387,3 @@ html, body {
   background-color: #00D8FF;
 }
 
-hr {
-  height:1px; border:none; color:#00D8FF; background-color:#00D8FF; width:100%; text-align:center; margin: 2px 1px;
-}
