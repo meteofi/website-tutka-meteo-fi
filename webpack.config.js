@@ -19,6 +19,14 @@ module.exports = {
         compress: true,
         port: 9000
     },
+    // module: {
+    //     rules: [
+    //       {
+    //         test: /\.worker\.js$/,
+    //         use: { loader: 'worker-loader' }
+    //       }
+    //     ]
+    //   },
     plugins: [
         // To strip all locales except “en”
         //new MomentLocalesPlugin(),
@@ -56,15 +64,15 @@ module.exports = {
             },
             {
                 urlPattern: new RegExp('https://wms.meteo.fi/geoserver/.*request=GetCapabilities'),
-                handler: 'StaleWhileRevalidate'
+                handler: 'NetworkFirst'
             },
             {
                 urlPattern: new RegExp('https://geoserver.apps.meteo.fi/geoserver/.*request=GetCapabilities'),
-                handler: 'StaleWhileRevalidate'
+                handler: 'NetworkFirst'
             },
             {
                 urlPattern: new RegExp('https://eumetview.eumetsat.int/geoserv/.*request=GetCapabilities'),
-                handler: 'StaleWhileRevalidate'
+                handler: 'NetworkFirst'
             }
         ]
         })
