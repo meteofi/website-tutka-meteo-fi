@@ -24,6 +24,7 @@ import WMSCapabilities from 'ol/format/WMSCapabilities.js';
 import WMTSCapabilities from 'ol/format/WMTSCapabilities.js';
 import { connect } from 'mqtt';
 import { transformExtent } from 'ol/proj';
+//import Worker from './wmscapabilities.worker.js'; 
 
 var options = {
 	defaultRadarLayer: 'radar_finland_dbz',
@@ -877,17 +878,37 @@ var displayFeatureInfo = function (pixel) {
 function layerInfoPlaylist(layer) {
 	const wmslayer = layer.getSource().getParams().LAYERS;
 	let name = layer.get('name');
-	var resolution = Math.round(layerInfo[wmslayer].time.resolution / 60000);
 	var opacity = layer.get('opacity') * 100;
 	var styles = "";
-	if (layerInfo[wmslayer].style.length > 1) {
-		styles += "<br>Tyylit: "
-		layerInfo[wmslayer].style.forEach(style => {
-			styles += '<span class="layerStyle" id="' + style.Name + '">' + style.Title + '</span> ';
+	var abstract = "";
+	var attribution = "";
+	var resolution = "";
 
-		});
+	if (typeof layerInfo[wmslayer].time !== "undefined") {
+		if (layerInfo[wmslayer].style.length > 1) {
+			styles += '<div><i class="material-icons">style</i> '
+			layerInfo[wmslayer].style.forEach(style => {
+				styles += '<span class="layerStyle" id="' + style.Name + '">' + style.Title + '</span> '
+			});
+			styles += '</div>'
+		}
 	}
-	var info = '<b>' + layerInfo[wmslayer].title + '</b><p>' + layerInfo[wmslayer].abstract + '</p>Aika-askel: ' + (resolution > 60 ? (resolution / 60) + ' tuntia' : resolution + ' min') + '<br><label for="' + name + 'Slider">Kirkkaus:</label> <input type="range" min="1" max="100" value="' + opacity + '" class="slider" id="' + name + 'Slider">' + styles;
+
+	if (typeof layerInfo[wmslayer].time !== "undefined") {
+		var timestep = Math.round(layerInfo[wmslayer].time.resolution / 60000)
+		resolution = '<div><i class="material-icons">av_timer</i> ' + (timestep > 60 ? (timestep / 60) + ' tuntia' : timestep + ' min') + '</div>'
+	}
+
+	if (typeof layerInfo[wmslayer].abstract !== "undefined") {
+		abstract = '<div>' + layerInfo[wmslayer].abstract + '</div>'
+	}
+
+	if (typeof layerInfo[wmslayer].attribution !== "undefined") {
+		attribution = '<div><i class="material-icons">info</i> ' + layerInfo[wmslayer].attribution.Title + '</div>'
+		//debug(layerInfo[wmslayer].attribution)
+	}
+
+	var info = '<h4>' + layerInfo[wmslayer].title + '</h4>' + abstract + resolution + '<div><i class="material-icons">opacity</i> <label for="' + name + 'Slider"></label> <input type="range" min="1" max="100" value="' + opacity + '" class="slider" id="' + name + 'Slider"></div>' + styles + attribution;
 	if (layer.getVisible()) {
 		document.getElementById(name + 'Info').classList.remove("playListDisabled");
 	} else {
@@ -996,9 +1017,20 @@ document.getElementById('playlistButton').addEventListener('click', function() {
 	debug("playlist");
 	var elem = document.getElementById("playList");
 	if (elem.style.bottom === '0px') {
-		elem.style.bottom = '-500px';
+		elem.style.bottom = '-600px';
 	} else {
 		elem.style.bottom = '0px';
+	}
+});
+
+// Close playlist if clicked outside of playlist
+window.addEventListener('click', function (e) {
+	if (!document.getElementById('playList').contains(e.target)) {
+		if (document.getElementById('playlistButton').contains(e.target)) return
+		var elem = document.getElementById("playList");
+		if (elem.style.bottom === '0px') {
+			elem.style.bottom = '-600px';
+		} 
 	}
 });
 
@@ -1206,6 +1238,11 @@ function getLayerInfo(layer) {
 		layer: layer.Name,
 		abstract: layer.Abstract
 	}
+
+	if (typeof layer.Attribution !== "undefined") {
+		product.attribution = layer.Attribution
+	}
+
 	if (typeof layer.Dimension !== "undefined") {
 		product.time = getTimeDimension(layer.Dimension)
 	}
@@ -1218,6 +1255,12 @@ function getLayerInfo(layer) {
 function getStyles(styles) {
 	styles.forEach((style) => {
 		debug(style);
+	});
+}
+
+function getAtributions(attributions) {
+	attributions.forEach((attribution) => {
+		debug(attribution);
 	});
 }
 
@@ -1291,7 +1334,7 @@ window.onclick = function(event) {
 const main = () => {
 	// Load custom tracking code lazily, so it's non-blocking.
 	import('./analytics.js').then((analytics) => { analytics.init(); updateCanonicalPage()});
-
+	
 	createTimeline(13);
 
 	if (IS_DARK) {
@@ -1337,6 +1380,13 @@ const main = () => {
 	} else {
 		play();
 	}
+
+//const worker = new Worker();
+//worker.postMessage([options.wmsServer.meteo.radar, 60000]);
+//worker.onmessage = function (event) {};
+//worker.addEventListener("message", function (event) {debug(event)});
+
+
 };
 
 main();
