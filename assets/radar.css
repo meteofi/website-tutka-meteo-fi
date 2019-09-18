@@ -3,7 +3,7 @@ html, body {
     padding: 0;
     width: 100vw;
     height: 100vh;
-    background-color: black;
+    background-color: #121212;
     font-family: sans-serif;
     cursor: crosshair;
 }
@@ -92,11 +92,11 @@ html, body {
   }
 
   .timeline-on {
-    background-color:  #00D8FF;
+    background-color:  #7B7C7D;
     border-left: 1px solid rgb(0, 84, 99);
   }
   .timeline-off {
-    background-color: rgba(0,0,0,0);
+    background-color: #3C3D3E;
   }
 
 @supports (padding: max(0px)) {
