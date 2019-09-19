@@ -4,12 +4,12 @@ html, body {
     width: 100vw;
     height: 100vh;
     background-color: #121212;
-    font-family: sans-serif;
+    font-family: 'Roboto', sans-serif;
     cursor: crosshair;
 }
 
 #map {
-    background-color: gray;
+    background-color: #121212;
     height: 100%;
 }
 
@@ -20,12 +20,13 @@ html, body {
     width: 380px;
     height: auto;
     margin: 0px 0 0 -198px;
-    background-color: rgba(0,0,0,0.7);
+    /**background-color: rgba(255,255,255,0.05);**/
+    background-color: rgba(0,0,0,0.8);
     z-index: 100;
     display: flex;
     justify-content: space-around;
     align-items: center;
-    color: #7C7E7E;
+    color: rgba(255,255,255,0.5);
     flex-flow: row wrap;
     padding: 8px;
     border-radius: 10px;
@@ -33,7 +34,7 @@ html, body {
   .navbar > div {
     flex-grow: 1;
     text-align: center;
-    font-size: 0.6em;
+    font-size: 0.75em;
   }
 
 
@@ -228,7 +229,7 @@ html, body {
 
 .selectedButton {
     /**color: #5BD5FD; */
-    color: #0984FF;
+    color: rgba(255,255,255,1);;
 }
 
 .flexColumn {
