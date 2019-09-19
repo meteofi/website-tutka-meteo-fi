@@ -4,6 +4,8 @@
 <head>
   <!-- preload stylesheet resource via declarative markup -->
   <link rel="preload" href="https://openlayers.org/en/latest/css/ol.css" as="style">
+  <link rel="preload" href="https://fonts.googleapis.com/icon?family=Material+Icons" as="style">
+  <link rel="preload" href="https://fonts.googleapis.com/css?family=Roboto&display=swap" as="style">
   <link rel="preconnect" href="//wms.meteo.fi" crossorigin>
   <link rel="preconnect" href="//geoserver.apps.meteo.fi" crossorigin>
   <link rel="preconnect" href="//eumetview.eumetsat.int" crossorigin>
@@ -44,7 +46,7 @@
     <div id="radarLayerButton" class="selectedButton"><i class="material-icons">filter_tilt_shift</i><br>Säätutka</div>
     <div id="lightningLayerButton"><i class="material-icons">flash_on</i><br>Salamat</div>
     <div id="observationLayerButton"><i class="material-icons">place</i><br>Havainto</div>
-    <div id="layersButton"><i class="material-icons">layers</i></div>
+    <div id="layersButton"><i class="material-icons">more_vert</i></div>
   </div>
   <div id="map"></div>
  
@@ -103,7 +105,7 @@
 
   <div id="timecontrol">
     <div class="playbar noselect">
-      <div id="playlistButton"><i class="material-icons">list</i></div>
+      <div id="playlistButton"><i class="material-icons">layers</i></div>
       <div id="speedButton" style="font-size: 1em;">1×</div>
       <div id="skipPreviousButton"><i class="material-icons">skip_previous</i></div>
       <!--div id="previousButton"><i class="material-icons">navigate_before</i></div-->
