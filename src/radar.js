@@ -806,6 +806,8 @@ function updateLayer(layer, wmslayer) {
 	} else {
 		layer.setVisible(true);
 	}
+	layer.set('info','foo');
+	layerInfoPlaylist(layer);
 }
 
 function addEventListeners(selector) {
@@ -881,25 +883,24 @@ var displayFeatureInfo = function (pixel) {
 
 function layerInfoPlaylist(layer) {
 	const wmslayer = layer.getSource().getParams().LAYERS;
-	let name = layer.get('name');
-	var opacity = layer.get('opacity') * 100;
-	var styles = "";
-	var abstract = "";
-	var attribution = "";
+	let name = layer.get('name')
+	let infoo = layer.get('info')
+	var opacity = layer.get('opacity') * 100
 	var resolution = "";
+	debug(infoo);
 
 	if (typeof layerInfo[wmslayer] === "undefined") return
 
 	if (typeof layerInfo[wmslayer].style !== "undefined") {
 		if (layerInfo[wmslayer].style.length > 1) {
-			document.getElementById(name + 'Styles').innerHTML = "";
+			const parent = document.getElementById(name + 'Styles');
+			while (parent.firstChild) parent.removeChild(parent.firstChild);
 			layerInfo[wmslayer].style.forEach(style => {
-				styles = '<div class="layerStyle" id="' + style.Name + '">' + style.Title + '</div> '
-				document.getElementById(name + 'Styles').innerHTML += styles;
-				document.getElementById(style.Name).addEventListener('click', function () {
-					debug("Select style event");
-					setLayerStyle(layer, style.Name);
-				});
+				var div = document.createElement("div");
+				div.innerHTML = style.Title;
+				div.id = style.Name;
+				div.addEventListener('click', function () { setLayerStyle(layer, style.Name) });
+				parent.appendChild(div);
 			});
 		}
 	}
@@ -921,7 +922,7 @@ function layerInfoPlaylist(layer) {
 		resolution = '<div><i class="material-icons">av_timer</i> ' + (timestep > 60 ? (timestep / 60) + ' tuntia' : timestep + ' min') + '</div>'
 	}
 
-	var info = '<h4><i class="material-icons">check_box</i>' + layerInfo[wmslayer].title + '</h4>' + abstract + resolution + '<div><i class="material-icons">opacity</i> <label for="' + name + 'Slider"></label> <input type="range" min="1" max="100" value="' + opacity + '" class="slider" id="' + name + 'Slider"></div>' + styles + attribution;
+	var info = '<h4><i class="material-icons">check_box</i>' + layerInfo[wmslayer].title + '</h4>'  + resolution + '<div><i class="material-icons">opacity</i> <label for="' + name + 'Slider"></label> <input type="range" min="1" max="100" value="' + opacity + '" class="slider" id="' + name + 'Slider"></div>';
 	if (layer.getVisible()) {
 		document.getElementById(name + 'Info').classList.remove("playListDisabled");
 	} else {
@@ -966,8 +967,7 @@ function onChangeSlider () {
 }
 
 function toggleLayerVisibility(layer) {
-	const isVisible = layer.getVisible();
-	if (isVisible) {
+	if (layer.getVisible()) {
 		layer.setVisible(false);
 	} else {
 		layer.setVisible(true);
@@ -1107,11 +1107,15 @@ document.getElementById('satelliteLayerButton').addEventListener('click', functi
 	toggleLayerVisibility(satelliteLayer);
 });
 
+document.getElementById('satelliteLayerTitle').addEventListener('click', function() {
+	toggleLayerVisibility(satelliteLayer);
+});
+
 document.getElementById('radarLayerButton').addEventListener('click', function() {
 	toggleLayerVisibility(radarLayer);
 });
 
-document.getElementById('radarLayerInfo').addEventListener('click', function() {
+document.getElementById('radarLayerTitle').addEventListener('click', function() {
 	toggleLayerVisibility(radarLayer);
 });
 
@@ -1119,7 +1123,15 @@ document.getElementById('lightningLayerButton').addEventListener('click', functi
 	toggleLayerVisibility(lightningLayer);
 });
 
+document.getElementById('lightningLayerTitle').addEventListener('click', function() {
+	toggleLayerVisibility(lightningLayer);
+});
+
 document.getElementById('observationLayerButton').addEventListener('click', function() {
+	toggleLayerVisibility(observationLayer);
+});
+
+document.getElementById('observationLayerTitle').addEventListener('click', function() {
 	toggleLayerVisibility(observationLayer);
 });
 

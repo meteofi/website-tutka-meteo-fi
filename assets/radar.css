@@ -340,17 +340,17 @@ html, body {
     cursor: pointer;
   }
 
-  #playList {
+#playList {
     display: flex;
     flex-direction: column;
-    background-color: var(--dark-surface-color);
+    background-color: rgba(0,0,0,0.8);
     color: var(--dark-theme-on-surface);
     position: absolute;
     bottom: -600px;
     left: 0;
     width: 100%;
     height: auto;
-    padding: 20px;
+    padding-top: 5px;
     padding-bottom: 75px;
     transition: bottom 300ms cubic-bezier(0.17, 0.04, 0.03, 0.94);
     overflow: scroll;
@@ -361,28 +361,21 @@ html, body {
 
  #playList > div {
   flex-grow: 1;
-  padding: 4px;
+  padding: 5px;
   padding-top: 10px;
   padding-bottom: 10px;
   margin: 5px;
-  background-color: var(--dark-theme-overlay-01dp);
+  margin-left: 10px;
+  margin-right: 10px;
+  background-color: var(--dark-theme-overlay-02dp);
 }
 
 #playList > div:hover {
-  background-color: var(--dark-theme-overlay-02dp);
+  background-color: var(--dark-theme-overlay-04dp);
 }
 
 #playList > div > div {
   padding: 1px;
-}
-
-#playList > div > h4 {
-  margin: 0px;
-}
-
-#playList > div > div > i {
-  vertical-align: middle;
-  font-size: 0.98em;
 }
 
 .playListDisabled {
