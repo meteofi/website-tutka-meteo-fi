@@ -890,13 +890,17 @@ function layerInfoPlaylist(layer) {
 
 	if (typeof layerInfo[wmslayer] === "undefined") return
 
-	if (typeof layerInfo[wmslayer].time !== "undefined") {
+	if (typeof layerInfo[wmslayer].style !== "undefined") {
 		if (layerInfo[wmslayer].style.length > 1) {
-			styles += '<div><i class="material-icons">style</i> '
+			document.getElementById(name + 'Styles').innerHTML = "";
 			layerInfo[wmslayer].style.forEach(style => {
-				styles += '<span class="layerStyle" id="' + style.Name + '">' + style.Title + '</span> '
+				styles = '<div class="layerStyle" id="' + style.Name + '">' + style.Title + '</div> '
+				document.getElementById(name + 'Styles').innerHTML += styles;
+				document.getElementById(style.Name).addEventListener('click', function () {
+					debug("Select style event");
+					setLayerStyle(layer, style.Name);
+				});
 			});
-			styles += '</div>'
 		}
 	}
 
@@ -928,13 +932,6 @@ function layerInfoPlaylist(layer) {
 	// 	layer.setOpacity(event.target.value / 100);
 	// 	event.stopPropagation();
 	// });
-	// if (layerInfo[wmslayer].style.length > 1) {
-	// 	layerInfo[wmslayer].style.forEach(style => {
-	// 		document.getElementById(style.Name).addEventListener('click', function () {
-	// 			setLayerStyle(layer, style.Name);
-	// 		});
-	// 	});
-	// }
 }
 
 function onChangeVisible (event) {
