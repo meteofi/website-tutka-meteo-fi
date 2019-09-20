@@ -796,6 +796,7 @@ function removeSelectedParameter(selector) {
 function updateLayer(layer, wmslayer) {
 	debug("Activated layer " + wmslayer);
 	debug(layerInfo[wmslayer]);
+	layer.set('info',layerInfo[wmslayer])
 	if (document.getElementById(wmslayer)) {
 		removeSelectedParameter("#" + layer.get("name") + " > div");
 		document.getElementById(wmslayer).classList.add("selected");
@@ -806,8 +807,6 @@ function updateLayer(layer, wmslayer) {
 	} else {
 		layer.setVisible(true);
 	}
-	layer.set('info','foo');
-	layerInfoPlaylist(layer);
 }
 
 function addEventListeners(selector) {
@@ -881,22 +880,21 @@ var displayFeatureInfo = function (pixel) {
 
 };
 
-function layerInfoPlaylist(layer) {
-	const wmslayer = layer.getSource().getParams().LAYERS;
-	let name = layer.get('name')
-	let infoo = layer.get('info')
-	var opacity = layer.get('opacity') * 100
-	var resolution = "";
-	debug(infoo);
+function layerInfoPlaylist(event) {
+	const layer = event.target;
+	const name = layer.get('name')
+	const info = layer.get('info')
+	let opacity = layer.get('opacity') * 100
+	let resolution = "";
 
-	if (typeof layerInfo[wmslayer] === "undefined") return
-
-	if (typeof layerInfo[wmslayer].style !== "undefined") {
-		if (layerInfo[wmslayer].style.length > 1) {
+	if (typeof info === "undefined") return
+	debug("Updating playlist for " + name);
+	if (typeof info.style !== "undefined") {
+		if (info.style.length > 1) {
 			const parent = document.getElementById(name + 'Styles');
 			while (parent.firstChild) parent.removeChild(parent.firstChild);
-			layerInfo[wmslayer].style.forEach(style => {
-				var div = document.createElement("div");
+			info.style.forEach(style => {
+				let div = document.createElement("div");
 				div.innerHTML = style.Title;
 				div.id = style.Name;
 				div.addEventListener('click', function () { setLayerStyle(layer, style.Name) });
@@ -905,24 +903,24 @@ function layerInfoPlaylist(layer) {
 		}
 	}
 
-	if (typeof layerInfo[wmslayer].title !== "") {
-		document.getElementById(name + 'Title').innerHTML = layerInfo[wmslayer].title;
+	if (typeof info.title !== "") {
+		document.getElementById(name + 'Title').innerHTML = info.title;
 	}
 
-	if (typeof layerInfo[wmslayer].abstract !== "undefined") {
-		document.getElementById(name + 'Abstract').innerHTML = layerInfo[wmslayer].abstract;
+	if (typeof info.abstract !== "undefined") {
+		document.getElementById(name + 'Abstract').innerHTML = info.abstract;
 	}
 
-	if (typeof layerInfo[wmslayer].attribution !== "undefined") {
-		document.getElementById(name + 'Attribution').innerHTML = layerInfo[wmslayer].attribution.Title;
+	if (typeof info.attribution !== "undefined") {
+		document.getElementById(name + 'Attribution').innerHTML = info.attribution.Title;
 	}
 
-	if (typeof layerInfo[wmslayer].time !== "undefined") {
-		var timestep = Math.round(layerInfo[wmslayer].time.resolution / 60000)
+	if (typeof info.time !== "undefined") {
+		let timestep = Math.round(info.time.resolution / 60000)
 		resolution = '<div><i class="material-icons">av_timer</i> ' + (timestep > 60 ? (timestep / 60) + ' tuntia' : timestep + ' min') + '</div>'
 	}
 
-	var info = '<h4><i class="material-icons">check_box</i>' + layerInfo[wmslayer].title + '</h4>'  + resolution + '<div><i class="material-icons">opacity</i> <label for="' + name + 'Slider"></label> <input type="range" min="1" max="100" value="' + opacity + '" class="slider" id="' + name + 'Slider"></div>';
+	var infof = '<h4><i class="material-icons">check_box</i>' + info.title + '</h4>'  + resolution + '<div><i class="material-icons">opacity</i> <label for="' + name + 'Slider"></label> <input type="range" min="1" max="100" value="' + opacity + '" class="slider" id="' + name + 'Slider"></div>';
 	if (layer.getVisible()) {
 		document.getElementById(name + 'Info').classList.remove("playListDisabled");
 	} else {
@@ -1225,16 +1223,16 @@ function readWMSCapabilities(url,timeout) {
 		// 	radarLayer.time = layerInfo[metRadarLayer].time;
 		// }
 		debug(layerInfo);
+		satelliteLayer.set('info',layerInfo[satelliteLayer.getSource().getParams().LAYERS])
+		radarLayer.set('info',layerInfo[radarLayer.getSource().getParams().LAYERS])
+		lightningLayer.set('info',layerInfo[lightningLayer.getSource().getParams().LAYERS])
+		observationLayer.set('info',layerInfo[observationLayer.getSource().getParams().LAYERS])
 		updateLayerSelection(satelliteLayer,"satellite","msg_");
 		updateLayerSelection(observationLayer,"observation","_tempe");
 		updateLayerSelection(radarLayer,"radar","radar_");
 		//updateLayerSelection(radarLayer,"etop","etop_");
 		//updateLayerSelection(radarLayer,"hclass","_hclass");
 		updateLayerSelection(lightningLayer,"lightning","lightning");
-		layerInfoPlaylist(satelliteLayer);
-		layerInfoPlaylist(radarLayer);
-		layerInfoPlaylist(lightningLayer);
-		layerInfoPlaylist(observationLayer);
 		if (IS_FOLLOWING) {
 			setTime('last');
 		}
@@ -1379,10 +1377,14 @@ const main = () => {
 	geolocation.on('change:accuracyGeometry',onChangeAccuracyGeometry);
 	geolocation.on('change:position', onChangePosition);
 
-  satelliteLayer.on('change:visible', onChangeVisible);
+	satelliteLayer.on('change:visible', onChangeVisible);
+	satelliteLayer.on('propertychange', layerInfoPlaylist);
 	radarLayer.on('change:visible', onChangeVisible);
+	radarLayer.on('propertychange', layerInfoPlaylist);
 	lightningLayer.on('change:visible', onChangeVisible);
+	lightningLayer.on('propertychange', layerInfoPlaylist);
 	observationLayer.on('change:visible', onChangeVisible);
+	observationLayer.on('propertychange', layerInfoPlaylist);
 
 	addEventListeners("#satelliteLayer > div");
 	addEventListeners("#radarLayer > div");
