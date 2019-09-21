@@ -399,9 +399,8 @@ var layers = [
 	smpsLayer
 ];
 
-function distanceToString (distance) {
+function distanceToString(distance) {
 	var str;
-
 	if (IS_NAUTICAL) {
 		str = (distance / 1852).toFixed(3) + ' NM';
 	} else {
@@ -466,6 +465,8 @@ function bearingLine(layer, coordinates, range, direction) {
 		new Feature(line.transform('EPSG:4326', map.getView().getProjection()))
 	]);
 }
+
+// GEOLOCATION Functions
 
 function onChangeAccuracyGeometry(event) {
 	debug('Accuracy geometry changed.');
@@ -874,6 +875,8 @@ function layerInfoPlaylist(event) {
 	let opacity = layer.get('opacity') * 100
 	let resolution = "";
 
+	
+
 	if (typeof info === "undefined") return
 	debug("Updating playlist for " + name);
 	if (typeof info.style !== "undefined") {
@@ -1143,6 +1146,13 @@ map.on('click', function(evt) {
 	displayFeatureInfo(evt.pixel);
 });
 
+document.addEventListener('keydown', function (event) {
+	if (event.key === 'Control') {
+		document.getElementById('help').style.display = "block";
+	}
+});
+
+
 document.addEventListener('keyup', function (event) {
 	if (event.defaultPrevented) {
 		return;
@@ -1176,6 +1186,8 @@ document.addEventListener('keyup', function (event) {
 		toggleLayerVisibility(lightningLayer);    
 	} else if (key === '4' || key === 'Digit4') {
 		toggleLayerVisibility(observationLayer);    
+	} else 	if (event.key === 'Control') {
+		document.getElementById('help').style.display = "none";
 	}
 
 });
@@ -1332,10 +1344,10 @@ span.onclick = function() {
 }
 
 // When the user clicks anywhere outside of the modal, close it
-window.onclick = function(event) {
-  if (event.target == modal) {
-    modal.style.display = "none";
-  }
+window.onclick = function (event) {
+	if (event.target == modal) {
+		modal.style.display = "none";
+	}
 }
 
 // MAIN
@@ -1380,6 +1392,8 @@ const main = () => {
 	lightningLayer.on('propertychange', layerInfoPlaylist);
 	observationLayer.on('change:visible', onChangeVisible);
 	observationLayer.on('propertychange', layerInfoPlaylist);
+
+	//radarLayer.on('change', function (event) {debug(event.target.getSource().getParams().TIME)});
 
 	addEventListeners("#satelliteLayer > div");
 	addEventListeners("#radarLayer > div");
