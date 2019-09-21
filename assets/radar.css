@@ -237,7 +237,7 @@ html, body {
     }
 }
 
-#infoItemUpdate, #radarPlayTxt, #layersButtonD, #infoItemMap {
+#infoItemUpdate, #radarPlayTxt, #layersButton, #infoItemMap {
     display: none;
 }
 
