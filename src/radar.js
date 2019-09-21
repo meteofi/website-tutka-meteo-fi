@@ -467,27 +467,14 @@ function bearingLine(layer, coordinates, range, direction) {
 	]);
 }
 
-var geolocation = new Geolocation({
-	trackingOptions: {
-		enableHighAccuracy: true
-	},
-	projection: map.getView().getProjection()
-});
-
-geolocation.on('error', function (error) {
-	debug(error.message);
-});
-
-function onChangeAccuracyGeometry() {
+function onChangeAccuracyGeometry(event) {
 	debug('Accuracy geometry changed.');
-	accuracyFeature.setGeometry(geolocation.getAccuracyGeometry());
+	accuracyFeature.setGeometry(event.target.getAccuracyGeometry());
 }
 
-
-
-function onChangePosition() {
+function onChangePosition(event) {
 	debug('Position changed.');
-	var coordinates = geolocation.getPosition();
+	var coordinates = event.target.getPosition();
 	ownPosition = coordinates;
 	ownPosition4326 = transform(coordinates,map.getView().getProjection(),'EPSG:4326');
 	positionFeature.setGeometry(coordinates ?
@@ -1370,10 +1357,18 @@ const main = () => {
 	//if (IS_SATELLITE) {
 		readWMSCapabilities(options.wmsServer.eumetsat, 300000);
 	//}	
-	geolocation.setTracking(true);
-
+	
 	setButtonStates();
 
+	// GEOLOCATION
+	var geolocation = new Geolocation({
+		trackingOptions: {
+			enableHighAccuracy: true
+		},
+		projection: map.getView().getProjection()
+	});
+	geolocation.setTracking(true);
+	geolocation.on('error', function (error) { debug(error.message) });
 	geolocation.on('change:accuracyGeometry',onChangeAccuracyGeometry);
 	geolocation.on('change:position', onChangePosition);
 
@@ -1410,7 +1405,6 @@ const main = () => {
 //worker.postMessage([options.wmsServer.meteo.radar, 60000]);
 //worker.onmessage = function (event) {};
 //worker.addEventListener("message", function (event) {debug(event)});
-
 
 };
 
