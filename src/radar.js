@@ -49,7 +49,7 @@ var options = {
 	}
 }
 
-var DEBUG = true;
+var DEBUG = false;
 var metLatitude = localStorage.getItem("metLatitude")
 	? localStorage.getItem("metLatitude")
 	: 60.2706;
