@@ -440,3 +440,14 @@ html, body {
   background-color: #00D8FF;
 }
 
+.red-square {
+  display: none;
+  background-color: rgba(0,0,0,0.8);
+  width: 300px;
+  height: 300px;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
