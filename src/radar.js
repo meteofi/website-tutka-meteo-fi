@@ -7,7 +7,7 @@ import VectorLayer from 'ol/layer/Vector';
 import XYZ from 'ol/source/XYZ';
 import ImageWMS from 'ol/source/ImageWMS';
 import TileWMS from 'ol/source/TileWMS';
-import WMTS, {optionsFromCapabilities} from 'ol/source/WMTS.js';
+//import WMTS, {optionsFromCapabilities} from 'ol/source/WMTS.js';
 import GeoJSON from 'ol/format/GeoJSON';
 import Vector from 'ol/source/Vector';
 import {fromLonLat, transform} from 'ol/proj';
@@ -21,7 +21,7 @@ import {Circle as CircleStyle, Fill, Stroke, Style, Text} from 'ol/style.js';
 import Dms from 'geodesy/dms';
 import LatLon from 'geodesy/latlon-spherical'
 import WMSCapabilities from 'ol/format/WMSCapabilities.js';
-import WMTSCapabilities from 'ol/format/WMTSCapabilities.js';
+//import WMTSCapabilities from 'ol/format/WMTSCapabilities.js';
 import { connect } from 'mqtt';
 import { transformExtent } from 'ol/proj';
 //import Worker from './wmscapabilities.worker.js'; 
@@ -44,12 +44,14 @@ var options = {
 		'dwd': "https://maps.dwd.de/geoserver/wms", // "dwd:RX-Produkt"
 		'knmi': "https://geoservices.knmi.nl/cgi-bin/RADNL_OPER_R___25PCPRR_L3.cgi", // "RADNL_OPER_R___25PCPRR_L3_COLOR"
 		"nws": "https://idpgis.ncep.noaa.gov/arcgis/services/radar/radar_base_reflectivity_time/ImageServer/WMSServer", // "0"
-		"eumetsat": "https://eumetview.eumetsat.int/geoserv/meteosat/wms", // "meteosat:msg_eview"
+		"eumetsat": "https://eumetview.eumetsat.int/geoserv/meteosat/msg_eview/wms", // "meteosat:msg_eview",
+		"eumetsat2": "https://eumetview.eumetsat.int/geoserv/meteosat/msg_convection/wms", // "meteosat:msg_eview"
+		"eumetsat3": "https://eumetview.eumetsat.int/geoserv/meteosat/msg_naturalenhncd/wms", // "meteosat:msg_eview"
 		"s57": "https://julkinen.vayla.fi/s57/wms",
 	}
 }
 
-var DEBUG = true;
+var DEBUG = false;
 var metLatitude = localStorage.getItem("metLatitude")
 	? localStorage.getItem("metLatitude")
 	: 60.2706;
@@ -70,23 +72,23 @@ document.ontouchmove = function(e){
 	e.preventDefault(); 
 }
 // STATUS Variables
-	var VISIBLE = localStorage.getItem("VISIBLE")
+var VISIBLE = localStorage.getItem("VISIBLE")
 	? new Set(JSON.parse(localStorage.getItem("VISIBLE")))
 	: new Set(["radarLayer"]);
 
-	var IS_DARK = localStorage.getItem("IS_DARK")
+var IS_DARK = localStorage.getItem("IS_DARK")
 	? JSON.parse(localStorage.getItem("IS_DARK"))
 	: true;
 
-	var IS_TRACKING = localStorage.getItem("IS_TRACKING")
+var IS_TRACKING = localStorage.getItem("IS_TRACKING")
 	? JSON.parse(localStorage.getItem("IS_TRACKING"))
 	: false;
 
-	var IS_FOLLOWING = localStorage.getItem("IS_FOLLOWING")
+var IS_FOLLOWING = localStorage.getItem("IS_FOLLOWING")
 	? JSON.parse(localStorage.getItem("IS_FOLLOWING"))
 	: false;
 
-	var IS_NAUTICAL = localStorage.getItem("IS_NAUTICAL")
+var IS_NAUTICAL = localStorage.getItem("IS_NAUTICAL")
 	? JSON.parse(localStorage.getItem("IS_NAUTICAL"))
 	: false;
 
@@ -96,6 +98,28 @@ function debug(str) {
 			console.log(str);
 		} catch (e) { };
 	}
+}
+
+ImageLayer.prototype.setLayerUrl = function (url) {
+	debug("Set layer url: " + url);
+	this.getSource().setUrl(url);
+}
+
+ImageLayer.prototype.setLayerStyle = function (style) {
+	debug("Set layer style: " + style);
+	this.getSource().updateParams({ 'STYLES': style });
+}
+
+ImageLayer.prototype.setLayerTime = function (time) {
+	debug("Set layer time dimension: " + time);
+	if (moment(time).isValid()) {
+		this.getSource().updateParams({ 'TIME': time });
+	}
+}
+
+ImageLayer.prototype.setLayerElevation = function (elevation) {
+	debug("Set layer elevation dimension: " + elevation);
+	this.getSource().updateParams({ 'ELEVATION': elevation });
 }
 
 var style = new Style({
@@ -500,14 +524,6 @@ function setLayerTime(layer, time) {
 	}
 }
 
-function setLayerStyle(layer, style) {
-	layer.getSource().updateParams({ 'STYLES': style });
-}
-
-function setLayerElevation(layer, elevation) {
-	layer.getSource().updateParams({ 'ELEVATION': elevation });
-}
-
 //radarLayer.getSource().addEventListener('imageloadend', function (event) {
 //	debug(event);
 //});
@@ -546,25 +562,25 @@ function gtag() {
 }
 
 function updateCanonicalPage() {
-	var page = "";
+	let page = "";
 	if (satelliteLayer.getVisible()) {
-		var split = satelliteLayer.getSource().getParams().LAYERS.split(":"); 
+		let split = satelliteLayer.getSource().getParams().LAYERS.split(":");
 		page = page + "/" + ((split.length > 1) ? split[1] : split[0])
 	}
 	if (radarLayer.getVisible()) {
-		var split = radarLayer.getSource().getParams().LAYERS.split(":"); 
+		let split = radarLayer.getSource().getParams().LAYERS.split(":");
 		page = page + "/" + ((split.length > 1) ? split[1] : split[0])
 	}
 	if (lightningLayer.getVisible()) {
-		var split = lightningLayer.getSource().getParams().LAYERS.split(":"); 
+		let split = lightningLayer.getSource().getParams().LAYERS.split(":");
 		page = page + "/" + ((split.length > 1) ? split[1] : split[0])
 	}
 	if (observationLayer.getVisible()) {
-		var split = observationLayer.getSource().getParams().LAYERS.split(":"); 
+		let split = observationLayer.getSource().getParams().LAYERS.split(":");
 		page = page + "/" + ((split.length > 1) ? split[1] : split[0])
 	}
 	debug("Set page: " + page);
-	gtag('config', 'UA-23910741-3', {'page_path': page});
+	gtag('config', 'UA-23910741-3', { 'page_path': page });
 }
 
 function setTime(action='next') {
@@ -784,11 +800,12 @@ function removeSelectedParameter(selector) {
 function updateLayer(layer, wmslayer) {
 	debug("Activated layer " + wmslayer);
 	debug(layerInfo[wmslayer]);
-	layer.set('info',layerInfo[wmslayer])
+	layer.set('info',layerInfo[wmslayer]);
 	if (document.getElementById(wmslayer)) {
 		removeSelectedParameter("#" + layer.get("name") + " > div");
 		document.getElementById(wmslayer).classList.add("selected");
 	}
+	layer.setLayerUrl(layerInfo[wmslayer].url);
 	layer.getSource().updateParams({ 'LAYERS': wmslayer });
 	if (layer.getVisible()) {
 		updateCanonicalPage();
@@ -875,10 +892,9 @@ function layerInfoPlaylist(event) {
 	let opacity = layer.get('opacity') * 100
 	let resolution = "";
 
-	
-
 	if (typeof info === "undefined") return
 	debug("Updating playlist for " + name);
+	
 	if (typeof info.style !== "undefined") {
 		if (info.style.length > 1) {
 			const parent = document.getElementById(name + 'Styles');
@@ -887,7 +903,7 @@ function layerInfoPlaylist(event) {
 				let div = document.createElement("div");
 				div.innerHTML = style.Title;
 				div.id = style.Name;
-				div.addEventListener('click', function () { setLayerStyle(layer, style.Name) });
+				div.addEventListener('click', function () { layer.setLayerStyle(style.Name) });
 				parent.appendChild(div);
 			});
 		}
@@ -1174,10 +1190,6 @@ document.addEventListener('keyup', function (event) {
 		skip_next(); 
 	} else if (key === 's' || key === 'KeyS' || key === 83) {
 		toggleLayerVisibility(smpsLayer); 
-	} else if (key === 'f' || key === 'KeyF') {
-		setLayerStyle(radarLayer,"radar_finland_dbz_fmi"); 
-	} else if (key === 'g' || key === 'KeyG') {
-		setLayerStyle(radarLayer,""); 
 	} else if (key === '1' || key === 'Digit1') {
 		toggleLayerVisibility(satelliteLayer);
 	} else if (key === '2' || key === 'Digit2') {
@@ -1217,10 +1229,7 @@ function readWMSCapabilities(url,timeout) {
 	}).then(function (text) {
 		debug("Received WMS Capabilities " + url);
 		var result = parser.read(text);
-		getLayers(result.Capability.Layer.Layer);
-		// if (typeof (radarLayer.time) === "undefined") {
-		// 	radarLayer.time = layerInfo[metRadarLayer].time;
-		// }
+		getLayers(result.Capability.Layer.Layer,url);
 		debug(layerInfo);
 		satelliteLayer.set('info',layerInfo[satelliteLayer.getSource().getParams().LAYERS])
 		radarLayer.set('info',layerInfo[radarLayer.getSource().getParams().LAYERS])
@@ -1239,21 +1248,22 @@ function readWMSCapabilities(url,timeout) {
 	setTimeout(function() {readWMSCapabilities(url,timeout)}, timeout);
 }
 
-function getLayers(parentlayer) {
+function getLayers(parentlayer,url) {
 	let products = {}
 	parentlayer.forEach((layer) => {
 		if (Array.isArray(layer.Layer)) {
-			getLayers(layer.Layer)
+			getLayers(layer.Layer,url)
 		} else {
-			layerInfo[layer.Name] = getLayerInfo(layer)
+			layerInfo[layer.Name] = getLayerInfo(layer,url)
 		}
 	})
 	return products;
 }
 
-function getLayerInfo(layer) {
+function getLayerInfo(layer,url) {
 	let product =
 	{
+		url: url,
 		title: layer.Title,
 		layer: layer.Name,
 		abstract: layer.Abstract
@@ -1366,9 +1376,9 @@ const main = () => {
 	updateClock();
 	readWMSCapabilities(options.wmsServer.meteo.test, 300000);
 	readWMSCapabilities(options.wmsServer.meteo.radar, 60000);
-	//if (IS_SATELLITE) {
-		readWMSCapabilities(options.wmsServer.eumetsat, 300000);
-	//}	
+	readWMSCapabilities(options.wmsServer.eumetsat, 300000);
+	readWMSCapabilities(options.wmsServer.eumetsat2, 300000);
+	readWMSCapabilities(options.wmsServer.eumetsat3, 300000);
 	
 	setButtonStates();
 
