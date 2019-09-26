@@ -18,7 +18,9 @@
   --dark-disabled-container-color: rgba(255,255,255,0.12);
   --dark-high-emphasis-text-color: rgba(255,255,255,0.87);
   --dark-medium-emphasis-text-color: rgba(255,255,255,0.60);
-  --dark-primary-color: #bb86fc;
+  /* --dark-primary-color: #bb86fc;  */
+  --dark-primary-color: #12BCFA;
+  --dark-primary-color-bg: #12BCFA1F;
 }
 
 html, body {
@@ -117,6 +119,8 @@ html, body {
 
   .timeline-on {
     background-color:  #7B7C7D;
+    /* background-color: var(--dark-primary-color); */
+    
     border-left: 1px solid rgb(0, 84, 99);
   }
   .timeline-off {
@@ -140,6 +144,10 @@ html, body {
                    cursor: default;
 }
 
+#currentTimeTxt {
+  color: var(--dark-medium-emphasis-text-color);
+}
+
 #infopanel {
     position: absolute;
     background-color: rgba(0,0,0,0.7);
@@ -158,18 +166,18 @@ html, body {
 }
 
 .infoLabel {
-    background-color: #5BD5FD;
-    color: #000;
+    background-color: var(--dark-primary-color-bg);
+    color: var(--dark-primary-color);
     font-weight: bold;
     text-align: center;
     margin: 2px;
-    padding: 2px;
+    padding: 4px;
 
 }
 
 .infoValue {
     text-align: center;
-    border: 1px solid;
+    border: 0px solid;
     margin: 2px;
     padding: 5px;
 }
@@ -241,8 +249,20 @@ html, body {
     display: none;
 }
 
+#currentMapTime {
+  font-size: 1.4em;
+  color: var(--dark-theme-on-surface);
+}
+
+#currentSpeed {
+  display: none;
+  font-size: 1.4em;
+  color: var(--dark-theme-on-surface);
+}
+
 .valueTxtBig {
     font-size: 1.5em;
+    color: var(--dark-theme-on-surface);
 }
 
 .selected {
@@ -409,14 +429,15 @@ html, body {
 }
 
 .styles > div {
-  background-color: var(--dark-primary-color);
-  color: black;
+  background-color: var(--dark-primary-color-bg);
+  color: var(--dark-primary-color);
   border-radius: 3px;
-  padding: 2px;
+  padding: 4px;
   margin-top: 2px;
   margin-bottom: 2px;
   margin-right: 5px;
   font-size: 12px;
+  border-radius: 3px; 
 }
 
 .slider {
@@ -443,6 +464,7 @@ html, body {
 .red-square {
   display: none;
   background-color: rgba(0,0,0,0.8);
+  color: var(--dark-theme-on-surface);
   width: 300px;
   height: 300px;
   position: absolute;
