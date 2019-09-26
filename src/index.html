@@ -62,7 +62,7 @@
     <div class="infoItem" id="infoItemRadar">
       <div class="infoLabel" id="infoLabelRadar">SÄÄTUTKA</div>
       <!--div class="infoValue" id="radarTxt"></div-->
-      <div class="infoValue flexColumn" id="radarLayer"><div id="radarLayerOff" class="flexCell">OFF</div><div id="radar_finland_dbz" class="selected flexCell">DBZ</div><div id="radar_finland_rr" class="flexCell">RATE</div><!--div id="MeteoFI:radar_finland_rr1h" class="flexCell">RR1H</div--></div>
+      <div class="infoValue flexColumn" id="radarLayer"><div id="radarLayerOff" class="flexCell">OFF</div><div id="radar_finland_dbz" class="selected flexCell">DBZ</div><div id="radar_finland_rr" class="flexCell">RATE</div><div id="RX-Produkt" class="flexCell">DE</div><div id="bs:radar:correctedreflectivity" class="flexCell">BS</div><div id="vnmha:radar:comp_dbz" class="flexCell">VN</div><div id="RADNL_OPER_R___25PCPRR_L3_COLOR" class="flexCell">NL</div><div id="radar_usa_dbz" class="flexCell">US</div><div id="RADAR_1KM_RDBR" class="flexCell">CA</div><div id="equivalent_reflectivity_factor" class="flexCell">NO</div></div>
     </div>
     <div class="infoItem" id="infoItemLightning">
       <div class="infoLabel" id="infoLabelLightning">SALAMAT</div>
@@ -99,6 +99,7 @@
 
   <div id="timecontrol">
     <div class="playbar noselect">
+      <div id="currentSpeed"><div id="currentSpeedValue"></div><div style="font-size: 10px;">km/h</div></div>
       <div id="playlistButton"><i class="material-icons">layers</i></div>
       <div id="speedButton" style="font-size: 1em;">1×</div>
       <div id="skipPreviousButton"><i class="material-icons">skip_previous</i></div>
@@ -106,7 +107,7 @@
       <div id="playButton"><i id="playstopButton" class="material-icons">play_arrow</i></div>
       <!--div id="nextButton"><i class="material-icons">navigate_next</i></div-->
       <div id="skipNextButton"><i class="material-icons">skip_next</i></div>
-      <div id="currentMapTime" class="valueTxtBig"></div>
+      <div id="currentMapTime"></div>
     </div>
     <div id="timeline"></div>
     <div id="playList">
@@ -141,7 +142,7 @@
       </div>
   </div>
 
-  <div id="help" class="red-square">Hui hai</div>
+  <div id="help" class="red-square"><h4>Pikanäppäimet</h4></div>
   
 <!-- The Modal -->
 <div id="myModal" class="modal">
