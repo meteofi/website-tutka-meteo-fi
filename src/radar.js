@@ -41,13 +41,46 @@ var options = {
 			'test': "https://geoserver.apps.meteo.fi/geoserver/observation/wms"
 		},
 		'fmi': "https://openwms.fmi.fi/geoserver/Radar/wms", //"Radar:suomi_dbz_eureffin"
-		'dwd': "https://maps.dwd.de/geoserver/wms", // "dwd:RX-Produkt"
-		'knmi': "https://geoservices.knmi.nl/cgi-bin/RADNL_OPER_R___25PCPRR_L3.cgi", // "RADNL_OPER_R___25PCPRR_L3_COLOR"
 		"nws": "https://idpgis.ncep.noaa.gov/arcgis/services/radar/radar_base_reflectivity_time/ImageServer/WMSServer", // "0"
 		"eumetsat": "https://eumetview.eumetsat.int/geoserv/meteosat/msg_eview/wms", // "meteosat:msg_eview",
 		"eumetsat2": "https://eumetview.eumetsat.int/geoserv/meteosat/msg_convection/wms", // "meteosat:msg_eview"
 		"eumetsat3": "https://eumetview.eumetsat.int/geoserv/meteosat/msg_naturalenhncd/wms", // "meteosat:msg_eview"
 		"s57": "https://julkinen.vayla.fi/s57/wms",
+	},
+	wmsServerConfiguration: {
+		bs: {
+			url: 'http://smartmet.bahamasweather.org.bs:8080/wms',
+			namespace: 'bs:radar',
+			refresh: 60000,
+			category: "radarLayer"
+		},
+		ca: {
+			url: 'https://geo.weather.gc.ca/geomet/',
+			layer: 'RADAR_1KM_RDBR',
+			refresh: 60000,
+			category: "radarLayer"
+		},
+		de: {
+			url: 'https://maps.dwd.de/geoserver/dwd/RX-Produkt/wms',
+			refresh: 60000,
+			category: "radarLayer"
+		},
+		nl: {
+			url: 'https://geoservices.knmi.nl/cgi-bin/RADNL_OPER_R___25PCPRR_L3.cgi',
+			refresh: 60000,
+			category: "radarLayer"
+		},
+/* 		no: {
+			url: 'https://thredds.met.no/thredds/wms/remotesensing/reflectivity-nordic/2019/09/yrwms-nordic.mos.pcappi-0-dbz.noclass-clfilter-novpr-clcorr-block.laea-yrwms-1000.20190925.nc',
+			refresh: 60000,
+			category: "radarLayer"
+		}, */
+		vn: {
+			url: 'https://vn.meteo.fi/wms',
+			namespace: 'vnmha:radar',
+			refresh: 60000,
+			category: "radarLayer"
+		}
 	}
 }
 
@@ -111,9 +144,9 @@ ImageLayer.prototype.setLayerStyle = function (style) {
 }
 
 ImageLayer.prototype.setLayerTime = function (time) {
-	debug("Set layer time dimension: " + time);
+	debug("Set layer time dimension: " + moment(time).format());
 	if (moment(time).isValid()) {
-		this.getSource().updateParams({ 'TIME': time });
+		this.getSource().updateParams({ 'TIME': moment(time).format()});
 	}
 }
 
@@ -341,6 +374,20 @@ var radarLayer = new ImageLayer({
 	})
 });
 
+// overlay Layer
+var overlayLayer = new TileLayer({
+	name: "overlayLayer",
+	//visible: VISIBLE.has("observationLayer"),
+	source: new TileWMS({
+		url: "https://julkinen.vayla.fi/inspirepalvelu/avoin/wms",
+	//	url: "https://geoserv.stat.fi/geoserver/postialue/wms",
+//		params: { 'FORMAT': 'image/png8', 'LAYERS': 'postialue:pno', 'TILED': true },
+		params: { 'FORMAT': 'image/png8', 'LAYERS': 'rataverkko,vaylaalueet,vaylat', 'TILED': true },
+		ratio: options.imageRatio,
+		serverType: 'geoserver'
+	})
+});
+
 // Lightning Layer
 var lightningLayer = new ImageLayer({
 	name: "lightningLayer",
@@ -410,13 +457,14 @@ var layers = [
 	lightGrayBaseLayer,
 	darkGrayBaseLayer,
 	imageryBaseLayer,
-//	s57Layer,
+	//s57Layer,
 	satelliteLayer,
 	radarLayer,
 	guideLayer,
 	lightningLayer,
 	lightGrayReferenceLayer,
 	darkGrayReferenceLayer,
+	//overlayLayer,
   positionLayer,
 	ownPositionLayer,
 	observationLayer,
@@ -497,6 +545,13 @@ function onChangeAccuracyGeometry(event) {
 	accuracyFeature.setGeometry(event.target.getAccuracyGeometry());
 }
 
+function onChangeSpeed(event) {
+	debug('Speed changed.');
+	let speed = event.target.getSpeed();
+	document.getElementById("currentSpeed").style.display = 'block';
+	document.getElementById("currentSpeedValue").innerHTML = Math.round(speed*3600/1000);
+}
+
 function onChangePosition(event) {
 	debug('Position changed.');
 	var coordinates = event.target.getPosition();
@@ -520,7 +575,7 @@ function setLayerTime(layer, time) {
 	if (moment(time).isValid()) {
 		document.getElementById("radarDateValue").innerHTML = moment(time).format('l');
 		document.getElementById("radarTimeValue").innerHTML = moment(time).format('LT');
-		document.getElementById("currentMapTime").innerHTML = moment(time).format('LT');
+		document.getElementById("currentMapTime").innerHTML = moment(time).format('LT') + '<div style="font-size: 10px;">'+moment(time).format('l')+'</div>';
 	}
 }
 
@@ -638,8 +693,8 @@ function setTime(action='next') {
 		}
 
 		updateTimeLine((startDate.getTime()-start)/resolution);
-		setLayerTime(satelliteLayer, startDate.toISOString());
-		setLayerTime(radarLayer, startDate.toISOString());
+		setLayerTime(satelliteLayer, moment(startDate.toISOString()).utc().format());
+		setLayerTime(radarLayer, moment(startDate.toISOString()).utc().format());
 		setLayerTime(lightningLayer, 'PT'+(resolution/60000)+'M/' + startDate.toISOString());
 		setLayerTime(observationLayer, 'PT'+(resolution/60000)+'M/' + startDate.toISOString());
 
@@ -911,14 +966,20 @@ function layerInfoPlaylist(event) {
 
 	if (typeof info.title !== "") {
 		document.getElementById(name + 'Title').innerHTML = info.title;
+	} else {
+		document.getElementById(name + 'Title').innerHTML = "";
 	}
 
 	if (typeof info.abstract !== "undefined") {
 		document.getElementById(name + 'Abstract').innerHTML = info.abstract;
+	} else {
+		document.getElementById(name + 'Abstract').innerHTML = "";
 	}
 
 	if (typeof info.attribution !== "undefined") {
 		document.getElementById(name + 'Attribution').innerHTML = info.attribution.Title;
+	} else {
+		document.getElementById(name + 'Attribution').innerHTML = "";
 	}
 
 	if (typeof info.time !== "undefined") {
@@ -1158,15 +1219,7 @@ document.getElementById('observationLayerTitle').addEventListener('click', funct
 // 	}
 // });
 
-map.on('click', function(evt) {
-	displayFeatureInfo(evt.pixel);
-});
 
-document.addEventListener('keydown', function (event) {
-	if (event.key === 'Control') {
-		document.getElementById('help').style.display = "block";
-	}
-});
 
 
 document.addEventListener('keyup', function (event) {
@@ -1246,6 +1299,37 @@ function readWMSCapabilities(url,timeout) {
 		}
 	});
 	setTimeout(function() {readWMSCapabilities(url,timeout)}, timeout);
+}
+
+function getWMSCapabilities(wms) {
+	var parser = new WMSCapabilities();
+	let namespace = wms.namespace ? '&namespace=' + wms.namespace : '';
+	let layer = wms.layer ? '&layer=' + wms.layer : '';
+	debug("Request WMS Capabilities " + wms.url);
+	gtag('event', 'getCapabilities', {
+		'event_category': 'WMS',
+		'event_label': wms.url
+	});
+	fetch(wms.url + '?SERVICE=WMS&version=1.3.0&request=GetCapabilities' + namespace + layer).then(function (response) {
+		return response.text();
+	}).then(function (text) {
+		debug("Received WMS Capabilities " + wms.url);
+		var result = parser.read(text);
+		getLayers(result.Capability.Layer.Layer, wms.url);
+		debug(layerInfo);
+		satelliteLayer.set('info', layerInfo[satelliteLayer.getSource().getParams().LAYERS])
+		radarLayer.set('info', layerInfo[radarLayer.getSource().getParams().LAYERS])
+		lightningLayer.set('info', layerInfo[lightningLayer.getSource().getParams().LAYERS])
+		observationLayer.set('info', layerInfo[observationLayer.getSource().getParams().LAYERS])
+		updateLayerSelection(satelliteLayer, "satellite", "msg_");
+		updateLayerSelection(observationLayer, "observation", "_tempe");
+		updateLayerSelection(radarLayer, "radar", "radar_");
+		updateLayerSelection(lightningLayer, "lightning", "lightning");
+		if (IS_FOLLOWING) {
+			setTime('last');
+		}
+	});
+	setTimeout(function () { getWMSCapabilities(wms) }, wms.refresh);
 }
 
 function getLayers(parentlayer,url) {
@@ -1376,9 +1460,16 @@ const main = () => {
 	updateClock();
 	readWMSCapabilities(options.wmsServer.meteo.test, 300000);
 	readWMSCapabilities(options.wmsServer.meteo.radar, 60000);
+//	readWMSCapabilities(options.wmsServer.dwdradar, 60000);
+//	readWMSCapabilities(options.wmsServer.bdom, 60000);
+//	readWMSCapabilities(options.wmsServer.vnmha, 60000);
 	readWMSCapabilities(options.wmsServer.eumetsat, 300000);
 	readWMSCapabilities(options.wmsServer.eumetsat2, 300000);
 	readWMSCapabilities(options.wmsServer.eumetsat3, 300000);
+
+	Object.keys(options.wmsServerConfiguration).forEach((item) => {
+		getWMSCapabilities(options.wmsServerConfiguration[item]);
+	});
 	
 	setButtonStates();
 
@@ -1393,6 +1484,7 @@ const main = () => {
 	geolocation.on('error', function (error) { debug(error.message) });
 	geolocation.on('change:accuracyGeometry',onChangeAccuracyGeometry);
 	geolocation.on('change:position', onChangePosition);
+	geolocation.on('change:speed', onChangeSpeed);
 
 	satelliteLayer.on('change:visible', onChangeVisible);
 	satelliteLayer.on('propertychange', layerInfoPlaylist);
@@ -1409,6 +1501,16 @@ const main = () => {
 	addEventListeners("#radarLayer > div");
 	addEventListeners("#lightningLayer > div");
 	addEventListeners("#observationLayer > div");
+
+	map.on('click', function(evt) {
+		displayFeatureInfo(evt.pixel);
+	});
+	
+	document.addEventListener('keydown', function (event) {
+		if (event.key === 'Control') {
+			document.getElementById('help').style.display = "block";
+		}
+	});
 
 	window.matchMedia("(prefers-color-scheme: dark)").addListener(function(x) {
 		if (x.matches) {
