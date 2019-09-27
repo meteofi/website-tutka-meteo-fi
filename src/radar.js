@@ -24,11 +24,13 @@ import WMSCapabilities from 'ol/format/WMSCapabilities.js';
 //import WMTSCapabilities from 'ol/format/WMTSCapabilities.js';
 import { connect } from 'mqtt';
 import { transformExtent } from 'ol/proj';
+import { isNumber } from 'util';
 //import Worker from './wmscapabilities.worker.js'; 
 
 var options = {
-	defaultRadarLayer: 'radar_finland_dbz',
-	defaultLightningLayer: 'lightning',
+	defaultRadarLayer: 'radar:radar_finland_dbz',
+	defaultLightningLayer: 'observation:lightning',
+	defaultObservationLayer: 'observation:air_temperature',
 	rangeRingSpacing: 50,
 	radialSpacing: 30,
 	frameRate: 2, // fps
@@ -48,27 +50,60 @@ var options = {
 		"s57": "https://julkinen.vayla.fi/s57/wms",
 	},
 	wmsServerConfiguration: {
+		'meteo-radar': {
+			url: 'https://wms.meteo.fi/geoserver/wms',
+			namespace: 'radar',
+			refresh: 60000,
+			category: "radarLayer"
+		},
+		'meteo-obs': {
+			url: 'https://geoserver.apps.meteo.fi/geoserver/wms',
+			namespace: 'observation',
+			refresh: 300000,
+			category: "observationLayer"
+		},
+		'eumetsat1': {
+			url: 'https://eumetview.eumetsat.int/geoserv/meteosat/msg_eview/wms',
+			refresh: 300000,
+			category: "satelliteLayer",
+			attribution: 'EUMETSAT'
+		},
+		'eumetsat2': {
+			url: 'https://eumetview.eumetsat.int/geoserv/meteosat/msg_convection/wms',
+			refresh: 300000,
+			category: "satelliteLayer",
+			attribution: 'EUMETSAT'
+		},
+		'eumetsat3': {
+			url: 'https://eumetview.eumetsat.int/geoserv/meteosat/msg_naturalenhncd/wms',
+			refresh: 300000,
+			category: "satelliteLayer",
+			attribution: 'EUMETSAT'
+		},
 		bs: {
 			url: 'http://smartmet.bahamasweather.org.bs:8080/wms',
 			namespace: 'bs:radar',
 			refresh: 60000,
-			category: "radarLayer"
+			category: "radarLayer",
+			disabled: false
 		},
 		ca: {
 			url: 'https://geo.weather.gc.ca/geomet/',
 			layer: 'RADAR_1KM_RDBR',
-			refresh: 60000,
-			category: "radarLayer"
+			refresh: 300000,
+			category: 'radarLayer'
 		},
 		de: {
 			url: 'https://maps.dwd.de/geoserver/dwd/RX-Produkt/wms',
 			refresh: 60000,
-			category: "radarLayer"
+			category: 'radarLayer',
+			attribution: 'MET Norway'
 		},
 		nl: {
 			url: 'https://geoservices.knmi.nl/cgi-bin/RADNL_OPER_R___25PCPRR_L3.cgi',
 			refresh: 60000,
-			category: "radarLayer"
+			category: 'radarLayer',
+			attribution: 'KNMI'
 		},
 /* 		no: {
 			url: 'https://thredds.met.no/thredds/wms/remotesensing/reflectivity-nordic/2019/09/yrwms-nordic.mos.pcappi-0-dbz.noclass-clfilter-novpr-clcorr-block.laea-yrwms-1000.20190925.nc',
@@ -406,7 +441,7 @@ var observationLayer = new ImageLayer({
 	visible: VISIBLE.has("observationLayer"),
 	source: new ImageWMS({
 		url: options.wmsServer.meteo.test,
-		params: { 'FORMAT': 'image/png8', 'LAYERS': 'air_temperature' },
+		params: { 'FORMAT': 'image/png8', 'LAYERS': options.defaultObservationLayer },
 		ratio: options.imageRatio,
 		serverType: 'geoserver'
 	})
@@ -548,8 +583,12 @@ function onChangeAccuracyGeometry(event) {
 function onChangeSpeed(event) {
 	debug('Speed changed.');
 	let speed = event.target.getSpeed();
-	document.getElementById("currentSpeed").style.display = 'block';
-	document.getElementById("currentSpeedValue").innerHTML = Math.round(speed*3600/1000);
+	if (isNumber(speed)) {
+		document.getElementById("currentSpeed").style.display = 'block';
+		document.getElementById("currentSpeedValue").innerHTML = Math.round(speed * 3600 / 1000);
+	} else {
+		document.getElementById("currentSpeed").style.display = 'none';
+	}
 }
 
 function onChangePosition(event) {
@@ -1270,37 +1309,6 @@ function updateLayerSelection(ollayer,type,filter) {
 	})
 }
 
-function readWMSCapabilities(url,timeout) {
-	var parser = new WMSCapabilities();
-	debug("Request WMS Capabilities " + url);
-	gtag('event', 'getCapabilities', {
-		'event_category': 'WMS',
-		'event_label': url
-	});
-	fetch(url + '?SERVICE=WMS&version=1.3.0&request=GetCapabilities').then(function (response) {
-		return response.text();
-	}).then(function (text) {
-		debug("Received WMS Capabilities " + url);
-		var result = parser.read(text);
-		getLayers(result.Capability.Layer.Layer,url);
-		debug(layerInfo);
-		satelliteLayer.set('info',layerInfo[satelliteLayer.getSource().getParams().LAYERS])
-		radarLayer.set('info',layerInfo[radarLayer.getSource().getParams().LAYERS])
-		lightningLayer.set('info',layerInfo[lightningLayer.getSource().getParams().LAYERS])
-		observationLayer.set('info',layerInfo[observationLayer.getSource().getParams().LAYERS])
-		updateLayerSelection(satelliteLayer,"satellite","msg_");
-		updateLayerSelection(observationLayer,"observation","_tempe");
-		updateLayerSelection(radarLayer,"radar","radar_");
-		//updateLayerSelection(radarLayer,"etop","etop_");
-		//updateLayerSelection(radarLayer,"hclass","_hclass");
-		updateLayerSelection(lightningLayer,"lightning","lightning");
-		if (IS_FOLLOWING) {
-			setTime('last');
-		}
-	});
-	setTimeout(function() {readWMSCapabilities(url,timeout)}, timeout);
-}
-
 function getWMSCapabilities(wms) {
 	var parser = new WMSCapabilities();
 	let namespace = wms.namespace ? '&namespace=' + wms.namespace : '';
@@ -1322,7 +1330,7 @@ function getWMSCapabilities(wms) {
 		lightningLayer.set('info', layerInfo[lightningLayer.getSource().getParams().LAYERS])
 		observationLayer.set('info', layerInfo[observationLayer.getSource().getParams().LAYERS])
 		updateLayerSelection(satelliteLayer, "satellite", "msg_");
-		updateLayerSelection(observationLayer, "observation", "_tempe");
+		updateLayerSelection(observationLayer, "observation", "observation:");
 		updateLayerSelection(radarLayer, "radar", "radar_");
 		updateLayerSelection(lightningLayer, "lightning", "lightning");
 		if (IS_FOLLOWING) {
@@ -1458,17 +1466,11 @@ const main = () => {
 	}
 
 	updateClock();
-	readWMSCapabilities(options.wmsServer.meteo.test, 300000);
-	readWMSCapabilities(options.wmsServer.meteo.radar, 60000);
-//	readWMSCapabilities(options.wmsServer.dwdradar, 60000);
-//	readWMSCapabilities(options.wmsServer.bdom, 60000);
-//	readWMSCapabilities(options.wmsServer.vnmha, 60000);
-	readWMSCapabilities(options.wmsServer.eumetsat, 300000);
-	readWMSCapabilities(options.wmsServer.eumetsat2, 300000);
-	readWMSCapabilities(options.wmsServer.eumetsat3, 300000);
 
 	Object.keys(options.wmsServerConfiguration).forEach((item) => {
-		getWMSCapabilities(options.wmsServerConfiguration[item]);
+		if (!options.wmsServerConfiguration[item].disabled) {
+			getWMSCapabilities(options.wmsServerConfiguration[item]);
+		}
 	});
 	
 	setButtonStates();
