@@ -343,6 +343,10 @@ html, body {
     overflow: scroll;
   }
 
+  .modal-content > div {
+    background-color: var(--dark-theme-overlay-02dp);
+  }
+
 
   
   /* The Close Button */
@@ -426,6 +430,7 @@ html, body {
 .styles {
   display: flex;
   flex-direction: row;
+  overflow-x: auto;
 }
 
 .styles > div {

@@ -54,30 +54,38 @@ var options = {
 			url: 'https://wms.meteo.fi/geoserver/wms',
 			namespace: 'radar',
 			refresh: 60000,
-			category: "radarLayer"
+			category: 'radarLayer',
+			attribution: 'FMI (CC-BY-4.0)'
 		},
 		'meteo-obs': {
 			url: 'https://geoserver.apps.meteo.fi/geoserver/wms',
 			namespace: 'observation',
 			refresh: 300000,
-			category: "observationLayer"
+			category: 'observationLayer',
+			attribution: 'FMI (CC-BY-4.0)'
 		},
 		'eumetsat1': {
 			url: 'https://eumetview.eumetsat.int/geoserv/meteosat/msg_eview/wms',
 			refresh: 300000,
 			category: "satelliteLayer",
+			title: 'Meteosat pilvialueet yö/päivä',
+			abstract: 'Päivällä alapilvet näkyvät keltaisen sävyissä ja korkeat pilvet sinertävinä. Yöllä sinertävässä infrapunakuvassa kylmät pilvet näkyvät kirkaina.',
 			attribution: 'EUMETSAT'
 		},
 		'eumetsat2': {
 			url: 'https://eumetview.eumetsat.int/geoserv/meteosat/msg_convection/wms',
 			refresh: 300000,
 			category: "satelliteLayer",
+			title: 'Konvektiopilvet',
+			abstract: 'Vaaraa aiheuttavat konvektiiviset rajuilmat näkyvät kuvassa kirkkaan keltaisena. Ukkospilven alasimen läpäisevät huiput näkyvät kuvassa kirkkaan vaalean punaisena.',
 			attribution: 'EUMETSAT'
 		},
 		'eumetsat3': {
 			url: 'https://eumetview.eumetsat.int/geoserv/meteosat/msg_naturalenhncd/wms',
 			refresh: 300000,
 			category: "satelliteLayer",
+			title: 'Meteosat pilvialueet',
+			abstract: 'Vesipilvet näkyvät kuvassa vaaleina, jäiset valkoisina, kasvillisuus vihreänä, maa ruskeana ja meri mustana.',
 			attribution: 'EUMETSAT'
 		},
 		bs: {
@@ -85,6 +93,7 @@ var options = {
 			namespace: 'bs:radar',
 			refresh: 60000,
 			category: "radarLayer",
+			attribution: 'BDOM',
 			disabled: false
 		},
 		ca: {
@@ -97,7 +106,7 @@ var options = {
 			url: 'https://maps.dwd.de/geoserver/dwd/RX-Produkt/wms',
 			refresh: 60000,
 			category: 'radarLayer',
-			attribution: 'MET Norway'
+			attribution: 'Deutscher Wetterdienst'
 		},
 		nl: {
 			url: 'https://geoservices.knmi.nl/cgi-bin/RADNL_OPER_R___25PCPRR_L3.cgi',
@@ -114,10 +123,13 @@ var options = {
 			url: 'https://vn.meteo.fi/wms',
 			namespace: 'vnmha:radar',
 			refresh: 60000,
-			category: "radarLayer"
+			category: "radarLayer",
+			attribution: 'VNMHA'
 		}
 	}
 }
+
+//http://geoservices.knmi.nl/cgi-bin/inspire/Actuele10mindataKNMIstations.cgi?service=wms&request=getCapabilities
 
 var DEBUG = false;
 var metLatitude = localStorage.getItem("metLatitude")
@@ -1000,10 +1012,14 @@ function layerInfoPlaylist(event) {
 				div.addEventListener('click', function () { layer.setLayerStyle(style.Name) });
 				parent.appendChild(div);
 			});
+		} else {
+			document.getElementById(name + 'Styles').innerHTML = "";
 		}
+	} else {
+		document.getElementById(name + 'Styles').innerHTML = "";
 	}
 
-	if (typeof info.title !== "") {
+	if (typeof info.title !== "undefined") {
 		document.getElementById(name + 'Title').innerHTML = info.title;
 	} else {
 		document.getElementById(name + 'Title').innerHTML = "";
@@ -1323,7 +1339,7 @@ function getWMSCapabilities(wms) {
 	}).then(function (text) {
 		debug("Received WMS Capabilities " + wms.url);
 		var result = parser.read(text);
-		getLayers(result.Capability.Layer.Layer, wms.url);
+		getLayers(result.Capability.Layer.Layer, wms);
 		debug(layerInfo);
 		satelliteLayer.set('info', layerInfo[satelliteLayer.getSource().getParams().LAYERS])
 		radarLayer.set('info', layerInfo[radarLayer.getSource().getParams().LAYERS])
@@ -1340,29 +1356,41 @@ function getWMSCapabilities(wms) {
 	setTimeout(function () { getWMSCapabilities(wms) }, wms.refresh);
 }
 
-function getLayers(parentlayer,url) {
+function getLayers(parentlayer,wms) {
 	let products = {}
 	parentlayer.forEach((layer) => {
 		if (Array.isArray(layer.Layer)) {
-			getLayers(layer.Layer,url)
+			getLayers(layer.Layer,wms)
 		} else {
-			layerInfo[layer.Name] = getLayerInfo(layer,url)
+			layerInfo[layer.Name] = getLayerInfo(layer,wms)
 		}
 	})
 	return products;
 }
 
-function getLayerInfo(layer,url) {
+function getLayerInfo(layer,wms) {
 	let product =
 	{
-		url: url,
-		title: layer.Title,
-		layer: layer.Name,
-		abstract: layer.Abstract
+		url: wms.url,
+		layer: layer.Name
+	}
+
+	if (typeof wms.title !== "undefined") {
+		product.title = wms.title;
+	} else {
+		product.title = layer.Title;
+	}
+
+	if (typeof wms.abstract !== "undefined") {
+		product.abstract = wms.abstract;
+	} else {
+		product.abstract = layer.Abstract;
 	}
 
 	if (typeof layer.Attribution !== "undefined") {
-		product.attribution = layer.Attribution
+		product.attribution = layer.Attribution;
+	} else if (typeof wms.attribution !== "undefined") {
+		product.attribution = {Title: wms.attribution};
 	}
 
 	if (typeof layer.Dimension !== "undefined") {
