@@ -164,7 +164,7 @@ i.material-icons:before{display:none;}
     padding: 0px;
     padding-top: env(safe-area-inset-top);
     padding-left: env(safe-area-inset-left);
-    overflow-y: scroll;
+    overflow-y: auto;
 }
 
 .infoItem {
