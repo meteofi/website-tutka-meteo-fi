@@ -148,9 +148,9 @@ var layerInfo = {};
 const client  = connect('wss://meri.digitraffic.fi:61619/mqtt',{username: 'digitraffic', password: 'digitrafficPassword'});
 var trackedVessels = {'230059770': {}, '230994270': {}, '230939100': {}, '230051170': {}, '230059740': {}, '230108850': {}, '230937480': {}, '230051160': {}, '230983250': {}, '230012240': {}, '230980890': {}, '230061400': {}, '230059760': {}, '230005610': {}, '230987580': {}, '230983340': {}, '230111580': {}, '230059750': {}, '230994810': {}, '230993590': {}, '230051150': {} };
 
-document.ontouchmove = function(e){ 
-	e.preventDefault(); 
-}
+//document.ontouchmove = function(e){ 
+//	e.preventDefault(); 
+//}
 // STATUS Variables
 var VISIBLE = localStorage.getItem("VISIBLE")
 	? new Set(JSON.parse(localStorage.getItem("VISIBLE")))
@@ -1144,7 +1144,7 @@ document.getElementById('playlistButton').addEventListener('click', function() {
 	debug("playlist");
 	var elem = document.getElementById("playList");
 	if (elem.style.bottom === '0px') {
-		elem.style.bottom = '-600px';
+		elem.style.bottom = '-650px';
 	} else {
 		elem.style.bottom = '0px';
 	}
@@ -1156,7 +1156,7 @@ window.addEventListener('click', function (e) {
 		if (document.getElementById('playlistButton').contains(e.target)) return
 		var elem = document.getElementById("playList");
 		if (elem.style.bottom === '0px') {
-			elem.style.bottom = '-600px';
+			elem.style.bottom = '-650px';
 		} 
 	}
 });
