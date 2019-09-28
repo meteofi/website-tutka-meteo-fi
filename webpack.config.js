@@ -59,6 +59,10 @@ module.exports = {
                 handler: 'StaleWhileRevalidate'
             },
             {
+                urlPattern: new RegExp('radar.css'),
+                handler: 'StaleWhileRevalidate'
+            },
+            {
                 urlPattern: new RegExp('https://fonts.gstatic.com/'),
                 handler: 'StaleWhileRevalidate'
             },
