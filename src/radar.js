@@ -94,7 +94,7 @@ var options = {
 			refresh: 60000,
 			category: "radarLayer",
 			attribution: 'BDOM',
-			disabled: false
+			disabled: true
 		},
 		ca: {
 			url: 'https://geo.weather.gc.ca/geomet/',
