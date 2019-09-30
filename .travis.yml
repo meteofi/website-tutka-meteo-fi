@@ -5,6 +5,7 @@ cache:
   directories:
   - node_modules
 script:
+- openssl aes-256-cbc -K $encrypted_3e13c07ef7b7_key -iv $encrypted_3e13c07ef7b7_iv -in .well-known/assetlinks.json.enc -out assetlinks.json -d
 - npm run build
 deploy:
   - provider: firebase
