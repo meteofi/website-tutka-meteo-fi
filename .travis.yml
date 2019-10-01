@@ -5,8 +5,7 @@ cache:
   directories:
   - node_modules
 script:
-- mkdir -p dist/.well-known
-- curl -o dist/.well-known/assetlinks.json https://meteo.fi/assetlinks.json
+- curl -o dist/assetlinks.json https://meteo.fi/assetlinks.json
 - npm run build
 deploy:
   - provider: firebase
