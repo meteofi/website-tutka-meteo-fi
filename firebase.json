@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "appAssociation": "FALSE",
     "public": "dist",
     "ignore": [
       "firebase.json",
