@@ -1,20 +1,12 @@
 {
   "hosting": {
-    "appAssociation": "NONE",
     "public": "dist",
     "ignore": [
       "firebase.json",
       "**/.git/**",
       "**/.vscode/**",
       "**/*~",
-      "**/.*",
       "**/node_modules/**"
-    ],
-    "rewrites": [
-      {
-        "source": "/assetlinks.json",
-        "destination": "/.well-known/assetlinks.json"
-      }
     ]
   }
 }
