@@ -238,7 +238,7 @@ i.material-icons:before{display:none;}
     }
 }
 
-#infoItemUpdate, #radarPlayTxt, #layersButtonD, #infoItemMap {
+#infoItemUpdate, #radarPlayTxt, #layersButton, #infoItemMap {
     display: none;
 }
 
