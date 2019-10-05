@@ -131,7 +131,7 @@ var options = {
 
 //http://geoservices.knmi.nl/cgi-bin/inspire/Actuele10mindataKNMIstations.cgi?service=wms&request=getCapabilities
 
-var DEBUG = false;
+var DEBUG = true;
 var metLatitude = localStorage.getItem("metLatitude")
 	? localStorage.getItem("metLatitude")
 	: 60.2706;
@@ -991,6 +991,30 @@ var displayFeatureInfo = function (pixel) {
 
 };
 
+function createLayerInfoElement(content,style) {
+	let div = document.createElement('div');
+	div.classList.add(style);
+	if (typeof content !== "undefined") {
+		div.innerHTML = content;
+	} else {
+		div.innerHTML = '';
+	}
+	return div;
+}
+
+function layerInfoDiv(wmslayer) {
+	let info = layerInfo[wmslayer];
+	let div = document.createElement('div');
+	div.id = wmslayer + 'Meta';
+	div.setAttribute('data-layer-name', wmslayer);
+
+	div.appendChild(createLayerInfoElement(info.title,'title'));
+	div.appendChild(createLayerInfoElement(info.abstract,'abstract'));
+	div.appendChild(createLayerInfoElement(info.attribution.Title,'attribution'));
+
+	return div;
+}
+
 function layerInfoPlaylist(event) {
 	const layer = event.target;
 	const name = layer.get('name')
@@ -1042,17 +1066,18 @@ function layerInfoPlaylist(event) {
 		resolution = '<div><i class="material-icons">av_timer</i> ' + (timestep > 60 ? (timestep / 60) + ' tuntia' : timestep + ' min') + '</div>'
 	}
 
-	var infof = '<h4><i class="material-icons">check_box</i>' + info.title + '</h4>'  + resolution + '<div><i class="material-icons">opacity</i> <label for="' + name + 'Slider"></label> <input type="range" min="1" max="100" value="' + opacity + '" class="slider" id="' + name + 'Slider"></div>';
+	document.getElementById(name + 'Opacity').innerHTML = '<label for="' + name + 'Slider"></label> <input type="range" min="1" max="100" value="' + opacity + '" class="slider" id="' + name + 'Slider"></input>';
+
 	if (layer.getVisible()) {
 		document.getElementById(name + 'Info').classList.remove("playListDisabled");
 	} else {
 		document.getElementById(name + 'Info').classList.add("playListDisabled");
 	}
-	//document.getElementById(name + 'Info').innerHTML = info;
-	// document.getElementById(name + 'Slider').addEventListener('input', function () {
-	// 	layer.setOpacity(event.target.value / 100);
-	// 	event.stopPropagation();
-	// });
+	
+	 document.getElementById(name + 'Slider').addEventListener('input', function (e) {
+	 	layer.setOpacity(e.target.value / 100);
+	 	event.stopPropagation();
+	 });
 }
 
 function onChangeVisible (event) {
@@ -1144,7 +1169,7 @@ document.getElementById('playlistButton').addEventListener('click', function() {
 	debug("playlist");
 	var elem = document.getElementById("playList");
 	if (elem.style.bottom === '0px') {
-		elem.style.bottom = '-650px';
+		elem.style.bottom = '-90vh';
 	} else {
 		elem.style.bottom = '0px';
 	}
@@ -1156,7 +1181,7 @@ window.addEventListener('click', function (e) {
 		if (document.getElementById('playlistButton').contains(e.target)) return
 		var elem = document.getElementById("playList");
 		if (elem.style.bottom === '0px') {
-			elem.style.bottom = '-650px';
+			elem.style.bottom = '-90vh';
 		} 
 	}
 });
@@ -1315,10 +1340,11 @@ document.addEventListener('keyup', function (event) {
 function updateLayerSelection(ollayer,type,filter) {
 	document.getElementById(type+"Layer-select").innerHTML="";
 	Object.keys(layerInfo).forEach((layer) => {
-		if (layerInfo[layer].layer.includes(filter)) { 
-			var div = document.createElement("div");
-			var resolution = Math.round(layerInfo[layer].time.resolution/60000);
-			div.innerHTML = '<h4>' + layerInfo[layer].title + '</h4><p>' + layerInfo[layer].abstract + '</p> (<i>' + (resolution > 60 ? (resolution / 60) + ' hours' : resolution + ' minutes') + '</i>)';
+		if (layerInfo[layer].layer.includes(filter)) {
+			let div = layerInfoDiv(layer); 
+			//var div = document.createElement("div");
+			//var resolution = Math.round(layerInfo[layer].time.resolution/60000);
+			//div.innerHTML = '<h4>' + layerInfo[layer].title + '</h4><p>' + layerInfo[layer].abstract + '</p> (<i>' + (resolution > 60 ? (resolution / 60) + ' hours' : resolution + ' minutes') + '</i>)';
 			div.onclick = function () { updateLayer(ollayer,layerInfo[layer].layer); };
 			document.getElementById(type+"Layer-select").appendChild(div);
 		}
