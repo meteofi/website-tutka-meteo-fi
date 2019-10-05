@@ -238,7 +238,7 @@ i.material-icons:before{display:none;}
     }
 }
 
-#infoItemUpdate, #radarPlayTxt, #layersButton, #infoItemMap {
+#infoItemUpdate, #radarPlayTxt, #layersButtonD, #infoItemMap {
     display: none;
 }
 
@@ -363,7 +363,7 @@ i.material-icons:before{display:none;}
     background-color: rgba(0,0,0,0.8);
     color: var(--dark-theme-on-surface);
     position: absolute;
-    bottom: -650px;
+    bottom: -90vh;
     left: 0;
     width: 100%;
     height: auto;
