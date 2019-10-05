@@ -7,6 +7,7 @@
   <link rel="preload" href="https://fonts.googleapis.com/icon?family=Material+Icons" as="style">
   <link rel="preload" href="https://fonts.googleapis.com/css?family=Roboto&display=swap" as="style">
   <link rel="preconnect" href="//wms.meteo.fi" crossorigin>
+  <link rel="preconnect" href="//vn.meteo.fi" crossorigin>
   <link rel="preconnect" href="//geoserver.apps.meteo.fi" crossorigin>
   <link rel="preconnect" href="//eumetview.eumetsat.int" crossorigin>
   <link rel="preconnect" href="//services.arcgisonline.com" crossorigin>
@@ -70,7 +71,7 @@
     </div>
     <div class="infoItem" id="infoItemObservation">
         <div class="infoLabel" id="infoLabelObservation">SÄÄHAVAINTO</div>
-        <div class="infoValue flexColumn" id="observationLayer"><div id="observationLayerOff" class="flexCell selected">OFF</div><div id="observation:air_temperature" class="flexCell">TMP</div><!--div id="observation:dew_point_temperature" class="flexCell">DPT</div--><div id="observation:wind_speed" class="flexCell">WIND</div></div>
+        <div class="infoValue flexColumn" id="observationLayer"><div id="observationLayerOff" class="flexCell selected">OFF</div><div id="observation:air_temperature" class="flexCell">TMP</div><div id="observation:dew_point_temperature" class="flexCell">DPT</div><div id="observation:wind_speed" class="flexCell">WIND</div></div>
       </div>
     <div class="infoItem" id="infoItemTime">
       <div class="infoLabel">AIKA</div>
@@ -115,6 +116,7 @@
           <div id="satelliteLayerName" class="name">Sääsatelliitti</div>
           <div id="satelliteLayerTitle" class="title">Sääsatelliitti</div>
           <div id="satelliteLayerAbstract" class="abstract"></div>
+          <div id="satelliteLayerOpacity" class="opacity"></div>
           <div id="satelliteLayerStyles" class="styles"></div>
           <div id="satelliteLayerAttribution" class="attribution">EUMETSAT</div>
         </div>
@@ -122,6 +124,7 @@
           <div id="radarLayerName" class="name">Säätutka</div>
           <div id="radarLayerTitle" class="title">Säätutka</div>
           <div id="radarLayerAbstract" class="abstract"></div>
+          <div id="radarLayerOpacity" class="opacity"></div>
           <div id="radarLayerStyles" class="styles"></div>
           <div id="radarLayerAttribution" class="attribution">FMI (CC-BY-4.0)</div>
         </div>
@@ -129,6 +132,7 @@
           <div id="lightningLayerName" class="name">Salamapaikannus</div>
           <div id="lightningLayerTitle" class="title">Salamapaikannus</div>
           <div id="lightningLayerAbstract" class="abstract"></div>
+          <div id="lightningLayerOpacity" class="opacity"></div>
           <div id="lightningLayerStyles" class="styles"></div>
           <div id="lightningLayerAttribution" class="attribution">FMI (CC-BY-4.0)</div>
         </div>
@@ -136,6 +140,7 @@
           <div id="observationLayerName" class="name">Säähavainto</div>
           <div id="observationLayerTitle" class="title">Säähavainto</div>
           <div id="observationLayerAbstract" class="abstract"></div>
+          <div id="observationLayerOpacity" class="opacity"></div>
           <div id="observationLayerStyles" class="styles"></div>
           <div id="observationLayerAttribution" class="attribution">FMI (CC-BY-4.0)</div>
         </div>
@@ -153,10 +158,6 @@
       <div id="satelliteLayer-select" class="layer-select"></div>
       <h2>Radar Composites</h2>
       <div id="radarLayer-select" class="layer-select"></div>
-      <!--h2>Echo Top</h2>
-      <div id="etopLayer-select" class="layer-select"></div>
-      <h2>Hydro Class</h2>
-      <div id="hclassLayer-select" class="layer-select"></div-->
       <h2>Surface Observations</h2>
       <div id="observationLayer-select" class="layer-select"></div>
       <h2>Lightning Observations</h2>
