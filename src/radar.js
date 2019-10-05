@@ -131,7 +131,7 @@ var options = {
 
 //http://geoservices.knmi.nl/cgi-bin/inspire/Actuele10mindataKNMIstations.cgi?service=wms&request=getCapabilities
 
-var DEBUG = true;
+var DEBUG = false;
 var metLatitude = localStorage.getItem("metLatitude")
 	? localStorage.getItem("metLatitude")
 	: 60.2706;
@@ -1066,7 +1066,7 @@ function layerInfoPlaylist(event) {
 		resolution = '<div><i class="material-icons">av_timer</i> ' + (timestep > 60 ? (timestep / 60) + ' tuntia' : timestep + ' min') + '</div>'
 	}
 
-	document.getElementById(name + 'Opacity').innerHTML = '<label for="' + name + 'Slider"></label> <input type="range" min="1" max="100" value="' + opacity + '" class="slider" id="' + name + 'Slider"></input>';
+	//document.getElementById(name + 'Opacity').innerHTML = '<label for="' + name + 'Slider"></label> <input type="range" min="1" max="100" value="' + opacity + '" class="slider" id="' + name + 'Slider"></input>';
 
 	if (layer.getVisible()) {
 		document.getElementById(name + 'Info').classList.remove("playListDisabled");
@@ -1074,10 +1074,10 @@ function layerInfoPlaylist(event) {
 		document.getElementById(name + 'Info').classList.add("playListDisabled");
 	}
 	
-	 document.getElementById(name + 'Slider').addEventListener('input', function (e) {
-	 	layer.setOpacity(e.target.value / 100);
-	 	event.stopPropagation();
-	 });
+	// document.getElementById(name + 'Slider').addEventListener('input', function (e) {
+	// 	layer.setOpacity(e.target.value / 100);
+	// 	event.stopPropagation();
+	// });
 }
 
 function onChangeVisible (event) {
