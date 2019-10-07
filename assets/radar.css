@@ -403,22 +403,22 @@ i.material-icons:before{display:none;}
 
 .name {
   color: var(--dark-medium-emphasis-text-color);
-  font-size: 12px;
+  font-size: 0.7em;
 }
 
 .title {
   color: var(--dark-theme-on-surface-color);
-  font-size: 24px;
+  font-size: 1.1em;
 }
 
 .abstract {
   color: var(--dark-high-emphasis-text-color);
-  font-size: 14px;
+  font-size: 0.8em;
 }
 
 .attribution {
   color: var(--dark-medium-emphasis-text-color);
-  font-size: 14px;
+  font-size: 0.8em;
 }
 
 .styles {
