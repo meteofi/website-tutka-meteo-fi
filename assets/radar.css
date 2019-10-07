@@ -470,5 +470,6 @@ i.material-icons:before{display:none;}
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
+  padding: 4px;
 }
 
