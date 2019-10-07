@@ -1,18 +1,18 @@
 {
   "short_name": "Säätutka",
-  "name": "Meteo.FI Säätutka ja ukkostutka",
+  "name": "Säätutka ja ukkostutka — Meteo.fi",
   "icons": [
     {
       "src": "radar-icon-192.png",
       "type": "image/png",
       "sizes": "192x192",
-      "purpose": "maskable"
+      "purpose": "maskable any"
     },
     {
       "src": "radar-icon-512.png",
       "type": "image/png",
       "sizes": "512x512",
-      "purpose": "maskable"
+      "purpose": "maskable any"
     }
   ],
   "start_url": "/index.html",
