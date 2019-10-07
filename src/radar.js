@@ -1308,7 +1308,6 @@ document.addEventListener('keyup', function (event) {
 	}
 
 	var key = event.key || event.keyCode;
-	debug(event);
 	if (key === ' ' || key === 'Space' || key === 32) {
 		skip_next();
 	} else if (key === ',' || key === 'Comma') {
@@ -1333,6 +1332,11 @@ document.addEventListener('keyup', function (event) {
 		toggleLayerVisibility(observationLayer);    
 	} else 	if (event.key === 'Control') {
 		document.getElementById('help').style.display = "none";
+	} else 	if (event.key === 'Home') {
+		stop();
+		setTime('last');
+	} else {
+		debug(event);
 	}
 
 });
