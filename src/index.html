@@ -66,7 +66,7 @@
     <div class="infoItem" id="infoItemRadar">
       <div class="infoLabel" id="infoLabelRadar">SÄÄTUTKA</div>
       <!--div class="infoValue" id="radarTxt"></div-->
-      <div class="infoValue flexColumn" id="radarLayer"><div id="radarLayerOff" class="flexCell">OFF</div><div id="radar:radar_finland_dbz" class="selected flexCell">DBZ</div><div id="radar:radar_finland_rr" class="flexCell">RATE</div><div id="RX-Produkt" class="flexCell">DE</div><!--div id="bs:radar:correctedreflectivity" class="flexCell">BS</div--><div id="vnmha:radar:comp_dbz" class="flexCell">VN</div><div id="RADNL_OPER_R___25PCPRR_L3_COLOR" class="flexCell">NL</div><div id="radar_usa_dbz" class="flexCell">US</div><div id="RADAR_1KM_RDBR" class="flexCell">CA</div></div>
+      <div class="infoValue flexColumn" id="radarLayer"><div id="radarLayerOff" class="flexCell">OFF</div><div id="radar:radar_finland_dbz" class="selected flexCell">DBZ</div><div id="radar:radar_finland_rr" class="flexCell">RATE</div><div id="RX-Produkt" class="flexCell">DE</div><!--div id="bs:radar:correctedreflectivity" class="flexCell">BS</div--><div id="vnmha:radar:comp_dbz" class="flexCell">VN</div><div id="RADNL_OPER_R___25PCPRR_L3_COLOR" class="flexCell">NL</div><div id="nexrad-n0q-wmst" class="flexCell">US</div><div id="RADAR_1KM_RDBR" class="flexCell">CA</div></div>
     </div>
     <div class="infoItem" id="infoItemLightning">
       <div class="infoLabel" id="infoLabelLightning">SALAMAT</div>
@@ -165,22 +165,9 @@
         <tr><td>4</td><td>havainnot päälle/pois</td></tr>
       </table>
   </div>
+
+  <div id="layers" class="layerSelect"></div>
   
-<!-- The Modal -->
-<div id="myModal" class="modal">
-    <!-- Modal content -->
-    <div id="modal-content" class="modal-content">
-      <span class="close">&times;</span>
-      <h2>Satellite</h2>
-      <div id="satelliteLayer-select" class="layer-select"></div>
-      <h2>Radar Composites</h2>
-      <div id="radarLayer-select" class="layer-select"></div>
-      <h2>Surface Observations</h2>
-      <div id="observationLayer-select" class="layer-select"></div>
-      <h2>Lightning Observations</h2>
-      <div id="lightningLayer-select" class="layer-select"></div>
-    </div>
-  </div>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {

@@ -76,7 +76,7 @@ var options = {
 			url: 'https://eumetview.eumetsat.int/geoserv/meteosat/msg_convection/wms',
 			refresh: 300000,
 			category: "satelliteLayer",
-			title: 'Konvektiopilvet',
+			title: 'Meteosat konvektiopilvet',
 			abstract: 'Vaaraa aiheuttavat konvektiiviset rajuilmat näkyvät kuvassa kirkkaan keltaisena. Ukkospilven alasimen läpäisevät huiput näkyvät kuvassa kirkkaan vaalean punaisena.',
 			attribution: 'EUMETSAT'
 		},
@@ -86,6 +86,14 @@ var options = {
 			category: "satelliteLayer",
 			title: 'Meteosat pilvialueet',
 			abstract: 'Vesipilvet näkyvät kuvassa vaaleina, jäiset valkoisina, kasvillisuus vihreänä, maa ruskeana ja meri mustana.',
+			attribution: 'EUMETSAT'
+		},
+		'eumetsat4': {
+			url: 'https://eumetview.eumetsat.int/geoserv/meteosat/msg_airmass/wms',
+			refresh: 300000,
+			category: "satelliteLayer",
+			title: 'Meteosat ilmamassat',
+			abstract: 'Kylmä polaari ilma näkyy kuvassa violettina, lämmin trooppinen ilma vihreänä, kuiva ilma punaisena sekä paksut korkeat pilvet valkoisena.',
 			attribution: 'EUMETSAT'
 		},
 		bs: {
@@ -125,6 +133,12 @@ var options = {
 			refresh: 60000,
 			category: "radarLayer",
 			attribution: 'VNMHA'
+		},
+		noaa: {
+			url: 'https://mesonet.agron.iastate.edu/cgi-bin/wms/nexrad/n0q-t.cgi',
+			refresh: 60000,
+			category: "radarLayer",
+			attribution: 'NOAA'
 		}
 	}
 }
@@ -155,6 +169,10 @@ var trackedVessels = {'230059770': {}, '230994270': {}, '230939100': {}, '230051
 var VISIBLE = localStorage.getItem("VISIBLE")
 	? new Set(JSON.parse(localStorage.getItem("VISIBLE")))
 	: new Set(["radarLayer"]);
+
+var ACTIVE = localStorage.getItem("ACTIVE")
+	? new Set(JSON.parse(localStorage.getItem("ACTIVE")))
+	: new Set([options.defaultRadarLayer]);
 
 var IS_DARK = localStorage.getItem("IS_DARK")
 	? JSON.parse(localStorage.getItem("IS_DARK"))
@@ -667,15 +685,35 @@ function gtag() {
 	}
 }
 
+function getActiveLayers() {
+	let layers = [];
+	if (satelliteLayer.getVisible()) {
+		layers.push(satelliteLayer.getSource().getParams().LAYERS);
+	}
+	if (radarLayer.getVisible()) {
+		layers.push(radarLayer.getSource().getParams().LAYERS);
+	}
+	if (lightningLayer.getVisible()) {
+		layers.push(lightningLayer.getSource().getParams().LAYERS);
+	}
+	if (observationLayer.getVisible()) {
+		layers.push(observationLayer.getSource().getParams().LAYERS);
+	}
+	return layers;
+}
+
 function updateCanonicalPage() {
 	let page = "";
+	let title = "Meteo.FI ";
 	if (satelliteLayer.getVisible()) {
 		let split = satelliteLayer.getSource().getParams().LAYERS.split(":");
-		page = page + "/" + ((split.length > 1) ? split[1] : split[0])
+		page = page + "/" + ((split.length > 1) ? split[1] : split[0]);
+		title = title + ' / ' + "Sääsatelliitti";
 	}
 	if (radarLayer.getVisible()) {
 		let split = radarLayer.getSource().getParams().LAYERS.split(":");
-		page = page + "/" + ((split.length > 1) ? split[1] : split[0])
+		page = page + "/" + ((split.length > 1) ? split[1] : split[0]);
+		title = title + ' / ' + 'Säätutka';
 	}
 	if (lightningLayer.getVisible()) {
 		let split = lightningLayer.getSource().getParams().LAYERS.split(":");
@@ -686,6 +724,8 @@ function updateCanonicalPage() {
 		page = page + "/" + ((split.length > 1) ? split[1] : split[0])
 	}
 	debug("Set page: " + page);
+	//debug("Set title: " + title);
+	//document.title = title;
 	gtag('config', 'UA-23910741-3', { 'page_path': page });
 }
 
@@ -918,6 +958,7 @@ function updateLayer(layer, wmslayer) {
 	} else {
 		layer.setVisible(true);
 	}
+	updateLayerSelectionSelected();
 }
 
 function addEventListeners(selector) {
@@ -1005,13 +1046,19 @@ function createLayerInfoElement(content,style) {
 function layerInfoDiv(wmslayer) {
 	let info = layerInfo[wmslayer];
 	let div = document.createElement('div');
+	var resolution = Math.round(info.time.resolution/60000);
+
 	div.id = wmslayer + 'Meta';
 	div.setAttribute('data-layer-name', wmslayer);
+	div.setAttribute('data-layer-category', info.category);
 
 	div.appendChild(createLayerInfoElement(info.title,'title'));
-	div.appendChild(createLayerInfoElement(info.abstract,'abstract'));
-	div.appendChild(createLayerInfoElement(info.attribution.Title,'attribution'));
 
+
+	div.appendChild(createLayerInfoElement('<img class="responsiveImage" src="' +info.url + '?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&FORMAT=image%2Fpng8&TRANSPARENT=true&CRS=EPSG%3A3067&STYLES=&WIDTH=300&HEIGHT=300&BBOX=-183243.50620644476%2C6575998.62606195%2C1038379.8685031873%2C7797622.000771582&LAYERS=' + info.layer + '">','preview'));
+	div.appendChild(createLayerInfoElement(info.abstract,'abstract'));
+	div.appendChild(createLayerInfoElement((resolution > 60 ? (resolution / 60) + ' tuntia ' : resolution + ' minuuttia ')+moment(info.time.end).format(),'time'));
+	div.appendChild(createLayerInfoElement(info.attribution.Title,'attribution'));
 	return div;
 }
 
@@ -1103,7 +1150,8 @@ function onChangeVisible (event) {
 		document.getElementById(name+"Button").classList.remove("selectedButton");
 		document.getElementById(name+'Info').classList.add("playListDisabled");
 	}
-	updateCanonicalPage()
+	updateCanonicalPage();
+	updateLayerSelectionSelected();
 }
 
 function onChangeSlider () {
@@ -1177,6 +1225,7 @@ document.getElementById('playlistButton').addEventListener('click', function() {
 
 // Close playlist if clicked outside of playlist
 window.addEventListener('click', function (e) {
+	// playlist
 	if (!document.getElementById('playList').contains(e.target)) {
 		if (document.getElementById('playlistButton').contains(e.target)) return
 		var elem = document.getElementById("playList");
@@ -1184,6 +1233,16 @@ window.addEventListener('click', function (e) {
 			elem.style.bottom = '-90vh';
 		} 
 	}
+
+	// Layers
+	if (!document.getElementById('layers').contains(e.target)) {
+		if (document.getElementById('layersButton').contains(e.target)) return
+		var elem = document.getElementById("layers");
+		//if (elem.style.display === 'block') {
+			elem.style.display = 'none';
+		//} 
+	}
+
 });
 
 function setButtonStates() {
@@ -1280,6 +1339,15 @@ document.getElementById('observationLayerTitle').addEventListener('click', funct
 	toggleLayerVisibility(observationLayer);
 });
 
+document.getElementById('layersButton').addEventListener('click', function() {
+	let div = document.getElementById('layers');
+	if (div.style.display === 'none') {
+		div.style.display = 'grid';
+	} else {
+		div.style.display = 'none';
+	}
+});
+
 // document.addEventListener('click', function (event) {
 // 	debug(event);
 // 	if (event.target.closest('#satelliteLayerButton')) {
@@ -1342,17 +1410,46 @@ document.addEventListener('keyup', function (event) {
 });
 
 function updateLayerSelection(ollayer,type,filter) {
-	document.getElementById(type+"Layer-select").innerHTML="";
-	Object.keys(layerInfo).forEach((layer) => {
+	let parent = document.getElementById('layers');
+	document.querySelectorAll('.'+type+'LayerSelect').forEach(function(child) {
+    parent.removeChild(child);
+	});
+	Object.keys(layerInfo).sort().forEach((layer) => {
 		if (layerInfo[layer].layer.includes(filter)) {
 			let div = layerInfoDiv(layer); 
 			//var div = document.createElement("div");
 			//var resolution = Math.round(layerInfo[layer].time.resolution/60000);
 			//div.innerHTML = '<h4>' + layerInfo[layer].title + '</h4><p>' + layerInfo[layer].abstract + '</p> (<i>' + (resolution > 60 ? (resolution / 60) + ' hours' : resolution + ' minutes') + '</i>)';
-			div.onclick = function () { updateLayer(ollayer,layerInfo[layer].layer); };
-			document.getElementById(type+"Layer-select").appendChild(div);
+			div.onclick = function () { 
+				if (ollayer.getVisible() && getActiveLayers().includes(layer)) {
+					ollayer.setVisible(false);
+				} else {
+					updateLayer(ollayer,layerInfo[layer].layer);
+				} 
+			};
+			div.classList.add(type+'LayerSelect');
+			div.classList.add('layerSelectItem');
+			if (ollayer.get('info').layer === layer) {
+				div.classList.add("selectedLayer");
+			}
+			//document.getElementById(type+"Layer-select").appendChild(div);
+			document.getElementById("layers").appendChild(div);
 		}
-	})
+	});
+	updateLayerSelectionSelected();
+}
+
+function updateLayerSelectionSelected() {
+	debug("UPDATE Layer Selection Selected called");
+	let activeLayers = getActiveLayers();
+	document.querySelectorAll('.layerSelectItem').forEach(function (div) {
+		div.classList.remove("selectedLayer");
+		if (VISIBLE.has(div.getAttribute('data-layer-category'))) {
+			if (activeLayers.includes(div.getAttribute('data-layer-name'))) {
+				div.classList.add("selectedLayer");
+			}
+		}
+	});
 }
 
 function getWMSCapabilities(wms) {
@@ -1375,10 +1472,22 @@ function getWMSCapabilities(wms) {
 		radarLayer.set('info', layerInfo[radarLayer.getSource().getParams().LAYERS])
 		lightningLayer.set('info', layerInfo[lightningLayer.getSource().getParams().LAYERS])
 		observationLayer.set('info', layerInfo[observationLayer.getSource().getParams().LAYERS])
-		updateLayerSelection(satelliteLayer, "satellite", "msg_");
-		updateLayerSelection(observationLayer, "observation", "observation:");
-		updateLayerSelection(radarLayer, "radar", "radar_");
-		updateLayerSelection(lightningLayer, "lightning", "lightning");
+		switch (wms.category) {
+			case 'satelliteLayer':
+				updateLayerSelection(satelliteLayer, "satellite", "msg_");
+				break;
+			case 'observationLayer':
+				updateLayerSelection(observationLayer, "observation", "observation:");
+				break;
+			case 'radarLayer':
+				updateLayerSelection(radarLayer, "radar", "radar_finland");
+				break;
+			case 'lightningLayer':
+				updateLayerSelection(lightningLayer, "lightning", "lightning");
+				break;
+			default:
+				debug('No wms.category set');
+		}
 		if (IS_FOLLOWING) {
 			setTime('last');
 		}
@@ -1401,8 +1510,15 @@ function getLayers(parentlayer,wms) {
 function getLayerInfo(layer,wms) {
 	let product =
 	{
+		category: wms.category,
 		url: wms.url,
 		layer: layer.Name
+	}
+
+	if (typeof layer.CRS !== "undefined") {
+		product.crs = layer.CRS[0];
+	} else {
+		product.crs = 'EPSG:4326';
 	}
 
 	if (typeof wms.title !== "undefined") {
@@ -1485,30 +1601,30 @@ function getTimeDimension(dimensions) {
 }
 
 // Get the modal
-var modal = document.getElementById("myModal");
+//var modal = document.getElementById("myModal");
 
 // Get the button that opens the modal
 var btn = document.getElementById("layersButton");
 
 // Get the <span> element that closes the modal
-var span = document.getElementsByClassName("close")[0];
+//var span = document.getElementsByClassName("close")[0];
 
 // When the user clicks on the button, open the modal 
-btn.onclick = function() {
-  modal.style.display = "block";
-}
+//btn.onclick = function() {
+//  modal.style.display = "block";
+//}
 
 // When the user clicks on <span> (x), close the modal
-span.onclick = function() {
-  modal.style.display = "none";
-}
+//span.onclick = function() {
+//  modal.style.display = "none";
+//}
 
 // When the user clicks anywhere outside of the modal, close it
-window.onclick = function (event) {
-	if (event.target == modal) {
-		modal.style.display = "none";
-	}
-}
+//window.onclick = function (event) {
+//	if (event.target == modal) {
+//		modal.style.display = "none";
+//	}
+//}
 
 // MAIN
 const main = () => {
