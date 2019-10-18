@@ -190,13 +190,6 @@ i.material-icons:before{display:none;}
     padding: 5px;
 }
 
-.layer-select {
-  display: grid;
-  grid-column-gap: 50px;
-  grid-row-gap: 25px;
-  grid-template-columns: auto auto auto;
-}
-
 @media screen {
     #infopanel {
         top: 0px;
@@ -231,14 +224,6 @@ i.material-icons:before{display:none;}
     }
     #radarDateValue, #currentDateValue, #currentUTCTimeValue {
         display: none;
-    }
-    .layer-select {
-      display: grid;
-      grid-template-columns: auto;
-    }
-    #layers {
-      display: grid;
-      grid-template-columns: auto;
     }
 }
 

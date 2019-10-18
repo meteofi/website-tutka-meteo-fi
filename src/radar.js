@@ -93,7 +93,7 @@ var options = {
 			refresh: 300000,
 			category: "satelliteLayer",
 			title: 'Meteosat ilmamassat',
-			abstract: 'Kylmä polaari ilma näkyy kuvassa violettina, lämmin trooppinen ilma vihreänä, kuiva ilma punaisena sekä paksut korkeat pilvet valkoisena.',
+			abstract: 'Kylmä polaarinen ilma näkyy kuvassa violettina, lämmin trooppinen ilma vihreänä, kuiva ilma punaisena sekä paksut korkeat pilvet valkoisena.',
 			attribution: 'EUMETSAT'
 		},
 		bs: {
@@ -145,7 +145,7 @@ var options = {
 
 //http://geoservices.knmi.nl/cgi-bin/inspire/Actuele10mindataKNMIstations.cgi?service=wms&request=getCapabilities
 
-var DEBUG = false;
+var DEBUG = true;
 var metLatitude = localStorage.getItem("metLatitude")
 	? localStorage.getItem("metLatitude")
 	: 60.2706;
@@ -1057,7 +1057,7 @@ function layerInfoDiv(wmslayer) {
 
 	div.appendChild(createLayerInfoElement('<img class="responsiveImage" src="' +info.url + '?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&FORMAT=image%2Fpng8&TRANSPARENT=true&CRS=EPSG%3A3067&STYLES=&WIDTH=300&HEIGHT=300&BBOX=-183243.50620644476%2C6575998.62606195%2C1038379.8685031873%2C7797622.000771582&LAYERS=' + info.layer + '">','preview'));
 	div.appendChild(createLayerInfoElement(info.abstract,'abstract'));
-	div.appendChild(createLayerInfoElement((resolution > 60 ? (resolution / 60) + ' tuntia ' : resolution + ' minuuttia ')+moment(info.time.end).format(),'time'));
+	div.appendChild(createLayerInfoElement((resolution > 60 ? (resolution / 60) + ' tuntia ' : resolution + ' minuuttia, viimeisin: ')+moment(info.time.end).format('LT'),'time'));
 	div.appendChild(createLayerInfoElement(info.attribution.Title,'attribution'));
 	return div;
 }
@@ -1417,9 +1417,6 @@ function updateLayerSelection(ollayer,type,filter) {
 	Object.keys(layerInfo).sort().forEach((layer) => {
 		if (layerInfo[layer].layer.includes(filter)) {
 			let div = layerInfoDiv(layer); 
-			//var div = document.createElement("div");
-			//var resolution = Math.round(layerInfo[layer].time.resolution/60000);
-			//div.innerHTML = '<h4>' + layerInfo[layer].title + '</h4><p>' + layerInfo[layer].abstract + '</p> (<i>' + (resolution > 60 ? (resolution / 60) + ' hours' : resolution + ' minutes') + '</i>)';
 			div.onclick = function () { 
 				if (ollayer.getVisible() && getActiveLayers().includes(layer)) {
 					ollayer.setVisible(false);
@@ -1432,7 +1429,6 @@ function updateLayerSelection(ollayer,type,filter) {
 			if (ollayer.get('info').layer === layer) {
 				div.classList.add("selectedLayer");
 			}
-			//document.getElementById(type+"Layer-select").appendChild(div);
 			document.getElementById("layers").appendChild(div);
 		}
 	});
@@ -1600,33 +1596,9 @@ function getTimeDimension(dimensions) {
 	return { start: beginTime, end: endTime, resolution: resolutionTime, type: type, default: defaultTime }
 }
 
-// Get the modal
-//var modal = document.getElementById("myModal");
-
-// Get the button that opens the modal
-var btn = document.getElementById("layersButton");
-
-// Get the <span> element that closes the modal
-//var span = document.getElementsByClassName("close")[0];
-
-// When the user clicks on the button, open the modal 
-//btn.onclick = function() {
-//  modal.style.display = "block";
-//}
-
-// When the user clicks on <span> (x), close the modal
-//span.onclick = function() {
-//  modal.style.display = "none";
-//}
-
-// When the user clicks anywhere outside of the modal, close it
-//window.onclick = function (event) {
-//	if (event.target == modal) {
-//		modal.style.display = "none";
-//	}
-//}
-
+//
 // MAIN
+//
 const main = () => {
 	// Load custom tracking code lazily, so it's non-blocking.
 	import('./analytics.js').then((analytics) => { analytics.init(); updateCanonicalPage()});
