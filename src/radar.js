@@ -26,6 +26,9 @@ import { connect } from 'mqtt';
 import { transformExtent } from 'ol/proj';
 import { isNumber } from 'util';
 //import Worker from './wmscapabilities.worker.js'; 
+//import optionss from './wmsservers.configuration.js'; 
+
+
 
 var options = {
 	defaultRadarLayer: 'radar:radar_finland_dbz',
@@ -145,7 +148,7 @@ var options = {
 
 //http://geoservices.knmi.nl/cgi-bin/inspire/Actuele10mindataKNMIstations.cgi?service=wms&request=getCapabilities
 
-var DEBUG = true;
+var DEBUG = false;
 var metLatitude = localStorage.getItem("metLatitude")
 	? localStorage.getItem("metLatitude")
 	: 60.2706;
@@ -490,6 +493,18 @@ var positionLayer = new VectorLayer({
 	//}
 });
 
+var icaoLayer = new VectorLayer({
+	source: new Vector({
+		format: new GeoJSON(),
+		url: 'icao-indicators-finland.json'
+	}),
+	//,
+	style: function(feature) {
+		style.getText().setText(feature.get('airportcode'));
+		return style;
+	}
+});
+
 var smpsLayer = new VectorLayer({
 	source: new Vector(),
 	visible: false,
@@ -530,7 +545,8 @@ var layers = [
 	lightGrayReferenceLayer,
 	darkGrayReferenceLayer,
 	//overlayLayer,
-  positionLayer,
+	positionLayer,
+	//icaoLayer,
 	ownPositionLayer,
 	observationLayer,
 	smpsLayer
@@ -1053,7 +1069,6 @@ function layerInfoDiv(wmslayer) {
 	div.setAttribute('data-layer-category', info.category);
 
 	div.appendChild(createLayerInfoElement(info.title,'title'));
-
 
 	div.appendChild(createLayerInfoElement('<img class="responsiveImage" src="' +info.url + '?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&FORMAT=image%2Fpng8&TRANSPARENT=true&CRS=EPSG%3A3067&STYLES=&WIDTH=300&HEIGHT=300&BBOX=-183243.50620644476%2C6575998.62606195%2C1038379.8685031873%2C7797622.000771582&LAYERS=' + info.layer + '">','preview'));
 	div.appendChild(createLayerInfoElement(info.abstract,'abstract'));
