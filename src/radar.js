@@ -131,7 +131,7 @@ var options = {
 			category: "radarLayer"
 		}, */
 		vn: {
-			url: 'https://vn.meteo.fi/wms',
+			url: 'https://vietnam.smartmet.fi/wms',
 			namespace: 'vnmha:radar',
 			refresh: 60000,
 			category: "radarLayer",
