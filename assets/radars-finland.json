@@ -102,6 +102,21 @@
             "geometry": {
                 "type": "Point",
                 "coordinates": [
+                    29.4489,
+                    63.8378
+                ]
+            },
+            "properties": {
+                "name": "Nurmes",
+                "acronym": "NUR",
+                "country": "fi"
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
                     25.4401,
                     62.3045
                 ]
