@@ -349,6 +349,7 @@ i.material-icons:before{display:none;}
   color: var(--dark-theme-on-surface-color);
   font-size: 1.1em;
   padding-bottom: 5px;
+  height: 3em;
 }
 
 .abstract {
