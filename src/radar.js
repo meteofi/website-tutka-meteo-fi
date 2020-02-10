@@ -118,14 +118,14 @@ var options = {
 			url: 'https://thredds.met.no/thredds/wms/remotesensing/reflectivity-nordic/2019/09/yrwms-nordic.mos.pcappi-0-dbz.noclass-clfilter-novpr-clcorr-block.laea-yrwms-1000.20190925.nc',
 			refresh: 60000,
 			category: "radarLayer"
-		}, */
+		}, 
 		vn: {
 			url: 'https://vn.meteo.fi/wms',
 			namespace: 'vnmha:radar',
 			refresh: 60000,
 			category: "radarLayer",
 			attribution: 'VNMHA'
-		}
+		}*/
 	}
 }
 
