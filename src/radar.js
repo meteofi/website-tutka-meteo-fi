@@ -67,13 +67,21 @@ var options = {
 			category: 'observationLayer',
 			attribution: 'FMI (CC-BY-4.0)'
 		},
+		'eumetsat': {
+			url: 'https://eumetview.eumetsat.int/geoserv/wms',
+			namespace: 'meteosat',
+			refresh: 300000,
+			category: "satelliteLayer",
+			attribution: 'EUMETSAT'
+		},
 		'eumetsat1': {
 			url: 'https://eumetview.eumetsat.int/geoserv/meteosat/msg_eview/wms',
 			refresh: 300000,
 			category: "satelliteLayer",
 			title: 'Meteosat pilvialueet yö/päivä',
 			abstract: 'Päivällä alapilvet näkyvät keltaisen sävyissä ja korkeat pilvet sinertävinä. Yöllä sinertävässä infrapunakuvassa kylmät pilvet näkyvät kirkaina.',
-			attribution: 'EUMETSAT'
+			attribution: 'EUMETSAT',
+			disabled: true
 		},
 		'eumetsat2': {
 			url: 'https://eumetview.eumetsat.int/geoserv/meteosat/msg_convection/wms',
@@ -81,7 +89,8 @@ var options = {
 			category: "satelliteLayer",
 			title: 'Meteosat konvektiopilvet',
 			abstract: 'Vaaraa aiheuttavat konvektiiviset rajuilmat näkyvät kuvassa kirkkaan keltaisena. Ukkospilven alasimen läpäisevät huiput näkyvät kuvassa kirkkaan vaalean punaisena.',
-			attribution: 'EUMETSAT'
+			attribution: 'EUMETSAT',
+			disabled: true
 		},
 		'eumetsat3': {
 			url: 'https://eumetview.eumetsat.int/geoserv/meteosat/msg_naturalenhncd/wms',
@@ -89,7 +98,8 @@ var options = {
 			category: "satelliteLayer",
 			title: 'Meteosat pilvialueet',
 			abstract: 'Vesipilvet näkyvät kuvassa vaaleina, jäiset valkoisina, kasvillisuus vihreänä, maa ruskeana ja meri mustana.',
-			attribution: 'EUMETSAT'
+			attribution: 'EUMETSAT',
+			disabled: true
 		},
 		'eumetsat4': {
 			url: 'https://eumetview.eumetsat.int/geoserv/meteosat/msg_airmass/wms',
@@ -97,7 +107,8 @@ var options = {
 			category: "satelliteLayer",
 			title: 'Meteosat ilmamassat',
 			abstract: 'Kylmä polaarinen ilma näkyy kuvassa violettina, lämmin trooppinen ilma vihreänä, kuiva ilma punaisena sekä paksut korkeat pilvet valkoisena.',
-			attribution: 'EUMETSAT'
+			attribution: 'EUMETSAT',
+			disabled: true
 		},
 		bs: {
 			url: 'http://smartmet.bahamasweather.org.bs:8080/wms',
