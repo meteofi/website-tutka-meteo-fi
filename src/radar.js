@@ -164,7 +164,7 @@ var options = {
 
 //http://geoservices.knmi.nl/cgi-bin/inspire/Actuele10mindataKNMIstations.cgi?service=wms&request=getCapabilities
 
-var DEBUG = false;
+var DEBUG = true;
 var metLatitude = localStorage.getItem("metLatitude")
 	? localStorage.getItem("metLatitude")
 	: 60.2706;
@@ -436,7 +436,7 @@ var satelliteLayer = new ImageLayer({
 	opacity: 0.7,
 	source: new ImageWMS({
 		url: options.wmsServer.eumetsat,
-		params: { 'FORMAT': 'image/jpeg', 'LAYERS': "msg_eview" },
+		params: { 'FORMAT': 'image/jpeg', 'LAYERS': "meteosat:msg_eview" },
 		hidpi: false,
 		ratio: options.imageRatio,
 		serverType: 'geoserver'
