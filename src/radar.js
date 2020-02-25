@@ -129,7 +129,8 @@ var options = {
 			url: 'https://maps.dwd.de/geoserver/dwd/RX-Produkt/wms',
 			refresh: 60000,
 			category: 'radarLayer',
-			attribution: 'Deutscher Wetterdienst'
+			attribution: 'Deutscher Wetterdienst',
+			disabled: true
 		},
 		nl: {
 			url: 'https://geoservices.knmi.nl/cgi-bin/RADNL_OPER_R___25PCPRR_L3.cgi',
