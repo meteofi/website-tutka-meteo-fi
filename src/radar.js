@@ -111,7 +111,8 @@ var options = {
 			url: 'https://geo.weather.gc.ca/geomet/',
 			layer: 'RADAR_1KM_RDBR',
 			refresh: 300000,
-			category: 'radarLayer'
+			category: 'radarLayer',
+			disabled: true
 		},
 		de: {
 			url: 'https://maps.dwd.de/geoserver/dwd/RX-Produkt/wms',
@@ -123,7 +124,8 @@ var options = {
 			url: 'https://geoservices.knmi.nl/cgi-bin/RADNL_OPER_R___25PCPRR_L3.cgi',
 			refresh: 60000,
 			category: 'radarLayer',
-			attribution: 'KNMI'
+			attribution: 'KNMI',
+			disabled: true
 		},
 /* 		no: {
 			url: 'https://thredds.met.no/thredds/wms/remotesensing/reflectivity-nordic/2019/09/yrwms-nordic.mos.pcappi-0-dbz.noclass-clfilter-novpr-clcorr-block.laea-yrwms-1000.20190925.nc',
@@ -135,13 +137,15 @@ var options = {
 			namespace: 'vnmha:radar',
 			refresh: 60000,
 			category: "radarLayer",
-			attribution: 'VNMHA'
+			attribution: 'VNMHA',
+			disabled: true
 		},
 		noaa: {
 			url: 'https://mesonet.agron.iastate.edu/cgi-bin/wms/nexrad/n0q-t.cgi',
 			refresh: 60000,
 			category: "radarLayer",
-			attribution: 'NOAA'
+			attribution: 'NOAA',
+			disabled: true
 		}
 	}
 }
