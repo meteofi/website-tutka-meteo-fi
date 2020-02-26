@@ -817,8 +817,10 @@ function setTime(action='next') {
 		}
 
 		updateTimeLine((startDate.getTime()-start)/resolution);
-		setLayerTime(satelliteLayer, moment(startDate.toISOString()).utc().format());
-		setLayerTime(radarLayer, moment(startDate.toISOString()).utc().format());
+
+		var startDateFormat = moment(startDate.toISOString()).utc().format()
+		setLayerTime(satelliteLayer, startDateFormat);
+		setLayerTime(radarLayer, startDateFormat);
 		setLayerTime(lightningLayer, 'PT'+(resolution/60000)+'M/' + startDate.toISOString());
 		setLayerTime(observationLayer, 'PT'+(resolution/60000)+'M/' + startDate.toISOString());
 
@@ -834,6 +836,7 @@ function updateClock() {
 
 	// call this function again in 1000ms
 	setTimeout(updateClock, 1000);
+	//requestAnimationFrame(updateClock);
 }
 
 //
@@ -1568,8 +1571,9 @@ function getLayerInfo(layer,wms) {
 	}
 
 	if (typeof layer.Dimension !== "undefined") {
-		product.time = getTimeDimension(layer.Dimension)
+		product.time = getTimeDimension(layer.Dimension);
 	}
+
 	if (typeof layer.Style !== "undefined") {
 		product.style = layer.Style;
 	}
@@ -1603,15 +1607,16 @@ function getTimeDimension(dimensions) {
 				var time = times.split("/")
 				// Time dimension is list of times separated by comma
 				if (time.length == 1) {
+					var timeValue = moment(time[0]).valueOf()
 					// begin time is the smallest of listed times
-					beginTime = beginTime ? beginTime : moment(time[0]).valueOf()
-					beginTime = Math.min(beginTime, moment(time[0]).valueOf())
+					beginTime = beginTime ? beginTime : timeValue
+					beginTime = Math.min(beginTime, timeValue)
 					// end time is the bigest of listed times
-					endTime = endTime ? endTime : moment(time[0]).valueOf()
-					endTime = Math.max(endTime, moment(time[0]).valueOf())
+					endTime = endTime ? endTime : timeValue
+					endTime = Math.max(endTime, timeValue)
 					// resolution is the difference of the last two times listed
-					resolutionTime = prevtime ? (moment(time[0]).valueOf() - prevtime) : 3600000
-					prevtime = moment(time[0]).valueOf()
+					resolutionTime = prevtime ? (timeValue - prevtime) : 3600000
+					prevtime = timeValue
 				}
 				// Time dimension is starttime/endtime/period
 				else if (time.length == 3) {
@@ -1627,6 +1632,21 @@ function getTimeDimension(dimensions) {
 	//console.log("start: " + beginTime + " end: " + endTime + " resolution: " + resolutionTime + " type: " + type + " default: " + defaultTime)
 	return { start: beginTime, end: endTime, resolution: resolutionTime, type: type, default: defaultTime }
 }
+
+
+const debounce = (func, delay) => {
+  let inDebounce
+  return function() {
+    const context = this
+    const args = arguments
+    clearTimeout(inDebounce)
+    inDebounce = setTimeout(() => func.apply(context, args), delay)
+  }
+}
+
+/* debounceBtn.addEventListener('click', debounce(function() {
+  console.info('Hey! It is', new Date().toUTCString());
+}, 3000)); */
 
 //
 // MAIN
