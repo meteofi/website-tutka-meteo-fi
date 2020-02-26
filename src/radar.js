@@ -957,13 +957,13 @@ function setMapLayer(maplayer) {
 	localStorage.setItem("IS_DARK",JSON.stringify(IS_DARK));
 }
 
-document.getElementById('darkBase').addEventListener('click', function (event) {
+document.getElementById('darkBase').addEventListener('mouseup', function (event) {
 	event.target.classList.add("selected");
 	document.getElementById("lightBase").classList.remove("selected");
 	setMapLayer('dark');
 });
 
-document.getElementById('lightBase').addEventListener('click', function (event) {
+document.getElementById('lightBase').addEventListener('mouseup', function (event) {
 	event.target.classList.add("selected");
 	document.getElementById("darkBase").classList.remove("selected");
 	setMapLayer('light');
@@ -998,7 +998,7 @@ function addEventListeners(selector) {
 	let elementsArray = document.querySelectorAll(selector);
 	elementsArray.forEach(function (elem) {
 		debug("Activated event listener for " + elem.id);
-		elem.addEventListener("click", function () {
+		elem.addEventListener("mouseup", function () {
 			if (event.target.id.indexOf("Off") !== -1) {
 				event.target.classList.add("selected");
 				layerss[event.target.parentElement.id].setVisible(false);
@@ -1112,7 +1112,7 @@ function layerInfoPlaylist(event) {
 				let div = document.createElement("div");
 				div.innerHTML = style.Title;
 				div.id = style.Name;
-				div.addEventListener('click', function () { layer.setLayerStyle(style.Name) });
+				div.addEventListener('mouseup', function () { layer.setLayerStyle(style.Name) });
 				parent.appendChild(div);
 			});
 		} else {
@@ -1203,7 +1203,7 @@ function toggleLayerVisibility(layer) {
 // EVENTS
 //
 
-document.getElementById('speedButton').addEventListener('click', function() {
+document.getElementById('speedButton').addEventListener('mouseup', function() {
 	switch(options.frameRate) {
 		case options.defaultFrameRate:
 			options.frameRate = options.defaultFrameRate * 2;
@@ -1221,31 +1221,31 @@ document.getElementById('speedButton').addEventListener('click', function() {
 	gtag('event', 'speed', {'event_category' : 'timecontrol', 'event_label' : options.frameRate / options.defaultFrameRate + "×"});
 });
 
-document.getElementById('playButton').addEventListener('click', function() {
+document.getElementById('playButton').addEventListener('mouseup', function() {
 	playstop();
 });
 
-document.getElementById('skipNextButton').addEventListener('click', function() {
+document.getElementById('skipNextButton').addEventListener('mouseup', function() {
 	skip_next();
 });
 
-document.getElementById('skipPreviousButton').addEventListener('click', function() {
+document.getElementById('skipPreviousButton').addEventListener('mouseup', function() {
 	skip_previous();
 });
 
-document.getElementById('playstop').addEventListener('click', function() {
+document.getElementById('playstop').addEventListener('mouseup', function() {
 	playstop();
 });
 
-document.getElementById('skip_next').addEventListener('click', function() {
+document.getElementById('skip_next').addEventListener('mouseup', function() {
 	skip_next();
 });
 
-document.getElementById('skip_previous').addEventListener('click', function() {
+document.getElementById('skip_previous').addEventListener('mouseup', function() {
 	skip_previous();
 });
 
-document.getElementById('playlistButton').addEventListener('click', function() {
+document.getElementById('playlistButton').addEventListener('mouseup', function() {
 	debug("playlist");
 	var elem = document.getElementById("playList");
 	if (elem.style.bottom === '0px') {
@@ -1256,7 +1256,7 @@ document.getElementById('playlistButton').addEventListener('click', function() {
 });
 
 // Close playlist if clicked outside of playlist
-window.addEventListener('click', function (e) {
+window.addEventListener('mouseup', function (e) {
 	// playlist
 	if (!document.getElementById('playList').contains(e.target)) {
 		if (document.getElementById('playlistButton').contains(e.target)) return
@@ -1310,7 +1310,7 @@ function setButtonStates() {
 	}
 }
 
-document.getElementById('locationLayerButton').addEventListener('click', function() {
+document.getElementById('locationLayerButton').addEventListener('mouseup', function() {
 	if (IS_TRACKING) {
 		IS_TRACKING = false;
 		localStorage.setItem("IS_TRACKING",JSON.stringify(false));
@@ -1326,12 +1326,12 @@ document.getElementById('locationLayerButton').addEventListener('click', functio
 	setButtonStates();
 });
 
-document.getElementById('cursorDistanceTxt').addEventListener('click', function() {
+document.getElementById('cursorDistanceTxt').addEventListener('mouseup', function() {
 	IS_NAUTICAL = IS_NAUTICAL ? false : true;
 	localStorage.setItem("IS_NAUTICAL",JSON.stringify(IS_NAUTICAL));
 });
 
-document.getElementById('mapLayerButton').addEventListener('click', function() {
+document.getElementById('mapLayerButton').addEventListener('mouseup', function() {
 	if (IS_DARK) {
 		setMapLayer('light');
 	} else {
@@ -1339,39 +1339,39 @@ document.getElementById('mapLayerButton').addEventListener('click', function() {
 	}
 });
 
-document.getElementById('satelliteLayerButton').addEventListener('click', function() {
+document.getElementById('satelliteLayerButton').addEventListener('mouseup', function() {
 	toggleLayerVisibility(satelliteLayer);
 });
 
-document.getElementById('satelliteLayerTitle').addEventListener('click', function() {
+document.getElementById('satelliteLayerTitle').addEventListener('mouseup', function() {
 	toggleLayerVisibility(satelliteLayer);
 });
 
-document.getElementById('radarLayerButton').addEventListener('click', function() {
+document.getElementById('radarLayerButton').addEventListener('mouseup', function() {
 	toggleLayerVisibility(radarLayer);
 });
 
-document.getElementById('radarLayerTitle').addEventListener('click', function() {
+document.getElementById('radarLayerTitle').addEventListener('mouseup', function() {
 	toggleLayerVisibility(radarLayer);
 });
 
-document.getElementById('lightningLayerButton').addEventListener('click', function() {
+document.getElementById('lightningLayerButton').addEventListener('mouseup', function() {
 	toggleLayerVisibility(lightningLayer);
 });
 
-document.getElementById('lightningLayerTitle').addEventListener('click', function() {
+document.getElementById('lightningLayerTitle').addEventListener('mouseup', function() {
 	toggleLayerVisibility(lightningLayer);
 });
 
-document.getElementById('observationLayerButton').addEventListener('click', function() {
+document.getElementById('observationLayerButton').addEventListener('mouseup', function() {
 	toggleLayerVisibility(observationLayer);
 });
 
-document.getElementById('observationLayerTitle').addEventListener('click', function() {
+document.getElementById('observationLayerTitle').addEventListener('mouseup', function() {
 	toggleLayerVisibility(observationLayer);
 });
 
-document.getElementById('layersButton').addEventListener('click', function() {
+document.getElementById('layersButton').addEventListener('mouseup', function() {
 	let div = document.getElementById('layers');
 	if (div.style.display === 'none') {
 		div.style.display = 'grid';
@@ -1682,7 +1682,7 @@ const main = () => {
 	addEventListeners("#lightningLayer > div");
 	addEventListeners("#observationLayer > div");
 
-	map.on('click', function(evt) {
+	map.on('mouseup', function(evt) {
 		displayFeatureInfo(evt.pixel);
 	});
 	
