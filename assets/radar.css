@@ -95,13 +95,13 @@ html, body {
     align-items: center;
     flex-flow: row;
     padding: 8px;
+    touch-action: none;
   }
 
   .playbar > div {
     flex-grow: 1;
     text-align: center;
     font-size: 2em;
-
   }
 
   #timeline {
