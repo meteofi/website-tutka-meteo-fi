@@ -139,6 +139,12 @@ var options = {
 			attribution: 'KNMI',
 			disabled: true
 		},
+		no: {
+			url: 'https://public-wms.met.no/verportal/verportal.map',
+			refresh: 300000,
+			category: 'radarLayer',
+			disabled: true
+		},
 /* 		no: {
 			url: 'https://thredds.met.no/thredds/wms/remotesensing/reflectivity-nordic/2019/09/yrwms-nordic.mos.pcappi-0-dbz.noclass-clfilter-novpr-clcorr-block.laea-yrwms-1000.20190925.nc',
 			refresh: 60000,
@@ -164,7 +170,7 @@ var options = {
 
 //http://geoservices.knmi.nl/cgi-bin/inspire/Actuele10mindataKNMIstations.cgi?service=wms&request=getCapabilities
 
-var DEBUG = true;
+var DEBUG = false;
 var metLatitude = localStorage.getItem("metLatitude")
 	? localStorage.getItem("metLatitude")
 	: 60.2706;
