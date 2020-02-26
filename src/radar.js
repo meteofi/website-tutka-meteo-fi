@@ -164,7 +164,7 @@ var options = {
 
 //http://geoservices.knmi.nl/cgi-bin/inspire/Actuele10mindataKNMIstations.cgi?service=wms&request=getCapabilities
 
-var DEBUG = false;
+var DEBUG = true;
 var metLatitude = localStorage.getItem("metLatitude")
 	? localStorage.getItem("metLatitude")
 	: 60.2706;
@@ -701,13 +701,14 @@ function updateTimeLine (position) {
 
 function createTimeline (count) {
 	var i = 0;
-	document.getElementById("timeline").innerHTML = "";
+	var timeline = document.getElementById("timeline");
+	timeline.innerHTML = "";
 	for (i = 0; i < count; i++) { 
 		var div = document.createElement("div");
 		//div.innerHTML = i;
 		div.id = "timeline-item-" + i;
 		div.classList.add("timeline-off");
-		document.getElementById("timeline").appendChild(div);
+		timeline.appendChild(div);
 	}
 }
 
