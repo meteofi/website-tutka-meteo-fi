@@ -234,9 +234,10 @@ ImageLayer.prototype.setLayerStyle = function (style) {
 }
 
 ImageLayer.prototype.setLayerTime = function (time) {
-	debug("Set layer time dimension: " + moment(time).format());
-	if (moment(time).isValid()) {
-		this.getSource().updateParams({ 'TIME': moment(time).format()});
+	let timemoment = moment(time);
+	debug("Set layer time dimension: " + timemoment.format());
+	if (timemoment.isValid()) {
+		this.getSource().updateParams({ 'TIME': timemoment.format()});
 	}
 }
 
