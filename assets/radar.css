@@ -62,14 +62,16 @@ html, body {
     }
 }
 
-.navbar {
+  .navbar {
     top: 0;
     display: flex;
     justify-content: space-around;
     align-items: center;
     color: var(--dark-medium-emphasis-text-color);
     flex-flow: row wrap;
+    touch-action: none;
   }
+
   .navbar > div {
     flex-grow: 1;
     text-align: center;
