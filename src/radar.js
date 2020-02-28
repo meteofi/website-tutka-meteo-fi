@@ -25,6 +25,7 @@ import WMSCapabilities from 'ol/format/WMSCapabilities.js';
 import { connect } from 'mqtt';
 import { transformExtent } from 'ol/proj';
 import { isNumber } from 'util';
+import Timeline from './timeline.js';
 //import Worker from './wmscapabilities.worker.js'; 
 //import optionss from './wmsservers.configuration.js'; 
 
@@ -186,6 +187,7 @@ moment.locale('fi');
 var layerInfo = {};
 const client  = connect('wss://meri.digitraffic.fi:61619/mqtt',{username: 'digitraffic', password: 'digitrafficPassword'});
 var trackedVessels = {'230059770': {}, '230994270': {}, '230939100': {}, '230051170': {}, '230059740': {}, '230108850': {}, '230937480': {}, '230051160': {}, '230983250': {}, '230012240': {}, '230980890': {}, '230061400': {}, '230059760': {}, '230005610': {}, '230987580': {}, '230983340': {}, '230111580': {}, '230059750': {}, '230994810': {}, '230993590': {}, '230051150': {} };
+var timeline;
 
 //document.ontouchmove = function(e){ 
 //	e.preventDefault(); 
@@ -691,34 +693,6 @@ function setLayerTime(layer, time) {
 //	debug(event);
 //});
 
-// TIMELINE
-
-function updateTimeLine (position) {
-	let elementsArray = document.querySelectorAll('#timeline > div');
-	elementsArray.forEach(function (elem) {
-		if (elem.id.split("-")[2] <= position) {
-			elem.classList.add("timeline-on");
-			elem.classList.remove("timeline-off");
-		} else {
-			elem.classList.add("timeline-off");
-			elem.classList.remove("timeline-on");
-		}
-	});
-}
-
-function createTimeline (count) {
-	var i = 0;
-	var timeline = document.getElementById("timeline");
-	timeline.innerHTML = "";
-	for (i = 0; i < count; i++) { 
-		var div = document.createElement("div");
-		//div.innerHTML = i;
-		div.id = "timeline-item-" + i;
-		div.classList.add("timeline-off");
-		timeline.appendChild(div);
-	}
-}
-
 function gtag() { 
 	if (typeof dataLayer !== "undefined") {
 		dataLayer.push(arguments); 
@@ -805,12 +779,12 @@ function setTime(action='next') {
 	}
 
 
-		if (startDate.getTime() > end) {
-			startDate = new Date(start);
-			createTimeline(13);
-		} else if (startDate.getTime() < start) {
-			startDate = new Date(end);
-		}
+	if (startDate.getTime() > end) {
+		startDate = new Date(start);
+		timeline = new Timeline(13, document.getElementById("timeline"));
+	} else if (startDate.getTime() < start) {
+		startDate = new Date(end);
+	}
 		
 		if (startDate.getTime() == end && animationId === null) {
 			IS_FOLLOWING = true;
@@ -823,7 +797,8 @@ function setTime(action='next') {
 			document.getElementById("skipNextButton").classList.remove("selectedButton");
 		}
 
-		updateTimeLine((startDate.getTime()-start)/resolution);
+		//updateTimeLine((startDate.getTime()-start)/resolution);
+		timeline.update((startDate.getTime()-start)/resolution);
 
 		var startDateFormat = moment(startDate.toISOString()).utc().format()
 		setLayerTime(satelliteLayer, startDateFormat);
@@ -1662,7 +1637,7 @@ const main = () => {
 	// Load custom tracking code lazily, so it's non-blocking.
 	import('./analytics.js').then((analytics) => { analytics.init(); updateCanonicalPage()});
 	
-	createTimeline(13);
+	timeline = new Timeline (13, document.getElementById("timeline"));
 
 	if (IS_DARK) {
 		setMapLayer('dark');
