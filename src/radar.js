@@ -1705,9 +1705,9 @@ const main = () => {
 		ownPositionLayer.setVisible(true);
 	}
 
-	ais = new AIS('wss://meri.digitraffic.fi:61619/mqtt', 'digitraffic', 'digitrafficPassword');
-	ais.track(trackedVessels);
-	ais.client.on('message',ais.onMessage.bind(ais));
+	//ais = new AIS('wss://meri.digitraffic.fi:61619/mqtt', 'digitraffic', 'digitrafficPassword');
+	//ais.track(trackedVessels);
+	//ais.client.on('message',ais.onMessage.bind(ais));
 
 
 //const worker = new Worker();
