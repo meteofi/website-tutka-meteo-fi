@@ -147,11 +147,6 @@ var options = {
 			category: 'radarLayer',
 			disabled: true
 		},
-/* 		no: {
-			url: 'https://thredds.met.no/thredds/wms/remotesensing/reflectivity-nordic/2019/09/yrwms-nordic.mos.pcappi-0-dbz.noclass-clfilter-novpr-clcorr-block.laea-yrwms-1000.20190925.nc',
-			refresh: 60000,
-			category: "radarLayer"
-		}, */
 		vn: {
 			url: 'https://vietnam.smartmet.fi/wms',
 			namespace: 'vnmha:radar',
@@ -170,8 +165,6 @@ var options = {
 	}
 }
 
-//http://geoservices.knmi.nl/cgi-bin/inspire/Actuele10mindataKNMIstations.cgi?service=wms&request=getCapabilities
-
 var DEBUG = false;
 var metLatitude = localStorage.getItem("metLatitude")
 	? localStorage.getItem("metLatitude")
@@ -181,6 +174,7 @@ var metLongitude = localStorage.getItem("metLongitude")
 	: 24.8725;
 var ownPosition = [];
 var ownPosition4326 = [];
+var geolocation;
 var startDate = new Date(Math.floor(Date.now() / 300000) * 300000 - 300000 * 12);
 var animationId = null;
 var moment = require('moment');
@@ -189,9 +183,6 @@ var layerInfo = {};
 var trackedVessels = {'230059770': {}, '230994270': {}, '230939100': {}, '230051170': {}, '230059740': {}, '230108850': {}, '230937480': {}, '230051160': {}, '230983250': {}, '230012240': {}, '230980890': {}, '230061400': {}, '230059760': {}, '230005610': {}, '230987580': {}, '230983340': {}, '230111580': {}, '230059750': {}, '230994810': {}, '230993590': {}, '230051150': {} };
 var timeline, ais;
 
-//document.ontouchmove = function(e){ 
-//	e.preventDefault(); 
-//}
 // STATUS Variables
 var VISIBLE = localStorage.getItem("VISIBLE")
 	? new Set(JSON.parse(localStorage.getItem("VISIBLE")))
@@ -338,6 +329,11 @@ positionFeature.setStyle(new Style({
 }));
 
 var accuracyFeature = new Feature();
+accuracyFeature.setStyle(new Style({
+	fill: new Fill({
+		color: [128,128,128,0.3]
+	}),
+}));
 
 //
 // LAYERS
@@ -472,7 +468,6 @@ var radarLayer = new ImageLayer({
 // overlay Layer
 var overlayLayer = new TileLayer({
 	name: "overlayLayer",
-	//visible: VISIBLE.has("observationLayer"),
 	source: new TileWMS({
 		url: "https://julkinen.vayla.fi/inspirepalvelu/avoin/wms",
 	//	url: "https://geoserv.stat.fi/geoserver/postialue/wms",
@@ -542,6 +537,7 @@ var guideLayer = new VectorLayer({
 });
 
 var ownPositionLayer = new VectorLayer({
+	visible: false,
 	source: new Vector({
 		features: [accuracyFeature, positionFeature]
 	})
@@ -612,7 +608,6 @@ const map = new Map({
 	layers: layers,
 	controls: [
 		mousePositionControl
-		//		new FullScreen(), mousePositionControl
 	],
   view: new View({
 		enableRotation: false,
@@ -1291,10 +1286,14 @@ document.getElementById('locationLayerButton').addEventListener('mouseup', funct
 	if (IS_TRACKING) {
 		IS_TRACKING = false;
 		localStorage.setItem("IS_TRACKING",JSON.stringify(false));
+		geolocation.setTracking(false);
+		ownPositionLayer.setVisible(false);
 		gtag('event', 'off', {'event_category' : 'tracking'});
 	} else {
 		IS_TRACKING = true;
 		localStorage.setItem("IS_TRACKING",JSON.stringify(true));
+		geolocation.setTracking(true);
+		ownPositionLayer.setVisible(true);
 		if (ownPosition.length > 1) {
 			map.getView().setCenter(ownPosition);
 		}
@@ -1648,13 +1647,13 @@ const main = () => {
 	setButtonStates();
 
 	// GEOLOCATION
-	var geolocation = new Geolocation({
+	geolocation = new Geolocation({
 		trackingOptions: {
 			enableHighAccuracy: true
 		},
 		projection: map.getView().getProjection()
 	});
-	geolocation.setTracking(true);
+	
 	geolocation.on('error', function (error) { debug(error.message) });
 	geolocation.on('change:accuracyGeometry',onChangeAccuracyGeometry);
 	geolocation.on('change:position', onChangePosition);
