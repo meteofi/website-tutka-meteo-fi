@@ -682,7 +682,7 @@ function setLayerTime(layer, time) {
 	if (moment(time).isValid()) {
 		document.getElementById("radarDateValue").innerHTML = moment(time).format('l');
 		document.getElementById("radarTimeValue").innerHTML = moment(time).format('LT');
-		document.getElementById("currentMapTime").innerHTML = moment(time).format('LT') + '<div style="font-size: 10px;">'+moment(time).format('l')+'</div>';
+		document.getElementById("currentMapTime").innerHTML = moment(time).format('LT') + '<div style="font-size: 12px;">'+moment(time).format('l')+'</div>';
 	}
 }
 
