@@ -172,6 +172,12 @@ var metLatitude = localStorage.getItem("metLatitude")
 var metLongitude = localStorage.getItem("metLongitude")
 	? localStorage.getItem("metLongitude") 
 	: 24.8725;
+var metPosition = localStorage.getItem("metPosition")
+	? JSON.parse(localStorage.getItem("metPosition")) 
+	: [];
+var metZoom = localStorage.getItem("metZoom")
+	? localStorage.getItem("metZoom") 
+	: 9;
 var ownPosition = [];
 var ownPosition4326 = [];
 var geolocation;
@@ -616,8 +622,7 @@ const map = new Map({
 	}),
 	keyboardEventTarget: document
 });
-map.getView().fit(transformExtent([19.24, 59.75, 31.59, 70.09],'EPSG:4326', map.getView().getProjection()));
-sync(map);
+
 
 function rangeRings (layer, coordinates, range) {
 	const ring = circular(coordinates, range);
@@ -665,6 +670,9 @@ function onChangePosition(event) {
 	document.getElementById("positionLatValue").innerHTML = "&#966; " + Dms.toLat(ownPosition4326[1], "dm", 3);
 	document.getElementById("positionLonValue").innerHTML = "&#955; " + Dms.toLon(ownPosition4326[0], "dm", 3);
 	document.getElementById("cursorDistanceTxt").style.display = "block";
+	localStorage.setItem("metLatitude",ownPosition4326[1]);
+	localStorage.setItem("metLongitude",ownPosition4326[0]);
+	localStorage.setItem("metPosition",JSON.stringify(ownPosition));
 //	if (IS_TRACKING) {
 //		map.getView().setCenter(ownPosition);
 //	}
@@ -1678,6 +1686,10 @@ const main = () => {
 	map.on('mouseup', function(evt) {
 		displayFeatureInfo(evt.pixel);
 	});
+
+	map.on('moveend', function(evt) {
+		localStorage.setItem("metZoom",map.getView().getZoom());
+	});
 	
 	document.addEventListener('keydown', function (event) {
 		if (event.key === 'Control') {
@@ -1704,6 +1716,15 @@ const main = () => {
 		geolocation.setTracking(true);
 		ownPositionLayer.setVisible(true);
 	}
+
+	// Position map
+	if (metPosition.length > 1) {
+		map.getView().setCenter(metPosition);
+		map.getView().setZoom(metZoom);
+	} else {
+		map.getView().fit(transformExtent([19.24, 58.5, 31.59, 71.0],'EPSG:4326', map.getView().getProjection()));
+	}
+	sync(map);
 
 	//ais = new AIS('wss://meri.digitraffic.fi:61619/mqtt', 'digitraffic', 'digitrafficPassword');
 	//ais.track(trackedVessels);
