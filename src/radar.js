@@ -1700,6 +1700,11 @@ const main = () => {
 		play();
 	}
 
+	if (IS_TRACKING) {
+		geolocation.setTracking(true);
+		ownPositionLayer.setVisible(true);
+	}
+
 	ais = new AIS('wss://meri.digitraffic.fi:61619/mqtt', 'digitraffic', 'digitrafficPassword');
 	ais.track(trackedVessels);
 	ais.client.on('message',ais.onMessage.bind(ais));
