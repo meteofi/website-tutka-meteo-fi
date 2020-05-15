@@ -22,10 +22,11 @@ import Dms from 'geodesy/dms';
 import LatLon from 'geodesy/latlon-spherical'
 import WMSCapabilities from 'ol/format/WMSCapabilities.js';
 //import WMTSCapabilities from 'ol/format/WMTSCapabilities.js';
-import { connect } from 'mqtt';
+//import { connect } from 'mqtt';
 import { transformExtent } from 'ol/proj';
 import { isNumber } from 'util';
-import Timeline from './timeline.js';
+import Timeline from './timeline';
+import AIS from './digitraffic';
 //import Worker from './wmscapabilities.worker.js'; 
 //import optionss from './wmsservers.configuration.js'; 
 
@@ -185,9 +186,8 @@ var animationId = null;
 var moment = require('moment');
 moment.locale('fi');
 var layerInfo = {};
-const client  = connect('wss://meri.digitraffic.fi:61619/mqtt',{username: 'digitraffic', password: 'digitrafficPassword'});
 var trackedVessels = {'230059770': {}, '230994270': {}, '230939100': {}, '230051170': {}, '230059740': {}, '230108850': {}, '230937480': {}, '230051160': {}, '230983250': {}, '230012240': {}, '230980890': {}, '230061400': {}, '230059760': {}, '230005610': {}, '230987580': {}, '230983340': {}, '230111580': {}, '230059750': {}, '230994810': {}, '230993590': {}, '230051150': {} };
-var timeline;
+var timeline, ais;
 
 //document.ontouchmove = function(e){ 
 //	e.preventDefault(); 
@@ -278,13 +278,13 @@ var vesselStyle = new Style({
 		stroke: new Stroke({ color: 'red', width: 2 })
 	}),
 	text: new Text({
-		font: '10px Calibri,sans-serif',
+		font: '12px Calibri,sans-serif',
 		fill: new Fill({
 			color: '#fff'
 		}),
 		stroke: new Stroke({
 			color: '#000',
-			width: 2
+			width: 3
 		}),
 		offsetX: 0,
 		offsetY: -20
@@ -354,6 +354,7 @@ var imageryBaseLayer = new TileLayer({
 
 var lightGrayBaseLayer = new TileLayer({
 	visible: false,
+	preload: Infinity,
 	source: new XYZ({
 		attributions: 'Tiles © <a href="https://services.arcgisonline.com/ArcGIS/' +
 			'rest/services/Canvas/World_Light_Gray_Base/MapServer">ArcGIS</a>',
@@ -373,6 +374,7 @@ var lightGrayReferenceLayer = new TileLayer({
 });
 
 var darkGrayBaseLayer = new TileLayer({
+	preload: Infinity,
 	source: new XYZ({
 		attributions: 'Tiles © <a href="https://services.arcgisonline.com/ArcGIS/' +
 			'rest/services/Canvas/World_Dark_Gray_Base/MapServer">ArcGIS</a>',
@@ -510,12 +512,7 @@ var positionLayer = new VectorLayer({
 	source: new Vector({
 		format: new GeoJSON(),
 		url: 'radars-finland.json'
-	}),
-	//,
-	//style: function(feature) {
-	//	style.getText().setText(feature.get('mmsi'));
-	//	return style;
-	//}
+	})
 });
 
 var icaoLayer = new VectorLayer({
@@ -877,11 +874,6 @@ document.getElementById("cursorDistanceTxt").style.display = "none";
 
 
 
-Object.keys(trackedVessels).forEach(function (item) {
-	debug("Subscribed vessel " + item + " locations");
-	client.subscribe("vessels/" + item + "/+");
-});
-
 function getVesselName(mmsi) {
 	if (typeof trackedVessels[mmsi].metadata !== "undefined") {
 			return trackedVessels[mmsi].metadata.name;
@@ -890,7 +882,7 @@ function getVesselName(mmsi) {
 	}
 }
 
-client.on("message", function (topic, payload) {
+/* ais.client.on("message", function (topic, payload) {
 	var vessel = {};
 	var metadata = {};
 	if (topic.indexOf('location') !== -1) {
@@ -915,7 +907,7 @@ client.on("message", function (topic, payload) {
 		}
 	});
 	//client.end()
-});
+}); */
 
 function setMapLayer(maplayer) {
 	debug('Set ' + maplayer + ' map.');
@@ -1708,6 +1700,11 @@ const main = () => {
 	} else {
 		play();
 	}
+
+	ais = new AIS('wss://meri.digitraffic.fi:61619/mqtt', 'digitraffic', 'digitrafficPassword');
+	ais.track(trackedVessels);
+	ais.client.on('message',ais.onMessage.bind(ais));
+
 
 //const worker = new Worker();
 //worker.postMessage([options.wmsServer.meteo.radar, 60000]);
