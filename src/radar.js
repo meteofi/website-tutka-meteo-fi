@@ -245,8 +245,8 @@ ImageLayer.prototype.setLayerElevation = function (elevation) {
 	this.getSource().updateParams({ 'ELEVATION': elevation });
 }
 
+// STYLES
 var style = new Style({
-
 	fill: new Fill({
 		color: 'rgba(255, 255, 255, 0.6)'
 	}),
@@ -285,6 +285,26 @@ var vesselStyle = new Style({
 		}),
 		offsetX: 0,
 		offsetY: -20
+	})
+});
+
+var radarStyle = new Style({
+	image: new CircleStyle({
+		radius: 4,
+		fill: null,
+		stroke: new Stroke({ color: 'red', width: 2 })
+	}),
+	text: new Text({
+		font: '12px Calibri,sans-serif',
+		fill: new Fill({
+			color: '#fff'
+		}),
+		stroke: new Stroke({
+			color: '#000',
+			width: 3
+		}),
+		offsetX: 0,
+		offsetY: -15
 	})
 });
 
@@ -509,11 +529,15 @@ var observationLayer = new ImageLayer({
 });
 
 
-var positionLayer = new VectorLayer({
+var radarSiteLayer = new VectorLayer({
 	source: new Vector({
 		format: new GeoJSON(),
-		url: 'radars-finland.json'
-	})
+		url: 'radars-finland.json',
+	}),
+	style: function(feature) {
+		radarStyle.getText().setText(feature.get('name'));
+    return radarStyle;
+  }
 });
 
 var icaoLayer = new VectorLayer({
@@ -569,7 +593,7 @@ var layers = [
 	lightGrayReferenceLayer,
 	darkGrayReferenceLayer,
 	//overlayLayer,
-	positionLayer,
+	radarSiteLayer,
 	//icaoLayer,
 	ownPositionLayer,
 	observationLayer,
@@ -1629,6 +1653,10 @@ const debounce = (func, delay) => {
   console.info('Hey! It is', new Date().toUTCString());
 }, 3000)); */
 
+function onPostRender (e) {
+	console.log(e);
+}
+
 //
 // MAIN
 //
@@ -1675,6 +1703,8 @@ const main = () => {
 	lightningLayer.on('propertychange', layerInfoPlaylist);
 	observationLayer.on('change:visible', onChangeVisible);
 	observationLayer.on('propertychange', layerInfoPlaylist);
+
+	//radarLayer.on('postrender', onPostRender);
 
 	//radarLayer.on('change', function (event) {debug(event.target.getSource().getParams().TIME)});
 
