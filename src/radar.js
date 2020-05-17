@@ -1077,6 +1077,13 @@ function createLayerInfoElement(content,style) {
 	return div;
 }
 
+function emptyElement(element){
+  var i = element.childNodes.length;
+  while(i--){
+    element.removeChild(element.lastChild);
+  }
+}
+
 function layerInfoDiv(wmslayer) {
 	let info = layerInfo[wmslayer];
 	let div = document.createElement('div');
@@ -1597,7 +1604,8 @@ function getTimeDimension(dimensions) {
 				var time = times.split("/")
 				// Time dimension is list of times separated by comma
 				if (time.length == 1) {
-					var timeValue = moment(time[0]).valueOf()
+					//var timeValue = moment(time[0]).valueOf()
+					var timeValue = moment(new Date(time[0])).valueOf()
 					// begin time is the smallest of listed times
 					beginTime = beginTime ? beginTime : timeValue
 					beginTime = Math.min(beginTime, timeValue)
