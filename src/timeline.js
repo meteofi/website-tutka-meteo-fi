@@ -9,6 +9,7 @@ class Timeline {
   createTimeline() {
     let i = 0;
     this.parent.innerHTML = '';
+    this.emptyElement(this.parent);
     // eslint-disable-next-line no-plusplus
     for (i = 0; i < this.size; i++) {
       const div = document.createElement('div');
@@ -40,5 +41,12 @@ Timeline.prototype.update = function update(position) {
     }
   });
 }
+
+Timeline.prototype.emptyElement = function emptyElement(element) {
+  let i = element.childNodes.length;
+  while (i--) {
+    element.removeChild(element.lastChild);
+  }
+};
 
 export default Timeline;

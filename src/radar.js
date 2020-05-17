@@ -703,13 +703,13 @@ function onChangePosition(event) {
 };
 
 // WMS 
-
+const currentMapTimeDiv = document.getElementById("currentMapTime");
 function setLayerTime(layer, time) {
 	layer.getSource().updateParams({ 'TIME': time });
 	if (moment(time).isValid()) {
-		document.getElementById("radarDateValue").innerHTML = moment(time).format('l');
-		document.getElementById("radarTimeValue").innerHTML = moment(time).format('LT');
-		document.getElementById("currentMapTime").innerHTML = moment(time).format('LT') + '<div style="font-size: 12px;">'+moment(time).format('l')+'</div>';
+		const datestr = moment(time).format('l');
+		const timestr = moment(time).format('LT');
+		currentMapTimeDiv.innerHTML = timestr + '<div style="font-size: 12px;">'+datestr+'</div>';
 	}
 }
 
@@ -854,7 +854,6 @@ var play = function () {
 		debug("PLAY");
 		IS_FOLLOWING = false;
 		animationId = window.setInterval(setTime, 1000 / options.frameRate);
-		document.getElementById("playstop").innerHTML = "pause";
 		document.getElementById("playstopButton").innerHTML = "pause";
 	}
 };
@@ -865,7 +864,6 @@ var stop = function () {
 		IS_FOLLOWING = false;
 		window.clearInterval(animationId);
 		animationId = null;
-		document.getElementById("playstop").innerHTML = "play_arrow";
 		document.getElementById("playstopButton").innerHTML = "play_arrow";
 	}
 };
@@ -1041,14 +1039,14 @@ var featureOverlay = new VectorLayer({
 	source: new Vector(),
 	map: map,
 	style: function (feature) {
-		style.getText().setText(feature.get('name'));
 		return style;
 	}
 });
 var highlight;
-var displayFeatureInfo = function (pixel) {
 
+var displayFeatureInfo = function (pixel) {
 	var feature = map.forEachFeatureAtPixel(pixel, function (feature) {
+		console.log(feature);
 		return feature;
 	});
 
@@ -1057,7 +1055,7 @@ var displayFeatureInfo = function (pixel) {
 			featureOverlay.getSource().removeFeature(highlight);
 			guideLayer.getSource().clear(true);
 		}
-		if (feature) {
+		if (feature && feature.getGeometry().getType() === 'Point') {
 			featureOverlay.getSource().addFeature(feature);
 			var coords = transform(feature.getGeometry().getCoordinates(), map.getView().getProjection(), 'EPSG:4326');
 			[50000,100000,150000,200000,250000].forEach(range => rangeRings(guideLayer, coords, range));
@@ -1066,7 +1064,6 @@ var displayFeatureInfo = function (pixel) {
 		}
 		highlight = feature;
 	}
-
 };
 
 function createLayerInfoElement(content,style) {
@@ -1078,6 +1075,13 @@ function createLayerInfoElement(content,style) {
 		div.innerHTML = '';
 	}
 	return div;
+}
+
+function emptyElement(element){
+  var i = element.childNodes.length;
+  while(i--){
+    element.removeChild(element.lastChild);
+  }
 }
 
 function layerInfoDiv(wmslayer) {
@@ -1234,18 +1238,6 @@ document.getElementById('skipNextButton').addEventListener('mouseup', function()
 });
 
 document.getElementById('skipPreviousButton').addEventListener('mouseup', function() {
-	skip_previous();
-});
-
-document.getElementById('playstop').addEventListener('mouseup', function() {
-	playstop();
-});
-
-document.getElementById('skip_next').addEventListener('mouseup', function() {
-	skip_next();
-});
-
-document.getElementById('skip_previous').addEventListener('mouseup', function() {
 	skip_previous();
 });
 
@@ -1612,7 +1604,8 @@ function getTimeDimension(dimensions) {
 				var time = times.split("/")
 				// Time dimension is list of times separated by comma
 				if (time.length == 1) {
-					var timeValue = moment(time[0]).valueOf()
+					//var timeValue = moment(time[0]).valueOf()
+					var timeValue = moment(new Date(time[0])).valueOf()
 					// begin time is the smallest of listed times
 					beginTime = beginTime ? beginTime : timeValue
 					beginTime = Math.min(beginTime, timeValue)
@@ -1695,6 +1688,7 @@ const main = () => {
 	geolocation.on('change:position', onChangePosition);
 	geolocation.on('change:speed', onChangeSpeed);
 
+	// Layers
 	satelliteLayer.on('change:visible', onChangeVisible);
 	satelliteLayer.on('propertychange', layerInfoPlaylist);
 	radarLayer.on('change:visible', onChangeVisible);
@@ -1713,7 +1707,7 @@ const main = () => {
 	addEventListeners("#lightningLayer > div");
 	addEventListeners("#observationLayer > div");
 
-	map.on('mouseup', function(evt) {
+	map.on('click', function(evt) {
 		displayFeatureInfo(evt.pixel);
 	});
 
