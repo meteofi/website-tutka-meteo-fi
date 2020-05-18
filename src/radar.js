@@ -17,6 +17,7 @@ import {circular} from 'ol/geom/Polygon';
 import {getDistance} from 'ol/sphere.js';
 import Point from 'ol/geom/Point';
 import Polygon from 'ol/geom/Polygon';
+import Circle from 'ol/geom/Circle';
 import {Circle as CircleStyle, Fill, Stroke, Style, Text} from 'ol/style.js';
 import Dms from 'geodesy/dms';
 import LatLon from 'geodesy/latlon-spherical'
@@ -334,6 +335,19 @@ var rangeStyle = new Style({
 	stroke: new Stroke({
 		color: [128,128,128,0.7],
 		width: 0.5
+	}),
+	text: new Text({
+		font: '16px Calibri,sans-serif',
+		fill: new Fill({
+			color: '#fff'
+		}),
+		stroke: new Stroke({
+			color: '#000',
+			width: 2
+		}),
+		offsetX: 0,
+		offsetY: 0,
+		textAlign: 'left',
 	})
 });
 
@@ -563,7 +577,11 @@ var smpsLayer = new VectorLayer({
 
 var guideLayer = new VectorLayer({
 	source: new Vector(),
-	style: rangeStyle
+	style: rangeStyle,
+/* 	style: function(feature) {
+		rangeStyle.getText().setText(feature.get('name'));
+    return rangeStyle;
+  } */
 });
 
 var ownPositionLayer = new VectorLayer({
@@ -641,7 +659,8 @@ const map = new Map({
 	],
   view: new View({
 		enableRotation: false,
-    center: fromLonLat([26, 65]),
+		center: fromLonLat([26, 65]),
+		maxZoom: 16,
     zoom: 5
 	}),
 	keyboardEventTarget: document
@@ -649,10 +668,12 @@ const map = new Map({
 
 
 function rangeRings (layer, coordinates, range) {
-	const ring = circular(coordinates, range);
-	layer.getSource().addFeatures([
-		new Feature(ring.transform('EPSG:4326', map.getView().getProjection()))
-	]);	
+	if (isNumber(range)) {
+		const ring = circular(coordinates, range);
+		layer.getSource().addFeatures([
+			new Feature({name: range/1000 + 'km', geometry: ring.transform('EPSG:4326', map.getView().getProjection())})
+		]);
+	}
 }
 
 function bearingLine(layer, coordinates, range, direction) {
@@ -661,7 +682,7 @@ function bearingLine(layer, coordinates, range, direction) {
 	var p2 = c.destinationPoint(range * 1000, direction);
 	var line = new Polygon([[[p1.lon, p1.lat], [p2.lon, p2.lat]]]);
 	layer.getSource().addFeatures([
-		new Feature(line.transform('EPSG:4326', map.getView().getProjection()))
+		new Feature({name: direction + 'dasd', geometry: line.transform('EPSG:4326', map.getView().getProjection())})
 	]);
 }
 
@@ -1046,7 +1067,6 @@ var highlight;
 
 var displayFeatureInfo = function (pixel) {
 	var feature = map.forEachFeatureAtPixel(pixel, function (feature) {
-		console.log(feature);
 		return feature;
 	});
 
@@ -1712,7 +1732,8 @@ const main = () => {
 	});
 
 	map.on('moveend', function(evt) {
-		localStorage.setItem("metZoom",map.getView().getZoom());
+		const zoom = Math.min(map.getView().getZoom(),16);
+		localStorage.setItem("metZoom",zoom);
 	});
 	
 	document.addEventListener('keydown', function (event) {
