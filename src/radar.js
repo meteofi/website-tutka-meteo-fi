@@ -17,7 +17,6 @@ import {circular} from 'ol/geom/Polygon';
 import {getDistance} from 'ol/sphere.js';
 import Point from 'ol/geom/Point';
 import Polygon from 'ol/geom/Polygon';
-import Circle from 'ol/geom/Circle';
 import {Circle as CircleStyle, Fill, Stroke, Style, Text} from 'ol/style.js';
 import Dms from 'geodesy/dms';
 import LatLon from 'geodesy/latlon-spherical'
@@ -30,7 +29,7 @@ import Timeline from './timeline';
 import AIS from './digitraffic';
 //import Worker from './wmscapabilities.worker.js'; 
 //import optionss from './wmsservers.configuration.js'; 
-
+import 'dayjs/locale/fi';
 
 
 var options = {
@@ -186,6 +185,12 @@ var startDate = new Date(Math.floor(Date.now() / 300000) * 300000 - 300000 * 12)
 var animationId = null;
 var moment = require('moment');
 moment.locale('fi');
+var dayjs = require('dayjs');
+dayjs.locale('fi');
+var utcplugin = require('dayjs/plugin/utc');
+dayjs.extend(utcplugin);
+var localizedFormat = require('dayjs/plugin/localizedFormat');
+dayjs.extend(localizedFormat);
 var layerInfo = {};
 var trackedVessels = {'230059770': {}, '230994270': {}, '230939100': {}, '230051170': {}, '230059740': {}, '230108850': {}, '230937480': {}, '230051160': {}, '230983250': {}, '230012240': {}, '230980890': {}, '230061400': {}, '230059760': {}, '230005610': {}, '230987580': {}, '230983340': {}, '230111580': {}, '230059750': {}, '230994810': {}, '230993590': {}, '230051150': {} };
 var timeline, ais;
@@ -725,12 +730,15 @@ function onChangePosition(event) {
 
 // WMS 
 const currentMapTimeDiv = document.getElementById("currentMapTime");
+const currentMapDateDiv = document.getElementById("currentMapDate");
 function setLayerTime(layer, time) {
-	layer.getSource().updateParams({ 'TIME': time });
-	if (moment(time).isValid()) {
-		const datestr = moment(time).format('l');
-		const timestr = moment(time).format('LT');
-		currentMapTimeDiv.innerHTML = timestr + '<div style="font-size: 12px;">'+datestr+'</div>';
+	const t = dayjs(time);
+	if (t.isValid()) {
+		layer.getSource().updateParams({ 'TIME': time });
+		const datestr = t.format('l');
+		const timestr = t.format('LT');
+		currentMapDateDiv.textContent = datestr;
+		currentMapTimeDiv.textContent = timestr;
 	}
 }
 
@@ -853,17 +861,22 @@ function setTime(action='next') {
 
 }
 
-function updateClock() {
-	var lt = moment();
-	var utc = moment.utc();
+const currentDateValueDiv = document.getElementById("currentDateValue");
+const currentLocalTimeValueDiv = document.getElementById("currentLocalTimeValue");
+const currentUTCTimeValueDiv = document.getElementById("currentUTCTimeValue");
 
-	document.getElementById("currentDateValue").innerHTML = lt.format('l');
-	document.getElementById("currentLocalTimeValue").innerHTML = lt.format('LTS');
-	document.getElementById("currentUTCTimeValue").innerHTML = utc.format('LTS') + " UTC";
+function updateClock() {
+	const d = dayjs();
+	const date = d.format('l');
+	const time = d.format('LTS');
+	const utc = d.utc().format('LTS') + ' UTC';
+
+	currentDateValueDiv.textContent = date;
+	currentLocalTimeValueDiv.textContent = time;
+	currentUTCTimeValueDiv.textContent = utc;
 
 	// call this function again in 1000ms
 	setTimeout(updateClock, 1000);
-	//requestAnimationFrame(updateClock);
 }
 
 //
@@ -1173,7 +1186,7 @@ function layerInfoPlaylist(event) {
 		resolution = '<div><i class="material-icons">av_timer</i> ' + (timestep > 60 ? (timestep / 60) + ' tuntia' : timestep + ' min') + '</div>'
 	}
 
-	//document.getElementById(name + 'Opacity').innerHTML = '<label for="' + name + 'Slider"></label> <input type="range" min="1" max="100" value="' + opacity + '" class="slider" id="' + name + 'Slider"></input>';
+	document.getElementById(name + 'Opacity').innerHTML = '<label for="' + name + 'Slider"></label> <input type="range" min="1" max="100" value="' + opacity + '" class="slider" id="' + name + 'Slider"></input>';
 
 	if (layer.getVisible()) {
 		document.getElementById(name + 'Info').classList.remove("playListDisabled");
@@ -1181,10 +1194,10 @@ function layerInfoPlaylist(event) {
 		document.getElementById(name + 'Info').classList.add("playListDisabled");
 	}
 	
-	// document.getElementById(name + 'Slider').addEventListener('input', function (e) {
-	// 	layer.setOpacity(e.target.value / 100);
-	// 	event.stopPropagation();
-	// });
+	 document.getElementById(name + 'Slider').addEventListener('input', function (e) {
+	 	layer.setOpacity(e.target.value / 100);
+	 	event.stopPropagation();
+	 });
 }
 
 function onChangeVisible (event) {

@@ -103,7 +103,7 @@ html, body {
   .playbar > div {
     flex-grow: 1;
     text-align: center;
-    font-size: 2em;
+    /**font-size: 2em;**/
   }
 
   #timeline {
@@ -234,7 +234,12 @@ i.material-icons:before{display:none;}
 }
 
 #currentMapTime {
-  font-size: 1.4em;
+  font-size: 1.3em;
+  color: var(--dark-theme-on-surface);
+}
+
+#currentMapDate {
+  font-size: 0.8em;
   color: var(--dark-theme-on-surface);
 }
 
@@ -247,6 +252,11 @@ i.material-icons:before{display:none;}
 .valueTxtBig {
     font-size: 1.5em;
     color: var(--dark-theme-on-surface);
+}
+
+#currentLocalTimeValue {
+  font-size: 1.5em;
+  color: var(--dark-theme-on-surface);
 }
 
 .selected {
