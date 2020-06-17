@@ -41,20 +41,15 @@ var options = {
 	frameRate: 2, // fps
 	defaultFrameRate: 2, // fps
 	imageRatio: 1.5,
-	wmsServer: {
-		'meteo': {
-			'radar': "https://wms.meteo.fi/geoserver/radar/wms",
-			'observation': "https://wms.meteo.fi/geoserver/observation/wms",
-			'test': "https://geoserver.apps.meteo.fi/geoserver/observation/wms"
-		},
-		'fmi': "https://openwms.fmi.fi/geoserver/Radar/wms", //"Radar:suomi_dbz_eureffin"
-		"nws": "https://idpgis.ncep.noaa.gov/arcgis/services/radar/radar_base_reflectivity_time/ImageServer/WMSServer", // "0"
-		"eumetsat": "https://eumetview.eumetsat.int/geoserv/meteosat/msg_eview/wms", // "meteosat:msg_eview",
-		"eumetsat2": "https://eumetview.eumetsat.int/geoserv/meteosat/msg_convection/wms", // "meteosat:msg_eview"
-		"eumetsat3": "https://eumetview.eumetsat.int/geoserv/meteosat/msg_naturalenhncd/wms", // "meteosat:msg_eview"
-		"s57": "https://julkinen.vayla.fi/s57/wms",
-	},
 	wmsServerConfiguration: {
+		'fmi-radar': {
+			url: 'https://openwms.fmi.fi/geoserver/wms',
+			namespace: 'Radar',
+			refresh: 60000,
+			category: 'radarLayer',
+			attribution: 'FMI (CC-BY-4.0)',
+			disabled: true
+		},
 		'meteo-radar': {
 			url: 'https://wms.meteo.fi/geoserver/wms',
 			namespace: 'radar',
@@ -194,6 +189,7 @@ dayjs.extend(localizedFormat);
 var layerInfo = {};
 var trackedVessels = {'230059770': {}, '230994270': {}, '230939100': {}, '230051170': {}, '230059740': {}, '230108850': {}, '230937480': {}, '230051160': {}, '230983250': {}, '230012240': {}, '230980890': {}, '230061400': {}, '230059760': {}, '230005610': {}, '230987580': {}, '230983340': {}, '230111580': {}, '230059750': {}, '230994810': {}, '230993590': {}, '230051150': {} };
 var timeline, ais;
+var mapTime = "";
 
 // STATUS Variables
 var VISIBLE = localStorage.getItem("VISIBLE")
@@ -436,58 +432,13 @@ var darkGrayReferenceLayer = new TileLayer({
 var merikarttaLayer = new TileLayer();
 var pohjakarttaLayer = new TileLayer();
 
-// fetch('https://julkinen.vayla.fi/rasteripalvelu/wmts?request=getcapabilities').then(function (response) {
-// 	return response.text();
-// }).then(function (text) {
-// 	var parser = new WMTSCapabilities();
-// 	var result = parser.read(text);
-// 	//debug(result);
-// 	var options = optionsFromCapabilities(result, {
-// 		layer: 'liikennevirasto:Merikarttasarjat public',
-// 		matrixSet: 'WGS84_Pseudo-Mercator'
-// 	});
-// 	//debug("OPTIONS");
-// 	//debug(options);
-// 	merikarttaLayer.setSource(new WMTS(options));
-// });
-
-
-// fetch('https://avoin-karttakuva.maanmittauslaitos.fi/avoin/wmts?service=WMTS&request=GetCapabilities&version=1.0.0').then(function (response) {
-// 	return response.text();
-// }).then(function (text) {
-// 	var parser = new WMTSCapabilities();
-// 	var result = parser.read(text);
-// 	//debug(result);
-// 	var options = optionsFromCapabilities(result, {
-// 		layer: 'taustakartta',
-// 		matrixSet: 'WGS84_Pseudo-Mercator'
-// 	});
-// 	//debug("OPTIONS");
-// 	//debug(options);
-// 	pohjakarttaLayer.setSource(new WMTS(options));
-// });
-
-// S-57 Layer
-var s57Layer = new TileLayer({
-	name: "navicationLayer",
-	visible: true,
-	opacity: 1,
-	source: new TileWMS({
-		url: options.wmsServer.s57,
-		params: { 'LAYERS': "cells", 'TILED': true },
-		hidpi: false,
-		ratio: options.imageRatio,
-		serverType: 'geoserver'
-	})
-});
-
 // Satellite Layer
 var satelliteLayer = new ImageLayer({
 	name: "satelliteLayer",
 	visible: VISIBLE.has("satelliteLayer"),
 	opacity: 0.7,
 	source: new ImageWMS({
-		url: options.wmsServer.eumetsat,
+		url: options.wmsServerConfiguration.eumetsat.url,
 		params: { 'FORMAT': 'image/jpeg', 'LAYERS': "meteosat:msg_eview" },
 		hidpi: false,
 		ratio: options.imageRatio,
@@ -501,7 +452,7 @@ var radarLayer = new ImageLayer({
 	visible: VISIBLE.has("radarLayer"),
 	opacity: 0.7,
 	source: new ImageWMS({
-		url: options.wmsServer.meteo.radar,
+		url: options.wmsServerConfiguration["meteo-radar"].url,
 		params: { 'LAYERS': options.defaultRadarLayer },
 		attributions: 'FMI',
 		ratio: options.imageRatio,
@@ -528,7 +479,7 @@ var lightningLayer = new ImageLayer({
 	name: "lightningLayer",
 	visible: VISIBLE.has("lightningLayer"),
 	source: new ImageWMS({
-		url: options.wmsServer.meteo.test,
+		url: options.wmsServerConfiguration["meteo-obs"].url,
 		params: { 'FORMAT': 'image/png8', 'LAYERS': options.defaultLightningLayer },
 		ratio: options.imageRatio,
 		serverType: 'geoserver'
@@ -540,7 +491,7 @@ var observationLayer = new ImageLayer({
 	name: "observationLayer",
 	visible: VISIBLE.has("observationLayer"),
 	source: new ImageWMS({
-		url: options.wmsServer.meteo.test,
+		url: options.wmsServerConfiguration["meteo-obs"].url,
 		params: { 'FORMAT': 'image/png8', 'LAYERS': options.defaultObservationLayer },
 		ratio: options.imageRatio,
 		serverType: 'geoserver'
@@ -732,14 +683,15 @@ function onChangePosition(event) {
 const currentMapTimeDiv = document.getElementById("currentMapTime");
 const currentMapDateDiv = document.getElementById("currentMapDate");
 function setLayerTime(layer, time) {
-	const t = dayjs(time);
-	if (t.isValid()) {
-		layer.getSource().updateParams({ 'TIME': time });
-		const datestr = t.format('l');
-		const timestr = t.format('LT');
-		currentMapDateDiv.textContent = datestr;
+  const t = dayjs(time);
+  layer.getSource().updateParams({ TIME: time });
+  if (t.isValid() && mapTime !== time) {
+    const datestr = t.format("l");
+    const timestr = t.format("LT");
+    currentMapDateDiv.textContent = datestr;
 		currentMapTimeDiv.textContent = timestr;
-	}
+		mapTime=time;
+  }
 }
 
 //radarLayer.getSource().addEventListener('imageloadend', function (event) {
