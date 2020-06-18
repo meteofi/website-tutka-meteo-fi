@@ -10,13 +10,15 @@ class Timeline {
     let i = 0;
     this.parent.innerHTML = '';
     this.emptyElement(this.parent);
+    let fragment = new DocumentFragment();
     // eslint-disable-next-line no-plusplus
     for (i = 0; i < this.size; i++) {
       const div = document.createElement('div');
       div.id = 'timeline-item-' + i;
       div.classList.add('timeline-off');
-      this.parent.appendChild(div);
+      fragment.appendChild(div);
     }
+    this.parent.appendChild(fragment);
   }
 }
 
