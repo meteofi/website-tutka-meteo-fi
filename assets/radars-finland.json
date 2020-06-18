@@ -12,12 +12,13 @@
             "geometry": {
                 "type": "Point",
                 "coordinates": [
-                    27.1082,
-                    60.9040
+                    27.108057,
+                    60.903871,
+                    139
                 ]
             },
             "properties": {
-                "name": "Anjalankoski",
+                "name": "Kouvola",
                 "acronym": "ANJ",
                 "country": "fi"
             }
@@ -47,7 +48,7 @@
                 ]
             },
             "properties": {
-                "name": "Kesälahti",
+                "name": "Kitee",
                 "acronym": "KES",
                 "country": "fi"
             }
@@ -62,7 +63,7 @@
                 ]
             },
             "properties": {
-                "name": "Korppoo",
+                "name": "Parainen",
                 "acronym": "KOR",
                 "country": "fi"
             }
@@ -102,8 +103,9 @@
             "geometry": {
                 "type": "Point",
                 "coordinates": [
-                    29.4489,
-                    63.8378
+                    29.44892,
+                    63.83786,
+                    323
                 ]
             },
             "properties": {

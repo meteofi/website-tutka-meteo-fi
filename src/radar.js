@@ -22,16 +22,18 @@ import Dms from 'geodesy/dms';
 import LatLon from 'geodesy/latlon-spherical'
 import WMSCapabilities from 'ol/format/WMSCapabilities.js';
 //import WMTSCapabilities from 'ol/format/WMTSCapabilities.js';
-import { connect } from 'mqtt';
+//import { connect } from 'mqtt';
 import { transformExtent } from 'ol/proj';
 import { isNumber } from 'util';
+import Timeline from './timeline';
+import AIS from './digitraffic';
 //import Worker from './wmscapabilities.worker.js'; 
 //import optionss from './wmsservers.configuration.js'; 
-
+import 'dayjs/locale/fi';
 
 
 var options = {
-	defaultRadarLayer: 'radar:radar_finland_dbz',
+	defaultRadarLayer: 'Radar:suomi_dbz_eureffin',
 	defaultLightningLayer: 'observation:lightning',
 	defaultObservationLayer: 'observation:air_temperature',
 	rangeRingSpacing: 50,
@@ -39,26 +41,22 @@ var options = {
 	frameRate: 2, // fps
 	defaultFrameRate: 2, // fps
 	imageRatio: 1.5,
-	wmsServer: {
-		'meteo': {
-			'radar': "https://wms.meteo.fi/geoserver/radar/wms",
-			'observation': "https://wms.meteo.fi/geoserver/observation/wms",
-			'test': "https://geoserver.apps.meteo.fi/geoserver/observation/wms"
-		},
-		'fmi': "https://openwms.fmi.fi/geoserver/Radar/wms", //"Radar:suomi_dbz_eureffin"
-		"nws": "https://idpgis.ncep.noaa.gov/arcgis/services/radar/radar_base_reflectivity_time/ImageServer/WMSServer", // "0"
-		"eumetsat": "https://eumetview.eumetsat.int/geoserv/meteosat/msg_eview/wms", // "meteosat:msg_eview",
-		"eumetsat2": "https://eumetview.eumetsat.int/geoserv/meteosat/msg_convection/wms", // "meteosat:msg_eview"
-		"eumetsat3": "https://eumetview.eumetsat.int/geoserv/meteosat/msg_naturalenhncd/wms", // "meteosat:msg_eview"
-		"s57": "https://julkinen.vayla.fi/s57/wms",
-	},
 	wmsServerConfiguration: {
+		'fmi-radar': {
+			url: 'https://openwms.fmi.fi/geoserver/wms',
+			namespace: 'Radar',
+			refresh: 60000,
+			category: 'radarLayer',
+			attribution: 'FMI (CC-BY-4.0)',
+			disabled: false
+		},
 		'meteo-radar': {
 			url: 'https://wms.meteo.fi/geoserver/wms',
 			namespace: 'radar',
 			refresh: 60000,
 			category: 'radarLayer',
-			attribution: 'FMI (CC-BY-4.0)'
+			attribution: 'FMI (CC-BY-4.0)',
+			disabled: false
 		},
 		'meteo-obs': {
 			url: 'https://geoserver.apps.meteo.fi/geoserver/wms',
@@ -145,11 +143,6 @@ var options = {
 			category: 'radarLayer',
 			disabled: true
 		},
-/* 		no: {
-			url: 'https://thredds.met.no/thredds/wms/remotesensing/reflectivity-nordic/2019/09/yrwms-nordic.mos.pcappi-0-dbz.noclass-clfilter-novpr-clcorr-block.laea-yrwms-1000.20190925.nc',
-			refresh: 60000,
-			category: "radarLayer"
-		}, */
 		vn: {
 			url: 'https://vietnam.smartmet.fi/wms',
 			namespace: 'vnmha:radar',
@@ -168,8 +161,6 @@ var options = {
 	}
 }
 
-//http://geoservices.knmi.nl/cgi-bin/inspire/Actuele10mindataKNMIstations.cgi?service=wms&request=getCapabilities
-
 var DEBUG = false;
 var metLatitude = localStorage.getItem("metLatitude")
 	? localStorage.getItem("metLatitude")
@@ -177,19 +168,30 @@ var metLatitude = localStorage.getItem("metLatitude")
 var metLongitude = localStorage.getItem("metLongitude")
 	? localStorage.getItem("metLongitude") 
 	: 24.8725;
+var metPosition = localStorage.getItem("metPosition")
+	? JSON.parse(localStorage.getItem("metPosition")) 
+	: [];
+var metZoom = localStorage.getItem("metZoom")
+	? localStorage.getItem("metZoom") 
+	: 9;
 var ownPosition = [];
 var ownPosition4326 = [];
+var geolocation;
 var startDate = new Date(Math.floor(Date.now() / 300000) * 300000 - 300000 * 12);
 var animationId = null;
 var moment = require('moment');
 moment.locale('fi');
+var dayjs = require('dayjs');
+dayjs.locale('fi');
+var utcplugin = require('dayjs/plugin/utc');
+dayjs.extend(utcplugin);
+var localizedFormat = require('dayjs/plugin/localizedFormat');
+dayjs.extend(localizedFormat);
 var layerInfo = {};
-const client  = connect('wss://meri.digitraffic.fi:61619/mqtt',{username: 'digitraffic', password: 'digitrafficPassword'});
 var trackedVessels = {'230059770': {}, '230994270': {}, '230939100': {}, '230051170': {}, '230059740': {}, '230108850': {}, '230937480': {}, '230051160': {}, '230983250': {}, '230012240': {}, '230980890': {}, '230061400': {}, '230059760': {}, '230005610': {}, '230987580': {}, '230983340': {}, '230111580': {}, '230059750': {}, '230994810': {}, '230993590': {}, '230051150': {} };
+var timeline, ais;
+var mapTime = "";
 
-//document.ontouchmove = function(e){ 
-//	e.preventDefault(); 
-//}
 // STATUS Variables
 var VISIBLE = localStorage.getItem("VISIBLE")
 	? new Set(JSON.parse(localStorage.getItem("VISIBLE")))
@@ -246,8 +248,8 @@ ImageLayer.prototype.setLayerElevation = function (elevation) {
 	this.getSource().updateParams({ 'ELEVATION': elevation });
 }
 
+// STYLES
 var style = new Style({
-
 	fill: new Fill({
 		color: 'rgba(255, 255, 255, 0.6)'
 	}),
@@ -276,16 +278,36 @@ var vesselStyle = new Style({
 		stroke: new Stroke({ color: 'red', width: 2 })
 	}),
 	text: new Text({
-		font: '10px Calibri,sans-serif',
+		font: '12px Calibri,sans-serif',
 		fill: new Fill({
 			color: '#fff'
 		}),
 		stroke: new Stroke({
 			color: '#000',
-			width: 2
+			width: 3
 		}),
 		offsetX: 0,
 		offsetY: -20
+	})
+});
+
+var radarStyle = new Style({
+	image: new CircleStyle({
+		radius: 4,
+		fill: null,
+		stroke: new Stroke({ color: 'red', width: 2 })
+	}),
+	text: new Text({
+		font: '12px Calibri,sans-serif',
+		fill: new Fill({
+			color: '#fff'
+		}),
+		stroke: new Stroke({
+			color: '#000',
+			width: 3
+		}),
+		offsetX: 0,
+		offsetY: -15
 	})
 });
 
@@ -315,6 +337,19 @@ var rangeStyle = new Style({
 	stroke: new Stroke({
 		color: [128,128,128,0.7],
 		width: 0.5
+	}),
+	text: new Text({
+		font: '16px Calibri,sans-serif',
+		fill: new Fill({
+			color: '#fff'
+		}),
+		stroke: new Stroke({
+			color: '#000',
+			width: 2
+		}),
+		offsetX: 0,
+		offsetY: 0,
+		textAlign: 'left',
 	})
 });
 
@@ -336,6 +371,11 @@ positionFeature.setStyle(new Style({
 }));
 
 var accuracyFeature = new Feature();
+accuracyFeature.setStyle(new Style({
+	fill: new Fill({
+		color: [128,128,128,0.3]
+	}),
+}));
 
 //
 // LAYERS
@@ -352,6 +392,7 @@ var imageryBaseLayer = new TileLayer({
 
 var lightGrayBaseLayer = new TileLayer({
 	visible: false,
+	preload: Infinity,
 	source: new XYZ({
 		attributions: 'Tiles © <a href="https://services.arcgisonline.com/ArcGIS/' +
 			'rest/services/Canvas/World_Light_Gray_Base/MapServer">ArcGIS</a>',
@@ -371,6 +412,7 @@ var lightGrayReferenceLayer = new TileLayer({
 });
 
 var darkGrayBaseLayer = new TileLayer({
+	preload: Infinity,
 	source: new XYZ({
 		attributions: 'Tiles © <a href="https://services.arcgisonline.com/ArcGIS/' +
 			'rest/services/Canvas/World_Dark_Gray_Base/MapServer">ArcGIS</a>',
@@ -391,58 +433,13 @@ var darkGrayReferenceLayer = new TileLayer({
 var merikarttaLayer = new TileLayer();
 var pohjakarttaLayer = new TileLayer();
 
-// fetch('https://julkinen.vayla.fi/rasteripalvelu/wmts?request=getcapabilities').then(function (response) {
-// 	return response.text();
-// }).then(function (text) {
-// 	var parser = new WMTSCapabilities();
-// 	var result = parser.read(text);
-// 	//debug(result);
-// 	var options = optionsFromCapabilities(result, {
-// 		layer: 'liikennevirasto:Merikarttasarjat public',
-// 		matrixSet: 'WGS84_Pseudo-Mercator'
-// 	});
-// 	//debug("OPTIONS");
-// 	//debug(options);
-// 	merikarttaLayer.setSource(new WMTS(options));
-// });
-
-
-// fetch('https://avoin-karttakuva.maanmittauslaitos.fi/avoin/wmts?service=WMTS&request=GetCapabilities&version=1.0.0').then(function (response) {
-// 	return response.text();
-// }).then(function (text) {
-// 	var parser = new WMTSCapabilities();
-// 	var result = parser.read(text);
-// 	//debug(result);
-// 	var options = optionsFromCapabilities(result, {
-// 		layer: 'taustakartta',
-// 		matrixSet: 'WGS84_Pseudo-Mercator'
-// 	});
-// 	//debug("OPTIONS");
-// 	//debug(options);
-// 	pohjakarttaLayer.setSource(new WMTS(options));
-// });
-
-// S-57 Layer
-var s57Layer = new TileLayer({
-	name: "navicationLayer",
-	visible: true,
-	opacity: 1,
-	source: new TileWMS({
-		url: options.wmsServer.s57,
-		params: { 'LAYERS': "cells", 'TILED': true },
-		hidpi: false,
-		ratio: options.imageRatio,
-		serverType: 'geoserver'
-	})
-});
-
 // Satellite Layer
 var satelliteLayer = new ImageLayer({
 	name: "satelliteLayer",
 	visible: VISIBLE.has("satelliteLayer"),
 	opacity: 0.7,
 	source: new ImageWMS({
-		url: options.wmsServer.eumetsat,
+		url: options.wmsServerConfiguration.eumetsat.url,
 		params: { 'FORMAT': 'image/jpeg', 'LAYERS': "meteosat:msg_eview" },
 		hidpi: false,
 		ratio: options.imageRatio,
@@ -456,7 +453,7 @@ var radarLayer = new ImageLayer({
 	visible: VISIBLE.has("radarLayer"),
 	opacity: 0.7,
 	source: new ImageWMS({
-		url: options.wmsServer.meteo.radar,
+		url: options.wmsServerConfiguration["fmi-radar"].url,
 		params: { 'LAYERS': options.defaultRadarLayer },
 		attributions: 'FMI',
 		ratio: options.imageRatio,
@@ -468,7 +465,6 @@ var radarLayer = new ImageLayer({
 // overlay Layer
 var overlayLayer = new TileLayer({
 	name: "overlayLayer",
-	//visible: VISIBLE.has("observationLayer"),
 	source: new TileWMS({
 		url: "https://julkinen.vayla.fi/inspirepalvelu/avoin/wms",
 	//	url: "https://geoserv.stat.fi/geoserver/postialue/wms",
@@ -484,7 +480,7 @@ var lightningLayer = new ImageLayer({
 	name: "lightningLayer",
 	visible: VISIBLE.has("lightningLayer"),
 	source: new ImageWMS({
-		url: options.wmsServer.meteo.test,
+		url: options.wmsServerConfiguration["meteo-obs"].url,
 		params: { 'FORMAT': 'image/png8', 'LAYERS': options.defaultLightningLayer },
 		ratio: options.imageRatio,
 		serverType: 'geoserver'
@@ -496,7 +492,7 @@ var observationLayer = new ImageLayer({
 	name: "observationLayer",
 	visible: VISIBLE.has("observationLayer"),
 	source: new ImageWMS({
-		url: options.wmsServer.meteo.test,
+		url: options.wmsServerConfiguration["meteo-obs"].url,
 		params: { 'FORMAT': 'image/png8', 'LAYERS': options.defaultObservationLayer },
 		ratio: options.imageRatio,
 		serverType: 'geoserver'
@@ -504,16 +500,15 @@ var observationLayer = new ImageLayer({
 });
 
 
-var positionLayer = new VectorLayer({
+var radarSiteLayer = new VectorLayer({
 	source: new Vector({
 		format: new GeoJSON(),
-		url: 'radars-finland.json'
+		url: 'radars-finland.json',
 	}),
-	//,
-	//style: function(feature) {
-	//	style.getText().setText(feature.get('mmsi'));
-	//	return style;
-	//}
+	style: function(feature) {
+		radarStyle.getText().setText(feature.get('name'));
+    return radarStyle;
+  }
 });
 
 var icaoLayer = new VectorLayer({
@@ -539,10 +534,15 @@ var smpsLayer = new VectorLayer({
 
 var guideLayer = new VectorLayer({
 	source: new Vector(),
-	style: rangeStyle
+	style: rangeStyle,
+/* 	style: function(feature) {
+		rangeStyle.getText().setText(feature.get('name'));
+    return rangeStyle;
+  } */
 });
 
 var ownPositionLayer = new VectorLayer({
+	visible: false,
 	source: new Vector({
 		features: [accuracyFeature, positionFeature]
 	})
@@ -568,7 +568,7 @@ var layers = [
 	lightGrayReferenceLayer,
 	darkGrayReferenceLayer,
 	//overlayLayer,
-	positionLayer,
+	radarSiteLayer,
 	//icaoLayer,
 	ownPositionLayer,
 	observationLayer,
@@ -613,23 +613,24 @@ const map = new Map({
 	layers: layers,
 	controls: [
 		mousePositionControl
-		//		new FullScreen(), mousePositionControl
 	],
   view: new View({
 		enableRotation: false,
-    center: fromLonLat([26, 65]),
+		center: fromLonLat([26, 65]),
+		maxZoom: 16,
     zoom: 5
 	}),
 	keyboardEventTarget: document
 });
-map.getView().fit(transformExtent([19.24, 59.75, 31.59, 70.09],'EPSG:4326', map.getView().getProjection()));
-sync(map);
+
 
 function rangeRings (layer, coordinates, range) {
-	const ring = circular(coordinates, range);
-	layer.getSource().addFeatures([
-		new Feature(ring.transform('EPSG:4326', map.getView().getProjection()))
-	]);	
+	if (isNumber(range)) {
+		const ring = circular(coordinates, range);
+		layer.getSource().addFeatures([
+			new Feature({name: range/1000 + 'km', geometry: ring.transform('EPSG:4326', map.getView().getProjection())})
+		]);
+	}
 }
 
 function bearingLine(layer, coordinates, range, direction) {
@@ -638,7 +639,7 @@ function bearingLine(layer, coordinates, range, direction) {
 	var p2 = c.destinationPoint(range * 1000, direction);
 	var line = new Polygon([[[p1.lon, p1.lat], [p2.lon, p2.lat]]]);
 	layer.getSource().addFeatures([
-		new Feature(line.transform('EPSG:4326', map.getView().getProjection()))
+		new Feature({name: direction + 'dasd', geometry: line.transform('EPSG:4326', map.getView().getProjection())})
 	]);
 }
 
@@ -671,53 +672,32 @@ function onChangePosition(event) {
 	document.getElementById("positionLatValue").innerHTML = "&#966; " + Dms.toLat(ownPosition4326[1], "dm", 3);
 	document.getElementById("positionLonValue").innerHTML = "&#955; " + Dms.toLon(ownPosition4326[0], "dm", 3);
 	document.getElementById("cursorDistanceTxt").style.display = "block";
+	localStorage.setItem("metLatitude",ownPosition4326[1]);
+	localStorage.setItem("metLongitude",ownPosition4326[0]);
+	localStorage.setItem("metPosition",JSON.stringify(ownPosition));
 //	if (IS_TRACKING) {
 //		map.getView().setCenter(ownPosition);
 //	}
 };
 
 // WMS 
-
+const currentMapTimeDiv = document.getElementById("currentMapTime");
+const currentMapDateDiv = document.getElementById("currentMapDate");
 function setLayerTime(layer, time) {
-	layer.getSource().updateParams({ 'TIME': time });
-	if (moment(time).isValid()) {
-		document.getElementById("radarDateValue").innerHTML = moment(time).format('l');
-		document.getElementById("radarTimeValue").innerHTML = moment(time).format('LT');
-		document.getElementById("currentMapTime").innerHTML = moment(time).format('LT') + '<div style="font-size: 10px;">'+moment(time).format('l')+'</div>';
-	}
+  const t = dayjs(time);
+  layer.getSource().updateParams({ TIME: time });
+  if (t.isValid() && mapTime !== time) {
+    const datestr = t.format("l");
+    const timestr = t.format("LT");
+    currentMapDateDiv.textContent = datestr;
+		currentMapTimeDiv.textContent = timestr;
+		mapTime=time;
+  }
 }
 
 //radarLayer.getSource().addEventListener('imageloadend', function (event) {
 //	debug(event);
 //});
-
-// TIMELINE
-
-function updateTimeLine (position) {
-	let elementsArray = document.querySelectorAll('#timeline > div');
-	elementsArray.forEach(function (elem) {
-		if (elem.id.split("-")[2] <= position) {
-			elem.classList.add("timeline-on");
-			elem.classList.remove("timeline-off");
-		} else {
-			elem.classList.add("timeline-off");
-			elem.classList.remove("timeline-on");
-		}
-	});
-}
-
-function createTimeline (count) {
-	var i = 0;
-	var timeline = document.getElementById("timeline");
-	timeline.innerHTML = "";
-	for (i = 0; i < count; i++) { 
-		var div = document.createElement("div");
-		//div.innerHTML = i;
-		div.id = "timeline-item-" + i;
-		div.classList.add("timeline-off");
-		timeline.appendChild(div);
-	}
-}
 
 function gtag() { 
 	if (typeof dataLayer !== "undefined") {
@@ -805,12 +785,12 @@ function setTime(action='next') {
 	}
 
 
-		if (startDate.getTime() > end) {
-			startDate = new Date(start);
-			createTimeline(13);
-		} else if (startDate.getTime() < start) {
-			startDate = new Date(end);
-		}
+	if (startDate.getTime() > end) {
+		startDate = new Date(start);
+		timeline = new Timeline(13, document.getElementById("timeline"));
+	} else if (startDate.getTime() < start) {
+		startDate = new Date(end);
+	}
 		
 		if (startDate.getTime() == end && animationId === null) {
 			IS_FOLLOWING = true;
@@ -823,27 +803,36 @@ function setTime(action='next') {
 			document.getElementById("skipNextButton").classList.remove("selectedButton");
 		}
 
-		updateTimeLine((startDate.getTime()-start)/resolution);
+		//updateTimeLine((startDate.getTime()-start)/resolution);
+		timeline.update((startDate.getTime()-start)/resolution);
 
-		var startDateFormat = moment(startDate.toISOString()).utc().format()
-		setLayerTime(satelliteLayer, startDateFormat);
-		setLayerTime(radarLayer, startDateFormat);
+		//var startDateFormat = moment(startDate.toISOString()).utc().format()
+		//debug("---");
+		//debug(startDateFormat);
+		//debug(startDate.toISOString());
+		setLayerTime(satelliteLayer, startDate.toISOString());
+		setLayerTime(radarLayer, startDate.toISOString());
 		setLayerTime(lightningLayer, 'PT'+(resolution/60000)+'M/' + startDate.toISOString());
 		setLayerTime(observationLayer, 'PT'+(resolution/60000)+'M/' + startDate.toISOString());
 
 }
 
-function updateClock() {
-	var lt = moment();
-	var utc = moment.utc();
+const currentDateValueDiv = document.getElementById("currentDateValue");
+const currentLocalTimeValueDiv = document.getElementById("currentLocalTimeValue");
+const currentUTCTimeValueDiv = document.getElementById("currentUTCTimeValue");
 
-	document.getElementById("currentDateValue").innerHTML = lt.format('l');
-	document.getElementById("currentLocalTimeValue").innerHTML = lt.format('LTS');
-	document.getElementById("currentUTCTimeValue").innerHTML = utc.format('LTS') + " UTC";
+function updateClock() {
+	const d = dayjs();
+	const date = d.format('l');
+	const time = d.format('LTS');
+	const utc = d.utc().format('LTS') + ' UTC';
+
+	currentDateValueDiv.textContent = date;
+	currentLocalTimeValueDiv.textContent = time;
+	currentUTCTimeValueDiv.textContent = utc;
 
 	// call this function again in 1000ms
 	setTimeout(updateClock, 1000);
-	//requestAnimationFrame(updateClock);
 }
 
 //
@@ -855,7 +844,6 @@ var play = function () {
 		debug("PLAY");
 		IS_FOLLOWING = false;
 		animationId = window.setInterval(setTime, 1000 / options.frameRate);
-		document.getElementById("playstop").innerHTML = "pause";
 		document.getElementById("playstopButton").innerHTML = "pause";
 	}
 };
@@ -866,7 +854,6 @@ var stop = function () {
 		IS_FOLLOWING = false;
 		window.clearInterval(animationId);
 		animationId = null;
-		document.getElementById("playstop").innerHTML = "play_arrow";
 		document.getElementById("playstopButton").innerHTML = "play_arrow";
 	}
 };
@@ -902,11 +889,6 @@ document.getElementById("cursorDistanceTxt").style.display = "none";
 
 
 
-Object.keys(trackedVessels).forEach(function (item) {
-	debug("Subscribed vessel " + item + " locations");
-	client.subscribe("vessels/" + item + "/+");
-});
-
 function getVesselName(mmsi) {
 	if (typeof trackedVessels[mmsi].metadata !== "undefined") {
 			return trackedVessels[mmsi].metadata.name;
@@ -915,7 +897,7 @@ function getVesselName(mmsi) {
 	}
 }
 
-client.on("message", function (topic, payload) {
+/* ais.client.on("message", function (topic, payload) {
 	var vessel = {};
 	var metadata = {};
 	if (topic.indexOf('location') !== -1) {
@@ -940,7 +922,7 @@ client.on("message", function (topic, payload) {
 		}
 	});
 	//client.end()
-});
+}); */
 
 function setMapLayer(maplayer) {
 	debug('Set ' + maplayer + ' map.');
@@ -1047,13 +1029,12 @@ var featureOverlay = new VectorLayer({
 	source: new Vector(),
 	map: map,
 	style: function (feature) {
-		style.getText().setText(feature.get('name'));
 		return style;
 	}
 });
 var highlight;
-var displayFeatureInfo = function (pixel) {
 
+var displayFeatureInfo = function (pixel) {
 	var feature = map.forEachFeatureAtPixel(pixel, function (feature) {
 		return feature;
 	});
@@ -1063,7 +1044,7 @@ var displayFeatureInfo = function (pixel) {
 			featureOverlay.getSource().removeFeature(highlight);
 			guideLayer.getSource().clear(true);
 		}
-		if (feature) {
+		if (feature && feature.getGeometry().getType() === 'Point') {
 			featureOverlay.getSource().addFeature(feature);
 			var coords = transform(feature.getGeometry().getCoordinates(), map.getView().getProjection(), 'EPSG:4326');
 			[50000,100000,150000,200000,250000].forEach(range => rangeRings(guideLayer, coords, range));
@@ -1072,7 +1053,6 @@ var displayFeatureInfo = function (pixel) {
 		}
 		highlight = feature;
 	}
-
 };
 
 function createLayerInfoElement(content,style) {
@@ -1084,6 +1064,13 @@ function createLayerInfoElement(content,style) {
 		div.innerHTML = '';
 	}
 	return div;
+}
+
+function emptyElement(element){
+  var i = element.childNodes.length;
+  while(i--){
+    element.removeChild(element.lastChild);
+  }
 }
 
 function layerInfoDiv(wmslayer) {
@@ -1155,7 +1142,7 @@ function layerInfoPlaylist(event) {
 		resolution = '<div><i class="material-icons">av_timer</i> ' + (timestep > 60 ? (timestep / 60) + ' tuntia' : timestep + ' min') + '</div>'
 	}
 
-	//document.getElementById(name + 'Opacity').innerHTML = '<label for="' + name + 'Slider"></label> <input type="range" min="1" max="100" value="' + opacity + '" class="slider" id="' + name + 'Slider"></input>';
+	document.getElementById(name + 'Opacity').innerHTML = '<label for="' + name + 'Slider"></label> <input type="range" min="1" max="100" value="' + opacity + '" class="slider" id="' + name + 'Slider"></input>';
 
 	if (layer.getVisible()) {
 		document.getElementById(name + 'Info').classList.remove("playListDisabled");
@@ -1163,10 +1150,10 @@ function layerInfoPlaylist(event) {
 		document.getElementById(name + 'Info').classList.add("playListDisabled");
 	}
 	
-	// document.getElementById(name + 'Slider').addEventListener('input', function (e) {
-	// 	layer.setOpacity(e.target.value / 100);
-	// 	event.stopPropagation();
-	// });
+	 document.getElementById(name + 'Slider').addEventListener('input', function (e) {
+	 	layer.setOpacity(e.target.value / 100);
+	 	event.stopPropagation();
+	 });
 }
 
 function onChangeVisible (event) {
@@ -1243,18 +1230,6 @@ document.getElementById('skipPreviousButton').addEventListener('mouseup', functi
 	skip_previous();
 });
 
-document.getElementById('playstop').addEventListener('mouseup', function() {
-	playstop();
-});
-
-document.getElementById('skip_next').addEventListener('mouseup', function() {
-	skip_next();
-});
-
-document.getElementById('skip_previous').addEventListener('mouseup', function() {
-	skip_previous();
-});
-
 document.getElementById('playlistButton').addEventListener('mouseup', function() {
 	debug("playlist");
 	var elem = document.getElementById("playList");
@@ -1324,10 +1299,14 @@ document.getElementById('locationLayerButton').addEventListener('mouseup', funct
 	if (IS_TRACKING) {
 		IS_TRACKING = false;
 		localStorage.setItem("IS_TRACKING",JSON.stringify(false));
+		geolocation.setTracking(false);
+		ownPositionLayer.setVisible(false);
 		gtag('event', 'off', {'event_category' : 'tracking'});
 	} else {
 		IS_TRACKING = true;
 		localStorage.setItem("IS_TRACKING",JSON.stringify(true));
+		geolocation.setTracking(true);
+		ownPositionLayer.setVisible(true);
 		if (ownPosition.length > 1) {
 			map.getView().setCenter(ownPosition);
 		}
@@ -1452,6 +1431,8 @@ document.addEventListener('keyup', function (event) {
 });
 
 function updateLayerSelection(ollayer,type,filter) {
+	//debug(type)
+	//debug(ollayer)
 	let parent = document.getElementById('layers');
 	document.querySelectorAll('.'+type+'LayerSelect').forEach(function(child) {
     parent.removeChild(child);
@@ -1518,7 +1499,7 @@ function getWMSCapabilities(wms) {
 				updateLayerSelection(observationLayer, "observation", "observation:");
 				break;
 			case 'radarLayer':
-				updateLayerSelection(radarLayer, "radar", "radar_finland");
+				updateLayerSelection(radarLayer, "radar", "suomi_");
 				break;
 			case 'lightningLayer':
 				updateLayerSelection(lightningLayer, "lightning", "lightning");
@@ -1614,7 +1595,8 @@ function getTimeDimension(dimensions) {
 				var time = times.split("/")
 				// Time dimension is list of times separated by comma
 				if (time.length == 1) {
-					var timeValue = moment(time[0]).valueOf()
+					//var timeValue = moment(time[0]).valueOf()
+					var timeValue = moment(new Date(time[0])).valueOf()
 					// begin time is the smallest of listed times
 					beginTime = beginTime ? beginTime : timeValue
 					beginTime = Math.min(beginTime, timeValue)
@@ -1655,6 +1637,10 @@ const debounce = (func, delay) => {
   console.info('Hey! It is', new Date().toUTCString());
 }, 3000)); */
 
+function onPostRender (e) {
+	console.log(e);
+}
+
 //
 // MAIN
 //
@@ -1662,7 +1648,7 @@ const main = () => {
 	// Load custom tracking code lazily, so it's non-blocking.
 	import('./analytics.js').then((analytics) => { analytics.init(); updateCanonicalPage()});
 	
-	createTimeline(13);
+	timeline = new Timeline (13, document.getElementById("timeline"));
 
 	if (IS_DARK) {
 		setMapLayer('dark');
@@ -1681,18 +1667,19 @@ const main = () => {
 	setButtonStates();
 
 	// GEOLOCATION
-	var geolocation = new Geolocation({
+	geolocation = new Geolocation({
 		trackingOptions: {
 			enableHighAccuracy: true
 		},
 		projection: map.getView().getProjection()
 	});
-	geolocation.setTracking(true);
+	
 	geolocation.on('error', function (error) { debug(error.message) });
 	geolocation.on('change:accuracyGeometry',onChangeAccuracyGeometry);
 	geolocation.on('change:position', onChangePosition);
 	geolocation.on('change:speed', onChangeSpeed);
 
+	// Layers
 	satelliteLayer.on('change:visible', onChangeVisible);
 	satelliteLayer.on('propertychange', layerInfoPlaylist);
 	radarLayer.on('change:visible', onChangeVisible);
@@ -1702,6 +1689,8 @@ const main = () => {
 	observationLayer.on('change:visible', onChangeVisible);
 	observationLayer.on('propertychange', layerInfoPlaylist);
 
+	//radarLayer.on('postrender', onPostRender);
+
 	//radarLayer.on('change', function (event) {debug(event.target.getSource().getParams().TIME)});
 
 	addEventListeners("#satelliteLayer > div");
@@ -1709,8 +1698,13 @@ const main = () => {
 	addEventListeners("#lightningLayer > div");
 	addEventListeners("#observationLayer > div");
 
-	map.on('mouseup', function(evt) {
+	map.on('click', function(evt) {
 		displayFeatureInfo(evt.pixel);
+	});
+
+	map.on('moveend', function(evt) {
+		const zoom = Math.min(map.getView().getZoom(),16);
+		localStorage.setItem("metZoom",zoom);
 	});
 	
 	document.addEventListener('keydown', function (event) {
@@ -1733,6 +1727,25 @@ const main = () => {
 	} else {
 		play();
 	}
+
+	if (IS_TRACKING) {
+		geolocation.setTracking(true);
+		ownPositionLayer.setVisible(true);
+	}
+
+	// Position map
+	if (metPosition.length > 1) {
+		map.getView().setCenter(metPosition);
+		map.getView().setZoom(metZoom);
+	} else {
+		map.getView().fit(transformExtent([19.24, 58.5, 31.59, 71.0],'EPSG:4326', map.getView().getProjection()));
+	}
+	sync(map);
+
+	//ais = new AIS('wss://meri.digitraffic.fi:61619/mqtt', 'digitraffic', 'digitrafficPassword');
+	//ais.track(trackedVessels);
+	//ais.client.on('message',ais.onMessage.bind(ais));
+
 
 //const worker = new Worker();
 //worker.postMessage([options.wmsServer.meteo.radar, 60000]);

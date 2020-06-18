@@ -4,7 +4,7 @@
 <head>
   <!-- preload stylesheet resource via declarative markup -->
   <link rel="preload" href="https://openlayers.org/en/latest/css/ol.css" as="style">
-  <link rel="preload" href="https://fonts.googleapis.com/icon?family=Material+Icons" as="style">
+  <link rel="preload" href="https://fonts.googleapis.com/icon?family=Material+Icons&display=none" as="style">
   <link rel="preload" href="https://fonts.googleapis.com/css?family=Roboto&display=swap" as="style">
   <link rel="preconnect" href="//wms.meteo.fi" crossorigin>
   <link rel="preconnect" href="//geoserver.apps.meteo.fi" crossorigin>
@@ -25,7 +25,7 @@
     content="sadetutka, säätutka, tutka, radar, sää, suomi, finland, dobler, sade, dbz, ukkonen, salama, lightning, thunder, havainto, lämpötila, meteo, mikon sääsivu, weather, sää, meteorologia, meteorology" />
   <meta name="rating" content="Safe For Kids" />
   <meta name="author" content="Mikko Rauhala / Meteo.fi" />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons&display=none">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto&display=swap">
   <link rel="stylesheet" href="https://openlayers.org/en/latest/css/ol.css">
   <link rel="stylesheet" href="radar.css">
@@ -62,7 +62,7 @@
     <div class="infoItem" id="infoItemRadar">
       <div class="infoLabel" id="infoLabelRadar">SÄÄTUTKA</div>
       <!--div class="infoValue" id="radarTxt"></div-->
-      <div class="infoValue flexColumn" id="radarLayer"><div id="radarLayerOff" class="flexCell">OFF</div><div id="radar:radar_finland_dbz" class="selected flexCell">DBZ</div><div id="radar:radar_finland_rr" class="flexCell">RATE</div><!--div id="RX-Produkt" class="flexCell">DE</div><div id="bs:radar:correctedreflectivity" class="flexCell">BS</div><div id="vnmha:radar:comp_dbz" class="flexCell">VN</div><div id="RADNL_OPER_R___25PCPRR_L3_COLOR" class="flexCell">NL</div><div id="nexrad-n0q-wmst" class="flexCell">US</div><div id="RADAR_1KM_RDBR" class="flexCell">CA</div--></div>
+      <div class="infoValue flexColumn" id="radarLayer"><div id="radarLayerOff" class="flexCell">OFF</div><div id="Radar:suomi_dbz_eureffin" class="flexCell selected">FMI</div><div id="radar:radar_finland_dbz" class="flexCell">DBZ</div><div id="radar:radar_finland_rr" class="flexCell">RATE</div><!--div id="RX-Produkt" class="flexCell">DE</div><div id="bs:radar:correctedreflectivity" class="flexCell">BS</div><div id="vnmha:radar:comp_dbz" class="flexCell">VN</div><div id="RADNL_OPER_R___25PCPRR_L3_COLOR" class="flexCell">NL</div><div id="nexrad-n0q-wmst" class="flexCell">US</div><div id="RADAR_1KM_RDBR" class="flexCell">CA</div--></div>
     </div>
     <div class="infoItem" id="infoItemLightning">
       <div class="infoLabel" id="infoLabelLightning">SALAMAT</div>
@@ -74,14 +74,8 @@
       </div>
     <div class="infoItem" id="infoItemTime">
       <div class="infoLabel">AIKA</div>
-      <div class="infoValue" id="currentTimeTxt"><div id="currentDateValue"></div><div class="valueTxtBig" id="currentLocalTimeValue"></div><div id="currentUTCTimeValue"></div></div>
+      <div class="infoValue" id="currentTimeTxt"><div id="currentDateValue"></div><div id="currentLocalTimeValue"></div><div id="currentUTCTimeValue"></div></div>
       <!--span class="tooltiptext">Displays current date, localtime and UTC time.</span-->
-    </div>
-    <div class="infoItem" id="infoItemUpdate">
-      <div class="infoLabel">UPDATE</div>
-      <div class="infoValue" id="radarTimeTxt"><div id="radarDateValue"></div><div class="valueTxtBig" id="radarTimeValue"></div></div>
-      <div class="infoValue" id="radarPlayTxt"><i id="skip_previous" class="material-icons">skip_previous</i><i id="playstop" class="material-icons">pause</i><i id="skip_next" class="material-icons">skip_next</i></div>
-      <!--span class="tooltiptext">Displays data time.</span-->
     </div>
     <div class="infoItem" id="infoItemPosition">
       <div class="infoLabel">SIJAINTI</div>
@@ -107,7 +101,7 @@
       <div id="playButton"><i id="playstopButton" class="material-icons">play_arrow</i></div>
       <!--div id="nextButton"><i class="material-icons">navigate_next</i></div-->
       <div id="skipNextButton"><i class="material-icons">skip_next</i></div>
-      <div id="currentMapTime"></div>
+      <div><div id="currentMapTime"></div><div id="currentMapDate"></div></div>
     </div>
     <div id="timeline"></div>
     <div id="playList">
