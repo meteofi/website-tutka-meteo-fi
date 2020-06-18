@@ -33,7 +33,7 @@ import 'dayjs/locale/fi';
 
 
 var options = {
-	defaultRadarLayer: 'radar:radar_finland_dbz',
+	defaultRadarLayer: 'Radar:suomi_dbz_eureffin',
 	defaultLightningLayer: 'observation:lightning',
 	defaultObservationLayer: 'observation:air_temperature',
 	rangeRingSpacing: 50,
@@ -48,14 +48,15 @@ var options = {
 			refresh: 60000,
 			category: 'radarLayer',
 			attribution: 'FMI (CC-BY-4.0)',
-			disabled: true
+			disabled: false
 		},
 		'meteo-radar': {
 			url: 'https://wms.meteo.fi/geoserver/wms',
 			namespace: 'radar',
 			refresh: 60000,
 			category: 'radarLayer',
-			attribution: 'FMI (CC-BY-4.0)'
+			attribution: 'FMI (CC-BY-4.0)',
+			disabled: false
 		},
 		'meteo-obs': {
 			url: 'https://geoserver.apps.meteo.fi/geoserver/wms',
@@ -452,7 +453,7 @@ var radarLayer = new ImageLayer({
 	visible: VISIBLE.has("radarLayer"),
 	opacity: 0.7,
 	source: new ImageWMS({
-		url: options.wmsServerConfiguration["meteo-radar"].url,
+		url: options.wmsServerConfiguration["fmi-radar"].url,
 		params: { 'LAYERS': options.defaultRadarLayer },
 		attributions: 'FMI',
 		ratio: options.imageRatio,
@@ -805,9 +806,12 @@ function setTime(action='next') {
 		//updateTimeLine((startDate.getTime()-start)/resolution);
 		timeline.update((startDate.getTime()-start)/resolution);
 
-		var startDateFormat = moment(startDate.toISOString()).utc().format()
-		setLayerTime(satelliteLayer, startDateFormat);
-		setLayerTime(radarLayer, startDateFormat);
+		//var startDateFormat = moment(startDate.toISOString()).utc().format()
+		//debug("---");
+		//debug(startDateFormat);
+		//debug(startDate.toISOString());
+		setLayerTime(satelliteLayer, startDate.toISOString());
+		setLayerTime(radarLayer, startDate.toISOString());
 		setLayerTime(lightningLayer, 'PT'+(resolution/60000)+'M/' + startDate.toISOString());
 		setLayerTime(observationLayer, 'PT'+(resolution/60000)+'M/' + startDate.toISOString());
 
@@ -1427,6 +1431,8 @@ document.addEventListener('keyup', function (event) {
 });
 
 function updateLayerSelection(ollayer,type,filter) {
+	//debug(type)
+	//debug(ollayer)
 	let parent = document.getElementById('layers');
 	document.querySelectorAll('.'+type+'LayerSelect').forEach(function(child) {
     parent.removeChild(child);
@@ -1493,7 +1499,7 @@ function getWMSCapabilities(wms) {
 				updateLayerSelection(observationLayer, "observation", "observation:");
 				break;
 			case 'radarLayer':
-				updateLayerSelection(radarLayer, "radar", "radar_finland");
+				updateLayerSelection(radarLayer, "radar", "suomi_");
 				break;
 			case 'lightningLayer':
 				updateLayerSelection(lightningLayer, "lightning", "lightning");
