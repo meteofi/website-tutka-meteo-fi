@@ -70,34 +70,35 @@ var options = {
 			namespace: 'meteosat',
 			refresh: 300000,
 			category: "satelliteLayer",
-			attribution: 'EUMETSAT'
-		},
-		'eumetsat1': {
-			url: 'https://eumetview.eumetsat.int/geoserv/meteosat/msg_eview/wms',
-			refresh: 300000,
-			category: "satelliteLayer",
-			title: 'Meteosat pilvialueet yö/päivä',
-			abstract: 'Päivällä alapilvet näkyvät keltaisen sävyissä ja korkeat pilvet sinertävinä. Yöllä sinertävässä infrapunakuvassa kylmät pilvet näkyvät kirkaina.',
 			attribution: 'EUMETSAT',
 			disabled: true
 		},
+		'eumetsat1': {
+			url: 'https://view.eumetsat.int/geoserver/msg_fes/rgb_eview/wms',
+			refresh: 300000,
+			category: "satelliteLayer",
+			title: 'Meteosat pilvialueet yö/päivä',
+			//abstract: 'Päivällä alapilvet näkyvät keltaisen sävyissä ja korkeat pilvet sinertävinä. Yöllä sinertävässä infrapunakuvassa kylmät pilvet näkyvät kirkaina.',
+			attribution: 'EUMETSAT',
+			disabled: false
+		},
 		'eumetsat2': {
-			url: 'https://eumetview.eumetsat.int/geoserv/meteosat/msg_convection/wms',
+			url: 'https://view.eumetsat.int/geoserver/msg_fes/rgb_convection/wms',
 			refresh: 300000,
 			category: "satelliteLayer",
 			title: 'Meteosat konvektiopilvet',
 			abstract: 'Vaaraa aiheuttavat konvektiiviset rajuilmat näkyvät kuvassa kirkkaan keltaisena. Ukkospilven alasimen läpäisevät huiput näkyvät kuvassa kirkkaan vaalean punaisena.',
 			attribution: 'EUMETSAT',
-			disabled: true
+			disabled: false
 		},
 		'eumetsat3': {
-			url: 'https://eumetview.eumetsat.int/geoserv/meteosat/msg_naturalenhncd/wms',
+			url: 'https://view.eumetsat.int/geoserver/msg_fes/rgb_naturalenhncd/wms',
 			refresh: 300000,
 			category: "satelliteLayer",
 			title: 'Meteosat pilvialueet',
 			abstract: 'Vesipilvet näkyvät kuvassa vaaleina, jäiset valkoisina, kasvillisuus vihreänä, maa ruskeana ja meri mustana.',
 			attribution: 'EUMETSAT',
-			disabled: true
+			disabled: false
 		},
 		'eumetsat4': {
 			url: 'https://eumetview.eumetsat.int/geoserv/meteosat/msg_airmass/wms',
@@ -439,8 +440,8 @@ var satelliteLayer = new ImageLayer({
 	visible: VISIBLE.has("satelliteLayer"),
 	opacity: 0.7,
 	source: new ImageWMS({
-		url: options.wmsServerConfiguration.eumetsat.url,
-		params: { 'FORMAT': 'image/jpeg', 'LAYERS': "meteosat:msg_eview" },
+		url: options.wmsServerConfiguration.eumetsat1.url,
+		params: { 'FORMAT': 'image/jpeg', 'LAYERS': "rgb_eview" },
 		hidpi: false,
 		ratio: options.imageRatio,
 		serverType: 'geoserver'
