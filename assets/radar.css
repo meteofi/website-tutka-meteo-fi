@@ -360,7 +360,10 @@ i.material-icons:before{display:none;}
 .title {
   color: var(--dark-theme-on-surface-color);
   font-size: 1.1em;
-  padding-bottom: 5px;
+  padding-bottom: 2px;
+}
+
+#layers > div > .title {
   height: 3em;
 }
 
