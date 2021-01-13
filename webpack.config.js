@@ -75,7 +75,7 @@ module.exports = {
                 handler: 'NetworkFirst'
             },
             {
-                urlPattern: new RegExp('https://eumetview.eumetsat.int/geoserv/.*request=GetCapabilities'),
+                urlPattern: new RegExp('https://view.eumetsat.int/geoserv/.*request=GetCapabilities'),
                 handler: 'NetworkFirst'
             }
         ]
