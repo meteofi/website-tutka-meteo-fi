@@ -28,7 +28,7 @@
     "moment": "^2.24.0",
     "moment-locales-webpack-plugin": "^1.0.7",
     "mqtt": "^2.18.8",
-    "ol": "^6.5.0",
+    "ol": "^6.6.1",
     "ol-hashed": "^2.0.0"
   }
 }
