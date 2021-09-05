@@ -149,13 +149,13 @@
             "geometry": {
                 "type": "Point",
                 "coordinates": [
-                    24.8690,
-                    60.2706
+                    24.4956,
+                    60.5562
                 ]
             },
             "properties": {
-                "name": "Vantaa",
-                "acronym": "VAN",
+                "name": "Vihti",
+                "acronym": "VIH",
                 "country": "fi"
             }
         },
