@@ -149,21 +149,6 @@
             "geometry": {
                 "type": "Point",
                 "coordinates": [
-                    24.8690,
-                    60.2706
-                ]
-            },
-            "properties": {
-                "name": "Vantaa",
-                "acronym": "VAN",
-                "country": "fi"
-            }
-        },
-        {
-            "type": "Feature",
-            "geometry": {
-                "type": "Point",
-                "coordinates": [
                     24.4956,
                     60.5562
                 ]
