@@ -78,7 +78,7 @@ var options = {
 			refresh: 300000,
 			category: "satelliteLayer",
 			title: 'Meteosat pilvialueet yö/päivä',
-			//abstract: 'Päivällä alapilvet näkyvät keltaisen sävyissä ja korkeat pilvet sinertävinä. Yöllä sinertävässä infrapunakuvassa kylmät pilvet näkyvät kirkaina.',
+			abstract: 'Päivällä alapilvet näkyvät keltaisen sävyissä ja korkeat pilvet sinertävinä. Yöllä sinertävässä infrapunakuvassa kylmät pilvet näkyvät kirkaina.',
 			attribution: 'EUMETSAT',
 			disabled: false
 		},
@@ -1085,7 +1085,7 @@ function layerInfoDiv(wmslayer) {
 
 	div.appendChild(createLayerInfoElement(info.title,'title'));
 
-	div.appendChild(createLayerInfoElement('<img class="responsiveImage" src="' +info.url + '?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&FORMAT=image%2Fpng8&TRANSPARENT=true&CRS=EPSG%3A3067&STYLES=&WIDTH=300&HEIGHT=300&BBOX=-183243.50620644476%2C6575998.62606195%2C1038379.8685031873%2C7797622.000771582&LAYERS=' + info.layer + '">','preview'));
+	div.appendChild(createLayerInfoElement('<img class="responsiveImage" src="' +info.url + '?TIME=PT1H/PRESENT&SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&FORMAT=image%2Fpng8&TRANSPARENT=true&CRS=EPSG%3A3067&STYLES=&WIDTH=300&HEIGHT=300&BBOX=-183243.50620644476%2C6575998.62606195%2C1038379.8685031873%2C7797622.000771582&LAYERS=' + info.layer + '">','preview'));
 	div.appendChild(createLayerInfoElement(info.abstract,'abstract'));
 	div.appendChild(createLayerInfoElement((resolution > 60 ? (resolution / 60) + ' tuntia ' : resolution + ' minuuttia, viimeisin: ')+moment(info.time.end).format('LT'),'time'));
 	div.appendChild(createLayerInfoElement(info.attribution.Title,'attribution'));
@@ -1143,7 +1143,7 @@ function layerInfoPlaylist(event) {
 		resolution = '<div><i class="material-icons">av_timer</i> ' + (timestep > 60 ? (timestep / 60) + ' tuntia' : timestep + ' min') + '</div>'
 	}
 
-	document.getElementById(name + 'Opacity').innerHTML = '<label for="' + name + 'Slider"></label> <input type="range" min="1" max="100" value="' + opacity + '" class="slider" id="' + name + 'Slider"></input>';
+	document.getElementById(name + 'Opacity').innerHTML = '<label for="' + name + 'Slider">Läpikuultavuus</label><input type="range" min="1" max="100" value="' + opacity + '" class="slider" id="' + name + 'Slider"></input>';
 
 	if (layer.getVisible()) {
 		document.getElementById(name + 'Info').classList.remove("playListDisabled");
