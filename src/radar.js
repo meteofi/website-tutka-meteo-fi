@@ -700,11 +700,11 @@ function setLayerTime(layer, time) {
 //	debug(event);
 //});
 
-function gtag() { 
-	if (typeof dataLayer !== "undefined") {
-		dataLayer.push(arguments); 
-	}
-}
+//function gtag() { 
+//	if (typeof dataLayer !== "undefined") {
+//		dataLayer.push(arguments); 
+//	}
+//}
 
 function getActiveLayers() {
 	let layers = [];
@@ -747,7 +747,7 @@ function updateCanonicalPage() {
 	debug("Set page: " + page);
 	//debug("Set title: " + title);
 	//document.title = title;
-	gtag('config', 'UA-23910741-3', { 'page_path': page });
+	//gtag('config', 'UA-23910741-3', { 'page_path': page });
 }
 
 function setTime(action='next') {
@@ -877,10 +877,10 @@ var playstop = function () {
 	IS_FOLLOWING = false;
 	if (animationId !== null) {
 		stop();
-		gtag('event', 'stop', {'event_category' : 'timecontrol'});
+		//gtag('event', 'stop', {'event_category' : 'timecontrol'});
 	} else {
 		play();
-		gtag('event', 'play', {'event_category' : 'timecontrol'});
+		//gtag('event', 'play', {'event_category' : 'timecontrol'});
 	}
 };
 
@@ -935,7 +935,7 @@ function setMapLayer(maplayer) {
 			lightGrayReferenceLayer.setVisible(true);
 			document.getElementById("mapLayerButton").classList.remove("selectedButton");
 			IS_DARK = false;
-			gtag('event', 'light', {'event_category' : 'mapcontrol'});
+			//gtag('event', 'light', {'event_category' : 'mapcontrol'});
 			break;
 		case 'dark':
 			darkGrayBaseLayer.setVisible(true);
@@ -944,7 +944,7 @@ function setMapLayer(maplayer) {
 			lightGrayReferenceLayer.setVisible(false);
 			document.getElementById("mapLayerButton").classList.add("selectedButton");
 			IS_DARK = true;
-			gtag('event', 'dark', {'event_category' : 'mapcontrol'});
+			//gtag('event', 'dark', {'event_category' : 'mapcontrol'});
 			break;	
 	}
 	localStorage.setItem("IS_DARK",JSON.stringify(IS_DARK));
@@ -1216,7 +1216,7 @@ document.getElementById('speedButton').addEventListener('mouseup', function() {
 	stop();
 	play();
 	debug("SPEED: " + options.frameRate);
-	gtag('event', 'speed', {'event_category' : 'timecontrol', 'event_label' : options.frameRate / options.defaultFrameRate + "×"});
+	//gtag('event', 'speed', {'event_category' : 'timecontrol', 'event_label' : options.frameRate / options.defaultFrameRate + "×"});
 });
 
 document.getElementById('playButton').addEventListener('mouseup', function() {
@@ -1302,7 +1302,7 @@ document.getElementById('locationLayerButton').addEventListener('mouseup', funct
 		localStorage.setItem("IS_TRACKING",JSON.stringify(false));
 		geolocation.setTracking(false);
 		ownPositionLayer.setVisible(false);
-		gtag('event', 'off', {'event_category' : 'tracking'});
+		//gtag('event', 'off', {'event_category' : 'tracking'});
 	} else {
 		IS_TRACKING = true;
 		localStorage.setItem("IS_TRACKING",JSON.stringify(true));
@@ -1311,7 +1311,7 @@ document.getElementById('locationLayerButton').addEventListener('mouseup', funct
 		if (ownPosition.length > 1) {
 			map.getView().setCenter(ownPosition);
 		}
-		gtag('event', 'on', {'event_category' : 'tracking'});
+		//gtag('event', 'on', {'event_category' : 'tracking'});
 	}
 	setButtonStates();
 });
@@ -1477,10 +1477,10 @@ function getWMSCapabilities(wms) {
 	let namespace = wms.namespace ? '&namespace=' + wms.namespace : '';
 	let layer = wms.layer ? '&layer=' + wms.layer : '';
 	debug("Request WMS Capabilities " + wms.url);
-	gtag('event', 'getCapabilities', {
-		'event_category': 'WMS',
-		'event_label': wms.url
-	});
+	//gtag('event', 'getCapabilities', {
+	//	'event_category': 'WMS',
+	//	'event_label': wms.url
+	//});
 	fetch(wms.url + '?SERVICE=WMS&version=1.3.0&request=GetCapabilities' + namespace + layer).then(function (response) {
 		return response.text();
 	}).then(function (text) {
@@ -1647,7 +1647,7 @@ function onPostRender (e) {
 //
 const main = () => {
 	// Load custom tracking code lazily, so it's non-blocking.
-	import('./analytics.js').then((analytics) => { analytics.init(); updateCanonicalPage()});
+	//import('./analytics.js').then((analytics) => { analytics.init(); updateCanonicalPage()});
 	
 	timeline = new Timeline (13, document.getElementById("timeline"));
 
