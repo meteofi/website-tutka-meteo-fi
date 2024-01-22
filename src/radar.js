@@ -59,7 +59,7 @@ var options = {
 			disabled: false
 		},
 		'meteo-obs': {
-			url: 'https://geoserver.apps.meteo.fi/geoserver/wms',
+			url: 'https://wms.meteo.fi/geoserver/wms',
 			namespace: 'observation',
 			refresh: 300000,
 			category: 'observationLayer',
