@@ -1,0 +1,17 @@
+version: '3'
+services:
+  website-radar:
+    image: website-radar
+    container_name: website-radar
+    restart: unless-stopped
+    build: .
+    labels:
+      - "traefik.http.routers.website-radar.entrypoints=websecure"
+      - "traefik.http.routers.website-radar.rule=Host(`tutka.${APPDOMAIN:-local}`)"
+      - "traefik.http.services.website-radar.loadbalancer.server.port=8080"
+    networks:
+      - traefik-network
+
+networks:
+    traefik-network:
+      external: true
