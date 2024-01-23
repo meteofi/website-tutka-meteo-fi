@@ -577,15 +577,13 @@ var layers = [
 ];
 
 function distanceToString(distance) {
-	var str;
+	let str;
 	if (IS_NAUTICAL) {
-		str = (distance / 1852).toFixed(3) + ' NM';
+		str = `${(distance / 1852).toFixed(3)} NM`;
 	} else {
-		if (distance < 1000) {
-			str = Math.round(distance) + ' m';
-		} else {
-			str = (distance / 1000).toFixed(1) + ' km';
-		}
+		str = distance < 1000 
+			? `${Math.round(distance)} m` 
+			: `${(distance / 1000).toFixed(1)} km`;
 	}
 	return str;
 }
@@ -625,12 +623,16 @@ const map = new Map({
 });
 
 
-function rangeRings (layer, coordinates, range) {
-	if (isNumber(range)) {
+function rangeRings(layer, coordinates, range) {
+	if (typeof range === 'number' && layer && coordinates) {
 		const ring = circular(coordinates, range);
-		layer.getSource().addFeatures([
-			new Feature({name: range/1000 + 'km', geometry: ring.transform('EPSG:4326', map.getView().getProjection())})
-		]);
+		const transformedRing = ring.transform('EPSG:4326', map.getView().getProjection());
+		const feature = new Feature({
+			name: `${range / 1000} km`,
+			geometry: transformedRing
+		});
+
+		layer.getSource().addFeatures([feature]);
 	}
 }
 
