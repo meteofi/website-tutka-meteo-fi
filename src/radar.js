@@ -879,10 +879,8 @@ var playstop = function () {
 	IS_FOLLOWING = false;
 	if (animationId !== null) {
 		stop();
-		//gtag('event', 'stop', {'event_category' : 'timecontrol'});
 	} else {
 		play();
-		//gtag('event', 'play', {'event_category' : 'timecontrol'});
 	}
 };
 
@@ -1191,12 +1189,14 @@ function onChangeSlider () {
 	radarLayer.setOpacity(this.value/100);
 }
 
+/**
+ * Toggles the visibility of a given layer.
+ * If the layer is currently visible, it will be set to invisible, and vice versa.
+ *
+ * @param {ol.layer} layer - The layer whose visibility will be toggled.
+ */
 function toggleLayerVisibility(layer) {
-	if (layer.getVisible()) {
-		layer.setVisible(false);
-	} else {
-		layer.setVisible(true);
-	}
+	layer.setVisible(!layer.getVisible());
 }
 
 //
