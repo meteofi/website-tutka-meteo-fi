@@ -71,7 +71,7 @@ module.exports = {
                 handler: 'NetworkFirst'
             },
             {
-                urlPattern: new RegExp('https://geoserver.apps.meteo.fi/geoserver/.*request=GetCapabilities'),
+                urlPattern: new RegExp('https://geoserver.app.meteo.fi/geoserver/.*request=GetCapabilities'),
                 handler: 'NetworkFirst'
             },
             {

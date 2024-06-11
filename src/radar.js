@@ -35,7 +35,7 @@ import 'dayjs/locale/fi';
 var options = {
 	defaultRadarLayer: 'Radar:suomi_dbz_eureffin',
 	defaultLightningLayer: 'observation:lightning',
-	defaultObservationLayer: 'observation:air_temperature',
+	defaultObservationLayer: 'observation:wis2_air_temperature',
 	rangeRingSpacing: 50,
 	radialSpacing: 30,
 	frameRate: 2, // fps
@@ -59,7 +59,7 @@ var options = {
 			disabled: false
 		},
 		'meteo-obs': {
-			url: 'https://wms.meteo.fi/geoserver/wms',
+			url: 'https://geoserver.app.meteo.fi/geoserver/wms',
 			namespace: 'observation',
 			refresh: 300000,
 			category: 'observationLayer',
@@ -162,7 +162,7 @@ var options = {
 	}
 }
 
-var DEBUG = false;
+let DEBUG = false;
 var metLatitude = localStorage.getItem("metLatitude")
 	? localStorage.getItem("metLatitude")
 	: 60.2706;
@@ -1648,16 +1648,10 @@ function onPostRender (e) {
 // MAIN
 //
 const main = () => {
-	// Load custom tracking code lazily, so it's non-blocking.
-	//import('./analytics.js').then((analytics) => { analytics.init(); updateCanonicalPage()});
 	
 	timeline = new Timeline (13, document.getElementById("timeline"));
 
-	if (IS_DARK) {
-		setMapLayer('dark');
-	} else {
-		setMapLayer('light');
-	}
+	setMapLayer(IS_DARK ? 'dark' : 'light');
 
 	updateClock();
 
