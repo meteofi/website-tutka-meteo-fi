@@ -43,6 +43,21 @@
             "geometry": {
                 "type": "Point",
                 "coordinates": [
+                    27.4439,
+                    68.4344
+                ]
+            },
+            "properties": {
+                "name": "Kaunispää",
+                "acronym": "KAU",
+                "country": "fi"
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
                     29.7977,
                     61.9070
                 ]

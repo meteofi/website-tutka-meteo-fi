@@ -24,7 +24,6 @@ import WMSCapabilities from 'ol/format/WMSCapabilities.js';
 //import WMTSCapabilities from 'ol/format/WMTSCapabilities.js';
 //import { connect } from 'mqtt';
 import { transformExtent } from 'ol/proj';
-import { isNumber } from 'util';
 import Timeline from './timeline';
 import AIS from './digitraffic';
 //import Worker from './wmscapabilities.worker.js'; 
@@ -57,6 +56,13 @@ var options = {
 			category: 'radarLayer',
 			attribution: 'FMI (CC-BY-4.0)',
 			disabled: false
+		},
+		'meteo-obs-new': {
+			url: 'https://wms-obs.app.meteo.fi/geoserver/wms',
+			namespace: 'observation',
+			refresh: 300000,
+			category: 'observationLayer',
+			attribution: 'FMI (CC-BY-4.0)'
 		},
 		'meteo-obs': {
 			url: 'https://geoserver.app.meteo.fi/geoserver/wms',
@@ -119,10 +125,10 @@ var options = {
 		},
 		ca: {
 			url: 'https://geo.weather.gc.ca/geomet/',
-			layer: 'RADAR_1KM_RDBR',
+			layer: 'RADAR_1KM_RRAI',
 			refresh: 300000,
 			category: 'radarLayer',
-			disabled: true
+			disabled: false
 		},
 		de: {
 			url: 'https://maps.dwd.de/geoserver/dwd/RX-Produkt/wms',
@@ -1077,18 +1083,26 @@ function emptyElement(element){
 function layerInfoDiv(wmslayer) {
 	let info = layerInfo[wmslayer];
 	let div = document.createElement('div');
-	var resolution = Math.round(info.time.resolution/60000);
+	var resolution = info && info.time ? Math.round(info.time.resolution/60000) : 0;
 
 	div.id = wmslayer + 'Meta';
 	div.setAttribute('data-layer-name', wmslayer);
-	div.setAttribute('data-layer-category', info.category);
+	div.setAttribute('data-layer-category', info ? info.category : '');
 
-	div.appendChild(createLayerInfoElement(info.title,'title'));
+	div.appendChild(createLayerInfoElement(info ? info.title : '','title'));
 
-	div.appendChild(createLayerInfoElement('<img class="responsiveImage" src="' +info.url + '?TIME=PT1H/PRESENT&SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&FORMAT=image%2Fpng8&TRANSPARENT=true&CRS=EPSG%3A3067&STYLES=&WIDTH=300&HEIGHT=300&BBOX=-183243.50620644476%2C6575998.62606195%2C1038379.8685031873%2C7797622.000771582&LAYERS=' + info.layer + '">','preview'));
-	div.appendChild(createLayerInfoElement(info.abstract,'abstract'));
-	div.appendChild(createLayerInfoElement((resolution > 60 ? (resolution / 60) + ' tuntia ' : resolution + ' minuuttia, viimeisin: ')+moment(info.time.end).format('LT'),'time'));
-	div.appendChild(createLayerInfoElement(info.attribution.Title,'attribution'));
+	div.appendChild(createLayerInfoElement('<img class="responsiveImage" src="' +(info ? info.url : '') + '?TIME=PT1H/PRESENT&SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&FORMAT=image%2Fpng8&TRANSPARENT=true&CRS=EPSG%3A3067&STYLES=&WIDTH=300&HEIGHT=300&BBOX=-183243.50620644476%2C6575998.62606195%2C1038379.8685031873%2C7797622.000771582&LAYERS=' + (info ? info.layer : '') + '">','preview'));
+	div.appendChild(createLayerInfoElement(info ? info.abstract : '','abstract'));
+	if (info && info.time && info.time.end) {
+		div.appendChild(createLayerInfoElement((resolution > 60 ? (resolution / 60) + ' tuntia ' : resolution + ' minuuttia, viimeisin: ')+moment(info.time.end).format('LT'),'time'));
+	} else {
+		div.appendChild(createLayerInfoElement('Aikatiedot ei saatavilla','time'));
+	}
+	if (info && info.attribution && info.attribution.Title) {
+		div.appendChild(createLayerInfoElement(info.attribution.Title,'attribution'));
+	} else {
+		div.appendChild(createLayerInfoElement('','attribution'));
+	}
 	return div;
 }
 
@@ -1452,7 +1466,8 @@ function updateLayerSelection(ollayer,type,filter) {
 			};
 			div.classList.add(type+'LayerSelect');
 			div.classList.add('layerSelectItem');
-			if (ollayer.get('info').layer === layer) {
+			const ollayerInfo = ollayer.get('info');
+			if (ollayerInfo && ollayerInfo.layer === layer) {
 				div.classList.add("selectedLayer");
 			}
 			document.getElementById("layers").appendChild(div);
@@ -1488,31 +1503,38 @@ function getWMSCapabilities(wms) {
 	}).then(function (text) {
 		debug("Received WMS Capabilities " + wms.url);
 		var result = parser.read(text);
-		getLayers(result.Capability.Layer.Layer, wms);
-		debug(layerInfo);
-		satelliteLayer.set('info', layerInfo[satelliteLayer.getSource().getParams().LAYERS])
-		radarLayer.set('info', layerInfo[radarLayer.getSource().getParams().LAYERS])
-		lightningLayer.set('info', layerInfo[lightningLayer.getSource().getParams().LAYERS])
-		observationLayer.set('info', layerInfo[observationLayer.getSource().getParams().LAYERS])
-		switch (wms.category) {
-			case 'satelliteLayer':
-				updateLayerSelection(satelliteLayer, "satellite", "msg_");
-				break;
-			case 'observationLayer':
-				updateLayerSelection(observationLayer, "observation", "observation:");
-				break;
-			case 'radarLayer':
-				updateLayerSelection(radarLayer, "radar", "suomi_");
-				break;
-			case 'lightningLayer':
-				updateLayerSelection(lightningLayer, "lightning", "lightning");
-				break;
-			default:
-				debug('No wms.category set');
+		if (result && result.Capability && result.Capability.Layer && result.Capability.Layer.Layer) {
+			getLayers(result.Capability.Layer.Layer, wms);
+			debug(layerInfo);
+			satelliteLayer.set('info', layerInfo[satelliteLayer.getSource().getParams().LAYERS])
+			radarLayer.set('info', layerInfo[radarLayer.getSource().getParams().LAYERS])
+			lightningLayer.set('info', layerInfo[lightningLayer.getSource().getParams().LAYERS])
+			observationLayer.set('info', layerInfo[observationLayer.getSource().getParams().LAYERS])
+			switch (wms.category) {
+				case 'satelliteLayer':
+					updateLayerSelection(satelliteLayer, "satellite", "msg_");
+					break;
+				case 'observationLayer':
+					updateLayerSelection(observationLayer, "observation", "observation:");
+					break;
+				case 'radarLayer':
+					updateLayerSelection(radarLayer, "radar", "suomi_");
+					break;
+				case 'lightningLayer':
+					updateLayerSelection(lightningLayer, "lightning", "lightning");
+					break;
+				default:
+					debug('No wms.category set');
+			}
+			if (IS_FOLLOWING) {
+				setTime('last');
+			}
+		} else {
+			debug('Invalid WMS Capabilities response structure for ' + wms.url);
+			debug(result);
 		}
-		if (IS_FOLLOWING) {
-			setTime('last');
-		}
+	}).catch(function (error) {
+		debug('Error fetching WMS Capabilities from ' + wms.url + ': ' + error.message);
 	});
 	setTimeout(function () { getWMSCapabilities(wms) }, wms.refresh);
 }
@@ -1655,11 +1677,11 @@ const main = () => {
 
 	updateClock();
 
-	Object.keys(options.wmsServerConfiguration).forEach((item) => {
-		if (!options.wmsServerConfiguration[item].disabled) {
-			getWMSCapabilities(options.wmsServerConfiguration[item]);
+	for (const [key, value] of Object.entries(options.wmsServerConfiguration)) {
+		if (!value.disabled) {
+			getWMSCapabilities(value);
 		}
-	});
+	}
 	
 	setButtonStates();
 

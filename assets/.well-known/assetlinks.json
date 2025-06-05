@@ -1,0 +1,10 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "fi.meteo.tutka",
+    "sha256_cert_fingerprints": [
+      "3B:AB:89:83:50:AD:55:1F:C8:E0:DC:96:1C:42:AD:AC:8E:9E:54:B4:DA:69:8D:F0:95:5E:A7:AA:44:D2:09:8F"
+    ]
+  }
+}]

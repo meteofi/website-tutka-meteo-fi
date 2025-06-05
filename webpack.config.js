@@ -3,9 +3,9 @@ const webpack = require('webpack');
 const MomentLocalesPlugin = require('moment-locales-webpack-plugin');
 const CompressionPlugin = require('compression-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
-const CleanWebpackPlugin = require('clean-webpack-plugin');
+const { CleanWebpackPlugin } = require('clean-webpack-plugin');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
-const workboxPlugin = require('workbox-webpack-plugin');
+const { GenerateSW } = require('workbox-webpack-plugin');
  
 module.exports = {
     entry: './src/radar.js',
@@ -14,10 +14,27 @@ module.exports = {
         //filename: 'radar.js'
         filename: 'radar.[contenthash].js',
     },
+    resolve: {
+        fallback: {
+            "util": require.resolve("util/"),
+            "url": require.resolve("url/"),
+            "buffer": require.resolve("buffer/"),
+            "stream": require.resolve("stream-browserify"),
+            "path": require.resolve("path-browserify"),
+            "os": require.resolve("os-browserify/browser"),
+            "process": require.resolve("process/browser"),
+            "net": false,
+            "tls": false,
+            "fs": false
+        }
+    },
     devServer: {
-        contentBase: path.join(__dirname, 'dist'),
+        static: {
+            directory: path.join(__dirname, 'dist'),
+        },
         compress: true,
-        port: 9000
+        port: 9000,
+        open: true
     },
     // module: {
     //     rules: [
@@ -37,19 +54,28 @@ module.exports = {
             localesToKeep: ['fi'],
         }),
         new CompressionPlugin(),
-        new webpack.HashedModuleIdsPlugin(),
         new HtmlWebpackPlugin({
-          //title: 'Output Management',
           template: './src/index.html'
         }),
         new CleanWebpackPlugin(),
-        new CopyWebpackPlugin([
-            { from: 'assets', to: '.' }
-        ]),
-        new workboxPlugin.GenerateSW({
+        new CopyWebpackPlugin({
+            patterns: [
+                { from: 'assets', to: '.' }
+            ]
+        }),
+        new webpack.ProvidePlugin({
+            Buffer: ['buffer', 'Buffer'],
+            process: 'process/browser',
+        }),
+        new webpack.DefinePlugin({
+            'process.env': JSON.stringify({}),
+            'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
+        }),
+        new GenerateSW({
             swDest: 'sw.js',
             clientsClaim: true,
             skipWaiting: true,
+            maximumFileSizeToCacheInBytes: 5000000, // 5MB
             runtimeCaching: [{
                 urlPattern: new RegExp('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/'),
                 handler: 'StaleWhileRevalidate'
@@ -84,10 +110,31 @@ module.exports = {
     optimization: {
         runtimeChunk: 'single',
         splitChunks: {
+            chunks: 'all',
+            maxInitialRequests: Infinity,
+            minSize: 0,
             cacheGroups: {
+                default: {
+                    minChunks: 2,
+                    priority: -20,
+                    reuseExistingChunk: true
+                },
                 vendor: {
                     test: /[\\/]node_modules[\\/]/,
                     name: 'vendors',
+                    priority: -10,
+                    chunks: 'all'
+                },
+                openlayers: {
+                    test: /[\\/]node_modules[\\/]ol[\\/]/,
+                    name: 'openlayers',
+                    priority: 10,
+                    chunks: 'all'
+                },
+                moment: {
+                    test: /[\\/]node_modules[\\/]moment[\\/]/,
+                    name: 'moment',
+                    priority: 10,
                     chunks: 'all'
                 }
             }
