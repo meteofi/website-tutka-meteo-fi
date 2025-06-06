@@ -1284,6 +1284,18 @@ window.addEventListener('mouseup', function (e) {
 		hideObservationParameterMenu();
 	}
 
+	// Satellite long press menu
+	if (!document.getElementById('satelliteLongPressMenu').contains(e.target)) {
+		if (document.getElementById('satelliteLayerButton').contains(e.target)) return
+		hideSatelliteParameterMenu();
+	}
+
+	// Radar long press menu
+	if (!document.getElementById('radarLongPressMenu').contains(e.target)) {
+		if (document.getElementById('radarLayerButton').contains(e.target)) return
+		hideRadarParameterMenu();
+	}
+
 });
 
 // Close menus on touch events for mobile support
@@ -1292,6 +1304,18 @@ window.addEventListener('touchend', function (e) {
 	if (!document.getElementById('observationLongPressMenu').contains(e.target)) {
 		if (document.getElementById('observationLayerButton').contains(e.target)) return
 		hideObservationParameterMenu();
+	}
+
+	// Satellite long press menu
+	if (!document.getElementById('satelliteLongPressMenu').contains(e.target)) {
+		if (document.getElementById('satelliteLayerButton').contains(e.target)) return
+		hideSatelliteParameterMenu();
+	}
+
+	// Radar long press menu
+	if (!document.getElementById('radarLongPressMenu').contains(e.target)) {
+		if (document.getElementById('radarLayerButton').contains(e.target)) return
+		hideRadarParameterMenu();
 	}
 });
 
@@ -1307,6 +1331,30 @@ window.addEventListener('touchstart', function (e) {
 		window.shouldCloseObservationMenu = true;
 	} else {
 		window.shouldCloseObservationMenu = false;
+	}
+
+	// Satellite menu
+	const satelliteMenu = document.getElementById('satelliteLongPressMenu');
+	const satelliteButton = document.getElementById('satelliteLayerButton');
+	if (satelliteMenu.style.display === 'block' && 
+		!satelliteMenu.contains(e.target) && 
+		!satelliteButton.contains(e.target)) {
+		// Set a flag to close menu on touchend if no other action occurs
+		window.shouldCloseSatelliteMenu = true;
+	} else {
+		window.shouldCloseSatelliteMenu = false;
+	}
+
+	// Radar menu
+	const radarMenu = document.getElementById('radarLongPressMenu');
+	const radarButton = document.getElementById('radarLayerButton');
+	if (radarMenu.style.display === 'block' && 
+		!radarMenu.contains(e.target) && 
+		!radarButton.contains(e.target)) {
+		// Set a flag to close menu on touchend if no other action occurs
+		window.shouldCloseRadarMenu = true;
+	} else {
+		window.shouldCloseRadarMenu = false;
 	}
 });
 
@@ -1376,17 +1424,7 @@ document.getElementById('mapLayerButton').addEventListener('mouseup', function()
 	}
 });
 
-document.getElementById('satelliteLayerButton').addEventListener('mouseup', function() {
-	toggleLayerVisibility(satelliteLayer);
-});
 
-document.getElementById('satelliteLayerTitle').addEventListener('mouseup', function() {
-	toggleLayerVisibility(satelliteLayer);
-});
-
-document.getElementById('radarLayerButton').addEventListener('mouseup', function() {
-	toggleLayerVisibility(radarLayer);
-});
 
 document.getElementById('radarLayerTitle').addEventListener('mouseup', function() {
 	toggleLayerVisibility(radarLayer);
@@ -1459,8 +1497,140 @@ document.getElementById('observationLayerButton').addEventListener('touchcancel'
 	cancelObservationLongPress();
 });
 
-document.getElementById('observationLayerTitle').addEventListener('mouseup', function() {
-	toggleLayerVisibility(observationLayer);
+// Long press functionality for satellite layer button
+let satelliteLongPressTimer = null;
+let satelliteLongPressTriggered = false;
+let satelliteTouchStartTime = 0;
+
+// Function to start satellite long press timer
+function startSatelliteLongPress(e) {
+	satelliteLongPressTriggered = false;
+	satelliteTouchStartTime = Date.now();
+	
+	satelliteLongPressTimer = setTimeout(function() {
+		satelliteLongPressTriggered = true;
+		showSatelliteParameterMenu(e);
+		debug('Satellite long press triggered');
+	}, 500); // 500ms threshold for long press
+	
+	debug('Satellite long press timer started');
+}
+
+// Function to end satellite long press timer and handle short press
+function endSatelliteLongPress(e) {
+	clearTimeout(satelliteLongPressTimer);
+	
+	// Check if it was actually a long press (for touch events)
+	const touchDuration = Date.now() - satelliteTouchStartTime;
+	
+	if (!satelliteLongPressTriggered && touchDuration < 500) {
+		// This was a short press/click - toggle layer visibility
+		toggleLayerVisibility(satelliteLayer);
+		debug('Satellite short press - toggled layer visibility');
+	}
+	
+	debug('Satellite long press timer ended');
+}
+
+// Function to cancel satellite long press timer
+function cancelSatelliteLongPress() {
+	clearTimeout(satelliteLongPressTimer);
+	satelliteLongPressTriggered = false;
+	debug('Satellite long press timer cancelled');
+}
+
+// Mouse events for satellite
+document.getElementById('satelliteLayerButton').addEventListener('mousedown', startSatelliteLongPress);
+document.getElementById('satelliteLayerButton').addEventListener('mouseup', endSatelliteLongPress);
+document.getElementById('satelliteLayerButton').addEventListener('mouseleave', cancelSatelliteLongPress);
+
+// Touch events for mobile for satellite
+document.getElementById('satelliteLayerButton').addEventListener('touchstart', function(e) {
+	e.preventDefault(); // Prevent default touch behavior
+	startSatelliteLongPress(e);
+});
+
+document.getElementById('satelliteLayerButton').addEventListener('touchend', function(e) {
+	e.preventDefault(); // Prevent default touch behavior
+	endSatelliteLongPress(e);
+});
+
+document.getElementById('satelliteLayerButton').addEventListener('touchmove', function(e) {
+	e.preventDefault(); // Prevent default touch behavior
+	cancelSatelliteLongPress(); // Cancel long press if user moves finger
+});
+
+document.getElementById('satelliteLayerButton').addEventListener('touchcancel', function(e) {
+	e.preventDefault(); // Prevent default touch behavior
+	cancelSatelliteLongPress();
+});
+
+// Long press functionality for radar layer button
+let radarLongPressTimer = null;
+let radarLongPressTriggered = false;
+let radarTouchStartTime = 0;
+
+// Function to start radar long press timer
+function startRadarLongPress(e) {
+	radarLongPressTriggered = false;
+	radarTouchStartTime = Date.now();
+	
+	radarLongPressTimer = setTimeout(function() {
+		radarLongPressTriggered = true;
+		showRadarParameterMenu(e);
+		debug('Radar long press triggered');
+	}, 500); // 500ms threshold for long press
+	
+	debug('Radar long press timer started');
+}
+
+// Function to end radar long press timer and handle short press
+function endRadarLongPress(e) {
+	clearTimeout(radarLongPressTimer);
+	
+	// Check if it was actually a long press (for touch events)
+	const touchDuration = Date.now() - radarTouchStartTime;
+	
+	if (!radarLongPressTriggered && touchDuration < 500) {
+		// This was a short press/click - toggle layer visibility
+		toggleLayerVisibility(radarLayer);
+		debug('Radar short press - toggled layer visibility');
+	}
+	
+	debug('Radar long press timer ended');
+}
+
+// Function to cancel radar long press timer
+function cancelRadarLongPress() {
+	clearTimeout(radarLongPressTimer);
+	radarLongPressTriggered = false;
+	debug('Radar long press timer cancelled');
+}
+
+// Mouse events for radar
+document.getElementById('radarLayerButton').addEventListener('mousedown', startRadarLongPress);
+document.getElementById('radarLayerButton').addEventListener('mouseup', endRadarLongPress);
+document.getElementById('radarLayerButton').addEventListener('mouseleave', cancelRadarLongPress);
+
+// Touch events for mobile for radar
+document.getElementById('radarLayerButton').addEventListener('touchstart', function(e) {
+	e.preventDefault(); // Prevent default touch behavior
+	startRadarLongPress(e);
+});
+
+document.getElementById('radarLayerButton').addEventListener('touchend', function(e) {
+	e.preventDefault(); // Prevent default touch behavior
+	endRadarLongPress(e);
+});
+
+document.getElementById('radarLayerButton').addEventListener('touchmove', function(e) {
+	e.preventDefault(); // Prevent default touch behavior
+	cancelRadarLongPress(); // Cancel long press if user moves finger
+});
+
+document.getElementById('radarLayerButton').addEventListener('touchcancel', function(e) {
+	e.preventDefault(); // Prevent default touch behavior
+	cancelRadarLongPress();
 });
 
 document.getElementById('layersButton').addEventListener('mouseup', function() {
@@ -1864,6 +2034,40 @@ const main = () => {
 		});
 	});
 
+	// Setup satellite parameter menu event listeners
+	document.querySelectorAll('#satelliteLongPressMenu .menu-item').forEach(item => {
+		// Mouse/click events
+		item.addEventListener('click', function() {
+			const parameterId = this.getAttribute('data-layer');
+			selectSatelliteParameter(parameterId);
+		});
+		
+		// Touch events for mobile support
+		item.addEventListener('touchend', function(e) {
+			e.preventDefault(); // Prevent default touch behavior and click event
+			e.stopPropagation(); // Stop event from bubbling up
+			const parameterId = this.getAttribute('data-layer');
+			selectSatelliteParameter(parameterId);
+		});
+	});
+
+	// Setup radar parameter menu event listeners
+	document.querySelectorAll('#radarLongPressMenu .menu-item').forEach(item => {
+		// Mouse/click events
+		item.addEventListener('click', function() {
+			const parameterId = this.getAttribute('data-layer');
+			selectRadarParameter(parameterId);
+		});
+		
+		// Touch events for mobile support
+		item.addEventListener('touchend', function(e) {
+			e.preventDefault(); // Prevent default touch behavior and click event
+			e.stopPropagation(); // Stop event from bubbling up
+			const parameterId = this.getAttribute('data-layer');
+			selectRadarParameter(parameterId);
+		});
+	});
+
 	//ais = new AIS('wss://meri.digitraffic.fi:61619/mqtt', 'digitraffic', 'digitrafficPassword');
 	//ais.track(trackedVessels);
 	//ais.client.on('message',ais.onMessage.bind(ais));
@@ -1972,6 +2176,202 @@ function selectObservationParameter(parameterId) {
 	
 	hideObservationParameterMenu();
 	debug('Selected observation parameter: ' + parameterId);
+}
+
+/**
+ * Shows the satellite parameter selection menu
+ * @param {Event} event - The mouse event that triggered the long press
+ */
+function showSatelliteParameterMenu(event) {
+	const menu = document.getElementById('satelliteLongPressMenu');
+	const button = document.getElementById('satelliteLayerButton');
+	
+	// Update menu item selection states
+	updateSatelliteMenuSelection();
+	
+	// Get viewport dimensions
+	const viewportWidth = window.innerWidth;
+	const viewportHeight = window.innerHeight;
+	
+	// Get button position
+	const buttonRect = button.getBoundingClientRect();
+	
+	// Show menu temporarily to get its dimensions
+	menu.style.display = 'block';
+	menu.style.visibility = 'hidden'; // Hide while measuring
+	const menuRect = menu.getBoundingClientRect();
+	
+	// Calculate initial position (below button)
+	let left = buttonRect.left;
+	let top = buttonRect.bottom + 5;
+	
+	// Adjust horizontal position if menu goes outside viewport
+	if (left + menuRect.width > viewportWidth - 10) {
+		// Position menu to the right edge of viewport with 10px margin
+		left = viewportWidth - menuRect.width - 10;
+	}
+	
+	// If menu still goes outside left edge, align with left edge
+	if (left < 10) {
+		left = 10;
+	}
+	
+	// Adjust vertical position if menu goes outside viewport
+	if (top + menuRect.height > viewportHeight - 10) {
+		// Position menu above the button instead
+		top = buttonRect.top - menuRect.height - 5;
+		
+		// If menu still goes outside top edge, position it within viewport
+		if (top < 10) {
+			top = 10;
+		}
+	}
+	
+	// Apply final position
+	menu.style.left = left + 'px';
+	menu.style.top = top + 'px';
+	menu.style.visibility = 'visible'; // Make visible again
+	
+	debug('Satellite parameter menu shown at position: ' + left + ', ' + top);
+}
+
+/**
+ * Hides the satellite parameter selection menu
+ */
+function hideSatelliteParameterMenu() {
+	const menu = document.getElementById('satelliteLongPressMenu');
+	menu.style.display = 'none';
+	debug('Satellite parameter menu hidden');
+}
+
+/**
+ * Updates the selection state of menu items based on current satellite layer
+ */
+function updateSatelliteMenuSelection() {
+	const menu = document.getElementById('satelliteLongPressMenu');
+	const menuItems = menu.querySelectorAll('.menu-item');
+	const currentLayer = satelliteLayer.getSource().getParams().LAYERS;
+	const isVisible = satelliteLayer.getVisible();
+	
+	menuItems.forEach(item => {
+		const layerId = item.getAttribute('data-layer');
+		item.classList.remove('selected');
+		
+		// Only highlight if layer is visible and matches current layer
+		if (isVisible && layerId === currentLayer) {
+			item.classList.add('selected');
+		}
+	});
+}
+
+/**
+ * Handles satellite parameter selection from the long press menu
+ * @param {string} parameterId - The parameter ID to select
+ */
+function selectSatelliteParameter(parameterId) {
+	// Always switch to the selected parameter and ensure layer is visible
+	updateLayer(satelliteLayer, parameterId);
+	
+	hideSatelliteParameterMenu();
+	debug('Selected satellite parameter: ' + parameterId);
+}
+
+/**
+ * Shows the radar parameter selection menu
+ * @param {Event} event - The mouse event that triggered the long press
+ */
+function showRadarParameterMenu(event) {
+	const menu = document.getElementById('radarLongPressMenu');
+	const button = document.getElementById('radarLayerButton');
+	
+	// Update menu item selection states
+	updateRadarMenuSelection();
+	
+	// Get viewport dimensions
+	const viewportWidth = window.innerWidth;
+	const viewportHeight = window.innerHeight;
+	
+	// Get button position
+	const buttonRect = button.getBoundingClientRect();
+	
+	// Show menu temporarily to get its dimensions
+	menu.style.display = 'block';
+	menu.style.visibility = 'hidden'; // Hide while measuring
+	const menuRect = menu.getBoundingClientRect();
+	
+	// Calculate initial position (below button)
+	let left = buttonRect.left;
+	let top = buttonRect.bottom + 5;
+	
+	// Adjust horizontal position if menu goes outside viewport
+	if (left + menuRect.width > viewportWidth - 10) {
+		// Position menu to the right edge of viewport with 10px margin
+		left = viewportWidth - menuRect.width - 10;
+	}
+	
+	// If menu still goes outside left edge, align with left edge
+	if (left < 10) {
+		left = 10;
+	}
+	
+	// Adjust vertical position if menu goes outside viewport
+	if (top + menuRect.height > viewportHeight - 10) {
+		// Position menu above the button instead
+		top = buttonRect.top - menuRect.height - 5;
+		
+		// If menu still goes outside top edge, position it within viewport
+		if (top < 10) {
+			top = 10;
+		}
+	}
+	
+	// Apply final position
+	menu.style.left = left + 'px';
+	menu.style.top = top + 'px';
+	menu.style.visibility = 'visible'; // Make visible again
+	
+	debug('Radar parameter menu shown at position: ' + left + ', ' + top);
+}
+
+/**
+ * Hides the radar parameter selection menu
+ */
+function hideRadarParameterMenu() {
+	const menu = document.getElementById('radarLongPressMenu');
+	menu.style.display = 'none';
+	debug('Radar parameter menu hidden');
+}
+
+/**
+ * Updates the selection state of menu items based on current radar layer
+ */
+function updateRadarMenuSelection() {
+	const menu = document.getElementById('radarLongPressMenu');
+	const menuItems = menu.querySelectorAll('.menu-item');
+	const currentLayer = radarLayer.getSource().getParams().LAYERS;
+	const isVisible = radarLayer.getVisible();
+	
+	menuItems.forEach(item => {
+		const layerId = item.getAttribute('data-layer');
+		item.classList.remove('selected');
+		
+		// Only highlight if layer is visible and matches current layer
+		if (isVisible && layerId === currentLayer) {
+			item.classList.add('selected');
+		}
+	});
+}
+
+/**
+ * Handles radar parameter selection from the long press menu
+ * @param {string} parameterId - The parameter ID to select
+ */
+function selectRadarParameter(parameterId) {
+	// Always switch to the selected parameter and ensure layer is visible
+	updateLayer(radarLayer, parameterId);
+	
+	hideRadarParameterMenu();
+	debug('Selected radar parameter: ' + parameterId);
 }
 
 main();
