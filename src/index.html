@@ -7,8 +7,8 @@
   <link rel="preload" href="https://fonts.googleapis.com/icon?family=Material+Icons&display=none" as="style">
   <link rel="preload" href="https://fonts.googleapis.com/css?family=Roboto&display=swap" as="style">
   <link rel="preconnect" href="//wms.meteo.fi" crossorigin>
-  <link rel="preconnect" href="//geoserver.app.meteo.fi" crossorigin>
-  <link rel="preconnect" href="//eumetview.eumetsat.int" crossorigin>
+  <link rel="preconnect" href="//wms-obs.app.meteo.fi" crossorigin>
+  <link rel="preconnect" href="//view.eumetsat.int" crossorigin>
   <link rel="preconnect" href="//server.arcgisonline.com" crossorigin>
   <meta charset="utf-8">
   <meta name="google" content="notranslate">
@@ -86,7 +86,7 @@
     </div>
     <div class="infoItem" id="infoItemObservation">
         <div class="infoLabel" id="infoLabelObservation">SÄÄHAVAINTO</div>
-        <div class="infoValue flexColumn" id="observationLayer"><div id="observationLayerOff" class="flexCell selected">OFF</div><div id="observation:wis2_air_temperature" class="flexCell">TMP</div><div id="observation:dew_point_temperature" class="flexCell">DPT</div><div id="observation:wind_speed" class="flexCell">WIND</div><div id="observation:wind_speed_of_gust" class="flexCell">GUST</div></div>
+        <div class="infoValue flexColumn" id="observationLayer"><div id="observationLayerOff" class="flexCell selected">OFF</div><div id="observation:airtemperature" class="flexCell">TMP</div><div id="observation:dew_point_temperature" class="flexCell">DPT</div><div id="observation:wind_speed" class="flexCell">WIND</div><div id="observation:wind_speed_of_gust" class="flexCell">GUST</div></div>
       </div>
     <div class="infoItem" id="infoItemTime">
       <div class="infoLabel">AIKA</div>
@@ -173,6 +173,25 @@
   </div>
 
   <div id="layers" class="layerSelect"></div>
+  
+  <!-- Long press observation parameter menu -->
+  <div id="observationLongPressMenu">
+    <div class="menu-item" data-layer="observation:airtemperature">
+      <span class="menu-label">Lämpötila</span>
+    </div>
+    <div class="menu-item" data-layer="observation:dew_point_temperature">
+      <span class="menu-label">Kastepiste</span>
+    </div>
+    <div class="menu-item" data-layer="observation:relative_humidity">
+      <span class="menu-label">Kosteus</span>
+    </div>
+    <div class="menu-item" data-layer="observation:wind_speed">
+      <span class="menu-label">Tuuli</span>
+    </div>
+    <div class="menu-item" data-layer="observation:wind_speed_of_gust">
+      <span class="menu-label">Puuskat</span>
+    </div>
+  </div>
   
   <script>
     if ('serviceWorker' in navigator) {

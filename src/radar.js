@@ -34,7 +34,7 @@ import 'dayjs/locale/fi';
 var options = {
 	defaultRadarLayer: 'Radar:suomi_dbz_eureffin',
 	defaultLightningLayer: 'observation:lightning',
-	defaultObservationLayer: 'observation:wis2_air_temperature',
+	defaultObservationLayer: 'observation:airtemperature',
 	rangeRingSpacing: 50,
 	radialSpacing: 30,
 	frameRate: 2, // fps
@@ -499,9 +499,10 @@ var observationLayer = new ImageLayer({
 	name: "observationLayer",
 	visible: VISIBLE.has("observationLayer"),
 	source: new ImageWMS({
-		url: options.wmsServerConfiguration["meteo-obs"].url,
+		url: options.wmsServerConfiguration["meteo-obs-new"].url,
 		params: { 'FORMAT': 'image/png8', 'LAYERS': options.defaultObservationLayer },
 		ratio: options.imageRatio,
+		hidpi: false,
 		serverType: 'geoserver'
 	})
 });
@@ -1277,6 +1278,36 @@ window.addEventListener('mouseup', function (e) {
 		//} 
 	}
 
+	// Observation long press menu
+	if (!document.getElementById('observationLongPressMenu').contains(e.target)) {
+		if (document.getElementById('observationLayerButton').contains(e.target)) return
+		hideObservationParameterMenu();
+	}
+
+});
+
+// Close menus on touch events for mobile support
+window.addEventListener('touchend', function (e) {
+	// Observation long press menu
+	if (!document.getElementById('observationLongPressMenu').contains(e.target)) {
+		if (document.getElementById('observationLayerButton').contains(e.target)) return
+		hideObservationParameterMenu();
+	}
+});
+
+// Additional touchstart handler to ensure proper menu closure
+window.addEventListener('touchstart', function (e) {
+	// If menu is open and touch is outside menu and button, prepare to close
+	const menu = document.getElementById('observationLongPressMenu');
+	const button = document.getElementById('observationLayerButton');
+	if (menu.style.display === 'block' && 
+		!menu.contains(e.target) && 
+		!button.contains(e.target)) {
+		// Set a flag to close menu on touchend if no other action occurs
+		window.shouldCloseObservationMenu = true;
+	} else {
+		window.shouldCloseObservationMenu = false;
+	}
 });
 
 function setButtonStates() {
@@ -1369,8 +1400,63 @@ document.getElementById('lightningLayerTitle').addEventListener('mouseup', funct
 	toggleLayerVisibility(lightningLayer);
 });
 
-document.getElementById('observationLayerButton').addEventListener('mouseup', function() {
-	toggleLayerVisibility(observationLayer);
+// Long press functionality for observation layer button
+let observationLongPressTimer = null;
+let observationLongPressTriggered = false;
+let observationTouchStartTime = 0;
+
+// Function to start long press timer
+function startObservationLongPress(e) {
+	observationLongPressTriggered = false;
+	observationTouchStartTime = Date.now();
+	observationLongPressTimer = setTimeout(function() {
+		observationLongPressTriggered = true;
+		showObservationParameterMenu(e);
+	}, 500); // 500ms long press threshold
+}
+
+// Function to end long press timer and handle short press
+function endObservationLongPress(e) {
+	clearTimeout(observationLongPressTimer);
+	const touchDuration = Date.now() - observationTouchStartTime;
+	
+	// Only trigger short press if it was actually a short press and not interrupted
+	if (!observationLongPressTriggered && touchDuration < 500) {
+		// Short press - toggle layer visibility
+		toggleLayerVisibility(observationLayer);
+	}
+}
+
+// Function to cancel long press timer
+function cancelObservationLongPress() {
+	clearTimeout(observationLongPressTimer);
+	observationLongPressTriggered = false;
+}
+
+// Mouse events
+document.getElementById('observationLayerButton').addEventListener('mousedown', startObservationLongPress);
+document.getElementById('observationLayerButton').addEventListener('mouseup', endObservationLongPress);
+document.getElementById('observationLayerButton').addEventListener('mouseleave', cancelObservationLongPress);
+
+// Touch events for mobile
+document.getElementById('observationLayerButton').addEventListener('touchstart', function(e) {
+	e.preventDefault(); // Prevent default touch behavior
+	startObservationLongPress(e);
+});
+
+document.getElementById('observationLayerButton').addEventListener('touchend', function(e) {
+	e.preventDefault(); // Prevent default touch behavior
+	endObservationLongPress(e);
+});
+
+document.getElementById('observationLayerButton').addEventListener('touchmove', function(e) {
+	e.preventDefault(); // Prevent default touch behavior
+	cancelObservationLongPress(); // Cancel long press if user moves finger
+});
+
+document.getElementById('observationLayerButton').addEventListener('touchcancel', function(e) {
+	e.preventDefault(); // Prevent default touch behavior
+	cancelObservationLongPress();
 });
 
 document.getElementById('observationLayerTitle').addEventListener('mouseup', function() {
@@ -1761,6 +1847,23 @@ const main = () => {
 	}
 	sync(map);
 
+	// Setup observation parameter menu event listeners
+	document.querySelectorAll('#observationLongPressMenu .menu-item').forEach(item => {
+		// Mouse/click events
+		item.addEventListener('click', function() {
+			const parameterId = this.getAttribute('data-layer');
+			selectObservationParameter(parameterId);
+		});
+		
+		// Touch events for mobile support
+		item.addEventListener('touchend', function(e) {
+			e.preventDefault(); // Prevent default touch behavior and click event
+			e.stopPropagation(); // Stop event from bubbling up
+			const parameterId = this.getAttribute('data-layer');
+			selectObservationParameter(parameterId);
+		});
+	});
+
 	//ais = new AIS('wss://meri.digitraffic.fi:61619/mqtt', 'digitraffic', 'digitrafficPassword');
 	//ais.track(trackedVessels);
 	//ais.client.on('message',ais.onMessage.bind(ais));
@@ -1772,5 +1875,103 @@ const main = () => {
 //worker.addEventListener("message", function (event) {debug(event)});
 
 };
+
+/**
+ * Shows the observation parameter selection menu
+ * @param {Event} event - The mouse event that triggered the long press
+ */
+function showObservationParameterMenu(event) {
+	const menu = document.getElementById('observationLongPressMenu');
+	const button = document.getElementById('observationLayerButton');
+	
+	// Update menu item selection states
+	updateObservationMenuSelection();
+	
+	// Get viewport dimensions
+	const viewportWidth = window.innerWidth;
+	const viewportHeight = window.innerHeight;
+	
+	// Get button position
+	const buttonRect = button.getBoundingClientRect();
+	
+	// Show menu temporarily to get its dimensions
+	menu.style.display = 'block';
+	menu.style.visibility = 'hidden'; // Hide while measuring
+	const menuRect = menu.getBoundingClientRect();
+	
+	// Calculate initial position (below button)
+	let left = buttonRect.left;
+	let top = buttonRect.bottom + 5;
+	
+	// Adjust horizontal position if menu goes outside viewport
+	if (left + menuRect.width > viewportWidth - 10) {
+		// Position menu to the right edge of viewport with 10px margin
+		left = viewportWidth - menuRect.width - 10;
+	}
+	
+	// If menu still goes outside left edge, align with left edge
+	if (left < 10) {
+		left = 10;
+	}
+	
+	// Adjust vertical position if menu goes outside viewport
+	if (top + menuRect.height > viewportHeight - 10) {
+		// Position menu above the button instead
+		top = buttonRect.top - menuRect.height - 5;
+		
+		// If menu still goes outside top edge, position it within viewport
+		if (top < 10) {
+			top = 10;
+		}
+	}
+	
+	// Apply final position
+	menu.style.left = left + 'px';
+	menu.style.top = top + 'px';
+	menu.style.visibility = 'visible'; // Make visible again
+	
+	debug('Observation parameter menu shown at position: ' + left + ', ' + top);
+}
+
+/**
+ * Hides the observation parameter selection menu
+ */
+function hideObservationParameterMenu() {
+	const menu = document.getElementById('observationLongPressMenu');
+	menu.style.display = 'none';
+	debug('Observation parameter menu hidden');
+}
+
+/**
+ * Updates the selection state of menu items based on current observation layer
+ */
+function updateObservationMenuSelection() {
+	const menu = document.getElementById('observationLongPressMenu');
+	const menuItems = menu.querySelectorAll('.menu-item');
+	const currentLayer = observationLayer.getSource().getParams().LAYERS;
+	const isVisible = observationLayer.getVisible();
+	
+	menuItems.forEach(item => {
+		const layerId = item.getAttribute('data-layer');
+		item.classList.remove('selected');
+		
+		// Only highlight if layer is visible and matches current layer
+		if (isVisible && layerId === currentLayer) {
+			item.classList.add('selected');
+		}
+	});
+}
+
+/**
+ * Handles observation parameter selection from the long press menu
+ * @param {string} parameterId - The parameter ID to select
+ */
+function selectObservationParameter(parameterId) {
+	// Always switch to the selected parameter and ensure layer is visible
+	updateLayer(observationLayer, parameterId);
+	
+	hideObservationParameterMenu();
+	debug('Selected observation parameter: ' + parameterId);
+}
 
 main();

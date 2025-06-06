@@ -7,7 +7,10 @@ const { CleanWebpackPlugin } = require('clean-webpack-plugin');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 const { GenerateSW } = require('workbox-webpack-plugin');
  
-module.exports = {
+module.exports = (env, argv) => {
+    const isProduction = argv.mode === 'production';
+    
+    return {
     entry: './src/radar.js',
     output: {
         path: path.resolve(__dirname, 'dist'),
@@ -53,7 +56,8 @@ module.exports = {
         new MomentLocalesPlugin({
             localesToKeep: ['fi'],
         }),
-        new CompressionPlugin(),
+        // Only use compression in production
+        ...(process.env.NODE_ENV === 'production' ? [new CompressionPlugin()] : []),
         new HtmlWebpackPlugin({
           template: './src/index.html'
         }),
@@ -71,41 +75,44 @@ module.exports = {
             'process.env': JSON.stringify({}),
             'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
         }),
-        new GenerateSW({
-            swDest: 'sw.js',
-            clientsClaim: true,
-            skipWaiting: true,
-            maximumFileSizeToCacheInBytes: 5000000, // 5MB
-            runtimeCaching: [{
-                urlPattern: new RegExp('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/'),
-                handler: 'StaleWhileRevalidate'
-            },
-            {
-                urlPattern: new RegExp('https://openlayers.org/en/latest/css/ol.css'),
-                handler: 'StaleWhileRevalidate'
-            },
-            {
-                urlPattern: new RegExp('radar.css'),
-                handler: 'StaleWhileRevalidate'
-            },
-            {
-                urlPattern: new RegExp('https://fonts.gstatic.com/'),
-                handler: 'StaleWhileRevalidate'
-            },
-            {
-                urlPattern: new RegExp('https://wms.meteo.fi/geoserver/.*request=GetCapabilities'),
-                handler: 'NetworkFirst'
-            },
-            {
-                urlPattern: new RegExp('https://geoserver.app.meteo.fi/geoserver/.*request=GetCapabilities'),
-                handler: 'NetworkFirst'
-            },
-            {
-                urlPattern: new RegExp('https://view.eumetsat.int/geoserv/.*request=GetCapabilities'),
-                handler: 'NetworkFirst'
-            }
-        ]
-        })
+        // Only generate service worker in production to avoid watch mode warnings
+        ...(process.env.NODE_ENV === 'production' ? [
+            new GenerateSW({
+                swDest: 'sw.js',
+                clientsClaim: true,
+                skipWaiting: true,
+                maximumFileSizeToCacheInBytes: 5000000, // 5MB
+                runtimeCaching: [{
+                    urlPattern: new RegExp('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/'),
+                    handler: 'StaleWhileRevalidate'
+                },
+                {
+                    urlPattern: new RegExp('https://openlayers.org/en/latest/css/ol.css'),
+                    handler: 'StaleWhileRevalidate'
+                },
+                {
+                    urlPattern: new RegExp('radar.css'),
+                    handler: 'StaleWhileRevalidate'
+                },
+                {
+                    urlPattern: new RegExp('https://fonts.gstatic.com/'),
+                    handler: 'StaleWhileRevalidate'
+                },
+                {
+                    urlPattern: new RegExp('https://wms.meteo.fi/geoserver/.*request=GetCapabilities'),
+                    handler: 'NetworkFirst'
+                },
+                {
+                    urlPattern: new RegExp('https://geoserver.app.meteo.fi/geoserver/.*request=GetCapabilities'),
+                    handler: 'NetworkFirst'
+                },
+                {
+                    urlPattern: new RegExp('https://view.eumetsat.int/geoserv/.*request=GetCapabilities'),
+                    handler: 'NetworkFirst'
+                }
+            ]
+            })
+        ] : [])
     ],
     optimization: {
         runtimeChunk: 'single',
@@ -140,4 +147,5 @@ module.exports = {
             }
         }
     }
+};
 };
