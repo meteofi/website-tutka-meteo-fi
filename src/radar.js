@@ -187,14 +187,14 @@ var ownPosition4326 = [];
 var geolocation;
 var startDate = new Date(Math.floor(Date.now() / 300000) * 300000 - 300000 * 12);
 var animationId = null;
-var moment = require('moment');
-moment.locale('fi');
 var dayjs = require('dayjs');
 dayjs.locale('fi');
 var utcplugin = require('dayjs/plugin/utc');
 dayjs.extend(utcplugin);
 var localizedFormat = require('dayjs/plugin/localizedFormat');
 dayjs.extend(localizedFormat);
+var duration = require('dayjs/plugin/duration');
+dayjs.extend(duration);
 var layerInfo = {};
 var trackedVessels = {'230059770': {}, '230994270': {}, '230939100': {}, '230051170': {}, '230059740': {}, '230108850': {}, '230937480': {}, '230051160': {}, '230983250': {}, '230012240': {}, '230980890': {}, '230061400': {}, '230059760': {}, '230005610': {}, '230987580': {}, '230983340': {}, '230111580': {}, '230059750': {}, '230994810': {}, '230993590': {}, '230051150': {} };
 var timeline, ais;
@@ -244,7 +244,7 @@ ImageLayer.prototype.setLayerStyle = function (style) {
 }
 
 ImageLayer.prototype.setLayerTime = function (time) {
-	let timemoment = moment(time);
+	let timemoment = dayjs(time);
 	debug("Set layer time dimension: " + timemoment.format());
 	if (timemoment.isValid()) {
 		this.getSource().updateParams({ 'TIME': timemoment.format()});
@@ -1096,7 +1096,7 @@ function layerInfoDiv(wmslayer) {
 	div.appendChild(createLayerInfoElement('<img class="responsiveImage" src="' +(info ? info.url : '') + '?TIME=PT1H/PRESENT&SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&FORMAT=image%2Fpng8&TRANSPARENT=true&CRS=EPSG%3A3067&STYLES=&WIDTH=300&HEIGHT=300&BBOX=-183243.50620644476%2C6575998.62606195%2C1038379.8685031873%2C7797622.000771582&LAYERS=' + (info ? info.layer : '') + '">','preview'));
 	div.appendChild(createLayerInfoElement(info ? info.abstract : '','abstract'));
 	if (info && info.time && info.time.end) {
-		div.appendChild(createLayerInfoElement((resolution > 60 ? (resolution / 60) + ' tuntia ' : resolution + ' minuuttia, viimeisin: ')+moment(info.time.end).format('LT'),'time'));
+		div.appendChild(createLayerInfoElement((resolution > 60 ? (resolution / 60) + ' tuntia ' : resolution + ' minuuttia, viimeisin: ')+dayjs(info.time.end).format('LT'),'time'));
 	} else {
 		div.appendChild(createLayerInfoElement('Aikatiedot ei saatavilla','time'));
 	}
@@ -1872,13 +1872,13 @@ function getTimeDimension(dimensions) {
 
 	dimensions.forEach((dimension) => {
 		if (dimension.name == 'time') {
-			defaultTime = dimension.default ? moment(dimension.default).valueOf() : NaN
+			defaultTime = dimension.default ? dayjs(dimension.default).valueOf() : NaN
 			dimension.values.split(",").forEach((times) => {
 				var time = times.split("/")
 				// Time dimension is list of times separated by comma
 				if (time.length == 1) {
-					//var timeValue = moment(time[0]).valueOf()
-					var timeValue = moment(new Date(time[0])).valueOf()
+					//var timeValue = dayjs(time[0]).valueOf()
+					var timeValue = dayjs(new Date(time[0])).valueOf()
 					// begin time is the smallest of listed times
 					beginTime = beginTime ? beginTime : timeValue
 					beginTime = Math.min(beginTime, timeValue)
@@ -1891,9 +1891,9 @@ function getTimeDimension(dimensions) {
 				}
 				// Time dimension is starttime/endtime/period
 				else if (time.length == 3) {
-					beginTime = moment(time[0]).valueOf()
-					endTime = moment(time[1]).valueOf()
-					resolutionTime = moment.duration(time[2]).asMilliseconds()
+					beginTime = dayjs(time[0]).valueOf()
+					endTime = dayjs(time[1]).valueOf()
+					resolutionTime = dayjs.duration(time[2]).asMilliseconds()
 				}
 			}) // forEach
 		} // if

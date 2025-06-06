@@ -34,10 +34,8 @@
     "worker-loader": "^3.0.8"
   },
   "dependencies": {
-    "dayjs": "^1.8.28",
+    "dayjs": "^1.11.13",
     "geodesy": "^2.2.1",
-    "moment": "^2.24.0",
-    "moment-locales-webpack-plugin": "^1.0.7",
     "mqtt": "^2.18.8",
     "ol": "^10.5.0",
     "ol-hashed": "^2.1.0"

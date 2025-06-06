@@ -1,6 +1,5 @@
 const path = require('path');
 const webpack = require('webpack');
-const MomentLocalesPlugin = require('moment-locales-webpack-plugin');
 const CompressionPlugin = require('compression-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const { CleanWebpackPlugin } = require('clean-webpack-plugin');
@@ -48,14 +47,6 @@ module.exports = (env, argv) => {
     //     ]
     //   },
     plugins: [
-        // To strip all locales except “en”
-        //new MomentLocalesPlugin(),
-
-        // Or: To strip all locales except “en”, “es-us” and “ru”
-        // (“en” is built into Moment and can’t be removed)
-        new MomentLocalesPlugin({
-            localesToKeep: ['fi'],
-        }),
         // Only use compression in production
         ...(process.env.NODE_ENV === 'production' ? [new CompressionPlugin()] : []),
         new HtmlWebpackPlugin({
@@ -161,12 +152,6 @@ module.exports = (env, argv) => {
                 openlayers: {
                     test: /[\\/]node_modules[\\/]ol[\\/]/,
                     name: 'openlayers',
-                    priority: 10,
-                    chunks: 'all'
-                },
-                moment: {
-                    test: /[\\/]node_modules[\\/]moment[\\/]/,
-                    name: 'moment',
                     priority: 10,
                     chunks: 'all'
                 }
