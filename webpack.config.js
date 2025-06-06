@@ -82,21 +82,47 @@ module.exports = (env, argv) => {
                 clientsClaim: true,
                 skipWaiting: true,
                 maximumFileSizeToCacheInBytes: 5000000, // 5MB
+                // Add cache busting strategy
+                cleanupOutdatedCaches: true,
+                // Don't precache everything - be more selective
+                exclude: [/\.map$/, /manifest$/, /LICENSE/],
                 runtimeCaching: [{
                     urlPattern: new RegExp('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/'),
-                    handler: 'StaleWhileRevalidate'
+                    handler: 'StaleWhileRevalidate',
+                    options: {
+                        cacheName: 'arcgis-cache',
+                        expiration: {
+                            maxEntries: 50,
+                            maxAgeSeconds: 24 * 60 * 60, // 1 day
+                        },
+                    },
                 },
                 {
                     urlPattern: new RegExp('https://openlayers.org/en/latest/css/ol.css'),
-                    handler: 'StaleWhileRevalidate'
+                    handler: 'StaleWhileRevalidate',
+                    options: {
+                        cacheName: 'openlayers-cache',
+                        expiration: {
+                            maxAgeSeconds: 7 * 24 * 60 * 60, // 1 week
+                        },
+                    },
                 },
                 {
                     urlPattern: new RegExp('radar.css'),
-                    handler: 'StaleWhileRevalidate'
+                    handler: 'StaleWhileRevalidate',
+                    options: {
+                        cacheName: 'css-cache',
+                    },
                 },
                 {
                     urlPattern: new RegExp('https://fonts.gstatic.com/'),
-                    handler: 'StaleWhileRevalidate'
+                    handler: 'StaleWhileRevalidate',
+                    options: {
+                        cacheName: 'google-fonts-cache',
+                        expiration: {
+                            maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
+                        },
+                    },
                 },
                 {
                     urlPattern: new RegExp('https://wms.meteo.fi/geoserver/.*request=GetCapabilities'),

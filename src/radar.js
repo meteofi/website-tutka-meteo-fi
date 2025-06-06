@@ -69,7 +69,8 @@ var options = {
 			namespace: 'observation',
 			refresh: 300000,
 			category: 'observationLayer',
-			attribution: 'FMI (CC-BY-4.0)'
+			attribution: 'FMI (CC-BY-4.0)',
+			disabled: true
 		},
 		'eumetsat': {
 			url: 'https://eumetview.eumetsat.int/geoserv/wms',
