@@ -438,9 +438,6 @@ var darkGrayReferenceLayer = new TileLayer({
 	})
 });
 
-var merikarttaLayer = new TileLayer();
-var pohjakarttaLayer = new TileLayer();
-
 // Satellite Layer
 var satelliteLayer = new ImageLayer({
 	name: "satelliteLayer",
@@ -450,6 +447,7 @@ var satelliteLayer = new ImageLayer({
 		url: options.wmsServerConfiguration.eumetsat1.url,
 		params: { 'FORMAT': 'image/jpeg', 'LAYERS': "rgb_eview" },
 		hidpi: false,
+		attributions: 'EUMETSAT',
 		ratio: options.imageRatio,
 		serverType: 'geoserver'
 	})
@@ -463,7 +461,7 @@ var radarLayer = new ImageLayer({
 	source: new ImageWMS({
 		url: options.wmsServerConfiguration["fmi-radar"].url,
 		params: { 'LAYERS': options.defaultRadarLayer },
-		attributions: 'FMI',
+		attributions: 'FMI (CC-BY-4.0)',
 		ratio: options.imageRatio,
 		hidpi: false,
 		serverType: 'geoserver'
@@ -576,7 +574,7 @@ var layers = [
 	lightningLayer,
 	lightGrayReferenceLayer,
 	darkGrayReferenceLayer,
-	//overlayLayer,
+//	overlayLayer,
 	radarSiteLayer,
 	//icaoLayer,
 	ownPositionLayer,
@@ -709,12 +707,6 @@ function setLayerTime(layer, time) {
 //radarLayer.getSource().addEventListener('imageloadend', function (event) {
 //	debug(event);
 //});
-
-//function gtag() { 
-//	if (typeof dataLayer !== "undefined") {
-//		dataLayer.push(arguments); 
-//	}
-//}
 
 function getActiveLayers() {
 	let layers = [];
@@ -943,7 +935,7 @@ function setMapLayer(maplayer) {
 			lightGrayReferenceLayer.setVisible(true);
 			document.getElementById("mapLayerButton").classList.remove("selectedButton");
 			IS_DARK = false;
-			//gtag('event', 'light', {'event_category' : 'mapcontrol'});
+			umami.track('theme-light');
 			break;
 		case 'dark':
 			darkGrayBaseLayer.setVisible(true);
@@ -952,7 +944,7 @@ function setMapLayer(maplayer) {
 			lightGrayReferenceLayer.setVisible(false);
 			document.getElementById("mapLayerButton").classList.add("selectedButton");
 			IS_DARK = true;
-			//gtag('event', 'dark', {'event_category' : 'mapcontrol'});
+			umami.track('theme-dark');
 			break;	
 	}
 	localStorage.setItem("IS_DARK",JSON.stringify(IS_DARK));
@@ -1398,7 +1390,7 @@ document.getElementById('locationLayerButton').addEventListener('mouseup', funct
 		localStorage.setItem("IS_TRACKING",JSON.stringify(false));
 		geolocation.setTracking(false);
 		ownPositionLayer.setVisible(false);
-		//gtag('event', 'off', {'event_category' : 'tracking'});
+		umami.track('tracking-off');
 	} else {
 		IS_TRACKING = true;
 		localStorage.setItem("IS_TRACKING",JSON.stringify(true));
@@ -1407,7 +1399,7 @@ document.getElementById('locationLayerButton').addEventListener('mouseup', funct
 		if (ownPosition.length > 1) {
 			map.getView().setCenter(ownPosition);
 		}
-		//gtag('event', 'on', {'event_category' : 'tracking'});
+		umami.track('tracking-on');
 	}
 	setButtonStates();
 });
