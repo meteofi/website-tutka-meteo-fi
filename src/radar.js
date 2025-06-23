@@ -7,7 +7,6 @@ import VectorLayer from 'ol/layer/Vector';
 import XYZ from 'ol/source/XYZ';
 import ImageWMS from 'ol/source/ImageWMS';
 import TileWMS from 'ol/source/TileWMS';
-//import WMTS, {optionsFromCapabilities} from 'ol/source/WMTS.js';
 import GeoJSON from 'ol/format/GeoJSON';
 import Vector from 'ol/source/Vector';
 import {fromLonLat, transform} from 'ol/proj';
@@ -21,8 +20,6 @@ import {Circle as CircleStyle, Fill, Stroke, Style, Text} from 'ol/style.js';
 import Dms from 'geodesy/dms';
 import LatLon from 'geodesy/latlon-spherical'
 import WMSCapabilities from 'ol/format/WMSCapabilities.js';
-//import WMTSCapabilities from 'ol/format/WMTSCapabilities.js';
-//import { connect } from 'mqtt';
 import { transformExtent } from 'ol/proj';
 import Timeline from './timeline';
 import AIS from './digitraffic';
@@ -815,18 +812,28 @@ const currentLocalTimeValueDiv = document.getElementById("currentLocalTimeValue"
 const currentUTCTimeValueDiv = document.getElementById("currentUTCTimeValue");
 
 function updateClock() {
-	const d = dayjs();
-	const date = d.format('l');
-	const time = d.format('LTS');
-	const utc = d.utc().format('LTS') + ' UTC';
+    const d = dayjs();
+    const date = d.format('l');
+    const time = d.format('LTS');
+    const utc = d.utc().format('LTS') + ' UTC';
 
-	currentDateValueDiv.textContent = date;
-	currentLocalTimeValueDiv.textContent = time;
-	currentUTCTimeValueDiv.textContent = utc;
+    // Batch DOM updates to minimize reflow
+    if (currentDateValueDiv.textContent !== date) {
+        currentDateValueDiv.textContent = date;
+    }
+    if (currentLocalTimeValueDiv.textContent !== time) {
+        currentLocalTimeValueDiv.textContent = time;
+    }
+    if (currentUTCTimeValueDiv.textContent !== utc) {
+        currentUTCTimeValueDiv.textContent = utc;
+    }
 
-	// call this function again in 1000ms
-	setTimeout(updateClock, 1000);
+    // Use requestAnimationFrame for better performance and sync with display refresh
+    requestAnimationFrame(() => {
+        setTimeout(updateClock, 1000);
+    });
 }
+
 
 //
 // TIME CONTROLS
