@@ -26,8 +26,6 @@ import WMSCapabilities from 'ol/format/WMSCapabilities.js';
 import { transformExtent } from 'ol/proj';
 import Timeline from './timeline';
 import AIS from './digitraffic';
-//import Worker from './wmscapabilities.worker.js'; 
-//import optionss from './wmsservers.configuration.js'; 
 import 'dayjs/locale/fi';
 
 
@@ -114,14 +112,6 @@ var options = {
 			title: 'Meteosat ilmamassat',
 			abstract: 'Kylmä polaarinen ilma näkyy kuvassa violettina, lämmin trooppinen ilma vihreänä, kuiva ilma punaisena sekä paksut korkeat pilvet valkoisena.',
 			attribution: 'EUMETSAT',
-			disabled: true
-		},
-		bs: {
-			url: 'http://smartmet.bahamasweather.org.bs:8080/wms',
-			namespace: 'bs:radar',
-			refresh: 60000,
-			category: "radarLayer",
-			attribution: 'BDOM',
 			disabled: true
 		},
 		ca: {
