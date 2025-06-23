@@ -2,39 +2,60 @@
 <html lang="fi">
 
 <head>
-  <!-- preload stylesheet resource via declarative markup -->
-  <!--link rel="preload" href="https://openlayers.org/en/latest/css/ol.css" as="style"-->
-  <link rel="preload" href="https://fonts.googleapis.com/icon?family=Material+Icons&display=none" as="style">
-  <link rel="preload" href="https://fonts.googleapis.com/css?family=Roboto&display=swap" as="style">
-  <link rel="preconnect" href="https://wms.meteo.fi" crossorigin>
-  <link rel="preconnect" href="https://openwms.fmi.fi" crossorigin>
-  <link rel="preconnect" href="https://wms-obs.app.meteo.fi" crossorigin>
-  <link rel="preconnect" href="https://view.eumetsat.int" crossorigin>
-  <link rel="preconnect" href="https://server.arcgisonline.com" crossorigin>
   <meta charset="utf-8">
+
+  <!-- Security -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' matomo.app.meteo.fi umami.app.meteo.fi; style-src 'self' 'unsafe-inline' fonts.googleapis.com; font-src fonts.gstatic.com; img-src 'self' data: blob: *.meteo.fi *.fmi.fi *.eumetsat.int *.arcgisonline.com geo.weather.gc.ca; connect-src 'self' *.meteo.fi *.fmi.fi matomo.app.meteo.fi umami.app.meteo.fi view.eumetsat.int geo.weather.gc.ca; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none';">
+  <meta http-equiv="X-Content-Type-Options" content="nosniff">
+  <meta http-equiv="X-XSS-Protection" content="1; mode=block">
+  <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
+
+  <!-- Core meta tags -->
+  <meta name="viewport" content="initial-scale=1, width=device-width, height=device-height, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
   <meta name="google" content="notranslate">
+  
+  <!-- PWA meta tags -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Säätutka">
-  <meta name="theme-color" content="#000000">
-  <meta name="viewport" content="initial-scale=1, width=device-width, height=device-height, viewport-fit=cover">
-  <meta name="description"
-    content="Suomen säätutkaverko ja salamapaikannusverkko näyttävät missä sataa ja salamoi. Kuvasarjasta saa käsityksen sadealueiden liikkeestä ja voi tehdä lyhyen ennusteen sitä, missä sataa kohta. Tiedot päivittyvät 5 minuutin välein. Tutkahavainnon tarkkuus on 1km. dBZ datan tarkkuus on 500m. Palvelu perustuu Ilmatieteen laitoksen avoimeen dataan." />
-  <meta name="keywords"
-    content="sadetutka, säätutka, tutka, radar, sää, suomi, finland, dobler, sade, dbz, ukkonen, salama, lightning, thunder, havainto, lämpötila, meteo, mikon sääsivu, weather, sää, meteorologia, meteorology" />
-  <meta name="rating" content="Safe For Kids" />
-  <meta name="author" content="Mikko Rauhala / Meteo.fi" />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons&display=none">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto&display=swap">
-  <!--link rel="stylesheet" href="https://openlayers.org/en/latest/css/ol.css"-->
+
+  <!-- SEO meta tags -->
+  <meta name="description" content="Suomen säätutkaverko ja salamapaikannusverkko näyttävät missä sataa ja salamoi. Kuvasarjasta saa käsityksen sadealueiden liikkeestä ja voi tehdä lyhyen ennusteen sitä, missä sataa kohta. Tiedot päivittyvät 5 minuutin välein. Tutkahavainnon tarkkuus on 1km. dBZ datan tarkkuus on 500m. Palvelu perustuu Ilmatieteen laitoksen avoimeen dataan." />
+  <meta name="author" content="Mikko Rauhala / Meteo.fi">
+  <meta name="robots" content="index, follow, max-image-preview:large">
+  <meta name="googlebot" content="index, follow, max-video-preview:-1, max-image-preview:large, max-snippet:-1">
+
+  <!-- Resource hints - strategic preconnects -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://matomo.app.meteo.fi" crossorigin>
+  <link rel="preconnect" href="https://umami.app.meteo.fi" crossorigin>
+  <link rel="preconnect" href="https://wms.meteo.fi" crossorigin>
+  <link rel="preconnect" href="https://openwms.fmi.fi" crossorigin>
+  <link rel="preconnect" href="https://wms-obs.app.meteo.fi" crossorigin>
+  <link rel="preconnect" href="https://view.eumetsat.int" crossorigin>
+  <link rel="preconnect" href="https://geo.weather.gc.ca" crossorigin>
+  <link rel="preconnect" href="https://server.arcgisonline.com" crossorigin>
+ 
+  <!-- Preload critical resources -->
+  <link rel="preload" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&family=Material+Icons&display=swap" as="style">
+  <link rel="preload" href="radar.css" as="style">
+  
+  <!-- Stylesheets -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&family=Material+Icons&display=swap">
   <link rel="stylesheet" href="radar.css">
+
+  <!-- Canonical and manifest -->
   <link rel="canonical" href="https://tutka.meteo.fi">
-  <link rel="manifest" href="manifest.json">
-  <!-- Icon for Chrome & Opera -->
-  <link rel="icon" sizes="192x192" href="radar-icon-192.png">
-  <!-- Icon for Safari -->
+  <link rel="manifest" href="/manifest.json" crossorigin="use-credentials">
+  
+  <!-- Icons -->
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="radar-icon-192.png">
+
   <title>Säätutka (sadetutka) ja ukkostutka Suomi — Meteo.fi</title>
 <!-- Matomo -->
 <script>
