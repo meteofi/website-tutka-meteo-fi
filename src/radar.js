@@ -1923,6 +1923,8 @@ const main = () => {
 
 	updateClock();
 
+    trackPWAUsage();
+
 	for (const [key, value] of Object.entries(options.wmsServerConfiguration)) {
 		if (!value.disabled) {
 			getWMSCapabilities(value);
@@ -2364,45 +2366,15 @@ function selectRadarParameter(parameterId) {
 	debug('Selected radar parameter: ' + parameterId);
 }
 
-// PWA Install Event Tracking
-let deferredPrompt;
-
-// Detect if user is on Safari
-function isSafari() {
-	return /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+function trackPWAUsage() {
+    const displayMode = window.matchMedia('(display-mode: standalone)').matches ? 'standalone' :
+                        window.matchMedia('(display-mode: fullscreen)').matches ? 'fullscreen' :
+                        window.matchMedia('(display-mode: minimal-ui)').matches ? 'minimal-ui' :
+                        'browser';
+    const colorScheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    
+    umami.track('app-display', { 'display-mode': displayMode, 'color-scheme': colorScheme });
 }
-
-// Detect if user is on iOS
-function isIOS() {
-	return /iPad|iPhone|iPod/.test(navigator.userAgent);
-}
-
-// Check if app is already installed
-function isAppInstalled() {
-	return window.matchMedia('(display-mode: standalone)').matches || 
-		   window.navigator.standalone === true;
-}
-
-// Listen for the beforeinstallprompt event
-window.addEventListener('beforeinstallprompt', (e) => {
-	debug('PWA install prompt available');
-	// Prevent the mini-infobar from appearing on mobile
-	e.preventDefault();
-	// Stash the event so it can be triggered later
-	deferredPrompt = e;
-	// Track that install prompt was shown
-	umami.track('pwa-install-prompt-shown');
-	
-	// Track user choice when they interact with the prompt
-	deferredPrompt.userChoice.then((choiceResult) => {
-		if (choiceResult.outcome === 'accepted') {
-			umami.track('pwa-install-accepted');
-		} else {
-			umami.track('pwa-install-dismissed');
-		}
-		deferredPrompt = null;
-	});
-});
 
 // Listen for the appinstalled event
 window.addEventListener('appinstalled', (e) => {
@@ -2410,29 +2382,6 @@ window.addEventListener('appinstalled', (e) => {
 	// Track successful PWA installation
 	umami.track('pwa-installed');
 	// Clear the deferredPrompt
-	deferredPrompt = null;
 });
-
-// Optional: Function to manually trigger install prompt (if you want a custom install button)
-function showInstallPrompt() {
-	if (deferredPrompt) {
-		deferredPrompt.prompt();
-		umami.track('pwa-install-button-clicked');
-		
-		deferredPrompt.userChoice.then((choiceResult) => {
-			if (choiceResult.outcome === 'accepted') {
-				umami.track('pwa-install-manual-accepted');
-			} else {
-				umami.track('pwa-install-manual-dismissed');
-			}
-			deferredPrompt = null;
-		});
-	} else if (isSafari() && !isAppInstalled()) {
-		// Safari doesn't support programmatic install prompts
-		// Track that user tried to install on Safari
-		umami.track('pwa-install-safari-attempted');
-		// No prompt shown for Safari users
-	}
-}
 
 main();
