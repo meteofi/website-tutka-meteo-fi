@@ -66,6 +66,9 @@ module.exports = (env, argv) => {
             'process.env': JSON.stringify({}),
             'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
         }),
+        new webpack.DefinePlugin({
+            'BUILD_DATE': JSON.stringify(new Date().toISOString().slice(0, 16) + 'Z')
+        }),
         // Only generate service worker in production to avoid watch mode warnings
         ...(process.env.NODE_ENV === 'production' ? [
             new GenerateSW({
