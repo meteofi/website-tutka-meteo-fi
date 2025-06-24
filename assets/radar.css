@@ -157,8 +157,6 @@ html, body {
                    cursor: default;
 }
 
-i.material-icons:before{display:none;}
-
 #currentTimeTxt {
   color: var(--dark-medium-emphasis-text-color);
 }

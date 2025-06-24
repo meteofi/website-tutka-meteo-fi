@@ -40,11 +40,10 @@
   <link rel="preconnect" href="https://server.arcgisonline.com" crossorigin>
  
   <!-- Preload critical resources -->
-  <link rel="preload" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&family=Material+Icons&display=swap" as="style">
+  <link rel="preload" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&family=Material+Icons&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
   <link rel="preload" href="radar.css" as="style">
   
   <!-- Stylesheets -->
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&family=Material+Icons&display=swap">
   <link rel="stylesheet" href="radar.css">
 
   <!-- Canonical and manifest -->
@@ -57,6 +56,12 @@
   <link rel="apple-touch-icon" href="radar-icon-192.png">
 
   <title>Säätutka (sadetutka) ja ukkostutka Suomi — Meteo.fi</title>
+  
+  <!-- Critical CSS to prevent flash of Material Icons text -->
+  <style>
+    i.material-icons:before { display: none; }
+  </style>
+  
 <!-- Matomo -->
 <script defer>
   var _paq = window._paq = window._paq || [];
