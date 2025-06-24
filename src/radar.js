@@ -24,6 +24,7 @@ import { transformExtent } from 'ol/proj';
 import Timeline from './timeline';
 import AIS from './digitraffic';
 import 'dayjs/locale/fi';
+import {VERSION as OL_VERSION} from 'ol/util';
 
 
 var options = {
@@ -2374,6 +2375,7 @@ function trackPWAUsage() {
     const colorScheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     
     umami.track('app-display', { 'display-mode': displayMode, 'color-scheme': colorScheme });
+	umami.track('version', { 'build-date': BUILD_DATE, 'openlayers': OL_VERSION });
 }
 
 // Listen for the appinstalled event
