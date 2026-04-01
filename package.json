@@ -6,7 +6,8 @@
     "build": "webpack --config webpack.config.js --mode production",
     "watch": "webpack --watch",
     "start": "webpack serve --mode development",
-    "dev": "webpack serve --mode development --open"
+    "dev": "webpack serve --mode development --open",
+    "lint": "eslint src/"
   },
   "devDependencies": {
     "clean-webpack-plugin": "^4.0.0",
