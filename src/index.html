@@ -5,9 +5,8 @@
   <meta charset="utf-8">
 
   <!-- Security -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' matomo.app.meteo.fi umami.app.meteo.fi; style-src 'self' 'unsafe-inline' fonts.googleapis.com; font-src fonts.gstatic.com; img-src 'self' data: blob: *.meteo.fi *.fmi.fi *.eumetsat.int *.arcgisonline.com geo.weather.gc.ca; connect-src 'self' *.meteo.fi *.fmi.fi matomo.app.meteo.fi umami.app.meteo.fi view.eumetsat.int geo.weather.gc.ca; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' matomo.app.meteo.fi umami.app.meteo.fi; style-src 'self' 'unsafe-inline' fonts.googleapis.com; font-src fonts.gstatic.com; img-src 'self' data: blob: *.meteo.fi *.fmi.fi *.eumetsat.int *.arcgisonline.com geo.weather.gc.ca; connect-src 'self' *.meteo.fi *.fmi.fi matomo.app.meteo.fi umami.app.meteo.fi view.eumetsat.int geo.weather.gc.ca; worker-src 'self'; manifest-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none';">
   <meta http-equiv="X-Content-Type-Options" content="nosniff">
-  <meta http-equiv="X-XSS-Protection" content="1; mode=block">
   <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin">
 
   <!-- Core meta tags -->
@@ -39,11 +38,8 @@
   <link rel="preconnect" href="https://geo.weather.gc.ca" crossorigin>
   <link rel="preconnect" href="https://server.arcgisonline.com" crossorigin>
  
-  <!-- Preload critical resources -->
-  <link rel="preload" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&family=Material+Icons&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
-  <link rel="preload" href="radar.css" as="style">
-  
   <!-- Stylesheets -->
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500&family=Material+Icons&display=swap">
   <link rel="stylesheet" href="radar.css">
 
   <!-- Canonical and manifest -->
@@ -63,20 +59,7 @@
   </style>
   
 <!-- Matomo -->
-<script defer>
-  var _paq = window._paq = window._paq || [];
-  /* tracker methods like "setCustomDimension" should be called before "trackPageView" */
-  _paq.push(['trackPageView']);
-  _paq.push(['enableLinkTracking']);
-  (function() {
-    var u="//matomo.app.meteo.fi/";
-    _paq.push(['setTrackerUrl', u+'matomo.php']);
-    _paq.push(['setSiteId', '1']);
-    var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
-    g.async=true; g.src=u+'matomo.js'; s.parentNode.insertBefore(g,s);
-  })();
-</script>
-<!-- End Matomo Code -->
+<script defer src="matomo.js"></script>
 <script defer src="https://umami.app.meteo.fi/script.js" data-website-id="d69716b8-f958-4d48-904c-de43551fd9ac"></script>
 </head>
 
@@ -212,8 +195,11 @@
     <div class="menu-item" data-layer="observation:relative_humidity">
       <span class="menu-label">Kosteus</span>
     </div>
-    <div class="menu-item" data-layer="observation:wind_speed">
+    <div class="menu-item" data-layer="observation:wind">
       <span class="menu-label">Tuuli</span>
+    </div>
+    <div class="menu-item" data-layer="observation:wind_speed">
+      <span class="menu-label">Tuulen nopeus</span>
     </div>
     <div class="menu-item" data-layer="observation:wind_speed_of_gust">
       <span class="menu-label">Puuskat</span>
@@ -249,36 +235,6 @@
     </div>
   </div>
 
-  <script>
-    if ('serviceWorker' in navigator && window.location.hostname !== 'localhost') {
-      window.addEventListener('load', function () {
-        navigator.serviceWorker.register('/sw.js').then(function (registration) {
-          // Registration was successful
-          console.log('ServiceWorker registration successful with scope: ', registration.scope);
-          
-          // Check for updates periodically
-          setInterval(() => {
-            registration.update();
-          }, 60000); // Check every minute
-          
-          // Listen for updates
-          registration.addEventListener('updatefound', () => {
-            const newWorker = registration.installing;
-            newWorker.addEventListener('statechange', () => {
-              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                // New service worker is available, show update prompt
-                if (confirm('A new version is available. Refresh to update?')) {
-                  window.location.reload();
-                }
-              }
-            });
-          });
-        }, function (err) {
-          // registration failed :(
-          console.log('ServiceWorker registration failed: ', err);
-        });
-      });
-    }
-  </script>
+  <script defer src="sw-register.js"></script>
 </body>
 </html>

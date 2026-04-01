@@ -10,6 +10,7 @@ module.exports = (env, argv) => {
     const isProduction = argv.mode === 'production';
     
     return {
+    devtool: isProduction ? 'source-map' : 'cheap-module-source-map',
     entry: './src/radar.js',
     output: {
         path: path.resolve(__dirname, 'dist'),
@@ -18,16 +19,7 @@ module.exports = (env, argv) => {
     },
     resolve: {
         fallback: {
-            "util": require.resolve("util/"),
-            "url": require.resolve("url/"),
-            "buffer": require.resolve("buffer/"),
-            "stream": require.resolve("stream-browserify"),
-            "path": require.resolve("path-browserify"),
-            "os": require.resolve("os-browserify/browser"),
-            "process": require.resolve("process/browser"),
-            "net": false,
-            "tls": false,
-            "fs": false
+            "util": require.resolve("util/")
         }
     },
     devServer: {
@@ -47,8 +39,11 @@ module.exports = (env, argv) => {
     //     ]
     //   },
     plugins: [
+        new webpack.ProvidePlugin({
+            process: 'process/browser',
+        }),
         // Only use compression in production
-        ...(process.env.NODE_ENV === 'production' ? [new CompressionPlugin()] : []),
+        ...(isProduction ? [new CompressionPlugin()] : []),
         new HtmlWebpackPlugin({
           template: './src/index.html'
         }),
@@ -58,19 +53,11 @@ module.exports = (env, argv) => {
                 { from: 'assets', to: '.' }
             ]
         }),
-        new webpack.ProvidePlugin({
-            Buffer: ['buffer', 'Buffer'],
-            process: 'process/browser',
-        }),
-        new webpack.DefinePlugin({
-            'process.env': JSON.stringify({}),
-            'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV || 'development'),
-        }),
         new webpack.DefinePlugin({
             'BUILD_DATE': JSON.stringify(new Date().toISOString().slice(0, 16) + 'Z')
         }),
         // Only generate service worker in production to avoid watch mode warnings
-        ...(process.env.NODE_ENV === 'production' ? [
+        ...(isProduction ? [
             new GenerateSW({
                 swDest: 'sw.js',
                 clientsClaim: true,

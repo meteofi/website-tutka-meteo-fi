@@ -22,7 +22,6 @@ import LatLon from 'geodesy/latlon-spherical'
 import WMSCapabilities from 'ol/format/WMSCapabilities.js';
 import { transformExtent } from 'ol/proj';
 import Timeline from './timeline';
-import AIS from './digitraffic';
 import 'dayjs/locale/fi';
 import {VERSION as OL_VERSION} from 'ol/util';
 
@@ -164,12 +163,8 @@ var metLatitude = localStorage.getItem("metLatitude")
 var metLongitude = localStorage.getItem("metLongitude")
 	? localStorage.getItem("metLongitude") 
 	: 24.8725;
-var metPosition = localStorage.getItem("metPosition")
-	? JSON.parse(localStorage.getItem("metPosition")) 
-	: [];
-var metZoom = localStorage.getItem("metZoom")
-	? localStorage.getItem("metZoom") 
-	: 9;
+var metPosition = (() => { try { return JSON.parse(localStorage.getItem("metPosition")) || []; } catch (e) { return []; } })();
+var metZoom = localStorage.getItem("metZoom") || 9;
 var ownPosition = [];
 var ownPosition4326 = [];
 var geolocation;
@@ -184,34 +179,26 @@ dayjs.extend(localizedFormat);
 var duration = require('dayjs/plugin/duration');
 dayjs.extend(duration);
 var layerInfo = {};
-var trackedVessels = {'230059770': {}, '230994270': {}, '230939100': {}, '230051170': {}, '230059740': {}, '230108850': {}, '230937480': {}, '230051160': {}, '230983250': {}, '230012240': {}, '230980890': {}, '230061400': {}, '230059760': {}, '230005610': {}, '230987580': {}, '230983340': {}, '230111580': {}, '230059750': {}, '230994810': {}, '230993590': {}, '230051150': {} };
-var timeline, ais;
+var timeline;
 var mapTime = "";
 
 // STATUS Variables
-var VISIBLE = localStorage.getItem("VISIBLE")
-	? new Set(JSON.parse(localStorage.getItem("VISIBLE")))
-	: new Set(["radarLayer"]);
+function safeParseJSON(key, fallback) {
+	try { var v = JSON.parse(localStorage.getItem(key)); return v != null ? v : fallback; }
+	catch (e) { return fallback; }
+}
 
-var ACTIVE = localStorage.getItem("ACTIVE")
-	? new Set(JSON.parse(localStorage.getItem("ACTIVE")))
-	: new Set([options.defaultRadarLayer]);
+var VISIBLE = new Set(safeParseJSON("VISIBLE", ["radarLayer"]));
 
-var IS_DARK = localStorage.getItem("IS_DARK")
-	? JSON.parse(localStorage.getItem("IS_DARK"))
-	: true;
+var ACTIVE = new Set(safeParseJSON("ACTIVE", [options.defaultRadarLayer]));
 
-var IS_TRACKING = localStorage.getItem("IS_TRACKING")
-	? JSON.parse(localStorage.getItem("IS_TRACKING"))
-	: false;
+var IS_DARK = safeParseJSON("IS_DARK", true);
 
-var IS_FOLLOWING = localStorage.getItem("IS_FOLLOWING")
-	? JSON.parse(localStorage.getItem("IS_FOLLOWING"))
-	: false;
+var IS_TRACKING = safeParseJSON("IS_TRACKING", false);
 
-var IS_NAUTICAL = localStorage.getItem("IS_NAUTICAL")
-	? JSON.parse(localStorage.getItem("IS_NAUTICAL"))
-	: false;
+var IS_FOLLOWING = safeParseJSON("IS_FOLLOWING", false);
+
+var IS_NAUTICAL = safeParseJSON("IS_NAUTICAL", false);
 
 function debug(str) {
 	if (DEBUG) {
@@ -267,9 +254,9 @@ var style = new Style({
 	})
 });
 
-var vesselStyle = new Style({
+var radarStyle = new Style({
 	image: new CircleStyle({
-		radius: 5,
+		radius: 4,
 		fill: null,
 		stroke: new Stroke({ color: 'red', width: 2 })
 	}),
@@ -283,15 +270,15 @@ var vesselStyle = new Style({
 			width: 3
 		}),
 		offsetX: 0,
-		offsetY: -20
+		offsetY: -15
 	})
 });
 
-var radarStyle = new Style({
+var icaoStyle = new Style({
 	image: new CircleStyle({
 		radius: 4,
 		fill: null,
-		stroke: new Stroke({ color: 'red', width: 2 })
+		stroke: new Stroke({ color: 'blue', width: 2 })
 	}),
 	text: new Text({
 		font: '12px Calibri,sans-serif',
@@ -456,27 +443,15 @@ var radarLayer = new ImageLayer({
 	})
 });
 
-// overlay Layer
-var overlayLayer = new TileLayer({
-	name: "overlayLayer",
-	source: new TileWMS({
-		url: "https://julkinen.vayla.fi/inspirepalvelu/avoin/wms",
-	//	url: "https://geoserv.stat.fi/geoserver/postialue/wms",
-//		params: { 'FORMAT': 'image/png8', 'LAYERS': 'postialue:pno', 'TILED': true },
-		params: { 'FORMAT': 'image/png8', 'LAYERS': 'rataverkko,vaylaalueet,vaylat', 'TILED': true },
-		ratio: options.imageRatio,
-		serverType: 'geoserver'
-	})
-});
-
 // Lightning Layer
 var lightningLayer = new ImageLayer({
 	name: "lightningLayer",
 	visible: VISIBLE.has("lightningLayer"),
 	source: new ImageWMS({
-		url: options.wmsServerConfiguration["meteo-obs"].url,
+		url: options.wmsServerConfiguration["meteo-obs-new"].url,
 		params: { 'FORMAT': 'image/png8', 'LAYERS': options.defaultLightningLayer },
 		ratio: options.imageRatio,
+		hidpi: false,
 		serverType: 'geoserver'
 	})
 });
@@ -509,21 +484,12 @@ var radarSiteLayer = new VectorLayer({
 var icaoLayer = new VectorLayer({
 	source: new Vector({
 		format: new GeoJSON(),
-		url: 'icao-indicators-finland.json'
+		url: 'airfields-finland.json'
 	}),
-	//,
+	visible: true,
 	style: function(feature) {
-		style.getText().setText(feature.get('airportcode'));
-		return style;
-	}
-});
-
-var smpsLayer = new VectorLayer({
-	source: new Vector(),
-	visible: false,
-	style: function (feature) {
-		vesselStyle.getText().setText(getVesselName(feature.get('mmsi')) + " " + feature.get('sog') + "kn");
-		return vesselStyle;
+		icaoStyle.getText().setText(feature.get('icao'));
+		return icaoStyle;
 	}
 });
 
@@ -562,12 +528,10 @@ var layers = [
 	lightningLayer,
 	lightGrayReferenceLayer,
 	darkGrayReferenceLayer,
-//	overlayLayer,
 	radarSiteLayer,
-	//icaoLayer,
+	icaoLayer,
 	ownPositionLayer,
-	observationLayer,
-	smpsLayer
+	observationLayer
 ];
 
 function distanceToString(distance) {
@@ -650,7 +614,7 @@ function onChangeAccuracyGeometry(event) {
 function onChangeSpeed(event) {
 	debug('Speed changed.');
 	let speed = event.target.getSpeed();
-	if (isNumber(speed)) {
+	if (Number.isFinite(speed)) {
 		document.getElementById("currentSpeed").style.display = 'block';
 		document.getElementById("currentSpeedValue").innerHTML = Math.round(speed * 3600 / 1000);
 	} else {
@@ -801,10 +765,10 @@ function setTime(action='next') {
 		//debug("---");
 		//debug(startDateFormat);
 		//debug(startDate.toISOString());
-		setLayerTime(satelliteLayer, startDate.toISOString());
-		setLayerTime(radarLayer, startDate.toISOString());
-		setLayerTime(lightningLayer, 'PT'+(resolution/60000)+'M/' + startDate.toISOString());
-		setLayerTime(observationLayer, 'PT'+(resolution/60000)+'M/' + startDate.toISOString());
+		if (VISIBLE.has("satelliteLayer")) setLayerTime(satelliteLayer, startDate.toISOString());
+		if (VISIBLE.has("radarLayer")) setLayerTime(radarLayer, startDate.toISOString());
+		if (VISIBLE.has("lightningLayer")) setLayerTime(lightningLayer, 'PT'+(resolution/60000)+'M/' + startDate.toISOString());
+		if (VISIBLE.has("observationLayer")) setLayerTime(observationLayer, 'PT'+(resolution/60000)+'M/' + startDate.toISOString());
 
 }
 
@@ -888,41 +852,6 @@ document.getElementById("cursorDistanceTxt").style.display = "none";
 
 
 
-function getVesselName(mmsi) {
-	if (typeof trackedVessels[mmsi].metadata !== "undefined") {
-			return trackedVessels[mmsi].metadata.name;
-	} else {
-		return mmsi;
-	}
-}
-
-/* ais.client.on("message", function (topic, payload) {
-	var vessel = {};
-	var metadata = {};
-	if (topic.indexOf('location') !== -1) {
-		vessel = JSON.parse(payload.toString());
-	}	
-	//debug(topic);
-	if (topic.indexOf('metadata') !== -1) {
-		metadata = JSON.parse(payload.toString());
-		trackedVessels[metadata.mmsi].metadata = metadata;
-		return;
-	}	
-	var format = new GeoJSON({
-		dataProjection: 'EPSG:4326',
-		featureProjection: "EPSG:3857"
-	});
-	trackedVessels[vessel.mmsi].location = vessel;
-	trackedVessels[vessel.mmsi].location.properties.mmsi = vessel.mmsi;
-	smpsLayer.getSource().clear(true);
-	Object.keys(trackedVessels).forEach(function (item) {
-		if (typeof trackedVessels[item].location !== "undefined") {
-			smpsLayer.getSource().addFeature(format.readFeature(trackedVessels[item].location));
-		}
-	});
-	//client.end()
-}); */
-
 function setMapLayer(maplayer) {
 	debug('Set ' + maplayer + ' map.');
 	switch (maplayer) {
@@ -933,7 +862,7 @@ function setMapLayer(maplayer) {
 			lightGrayReferenceLayer.setVisible(true);
 			document.getElementById("mapLayerButton").classList.remove("selectedButton");
 			IS_DARK = false;
-			umami.track('theme-light');
+			typeof umami !== 'undefined' && umami.track('theme-light');
 			break;
 		case 'dark':
 			darkGrayBaseLayer.setVisible(true);
@@ -942,7 +871,7 @@ function setMapLayer(maplayer) {
 			lightGrayReferenceLayer.setVisible(false);
 			document.getElementById("mapLayerButton").classList.add("selectedButton");
 			IS_DARK = true;
-			umami.track('theme-dark');
+			typeof umami !== 'undefined' && umami.track('theme-dark');
 			break;	
 	}
 	localStorage.setItem("IS_DARK",JSON.stringify(IS_DARK));
@@ -989,7 +918,7 @@ function addEventListeners(selector) {
 	let elementsArray = document.querySelectorAll(selector);
 	elementsArray.forEach(function (elem) {
 		debug("Activated event listener for " + elem.id);
-		elem.addEventListener("mouseup", function () {
+		elem.addEventListener("mouseup", function (event) {
 			if (event.target.id.indexOf("Off") !== -1) {
 				event.target.classList.add("selected");
 				layerss[event.target.parentElement.id].setVisible(false);
@@ -1054,13 +983,15 @@ var displayFeatureInfo = function (pixel) {
 	}
 };
 
-function createLayerInfoElement(content,style) {
+function createLayerInfoElement(content, style, isHTML) {
 	let div = document.createElement('div');
 	div.classList.add(style);
-	if (typeof content !== "undefined") {
-		div.innerHTML = content;
-	} else {
-		div.innerHTML = '';
+	if (typeof content !== "undefined" && content !== null) {
+		if (isHTML) {
+			div.innerHTML = content;
+		} else {
+			div.textContent = content;
+		}
 	}
 	return div;
 }
@@ -1081,10 +1012,19 @@ function layerInfoDiv(wmslayer) {
 	div.setAttribute('data-layer-name', wmslayer);
 	div.setAttribute('data-layer-category', info ? info.category : '');
 
-	div.appendChild(createLayerInfoElement(info ? info.title : '','title'));
+	div.appendChild(createLayerInfoElement(info ? info.title : '', 'title'));
 
-	div.appendChild(createLayerInfoElement('<img class="responsiveImage" src="' +(info ? info.url : '') + '?TIME=PT1H/PRESENT&SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&FORMAT=image%2Fpng8&TRANSPARENT=true&CRS=EPSG%3A3067&STYLES=&WIDTH=300&HEIGHT=300&BBOX=-183243.50620644476%2C6575998.62606195%2C1038379.8685031873%2C7797622.000771582&LAYERS=' + (info ? info.layer : '') + '">','preview'));
-	div.appendChild(createLayerInfoElement(info ? info.abstract : '','abstract'));
+	var previewDiv = document.createElement('div');
+	previewDiv.classList.add('preview');
+	if (info && info.url && info.layer) {
+		var img = document.createElement('img');
+		img.className = 'responsiveImage';
+		img.loading = 'lazy';
+		img.src = info.url + '?TIME=PT1H/PRESENT&SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&FORMAT=image%2Fpng8&TRANSPARENT=true&CRS=EPSG%3A3067&STYLES=&WIDTH=300&HEIGHT=300&BBOX=-183243.50620644476%2C6575998.62606195%2C1038379.8685031873%2C7797622.000771582&LAYERS=' + encodeURIComponent(info.layer);
+		previewDiv.appendChild(img);
+	}
+	div.appendChild(previewDiv);
+	div.appendChild(createLayerInfoElement(info ? info.abstract : '', 'abstract'));
 	if (info && info.time && info.time.end) {
 		div.appendChild(createLayerInfoElement((resolution > 60 ? (resolution / 60) + ' tuntia ' : resolution + ' minuuttia, viimeisin: ')+dayjs(info.time.end).format('LT'),'time'));
 	} else {
@@ -1098,69 +1038,83 @@ function layerInfoDiv(wmslayer) {
 	return div;
 }
 
+var _playlistSliderHandlers = {};
+
 function layerInfoPlaylist(event) {
 	const layer = event.target;
 	const name = layer.get('name')
 	const info = layer.get('info')
 	let opacity = layer.get('opacity') * 100
-	let resolution = "";
 
 	if (typeof info === "undefined") return
+
+	// Only do full DOM rebuild when playlist is visible
+	var playList = document.getElementById('playList');
+	if (playList.style.display === 'none' || playList.offsetParent === null) {
+		// Still update the visibility class (cheap)
+		if (layer.getVisible()) {
+			document.getElementById(name + 'Info').classList.remove("playListDisabled");
+		} else {
+			document.getElementById(name + 'Info').classList.add("playListDisabled");
+		}
+		return;
+	}
+
 	debug("Updating playlist for " + name);
-	
+
 	if (typeof info.style !== "undefined") {
 		if (info.style.length > 1) {
 			const parent = document.getElementById(name + 'Styles');
 			while (parent.firstChild) parent.removeChild(parent.firstChild);
 			info.style.forEach(style => {
 				let div = document.createElement("div");
-				div.innerHTML = style.Title;
+				div.textContent = style.Title;
 				div.id = style.Name;
 				div.addEventListener('mouseup', function () { layer.setLayerStyle(style.Name) });
 				parent.appendChild(div);
 			});
 		} else {
-			document.getElementById(name + 'Styles').innerHTML = "";
+			document.getElementById(name + 'Styles').textContent = "";
 		}
 	} else {
-		document.getElementById(name + 'Styles').innerHTML = "";
+		document.getElementById(name + 'Styles').textContent = "";
 	}
 
-	if (typeof info.title !== "undefined") {
-		document.getElementById(name + 'Title').innerHTML = info.title;
-	} else {
-		document.getElementById(name + 'Title').innerHTML = "";
-	}
+	document.getElementById(name + 'Title').textContent = info.title || "";
+	document.getElementById(name + 'Abstract').textContent = info.abstract || "";
+	document.getElementById(name + 'Attribution').textContent = (info.attribution && info.attribution.Title) || "";
 
-	if (typeof info.abstract !== "undefined") {
-		document.getElementById(name + 'Abstract').innerHTML = info.abstract;
-	} else {
-		document.getElementById(name + 'Abstract').innerHTML = "";
-	}
-
-	if (typeof info.attribution !== "undefined") {
-		document.getElementById(name + 'Attribution').innerHTML = info.attribution.Title;
-	} else {
-		document.getElementById(name + 'Attribution').innerHTML = "";
-	}
-
-	if (typeof info.time !== "undefined") {
-		let timestep = Math.round(info.time.resolution / 60000)
-		resolution = '<div><i class="material-icons">av_timer</i> ' + (timestep > 60 ? (timestep / 60) + ' tuntia' : timestep + ' min') + '</div>'
-	}
-
-	document.getElementById(name + 'Opacity').innerHTML = '<label for="' + name + 'Slider">Läpikuultavuus</label><input type="range" min="1" max="100" value="' + opacity + '" class="slider" id="' + name + 'Slider"></input>';
+	// Build slider without innerHTML
+	var opacityContainer = document.getElementById(name + 'Opacity');
+	opacityContainer.textContent = '';
+	var label = document.createElement('label');
+	label.setAttribute('for', name + 'Slider');
+	label.textContent = 'Läpikuultavuus';
+	var slider = document.createElement('input');
+	slider.type = 'range';
+	slider.min = '1';
+	slider.max = '100';
+	slider.value = opacity;
+	slider.className = 'slider';
+	slider.id = name + 'Slider';
+	opacityContainer.appendChild(label);
+	opacityContainer.appendChild(slider);
 
 	if (layer.getVisible()) {
 		document.getElementById(name + 'Info').classList.remove("playListDisabled");
 	} else {
 		document.getElementById(name + 'Info').classList.add("playListDisabled");
 	}
-	
-	 document.getElementById(name + 'Slider').addEventListener('input', function (e) {
-	 	layer.setOpacity(e.target.value / 100);
-	 	event.stopPropagation();
-	 });
+
+	// Remove previous slider listener to prevent leaks
+	if (_playlistSliderHandlers[name]) {
+		slider.removeEventListener('input', _playlistSliderHandlers[name]);
+	}
+	_playlistSliderHandlers[name] = function (e) {
+		layer.setOpacity(e.target.value / 100);
+		e.stopPropagation();
+	};
+	slider.addEventListener('input', _playlistSliderHandlers[name]);
 }
 
 function onChangeVisible (event) {
@@ -1388,7 +1342,7 @@ document.getElementById('locationLayerButton').addEventListener('mouseup', funct
 		localStorage.setItem("IS_TRACKING",JSON.stringify(false));
 		geolocation.setTracking(false);
 		ownPositionLayer.setVisible(false);
-		umami.track('tracking-off');
+		typeof umami !== 'undefined' && umami.track('tracking-off');
 	} else {
 		IS_TRACKING = true;
 		localStorage.setItem("IS_TRACKING",JSON.stringify(true));
@@ -1397,7 +1351,7 @@ document.getElementById('locationLayerButton').addEventListener('mouseup', funct
 		if (ownPosition.length > 1) {
 			map.getView().setCenter(ownPosition);
 		}
-		umami.track('tracking-on');
+		typeof umami !== 'undefined' && umami.track('tracking-on');
 	}
 	setButtonStates();
 });
@@ -1673,8 +1627,6 @@ document.addEventListener('keyup', function (event) {
 		playstop(); 
 	} else if (key === 'l' || key === 'KeyL') {
 		skip_next(); 
-	} else if (key === 's' || key === 'KeyS' || key === 83) {
-		toggleLayerVisibility(smpsLayer); 
 	} else if (key === '1' || key === 'Digit1') {
 		toggleLayerVisibility(satelliteLayer);
 	} else if (key === '2' || key === 'Digit2') {
@@ -1782,8 +1734,9 @@ function getWMSCapabilities(wms) {
 		}
 	}).catch(function (error) {
 		debug('Error fetching WMS Capabilities from ' + wms.url + ': ' + error.message);
+	}).finally(function () {
+		setTimeout(function () { getWMSCapabilities(wms) }, wms.refresh);
 	});
-	setTimeout(function () { getWMSCapabilities(wms) }, wms.refresh);
 }
 
 function getLayers(parentlayer,wms) {
@@ -1840,18 +1793,6 @@ function getLayerInfo(layer,wms) {
 	return product
 }
 
-function getStyles(styles) {
-	styles.forEach((style) => {
-		debug(style);
-	});
-}
-
-function getAtributions(attributions) {
-	attributions.forEach((attribution) => {
-		debug(attribution);
-	});
-}
-
 function getTimeDimension(dimensions) {
 	//var time = {}
 	var beginTime
@@ -1894,24 +1835,6 @@ function getTimeDimension(dimensions) {
 	return { start: beginTime, end: endTime, resolution: resolutionTime, type: type, default: defaultTime }
 }
 
-
-const debounce = (func, delay) => {
-  let inDebounce
-  return function() {
-    const context = this
-    const args = arguments
-    clearTimeout(inDebounce)
-    inDebounce = setTimeout(() => func.apply(context, args), delay)
-  }
-}
-
-/* debounceBtn.addEventListener('click', debounce(function() {
-  console.info('Hey! It is', new Date().toUTCString());
-}, 3000)); */
-
-function onPostRender (e) {
-	console.log(e);
-}
 
 //
 // MAIN
@@ -1957,10 +1880,6 @@ const main = () => {
 	observationLayer.on('change:visible', onChangeVisible);
 	observationLayer.on('propertychange', layerInfoPlaylist);
 
-	//radarLayer.on('postrender', onPostRender);
-
-	//radarLayer.on('change', function (event) {debug(event.target.getSource().getParams().TIME)});
-
 	addEventListeners("#satelliteLayer > div");
 	addEventListeners("#radarLayer > div");
 	addEventListeners("#lightningLayer > div");
@@ -1981,7 +1900,7 @@ const main = () => {
 		}
 	});
 
-	window.matchMedia("(prefers-color-scheme: dark)").addListener(function(x) {
+	window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', function(x) {
 		if (x.matches) {
 			setMapLayer('dark');
 		} else {
@@ -2061,15 +1980,6 @@ const main = () => {
 		});
 	});
 
-	//ais = new AIS('wss://meri.digitraffic.fi:61619/mqtt', 'digitraffic', 'digitrafficPassword');
-	//ais.track(trackedVessels);
-	//ais.client.on('message',ais.onMessage.bind(ais));
-
-
-//const worker = new Worker();
-//worker.postMessage([options.wmsServer.meteo.radar, 60000]);
-//worker.onmessage = function (event) {};
-//worker.addEventListener("message", function (event) {debug(event)});
 
 };
 
@@ -2374,15 +2284,15 @@ function trackPWAUsage() {
                         'browser';
     const colorScheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     
-    umami.track('app-display', { 'display-mode': displayMode, 'color-scheme': colorScheme });
-	umami.track('version', { 'build-date': BUILD_DATE, 'openlayers': OL_VERSION });
+    typeof umami !== 'undefined' && umami.track('app-display', { 'display-mode': displayMode, 'color-scheme': colorScheme });
+	typeof umami !== 'undefined' && umami.track('version', { 'build-date': BUILD_DATE, 'openlayers': OL_VERSION });
 }
 
 // Listen for the appinstalled event
 window.addEventListener('appinstalled', (e) => {
 	debug('PWA was installed');
 	// Track successful PWA installation
-	umami.track('pwa-installed');
+	typeof umami !== 'undefined' && umami.track('pwa-installed');
 	// Clear the deferredPrompt
 });
 
