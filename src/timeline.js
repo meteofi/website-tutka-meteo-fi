@@ -34,7 +34,7 @@ Timeline.prototype.update = function update(position) {
   this.position = position;
   const elementsArray = this.parent.childNodes;
   elementsArray.forEach(function (elem) {
-    if (elem.id.split('-')[2] <= position) {
+    if (parseInt(elem.id.split('-')[2], 10) <= position) {
       elem.classList.add('timeline-on');
       elem.classList.remove('timeline-off');
     } else {
