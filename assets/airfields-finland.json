@@ -1,0 +1,1071 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          23.427500000000002,
+          68.36444444444444
+        ]
+      },
+      "properties": {
+        "icao": "EFET"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          27.002777777777776,
+          62.264722222222225
+        ]
+      },
+      "properties": {
+        "icao": "EFPK"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          23.08222222222222,
+          59.845555555555556
+        ]
+      },
+      "properties": {
+        "icao": "EFHN"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          20.804722222222225,
+          60.246944444444445
+        ]
+      },
+      "properties": {
+        "icao": "EFKG"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          25.124166666666667,
+          63.125277777777775
+        ]
+      },
+      "properties": {
+        "icao": "EFKV"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          23.826666666666668,
+          64.2286111111111
+        ]
+      },
+      "properties": {
+        "icao": "EFKO"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          26.616388888888892,
+          63.705555555555556
+        ]
+      },
+      "properties": {
+        "icao": "EFRV"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          23.05138888888889,
+          63.12416666666667
+        ]
+      },
+      "properties": {
+        "icao": "EFKA"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          28.90361111111111,
+          61.249722222222225
+        ]
+      },
+      "properties": {
+        "icao": "EFIM"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          23.139166666666664,
+          63.72027777777778
+        ]
+      },
+      "properties": {
+        "icao": "EFKK"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          28.35666666666667,
+          62.065555555555555
+        ]
+      },
+      "properties": {
+        "icao": "EFRN"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          25.822777777777777,
+          68.14555555555556
+        ]
+      },
+      "properties": {
+        "icao": "EFPA"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          24.695833333333333,
+          64.68805555555556
+        ]
+      },
+      "properties": {
+        "icao": "EFRH"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          27.794444444444448,
+          63.00861111111111
+        ]
+      },
+      "properties": {
+        "icao": "EFKU"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          29.629166666666666,
+          63.511944444444445
+        ]
+      },
+      "properties": {
+        "icao": "EFLN"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          23.971666666666664,
+          67.6036111111111
+        ]
+      },
+      "properties": {
+        "icao": "EFAA"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          22.831944444444446,
+          62.69361111111111
+        ]
+      },
+      "properties": {
+        "icao": "EFSI"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          24.848055555555554,
+          67.69861111111112
+        ]
+      },
+      "properties": {
+        "icao": "EFKT"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          26.795555555555556,
+          61.064166666666665
+        ]
+      },
+      "properties": {
+        "icao": "EFSE"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          23.65111111111111,
+          60.46277777777778
+        ]
+      },
+      "properties": {
+        "icao": "EFIK"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          24.29638888888889,
+          60.33388888888889
+        ]
+      },
+      "properties": {
+        "icao": "EFNU"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          24.172222222222224,
+          60.07916666666667
+        ]
+      },
+      "properties": {
+        "icao": "EFTO"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          22.591666666666665,
+          61.03972222222222
+        ]
+      },
+      "properties": {
+        "icao": "EFVP"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          24.789166666666667,
+          61.85638888888889
+        ]
+      },
+      "properties": {
+        "icao": "EFHA"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          22.20138888888889,
+          61.11611111111111
+        ]
+      },
+      "properties": {
+        "icao": "EFEU"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          23.573333333333334,
+          62.55472222222222
+        ]
+      },
+      "properties": {
+        "icao": "EFAL"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          26.745833333333334,
+          60.66361111111111
+        ]
+      },
+      "properties": {
+        "icao": "EFWB"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          24.030555555555555,
+          63.397777777777776
+        ]
+      },
+      "properties": {
+        "icao": "EFVT"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          27.6875,
+          64.28416666666666
+        ]
+      },
+      "properties": {
+        "icao": "EFKI"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          21.764166666666668,
+          63.04527777777778
+        ]
+      },
+      "properties": {
+        "icao": "EFVA"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          23.074166666666667,
+          61.69027777777777
+        ]
+      },
+      "properties": {
+        "icao": "EFHM"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          19.89638888888889,
+          60.121944444444445
+        ]
+      },
+      "properties": {
+        "icao": "EFMA"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          26.36527777777778,
+          65.97305555555556
+        ]
+      },
+      "properties": {
+        "icao": "EFRU"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          26.946944444444444,
+          65.40222222222222
+        ]
+      },
+      "properties": {
+        "icao": "EFPU"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          21.797777777777778,
+          61.46138888888889
+        ]
+      },
+      "properties": {
+        "icao": "EFPO"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          25.672777777777778,
+          62.40083333333333
+        ]
+      },
+      "properties": {
+        "icao": "EFJY"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          25.931944444444447,
+          63.72916666666667
+        ]
+      },
+      "properties": {
+        "icao": "EFPY"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          28.124166666666667,
+          63.424166666666665
+        ]
+      },
+      "properties": {
+        "icao": "EFRA"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          24.584722222222222,
+          65.77916666666667
+        ]
+      },
+      "properties": {
+        "icao": "EFKE"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          27.2,
+          61.686388888888885
+        ]
+      },
+      "properties": {
+        "icao": "EFMI"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          27.413888888888888,
+          68.61083333333333
+        ]
+      },
+      "properties": {
+        "icao": "EFIV"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          22.71611111111111,
+          61.77861111111111
+        ]
+      },
+      "properties": {
+        "icao": "EFJM"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          27.122222222222224,
+          63.63194444444444
+        ]
+      },
+      "properties": {
+        "icao": "EFII"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          30.07361111111111,
+          62.16611111111111
+        ]
+      },
+      "properties": {
+        "icao": "EFIT"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          28.710277777777776,
+          64.82194444444444
+        ]
+      },
+      "properties": {
+        "icao": "EFSU"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          24.025277777777777,
+          61.77305555555555
+        ]
+      },
+      "properties": {
+        "icao": "EFTS"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          29.43861111111111,
+          64.1125
+        ]
+      },
+      "properties": {
+        "icao": "EFKH"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          27.15722222222222,
+          66.71583333333334
+        ]
+      },
+      "properties": {
+        "icao": "EFKM"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          22.744722222222222,
+          60.87638888888889
+        ]
+      },
+      "properties": {
+        "icao": "EFOP"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          23.645555555555553,
+          60.801944444444445
+        ]
+      },
+      "properties": {
+        "icao": "EFFO"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          23.587777777777777,
+          61.415277777777774
+        ]
+      },
+      "properties": {
+        "icao": "EFTP"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          25.50888888888889,
+          60.572500000000005
+        ]
+      },
+      "properties": {
+        "icao": "EFMN"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          26.89611111111111,
+          60.57138888888889
+        ]
+      },
+      "properties": {
+        "icao": "EFKY"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          27.478888888888886,
+          63.39944444444444
+        ]
+      },
+      "properties": {
+        "icao": "EFLL"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          25.693055555555556,
+          61.14416666666666
+        ]
+      },
+      "properties": {
+        "icao": "EFLA"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          22.261666666666667,
+          60.514722222222225
+        ]
+      },
+      "properties": {
+        "icao": "EFTU"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          26.76,
+          64.50194444444445
+        ]
+      },
+      "properties": {
+        "icao": "EFVL"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          25.830833333333334,
+          66.56166666666667
+        ]
+      },
+      "properties": {
+        "icao": "EFRO"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          26.938055555555557,
+          60.896388888888886
+        ]
+      },
+      "properties": {
+        "icao": "EFUT"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          25.355555555555558,
+          64.92916666666667
+        ]
+      },
+      "properties": {
+        "icao": "EFOU"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          28.148611111111112,
+          61.045833333333334
+        ]
+      },
+      "properties": {
+        "icao": "EFLP"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          24.10777777777778,
+          60.74472222222222
+        ]
+      },
+      "properties": {
+        "icao": "EFRY"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          24.725277777777777,
+          64.05472222222222
+        ]
+      },
+      "properties": {
+        "icao": "EFYL"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          22.521944444444443,
+          60.08694444444445
+        ]
+      },
+      "properties": {
+        "icao": "EFGE"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          28.945,
+          61.94277777777778
+        ]
+      },
+      "properties": {
+        "icao": "EFSA"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          29.231944444444444,
+          65.99027777777778
+        ]
+      },
+      "properties": {
+        "icao": "EFKS"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          22.195,
+          61.24527777777778
+        ]
+      },
+      "properties": {
+        "icao": "EFPI"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          27.86861111111111,
+          62.17111111111111
+        ]
+      },
+      "properties": {
+        "icao": "EFVR"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          29.624444444444446,
+          62.65888888888889
+        ]
+      },
+      "properties": {
+        "icao": "EFJO"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          29.39361111111111,
+          61.72888888888889
+        ]
+      },
+      "properties": {
+        "icao": "EFPN"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          24.96333333333333,
+          60.31722222222223
+        ]
+      },
+      "properties": {
+        "icao": "EFHK"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          25.74361111111111,
+          63.98916666666667
+        ]
+      },
+      "properties": {
+        "icao": "EFKR"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          24.831666666666667,
+          60.519999999999996
+        ]
+      },
+      "properties": {
+        "icao": "EFNS"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          24.704722222222223,
+          64.96972222222223
+        ]
+      },
+      "properties": {
+        "icao": "EFHL"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          26.618055555555557,
+          67.39666666666668
+        ]
+      },
+      "properties": {
+        "icao": "EFSO"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          23.51888888888889,
+          62.946666666666665
+        ]
+      },
+      "properties": {
+        "icao": "EFME"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          25.752222222222223,
+          64.89527777777778
+        ]
+      },
+      "properties": {
+        "icao": "EFAH"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          26.593888888888888,
+          60.47916666666667
+        ]
+      },
+      "properties": {
+        "icao": "EFPR"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          25.816111111111113,
+          63.1225
+        ]
+      },
+      "properties": {
+        "icao": "EFVI"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          22.391111111111112,
+          62.46361111111111
+        ]
+      },
+      "properties": {
+        "icao": "EFKJ"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          24.88111111111111,
+          60.654444444444444
+        ]
+      },
+      "properties": {
+        "icao": "EFHV"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          25.504166666666666,
+          64.11305555555555
+        ]
+      },
+      "properties": {
+        "icao": "EFHP"
+      }
+    }
+  ]
+}
