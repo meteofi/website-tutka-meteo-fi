@@ -27,7 +27,7 @@ import {VERSION as OL_VERSION} from 'ol/util';
 
 
 var options = {
-	defaultRadarLayer: 'Radar:suomi_dbz_eureffin',
+	defaultRadarLayer: 'suomi_dbz_eureffin',
 	defaultLightningLayer: 'observation:lightning',
 	defaultObservationLayer: 'observation:airtemperature',
 	rangeRingSpacing: 50,
@@ -37,8 +37,7 @@ var options = {
 	imageRatio: 1.5,
 	wmsServerConfiguration: {
 		'fmi-radar': {
-			url: 'https://openwms.fmi.fi/geoserver/wms',
-			namespace: 'Radar',
+			url: 'https://openwms.fmi.fi/geoserver/Radar/wms',
 			refresh: 60000,
 			category: 'radarLayer',
 			attribution: 'FMI (CC-BY-4.0)',
@@ -133,10 +132,28 @@ var options = {
 			disabled: true
 		},
 		no: {
-			url: 'https://public-wms.met.no/verportal/verportal.map',
-			refresh: 300000,
+			url: 'https://meteocore.app.meteo.fi/wms',
+			layer: 'met-radar-composite-dbz',
+			refresh: 60000,
 			category: 'radarLayer',
-			disabled: true
+			attribution: 'MET Norway',
+			disabled: false
+		},
+		se: {
+			url: 'https://meteocore.app.meteo.fi/wms',
+			layer: 'smhi-radar-composite-dbz',
+			refresh: 60000,
+			category: 'radarLayer',
+			attribution: 'SMHI',
+			disabled: false
+		},
+		dk: {
+			url: 'https://meteocore.app.meteo.fi/wms',
+			layer: 'dmi-radar-composite-dbz',
+			refresh: 60000,
+			category: 'radarLayer',
+			attribution: 'DMI',
+			disabled: false
 		},
 		vn: {
 			url: 'https://vietnam.smartmet.fi/wms',
@@ -899,12 +916,15 @@ function removeSelectedParameter(selector) {
 function updateLayer(layer, wmslayer) {
 	debug("Activated layer " + wmslayer);
 	debug(layerInfo[wmslayer]);
-	layer.set('info',layerInfo[wmslayer]);
+	var info = layerInfo[wmslayer];
+	layer.set('info', info);
 	if (document.getElementById(wmslayer)) {
 		removeSelectedParameter("#" + layer.get("name") + " > div");
 		document.getElementById(wmslayer).classList.add("selected");
 	}
-	layer.setLayerUrl(layerInfo[wmslayer].url);
+	if (info && info.url) {
+		layer.setLayerUrl(info.url);
+	}
 	layer.getSource().updateParams({ 'LAYERS': wmslayer });
 	if (layer.getVisible()) {
 		updateCanonicalPage();
@@ -1745,7 +1765,14 @@ function getLayers(parentlayer,wms) {
 		if (Array.isArray(layer.Layer)) {
 			getLayers(layer.Layer,wms)
 		} else {
-			layerInfo[layer.Name] = getLayerInfo(layer,wms)
+			var name = layer.Name;
+			// FMI GeoServer returns unprefixed names; meteo.fi returns prefixed.
+			// Add namespace prefix only when it's not already present.
+			if (wms.namespace && name.indexOf(wms.namespace + ':') !== 0) {
+				name = wms.namespace + ':' + name;
+			}
+			layerInfo[name] = getLayerInfo(layer,wms)
+			layerInfo[name].layer = name;
 		}
 	})
 	return products;

@@ -88,7 +88,7 @@
     <div class="infoItem" id="infoItemRadar">
       <div class="infoLabel" id="infoLabelRadar">SÄÄTUTKA</div>
       <!--div class="infoValue" id="radarTxt"></div-->
-      <div class="infoValue flexColumn" id="radarLayer"><div id="radarLayerOff" class="flexCell">OFF</div><div id="Radar:suomi_dbz_eureffin" class="flexCell selected">FMI</div><div id="radar:radar_finland_dbz" class="flexCell">DBZ</div><div id="radar:radar_finland_rr" class="flexCell">RATE</div><!--div id="RX-Produkt" class="flexCell">DE</div><div id="bs:radar:correctedreflectivity" class="flexCell">BS</div><div id="vnmha:radar:comp_dbz" class="flexCell">VN</div><div id="RADNL_OPER_R___25PCPRR_L3_COLOR" class="flexCell">NL</div><div id="nexrad-n0q-wmst" class="flexCell">US</div--><div id="RADAR_1KM_RDBR" class="flexCell">CA</div></div>
+      <div class="infoValue flexColumn" id="radarLayer"><div id="radarLayerOff" class="flexCell">OFF</div><div id="suomi_dbz_eureffin" class="flexCell selected">FMI</div><div id="radar:radar_finland_dbz" class="flexCell">DBZ</div><div id="radar:radar_finland_rr" class="flexCell">RATE</div><!--div id="RX-Produkt" class="flexCell">DE</div><div id="bs:radar:correctedreflectivity" class="flexCell">BS</div><div id="vnmha:radar:comp_dbz" class="flexCell">VN</div><div id="RADNL_OPER_R___25PCPRR_L3_COLOR" class="flexCell">NL</div><div id="nexrad-n0q-wmst" class="flexCell">US</div--><div id="met-radar-composite-dbz" class="flexCell">NO</div><div id="smhi-radar-composite-dbz" class="flexCell">SE</div><div id="dmi-radar-composite-dbz" class="flexCell">DK</div><div id="RADAR_1KM_RDBR" class="flexCell">CA</div></div>
     </div>
     <div class="infoItem" id="infoItemLightning">
       <div class="infoLabel" id="infoLabelLightning">SALAMAT</div>
@@ -221,14 +221,23 @@
 
   <!-- Long press radar parameter menu -->
   <div id="radarLongPressMenu">
-    <div class="menu-item" data-layer="Radar:suomi_dbz_eureffin">
-      <span class="menu-label">FMI</span>
+    <div class="menu-item" data-layer="suomi_dbz_eureffin">
+      <span class="menu-label">Suomi</span>
     </div>
     <div class="menu-item" data-layer="radar:radar_finland_dbz">
       <span class="menu-label">DBZ</span>
     </div>
     <div class="menu-item" data-layer="radar:radar_finland_rr">
       <span class="menu-label">RATE</span>
+    </div>
+    <div class="menu-item" data-layer="smhi-radar-composite-dbz">
+      <span class="menu-label">Ruotsi</span>
+    </div>
+    <div class="menu-item" data-layer="met-radar-composite-dbz">
+      <span class="menu-label">Norja</span>
+    </div>
+    <div class="menu-item" data-layer="dmi-radar-composite-dbz">
+      <span class="menu-label">Tanska</span>
     </div>
     <div class="menu-item" data-layer="RADAR_1KM_RDBR">
       <span class="menu-label">CA</span>
