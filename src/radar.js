@@ -140,6 +140,14 @@ var options = {
 			attribution: 'MET Norway',
 			disabled: false
 		},
+		se: {
+			url: 'https://meteocore.app.meteo.fi/wms',
+			layer: 'smhi-radar-composite-dbz',
+			refresh: 60000,
+			category: 'radarLayer',
+			attribution: 'SMHI',
+			disabled: false
+		},
 		vn: {
 			url: 'https://vietnam.smartmet.fi/wms',
 			namespace: 'vnmha:radar',
@@ -1750,7 +1758,14 @@ function getLayers(parentlayer,wms) {
 		if (Array.isArray(layer.Layer)) {
 			getLayers(layer.Layer,wms)
 		} else {
-			layerInfo[layer.Name] = getLayerInfo(layer,wms)
+			var name = layer.Name;
+			// FMI GeoServer returns unprefixed names; meteo.fi returns prefixed.
+			// Add namespace prefix only when it's not already present.
+			if (wms.namespace && name.indexOf(wms.namespace + ':') !== 0) {
+				name = wms.namespace + ':' + name;
+			}
+			layerInfo[name] = getLayerInfo(layer,wms)
+			layerInfo[name].layer = name;
 		}
 	})
 	return products;
