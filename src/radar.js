@@ -133,10 +133,12 @@ var options = {
 			disabled: true
 		},
 		no: {
-			url: 'https://public-wms.met.no/verportal/verportal.map',
-			refresh: 300000,
+			url: 'https://meteocore.app.meteo.fi/wms',
+			layer: 'met-radar-composite-dbz',
+			refresh: 60000,
 			category: 'radarLayer',
-			disabled: true
+			attribution: 'MET Norway',
+			disabled: false
 		},
 		vn: {
 			url: 'https://vietnam.smartmet.fi/wms',
