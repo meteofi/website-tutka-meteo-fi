@@ -27,7 +27,7 @@ import {VERSION as OL_VERSION} from 'ol/util';
 
 
 var options = {
-	defaultRadarLayer: 'Radar:suomi_dbz_eureffin',
+	defaultRadarLayer: 'suomi_dbz_eureffin',
 	defaultLightningLayer: 'observation:lightning',
 	defaultObservationLayer: 'observation:airtemperature',
 	rangeRingSpacing: 50,
@@ -37,8 +37,7 @@ var options = {
 	imageRatio: 1.5,
 	wmsServerConfiguration: {
 		'fmi-radar': {
-			url: 'https://openwms.fmi.fi/geoserver/wms',
-			namespace: 'Radar',
+			url: 'https://openwms.fmi.fi/geoserver/Radar/wms',
 			refresh: 60000,
 			category: 'radarLayer',
 			attribution: 'FMI (CC-BY-4.0)',
@@ -146,6 +145,14 @@ var options = {
 			refresh: 60000,
 			category: 'radarLayer',
 			attribution: 'SMHI',
+			disabled: false
+		},
+		dk: {
+			url: 'https://meteocore.app.meteo.fi/wms',
+			layer: 'dmi-radar-composite-dbz',
+			refresh: 60000,
+			category: 'radarLayer',
+			attribution: 'DMI',
 			disabled: false
 		},
 		vn: {
