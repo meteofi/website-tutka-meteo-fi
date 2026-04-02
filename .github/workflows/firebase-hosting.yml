@@ -7,7 +7,7 @@ on:
     branches: [master]
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
@@ -24,7 +24,7 @@ jobs:
         env:
           NODE_ENV: production
 
-      # Deploy preview on PR
+      # Deploy preview on PR (dev project)
       - if: github.event_name == 'pull_request'
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
@@ -32,11 +32,11 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_DEV_TUTKA_METEO_FI }}
           projectId: dev-tutka-meteo-fi
 
-      # Deploy to live on push to master
+      # Deploy to production on push to master
       - if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_DEV_TUTKA_METEO_FI }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_TUTKA_METEO_FI }}
           channelId: live
-          projectId: dev-tutka-meteo-fi
+          projectId: tutka-meteo-fi
