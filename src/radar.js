@@ -901,12 +901,15 @@ function removeSelectedParameter(selector) {
 function updateLayer(layer, wmslayer) {
 	debug("Activated layer " + wmslayer);
 	debug(layerInfo[wmslayer]);
-	layer.set('info',layerInfo[wmslayer]);
+	var info = layerInfo[wmslayer];
+	layer.set('info', info);
 	if (document.getElementById(wmslayer)) {
 		removeSelectedParameter("#" + layer.get("name") + " > div");
 		document.getElementById(wmslayer).classList.add("selected");
 	}
-	layer.setLayerUrl(layerInfo[wmslayer].url);
+	if (info && info.url) {
+		layer.setLayerUrl(info.url);
+	}
 	layer.getSource().updateParams({ 'LAYERS': wmslayer });
 	if (layer.getVisible()) {
 		updateCanonicalPage();
