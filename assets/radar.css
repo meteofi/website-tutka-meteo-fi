@@ -89,6 +89,7 @@ html, body {
 
 
   #timecontrol {
+    top: auto;
     bottom: 0;
     color: var(--dark-theme-on-surface);
     display: flex;
