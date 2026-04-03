@@ -22,11 +22,19 @@ import LatLon from 'geodesy/latlon-spherical'
 import WMSCapabilities from 'ol/format/WMSCapabilities.js';
 import { transformExtent } from 'ol/proj';
 import Timeline from './timeline';
+import dayjs from 'dayjs';
 import 'dayjs/locale/fi';
+import utcPlugin from 'dayjs/plugin/utc';
+import localizedFormat from 'dayjs/plugin/localizedFormat';
+import durationPlugin from 'dayjs/plugin/duration';
 import {VERSION as OL_VERSION} from 'ol/util';
 
+dayjs.locale('fi');
+dayjs.extend(utcPlugin);
+dayjs.extend(localizedFormat);
+dayjs.extend(durationPlugin);
 
-var options = {
+const options = {
 	defaultRadarLayer: 'suomi_dbz_eureffin',
 	defaultLightningLayer: 'observation:lightning',
 	defaultObservationLayer: 'observation:airtemperature',
@@ -174,48 +182,31 @@ var options = {
 }
 
 let DEBUG = false;
-var metLatitude = localStorage.getItem("metLatitude")
-	? localStorage.getItem("metLatitude")
-	: 60.2706;
-var metLongitude = localStorage.getItem("metLongitude")
-	? localStorage.getItem("metLongitude") 
-	: 24.8725;
-var metPosition = (() => { try { return JSON.parse(localStorage.getItem("metPosition")) || []; } catch (e) { return []; } })();
-var metZoom = localStorage.getItem("metZoom") || 9;
-var ownPosition = [];
-var ownPosition4326 = [];
-var geolocation;
-var startDate = new Date(Math.floor(Date.now() / 300000) * 300000 - 300000 * 12);
-var animationId = null;
-var dayjs = require('dayjs');
-dayjs.locale('fi');
-var utcplugin = require('dayjs/plugin/utc');
-dayjs.extend(utcplugin);
-var localizedFormat = require('dayjs/plugin/localizedFormat');
-dayjs.extend(localizedFormat);
-var duration = require('dayjs/plugin/duration');
-dayjs.extend(duration);
-var layerInfo = {};
-var timeline;
-var mapTime = "";
 
-// STATUS Variables
 function safeParseJSON(key, fallback) {
-	try { var v = JSON.parse(localStorage.getItem(key)); return v != null ? v : fallback; }
+	try { const v = JSON.parse(localStorage.getItem(key)); return v != null ? v : fallback; }
 	catch (e) { return fallback; }
 }
 
-var VISIBLE = new Set(safeParseJSON("VISIBLE", ["radarLayer"]));
+let metLatitude = localStorage.getItem('metLatitude') || 60.2706;
+let metLongitude = localStorage.getItem('metLongitude') || 24.8725;
+let metPosition = safeParseJSON('metPosition', []);
+let metZoom = localStorage.getItem('metZoom') || 9;
+let ownPosition = [];
+let ownPosition4326 = [];
+let geolocation;
+let startDate = new Date(Math.floor(Date.now() / 300000) * 300000 - 300000 * 12);
+let animationId = null;
+const layerInfo = {};
+let timeline;
+let mapTime = '';
 
-var ACTIVE = new Set(safeParseJSON("ACTIVE", [options.defaultRadarLayer]));
-
-var IS_DARK = safeParseJSON("IS_DARK", true);
-
-var IS_TRACKING = safeParseJSON("IS_TRACKING", false);
-
-var IS_FOLLOWING = safeParseJSON("IS_FOLLOWING", false);
-
-var IS_NAUTICAL = safeParseJSON("IS_NAUTICAL", false);
+let VISIBLE = new Set(safeParseJSON('VISIBLE', ['radarLayer']));
+let ACTIVE = new Set(safeParseJSON('ACTIVE', [options.defaultRadarLayer]));
+let IS_DARK = safeParseJSON('IS_DARK', true);
+let IS_TRACKING = safeParseJSON('IS_TRACKING', false);
+let IS_FOLLOWING = safeParseJSON('IS_FOLLOWING', false);
+let IS_NAUTICAL = safeParseJSON('IS_NAUTICAL', false);
 
 function debug(str) {
 	if (DEBUG) {
@@ -249,7 +240,7 @@ ImageLayer.prototype.setLayerElevation = function (elevation) {
 }
 
 // STYLES
-var style = new Style({
+const style = new Style({
 	fill: new Fill({
 		color: 'rgba(255, 255, 255, 0.6)'
 	}),
@@ -271,7 +262,7 @@ var style = new Style({
 	})
 });
 
-var radarStyle = new Style({
+const radarStyle = new Style({
 	image: new CircleStyle({
 		radius: 4,
 		fill: null,
@@ -291,7 +282,7 @@ var radarStyle = new Style({
 	})
 });
 
-var icaoStyle = new Style({
+const icaoStyle = new Style({
 	image: new CircleStyle({
 		radius: 4,
 		fill: null,
@@ -311,7 +302,7 @@ var icaoStyle = new Style({
 	})
 });
 
-var ownStyle = new Style({
+const ownStyle = new Style({
 	image: new CircleStyle({
 		radius: 5,
 		fill: null,
@@ -333,7 +324,7 @@ var ownStyle = new Style({
 	})
 });
 
-var rangeStyle = new Style({
+const rangeStyle = new Style({
 	stroke: new Stroke({
 		color: [128,128,128,0.7],
 		width: 0.5
@@ -356,7 +347,7 @@ var rangeStyle = new Style({
 //
 // FEATURES
 // 
-var positionFeature = new Feature();
+const positionFeature = new Feature();
 positionFeature.setStyle(new Style({
 	image: new CircleStyle({
 		radius: 6,
@@ -370,7 +361,7 @@ positionFeature.setStyle(new Style({
 	})
 }));
 
-var accuracyFeature = new Feature();
+const accuracyFeature = new Feature();
 accuracyFeature.setStyle(new Style({
 	fill: new Fill({
 		color: [128,128,128,0.3]
@@ -380,7 +371,7 @@ accuracyFeature.setStyle(new Style({
 //
 // LAYERS
 //
-var imageryBaseLayer = new TileLayer({
+const imageryBaseLayer = new TileLayer({
 	visible: false,
 	source: new XYZ({
 		attributions: 'Tiles © <a href="https://services.arcgisonline.com/ArcGIS/' +
@@ -390,7 +381,7 @@ var imageryBaseLayer = new TileLayer({
 	})
 });
 
-var lightGrayBaseLayer = new TileLayer({
+const lightGrayBaseLayer = new TileLayer({
 	visible: false,
 	preload: Infinity,
 	source: new XYZ({
@@ -401,7 +392,7 @@ var lightGrayBaseLayer = new TileLayer({
 	})
 });
 
-var lightGrayReferenceLayer = new TileLayer({
+const lightGrayReferenceLayer = new TileLayer({
 	visible: false,
 	source: new XYZ({
 		attributions: 'Tiles © <a href="https://services.arcgisonline.com/ArcGIS/' +
@@ -411,7 +402,7 @@ var lightGrayReferenceLayer = new TileLayer({
 	})
 });
 
-var darkGrayBaseLayer = new TileLayer({
+const darkGrayBaseLayer = new TileLayer({
 	preload: Infinity,
 	source: new XYZ({
 		attributions: 'Tiles © <a href="https://services.arcgisonline.com/ArcGIS/' +
@@ -421,7 +412,7 @@ var darkGrayBaseLayer = new TileLayer({
 	})
 });
 
-var darkGrayReferenceLayer = new TileLayer({
+const darkGrayReferenceLayer = new TileLayer({
 	source: new XYZ({
 		attributions: 'Tiles © <a href="https://services.arcgisonline.com/ArcGIS/' +
 			'rest/services/Canvas/World_Dark_Gray_Reference/MapServer">ArcGIS</a>',
@@ -431,7 +422,7 @@ var darkGrayReferenceLayer = new TileLayer({
 });
 
 // Satellite Layer
-var satelliteLayer = new ImageLayer({
+const satelliteLayer = new ImageLayer({
 	name: "satelliteLayer",
 	visible: VISIBLE.has("satelliteLayer"),
 	opacity: 0.7,
@@ -446,7 +437,7 @@ var satelliteLayer = new ImageLayer({
 });
 
 // Radar Layer
-var radarLayer = new ImageLayer({
+const radarLayer = new ImageLayer({
 	name: "radarLayer",
 	visible: VISIBLE.has("radarLayer"),
 	opacity: 0.7,
@@ -461,7 +452,7 @@ var radarLayer = new ImageLayer({
 });
 
 // Lightning Layer
-var lightningLayer = new ImageLayer({
+const lightningLayer = new ImageLayer({
 	name: "lightningLayer",
 	visible: VISIBLE.has("lightningLayer"),
 	source: new ImageWMS({
@@ -474,7 +465,7 @@ var lightningLayer = new ImageLayer({
 });
 
 // Observation Layer
-var observationLayer = new ImageLayer({
+const observationLayer = new ImageLayer({
 	name: "observationLayer",
 	visible: VISIBLE.has("observationLayer"),
 	source: new ImageWMS({
@@ -487,7 +478,7 @@ var observationLayer = new ImageLayer({
 });
 
 
-var radarSiteLayer = new VectorLayer({
+const radarSiteLayer = new VectorLayer({
 	source: new Vector({
 		format: new GeoJSON(),
 		url: 'radars-finland.json',
@@ -498,7 +489,7 @@ var radarSiteLayer = new VectorLayer({
   }
 });
 
-var icaoLayer = new VectorLayer({
+const icaoLayer = new VectorLayer({
 	source: new Vector({
 		format: new GeoJSON(),
 		url: 'airfields-finland.json'
@@ -510,7 +501,7 @@ var icaoLayer = new VectorLayer({
 	}
 });
 
-var guideLayer = new VectorLayer({
+const guideLayer = new VectorLayer({
 	source: new Vector(),
 	style: rangeStyle,
 /* 	style: function(feature) {
@@ -519,7 +510,7 @@ var guideLayer = new VectorLayer({
   } */
 });
 
-var ownPositionLayer = new VectorLayer({
+const ownPositionLayer = new VectorLayer({
 	visible: false,
 	source: new Vector({
 		features: [accuracyFeature, positionFeature]
@@ -527,14 +518,14 @@ var ownPositionLayer = new VectorLayer({
 });
 
 
-var layerss = {
+const layerss = {
 	"satelliteLayer": satelliteLayer,
 	"radarLayer": radarLayer,
 	"observationLayer": observationLayer,
 	"lightningLayer": lightningLayer
 }
 
-var layers = [
+const layers = [
 	lightGrayBaseLayer,
 	darkGrayBaseLayer,
 	imageryBaseLayer,
@@ -565,16 +556,16 @@ function distanceToString(distance) {
 
 function mouseCoordinateFormat(coordinate) {
 	if (ownPosition4326.length > 1) {
-		var distance = getDistance(coordinate, ownPosition4326);
-		var p1 = new LatLon(ownPosition4326[1], ownPosition4326[0]);
-		var p2 = new LatLon(coordinate[1], coordinate[0]);
-		var bearing = p1.initialBearingTo(p2);
+		let distance = getDistance(coordinate, ownPosition4326);
+		let p1 = new LatLon(ownPosition4326[1], ownPosition4326[0]);
+		let p2 = new LatLon(coordinate[1], coordinate[0]);
+		let bearing = p1.initialBearingTo(p2);
 		document.getElementById("cursorDistanceValue").innerHTML = distanceToString(distance) + '<br>' + bearing.toFixed(0) + "&deg;";
 	}
 	return Dms.toLat(coordinate[1], "dm", 3) + " " + Dms.toLon(coordinate[0], "dm", 3);
 }
 
-var mousePositionControl = new MousePosition({
+const mousePositionControl = new MousePosition({
 	coordinateFormat: mouseCoordinateFormat,
 	projection: 'EPSG:4326',
 	className: 'custom-mouse-position',
@@ -612,10 +603,10 @@ function rangeRings(layer, coordinates, range) {
 }
 
 function bearingLine(layer, coordinates, range, direction) {
-	var c = new LatLon(coordinates[1], coordinates[0]);
-	var p1 = c.destinationPoint(50000, direction);
-	var p2 = c.destinationPoint(range * 1000, direction);
-	var line = new Polygon([[[p1.lon, p1.lat], [p2.lon, p2.lat]]]);
+	let c = new LatLon(coordinates[1], coordinates[0]);
+	let p1 = c.destinationPoint(50000, direction);
+	let p2 = c.destinationPoint(range * 1000, direction);
+	let line = new Polygon([[[p1.lon, p1.lat], [p2.lon, p2.lat]]]);
 	layer.getSource().addFeatures([
 		new Feature({name: direction + 'dasd', geometry: line.transform('EPSG:4326', map.getView().getProjection())})
 	]);
@@ -641,7 +632,7 @@ function onChangeSpeed(event) {
 
 function onChangePosition(event) {
 	debug('Position changed.');
-	var coordinates = event.target.getPosition();
+	let coordinates = event.target.getPosition();
 	ownPosition = coordinates;
 	ownPosition4326 = transform(coordinates,map.getView().getProjection(),'EPSG:4326');
 	positionFeature.setGeometry(coordinates ?
@@ -722,15 +713,15 @@ function updateCanonicalPage() {
 }
 
 function setTime(action='next') {
-	var resolution = 300000;
-	var end = Math.floor(Date.now() / resolution) * resolution - resolution;
-  var start = end - resolution * 12;
+	let resolution = 300000;
+	let end = Math.floor(Date.now() / resolution) * resolution - resolution;
+  let start = end - resolution * 12;
 
 	
 	for (let item of VISIBLE) {
-		var wmslayer = layerss[item].getSource().getParams().LAYERS;
+		let wmslayer = layerss[item].getSource().getParams().LAYERS;
 		if (wmslayer in layerInfo) {
-			if (item == "radarLayer" || item == "satelliteLayer" || item == "observationLayer") {
+			if (item === "radarLayer" || item === "satelliteLayer" || item === "observationLayer") {
 				end = Math.min(end, Math.floor(layerInfo[wmslayer].time.end / resolution) * resolution);
 			}
 			resolution = Math.max(resolution, layerInfo[wmslayer].time.resolution);
@@ -764,7 +755,7 @@ function setTime(action='next') {
 		startDate = new Date(end);
 	}
 		
-		if (startDate.getTime() == end && animationId === null) {
+		if (startDate.getTime() === end && animationId === null) {
 			IS_FOLLOWING = true;
 			localStorage.setItem("IS_FOLLOWING",JSON.stringify(true));
 			debug('MODE: FOLLOW');
@@ -821,7 +812,7 @@ function updateClock() {
 // TIME CONTROLS
 //
 
-var play = function () {
+const play = function () {
 	if (animationId === null) {
 		debug("PLAY");
 		IS_FOLLOWING = false;
@@ -830,7 +821,7 @@ var play = function () {
 	}
 };
 
-var stop = function () {
+const stop = function () {
 	if (animationId !== null) {
 		debug("STOP");
 		IS_FOLLOWING = false;
@@ -840,21 +831,21 @@ var stop = function () {
 	}
 };
 
-var skip_next = function () {
+const skipNext = function () {
 	debug("NEXT");
 	IS_FOLLOWING = false;
 	stop();
 	setTime('next');
 }
 
-var skip_previous = function () {
+const skipPrevious = function () {
 	debug("PREVIOUS");
 	IS_FOLLOWING = false;
 	stop();
 	setTime('previous');
 }
 
-var playstop = function () {
+const playstop = function () {
 	IS_FOLLOWING = false;
 	if (animationId !== null) {
 		stop();
@@ -907,7 +898,7 @@ document.getElementById('lightBase').addEventListener('mouseup', function (event
 });
 
 function removeSelectedParameter(selector) {
-	var els = document.querySelectorAll(selector);
+	let els = document.querySelectorAll(selector);
 	els.forEach(function (elem) {
 		elem.classList.remove('selected');
 	});
@@ -916,7 +907,7 @@ function removeSelectedParameter(selector) {
 function updateLayer(layer, wmslayer) {
 	debug("Activated layer " + wmslayer);
 	debug(layerInfo[wmslayer]);
-	var info = layerInfo[wmslayer];
+	let info = layerInfo[wmslayer];
 	layer.set('info', info);
 	if (document.getElementById(wmslayer)) {
 		removeSelectedParameter("#" + layer.get("name") + " > div");
@@ -951,7 +942,7 @@ function addEventListeners(selector) {
 
 
 
-var highlightStyle = new Style({
+const highlightStyle = new Style({
 	stroke: new Stroke({
 		color: '#f00',
 		width: 1
@@ -973,17 +964,17 @@ var highlightStyle = new Style({
 	})
 });
 
-var featureOverlay = new VectorLayer({
+const featureOverlay = new VectorLayer({
 	source: new Vector(),
 	map: map,
 	style: function (feature) {
 		return style;
 	}
 });
-var highlight;
+let highlight;
 
-var displayFeatureInfo = function (pixel) {
-	var feature = map.forEachFeatureAtPixel(pixel, function (feature) {
+const displayFeatureInfo = function (pixel) {
+	let feature = map.forEachFeatureAtPixel(pixel, function (feature) {
 		return feature;
 	});
 
@@ -994,7 +985,7 @@ var displayFeatureInfo = function (pixel) {
 		}
 		if (feature && feature.getGeometry().getType() === 'Point') {
 			featureOverlay.getSource().addFeature(feature);
-			var coords = transform(feature.getGeometry().getCoordinates(), map.getView().getProjection(), 'EPSG:4326');
+			let coords = transform(feature.getGeometry().getCoordinates(), map.getView().getProjection(), 'EPSG:4326');
 			[50000,100000,150000,200000,250000].forEach(range => rangeRings(guideLayer, coords, range));
 			Array.from({length:360/options.radialSpacing},(x,index)=>index*options.radialSpacing).forEach(bearing => bearingLine(guideLayer, coords, 250, bearing));
 			map.getView().fit(guideLayer.getSource().getExtent(), map.getSize()); 
@@ -1017,7 +1008,7 @@ function createLayerInfoElement(content, style, isHTML) {
 }
 
 function emptyElement(element){
-  var i = element.childNodes.length;
+  let i = element.childNodes.length;
   while(i--){
     element.removeChild(element.lastChild);
   }
@@ -1026,7 +1017,7 @@ function emptyElement(element){
 function layerInfoDiv(wmslayer) {
 	let info = layerInfo[wmslayer];
 	let div = document.createElement('div');
-	var resolution = info && info.time ? Math.round(info.time.resolution/60000) : 0;
+	let resolution = info && info.time ? Math.round(info.time.resolution/60000) : 0;
 
 	div.id = wmslayer + 'Meta';
 	div.setAttribute('data-layer-name', wmslayer);
@@ -1034,10 +1025,10 @@ function layerInfoDiv(wmslayer) {
 
 	div.appendChild(createLayerInfoElement(info ? info.title : '', 'title'));
 
-	var previewDiv = document.createElement('div');
+	let previewDiv = document.createElement('div');
 	previewDiv.classList.add('preview');
 	if (info && info.url && info.layer) {
-		var img = document.createElement('img');
+		let img = document.createElement('img');
 		img.className = 'responsiveImage';
 		img.loading = 'lazy';
 		img.src = info.url + '?TIME=PT1H/PRESENT&SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&FORMAT=image%2Fpng8&TRANSPARENT=true&CRS=EPSG%3A3067&STYLES=&WIDTH=300&HEIGHT=300&BBOX=-183243.50620644476%2C6575998.62606195%2C1038379.8685031873%2C7797622.000771582&LAYERS=' + encodeURIComponent(info.layer);
@@ -1058,7 +1049,7 @@ function layerInfoDiv(wmslayer) {
 	return div;
 }
 
-var _playlistSliderHandlers = {};
+const _playlistSliderHandlers = {};
 
 function layerInfoPlaylist(event) {
 	const layer = event.target;
@@ -1069,7 +1060,7 @@ function layerInfoPlaylist(event) {
 	if (typeof info === "undefined") return
 
 	// Only do full DOM rebuild when playlist is visible
-	var playList = document.getElementById('playList');
+	let playList = document.getElementById('playList');
 	if (playList.style.display === 'none' || playList.offsetParent === null) {
 		// Still update the visibility class (cheap)
 		if (layer.getVisible()) {
@@ -1105,12 +1096,12 @@ function layerInfoPlaylist(event) {
 	document.getElementById(name + 'Attribution').textContent = (info.attribution && info.attribution.Title) || "";
 
 	// Build slider without innerHTML
-	var opacityContainer = document.getElementById(name + 'Opacity');
+	let opacityContainer = document.getElementById(name + 'Opacity');
 	opacityContainer.textContent = '';
-	var label = document.createElement('label');
+	let label = document.createElement('label');
 	label.setAttribute('for', name + 'Slider');
 	label.textContent = 'Läpikuultavuus';
-	var slider = document.createElement('input');
+	let slider = document.createElement('input');
 	slider.type = 'range';
 	slider.min = '1';
 	slider.max = '100';
@@ -1206,16 +1197,16 @@ document.getElementById('playButton').addEventListener('mouseup', function() {
 });
 
 document.getElementById('skipNextButton').addEventListener('mouseup', function() {
-	skip_next();
+	skipNext();
 });
 
 document.getElementById('skipPreviousButton').addEventListener('mouseup', function() {
-	skip_previous();
+	skipPrevious();
 });
 
 document.getElementById('playlistButton').addEventListener('mouseup', function() {
 	debug("playlist");
-	var elem = document.getElementById("playList");
+	let elem = document.getElementById("playList");
 	if (elem.style.bottom === '0px') {
 		elem.style.bottom = '-90vh';
 	} else {
@@ -1228,7 +1219,7 @@ window.addEventListener('mouseup', function (e) {
 	// playlist
 	if (!document.getElementById('playList').contains(e.target)) {
 		if (document.getElementById('playlistButton').contains(e.target)) return
-		var elem = document.getElementById("playList");
+		let elem = document.getElementById("playList");
 		if (elem.style.bottom === '0px') {
 			elem.style.bottom = '-90vh';
 		} 
@@ -1237,14 +1228,14 @@ window.addEventListener('mouseup', function (e) {
 	// Layers
 	if (!document.getElementById('layers').contains(e.target)) {
 		if (document.getElementById('layersButton').contains(e.target)) return
-		var elem = document.getElementById("layers");
+		let elem = document.getElementById("layers");
 		//if (elem.style.display === 'block') {
 			elem.style.display = 'none';
 		//} 
 	}
 
 	// Close long-press menus when clicking/touching outside
-	var longPressMenus = [
+	let longPressMenus = [
 		{ menuId: 'observationLongPressMenu', buttonId: 'observationLayerButton' },
 		{ menuId: 'satelliteLongPressMenu', buttonId: 'satelliteLayerButton' },
 		{ menuId: 'radarLongPressMenu', buttonId: 'radarLayerButton' }
@@ -1258,7 +1249,7 @@ window.addEventListener('mouseup', function (e) {
 });
 
 window.addEventListener('touchend', function (e) {
-	var longPressMenus = [
+	let longPressMenus = [
 		{ menuId: 'observationLongPressMenu', buttonId: 'observationLayerButton' },
 		{ menuId: 'satelliteLongPressMenu', buttonId: 'satelliteLayerButton' },
 		{ menuId: 'radarLongPressMenu', buttonId: 'radarLayerButton' }
@@ -1354,27 +1345,27 @@ document.getElementById('lightningLayerTitle').addEventListener('mouseup', funct
 // Long press functionality for observation layer button
 // Generic long-press menu handler
 function createLongPressHandler(buttonId, menuId, olLayer, onSelect) {
-	var timer = null;
-	var triggered = false;
-	var startTime = 0;
-	var button = document.getElementById(buttonId);
+	let timer = null;
+	let triggered = false;
+	let startTime = 0;
+	let button = document.getElementById(buttonId);
 
 	function showMenu(e) {
-		var menu = document.getElementById(menuId);
-		var menuItems = menu.querySelectorAll('.menu-item');
-		var currentLayer = olLayer.getSource().getParams().LAYERS;
-		var isVisible = olLayer.getVisible();
+		let menu = document.getElementById(menuId);
+		let menuItems = menu.querySelectorAll('.menu-item');
+		let currentLayer = olLayer.getSource().getParams().LAYERS;
+		let isVisible = olLayer.getVisible();
 		menuItems.forEach(function(item) {
 			item.classList.toggle('selected', isVisible && item.getAttribute('data-layer') === currentLayer);
 		});
 
-		var vw = window.innerWidth, vh = window.innerHeight;
-		var br = button.getBoundingClientRect();
+		let vw = window.innerWidth, vh = window.innerHeight;
+		let br = button.getBoundingClientRect();
 		menu.style.display = 'block';
 		menu.style.visibility = 'hidden';
-		var mr = menu.getBoundingClientRect();
-		var left = Math.max(10, Math.min(br.left, vw - mr.width - 10));
-		var top = br.bottom + 5;
+		let mr = menu.getBoundingClientRect();
+		let left = Math.max(10, Math.min(br.left, vw - mr.width - 10));
+		let top = br.bottom + 5;
 		if (top + mr.height > vh - 10) {
 			top = Math.max(10, br.top - mr.height - 5);
 		}
@@ -1431,17 +1422,17 @@ function createLongPressHandler(buttonId, menuId, olLayer, onSelect) {
 	return { show: showMenu, hide: hideMenu };
 }
 
-var observationMenu = createLongPressHandler('observationLayerButton', 'observationLongPressMenu', observationLayer, function(id) {
+const observationMenu = createLongPressHandler('observationLayerButton', 'observationLongPressMenu', observationLayer, function(id) {
 	updateLayer(observationLayer, id);
 	observationMenu.hide();
 });
 
-var satelliteMenu = createLongPressHandler('satelliteLayerButton', 'satelliteLongPressMenu', satelliteLayer, function(id) {
+const satelliteMenu = createLongPressHandler('satelliteLayerButton', 'satelliteLongPressMenu', satelliteLayer, function(id) {
 	updateLayer(satelliteLayer, id);
 	satelliteMenu.hide();
 });
 
-var radarMenu = createLongPressHandler('radarLayerButton', 'radarLongPressMenu', radarLayer, function(id) {
+const radarMenu = createLongPressHandler('radarLayerButton', 'radarLongPressMenu', radarLayer, function(id) {
 	updateLayer(radarLayer, id);
 	radarMenu.hide();
 });
@@ -1482,19 +1473,19 @@ document.addEventListener('keyup', function (event) {
 		return;
 	}
 
-	var key = event.key || event.keyCode;
+	let key = event.key || event.keyCode;
 	if (key === ' ' || key === 'Space' || key === 32) {
-		skip_next();
+		skipNext();
 	} else if (key === ',' || key === 'Comma') {
-		skip_previous(); 
+		skipPrevious(); 
 	} else if (key === '.' || key === 'Period') {
-		skip_next(); 
+		skipNext(); 
 	} else if (key === 'j' || key === 'KeyJ') {
-		skip_previous(); 
+		skipPrevious(); 
 	} else if (key === 'k' || key === 'KeyK') {
 		playstop(); 
 	} else if (key === 'l' || key === 'KeyL') {
-		skip_next(); 
+		skipNext(); 
 	} else if (key === '1' || key === 'Digit1') {
 		toggleLayerVisibility(satelliteLayer);
 	} else if (key === '2' || key === 'Digit2') {
@@ -1556,39 +1547,43 @@ function updateLayerSelectionSelected() {
 	});
 }
 
-function getWMSCapabilities(wms) {
-	var parser = new WMSCapabilities();
-	let namespace = wms.namespace ? '&namespace=' + wms.namespace : '';
-	let layer = wms.layer ? '&layer=' + wms.layer : '';
-	debug("Request WMS Capabilities " + wms.url);
-	//gtag('event', 'getCapabilities', {
-	//	'event_category': 'WMS',
-	//	'event_label': wms.url
-	//});
-	fetch(wms.url + '?SERVICE=WMS&version=1.3.0&request=GetCapabilities' + namespace + layer).then(function (response) {
+function getWMSCapabilities(wms, failCount) {
+	failCount = failCount || 0;
+	const parser = new WMSCapabilities();
+	const namespace = wms.namespace ? '&namespace=' + wms.namespace : '';
+	const layer = wms.layer ? '&layer=' + wms.layer : '';
+	const controller = new AbortController();
+	const timeoutId = setTimeout(function () { controller.abort(); }, 30000);
+	debug('Request WMS Capabilities ' + wms.url);
+
+	fetch(wms.url + '?SERVICE=WMS&version=1.3.0&request=GetCapabilities' + namespace + layer, {
+		signal: controller.signal
+	}).then(function (response) {
 		return response.text();
 	}).then(function (text) {
-		debug("Received WMS Capabilities " + wms.url);
-		var result = parser.read(text);
+		clearTimeout(timeoutId);
+		debug('Received WMS Capabilities ' + wms.url);
+		failCount = 0;
+		const result = parser.read(text);
 		if (result && result.Capability && result.Capability.Layer && result.Capability.Layer.Layer) {
 			getLayers(result.Capability.Layer.Layer, wms);
 			debug(layerInfo);
-			satelliteLayer.set('info', layerInfo[satelliteLayer.getSource().getParams().LAYERS])
-			radarLayer.set('info', layerInfo[radarLayer.getSource().getParams().LAYERS])
-			lightningLayer.set('info', layerInfo[lightningLayer.getSource().getParams().LAYERS])
-			observationLayer.set('info', layerInfo[observationLayer.getSource().getParams().LAYERS])
+			satelliteLayer.set('info', layerInfo[satelliteLayer.getSource().getParams().LAYERS]);
+			radarLayer.set('info', layerInfo[radarLayer.getSource().getParams().LAYERS]);
+			lightningLayer.set('info', layerInfo[lightningLayer.getSource().getParams().LAYERS]);
+			observationLayer.set('info', layerInfo[observationLayer.getSource().getParams().LAYERS]);
 			switch (wms.category) {
 				case 'satelliteLayer':
-					updateLayerSelection(satelliteLayer, "satellite", "msg_");
+					updateLayerSelection(satelliteLayer, 'satellite', 'msg_');
 					break;
 				case 'observationLayer':
-					updateLayerSelection(observationLayer, "observation", "observation:");
+					updateLayerSelection(observationLayer, 'observation', 'observation:');
 					break;
 				case 'radarLayer':
-					updateLayerSelection(radarLayer, "radar", "suomi_");
+					updateLayerSelection(radarLayer, 'radar', 'suomi_');
 					break;
 				case 'lightningLayer':
-					updateLayerSelection(lightningLayer, "lightning", "lightning");
+					updateLayerSelection(lightningLayer, 'lightning', 'lightning');
 					break;
 				default:
 					debug('No wms.category set');
@@ -1601,9 +1596,15 @@ function getWMSCapabilities(wms) {
 			debug(result);
 		}
 	}).catch(function (error) {
-		debug('Error fetching WMS Capabilities from ' + wms.url + ': ' + error.message);
+		clearTimeout(timeoutId);
+		failCount++;
+		debug('Error fetching WMS Capabilities from ' + wms.url + ': ' + error.message + ' (fail #' + failCount + ')');
 	}).finally(function () {
-		setTimeout(function () { getWMSCapabilities(wms) }, wms.refresh);
+		// Exponential backoff on failure: refresh, 2x, 4x, max 5 min
+		const delay = failCount > 0
+			? Math.min(wms.refresh * Math.pow(2, failCount), 300000)
+			: wms.refresh;
+		setTimeout(function () { getWMSCapabilities(wms, failCount); }, delay);
 	});
 }
 
@@ -1613,7 +1614,7 @@ function getLayers(parentlayer,wms) {
 		if (Array.isArray(layer.Layer)) {
 			getLayers(layer.Layer,wms)
 		} else {
-			var name = layer.Name;
+			let name = layer.Name;
 			// FMI GeoServer returns unprefixed names; meteo.fi returns prefixed.
 			// Add namespace prefix only when it's not already present.
 			if (wms.namespace && name.indexOf(wms.namespace + ':') !== 0) {
@@ -1670,21 +1671,21 @@ function getLayerInfo(layer,wms) {
 
 function getTimeDimension(dimensions) {
 	//var time = {}
-	var beginTime
-	var endTime
-	var resolutionTime
-	var prevtime
-	var defaultTime
+	let beginTime
+	let endTime
+	let resolutionTime
+	let prevtime
+	let defaultTime
 
 	dimensions.forEach((dimension) => {
-		if (dimension.name == 'time') {
+		if (dimension.name === 'time') {
 			defaultTime = dimension.default ? dayjs(dimension.default).valueOf() : NaN
 			dimension.values.split(",").forEach((times) => {
-				var time = times.split("/")
+				let time = times.split("/")
 				// Time dimension is list of times separated by comma
-				if (time.length == 1) {
+				if (time.length === 1) {
 					//var timeValue = dayjs(time[0]).valueOf()
-					var timeValue = dayjs(new Date(time[0])).valueOf()
+					let timeValue = dayjs(new Date(time[0])).valueOf()
 					// begin time is the smallest of listed times
 					beginTime = beginTime ? beginTime : timeValue
 					beginTime = Math.min(beginTime, timeValue)
@@ -1696,7 +1697,7 @@ function getTimeDimension(dimensions) {
 					prevtime = timeValue
 				}
 				// Time dimension is starttime/endtime/period
-				else if (time.length == 3) {
+				else if (time.length === 3) {
 					beginTime = dayjs(time[0]).valueOf()
 					endTime = dayjs(time[1]).valueOf()
 					resolutionTime = dayjs.duration(time[2]).asMilliseconds()
@@ -1704,8 +1705,8 @@ function getTimeDimension(dimensions) {
 			}) // forEach
 		} // if
 	}) // forEach
-	var currentTime = new Date().getTime()
-	var type = endTime > currentTime ? "for" : "obs"
+	let currentTime = new Date().getTime()
+	let type = endTime > currentTime ? "for" : "obs"
 	//console.log("start: " + beginTime + " end: " + endTime + " resolution: " + resolutionTime + " type: " + type + " default: " + defaultTime)
 	return { start: beginTime, end: endTime, resolution: resolutionTime, type: type, default: defaultTime }
 }
