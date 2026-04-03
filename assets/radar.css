@@ -373,105 +373,317 @@ html, body {
     visibility: visible;
 }
 
+/* Playlist backdrop scrim — covers map only, not timecontrol */
+#playListBackdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: calc(56px + max(8px, env(safe-area-inset-bottom)));
+  background: rgba(0,0,0,0.4);
+  z-index: 150;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 300ms ease;
+}
+
+#playListBackdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Layer manager panel — fixed, sits above timecontrol */
 #playList {
-    display: flex;
-    flex-direction: column;
-    background-color: rgba(0,0,0,0.8);
-    color: var(--dark-theme-on-surface);
-    position: absolute;
-    bottom: -90vh;
-    left: 0;
-    width: 100%;
-    height: auto;
-    max-height: 90vh;
-    padding-top: 5px;
-    padding-bottom: 75px;
-    transition: bottom 300ms cubic-bezier(0.17, 0.04, 0.03, 0.94);
-    overflow-y: auto;
-    box-sizing: border-box;
-    border-radius: 10px;
-    border: 0px;
- }
-
- #playList > div {
-  flex-grow: 1;
-  padding: 5px;
-  padding-top: 10px;
-  padding-bottom: 10px;
-  margin: 5px;
-  margin-left: 10px;
-  margin-right: 10px;
-  background-color: var(--dark-theme-overlay-02dp);
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(56px + max(8px, env(safe-area-inset-bottom)));
+  top: auto;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  background-color: rgba(18, 18, 18, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: var(--dark-theme-on-surface);
+  border-radius: 16px 16px 0 0;
+  transform: translateY(calc(100% + 56px + max(8px, env(safe-area-inset-bottom))));
+  transition: transform 300ms cubic-bezier(0.17, 0.04, 0.03, 0.94);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  max-height: calc(80vh - 56px);
+  padding-bottom: 8px;
+  box-sizing: border-box;
 }
 
-#playList > div:hover {
-  background-color: var(--dark-theme-overlay-04dp);
+@media all and (min-width: 769px) {
+  #playList {
+    left: 50%;
+    right: auto;
+    width: 450px;
+    margin-left: -233px;
+  }
 }
 
-#playList > div > div {
-  padding: 1px;
+#playList.open {
+  transform: translateY(0);
 }
 
-.playListDisabled {
-  color: var(--dark-disabled-label-color);
-  background-color: var(--dark-disabled-container-color);
+/* Drag handle */
+.playlist-handle {
+  width: 36px;
+  height: 4px;
+  background: var(--dark-medium-emphasis-text-color);
+  border-radius: 2px;
+  margin: 10px auto 6px;
 }
 
-.name {
+/* Panel header */
+.playlist-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 16px 8px;
+  border-bottom: 1px solid var(--dark-theme-overlay-04dp);
+  margin-bottom: 4px;
+}
+
+.playlist-header h2 {
+  font-size: 1em;
+  font-weight: 500;
+  color: var(--dark-high-emphasis-text-color);
+  margin: 0;
+}
+
+#playlistCloseButton {
+  cursor: pointer;
   color: var(--dark-medium-emphasis-text-color);
+  padding: 4px;
+}
+
+/* Layer cards */
+.layer-card {
+  margin: 6px 12px;
+  padding: 12px;
+  background: var(--dark-theme-overlay-02dp);
+  border-radius: 12px;
+  border-left: 3px solid var(--dark-primary-color);
+  transition: background 0.2s;
+}
+
+.layer-card:hover {
+  background: var(--dark-theme-overlay-04dp);
+}
+
+.layer-card.playListDisabled {
+  border-left-color: transparent;
+  background: var(--dark-theme-overlay-01dp);
+}
+
+.layer-card.playListDisabled:hover {
+  background: var(--dark-theme-overlay-02dp);
+}
+
+/* Card header */
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.card-category-icon {
+  font-size: 18px;
+  color: var(--dark-primary-color);
+}
+
+.layer-card.playListDisabled .card-category-icon {
+  color: var(--dark-disabled-label-color);
+}
+
+.card-category-name {
   font-size: 0.7em;
+  color: var(--dark-medium-emphasis-text-color);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex: 1;
 }
 
-.title {
-  color: var(--dark-theme-on-surface-color);
-  font-size: 1.1em;
-  padding-bottom: 2px;
+.card-visibility-toggle {
+  cursor: pointer;
+  color: var(--dark-medium-emphasis-text-color);
+  padding: 4px;
+  border-radius: 50%;
+  transition: background 0.15s;
 }
 
-#layers > div > .title {
+.card-visibility-toggle:hover {
+  background: var(--dark-theme-overlay-04dp);
+}
+
+/* Card title */
+.card-title {
+  font-size: 1.05em;
+  font-weight: 400;
+  color: var(--dark-high-emphasis-text-color);
+  margin-bottom: 2px;
+}
+
+.layer-card.playListDisabled .card-title {
+  color: var(--dark-medium-emphasis-text-color);
+}
+
+#layers > div > .card-title {
   height: 3em;
 }
 
-.abstract {
+/* Card abstract */
+.card-abstract {
+  font-size: 0.8em;
   color: var(--dark-high-emphasis-text-color);
-  font-size: 0.8em;
-  padding-bottom: 5px;
-  text-align: justify;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-bottom: 8px;
 }
 
-.attribution {
+.layer-card.playListDisabled .card-abstract {
   color: var(--dark-medium-emphasis-text-color);
-  font-size: 0.8em;
 }
 
-.styles {
+/* Card attribution */
+.card-attribution {
+  font-size: 0.75em;
+  color: var(--dark-medium-emphasis-text-color);
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--dark-theme-overlay-04dp);
+}
+
+.layer-card.playListDisabled .card-attribution {
+  border-top-color: transparent;
+}
+
+/* Disabled cards: hide controls only, keep text readable */
+.layer-card.playListDisabled .card-opacity,
+.layer-card.playListDisabled .card-styles {
+  display: none;
+}
+
+/* Opacity control */
+.card-opacity {
+  margin: 8px 0;
+}
+
+.opacity-label-row {
   display: flex;
-  flex-direction: row;
-  overflow-x: auto;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
 }
 
-.styles > div {
-  background-color: var(--dark-primary-color-bg);
+.opacity-label {
+  font-size: 0.75em;
+  font-weight: 500;
+  color: var(--dark-medium-emphasis-text-color);
+}
+
+.opacity-value {
+  font-size: 0.75em;
+  font-weight: 500;
   color: var(--dark-primary-color);
-  border-radius: 3px;
-  padding: 4px;
-  margin-top: 2px;
-  margin-bottom: 2px;
-  margin-right: 5px;
-  font-size: 0.8em;
-  border-radius: 3px; 
 }
 
+/* Opacity slider */
 .slider {
   -webkit-appearance: none;
-  /* width: 100%; */
-  height: 15px;
-  border-radius: 5px;   
-  background: #00D8FF;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right, var(--dark-primary-color) 70%, var(--dark-theme-overlay-06dp) 70%);
   outline: none;
-  opacity: 0.7;
-  -webkit-transition: .2s;
-  transition: opacity .2s;
+  cursor: pointer;
+  margin: 0;
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--dark-primary-color);
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+  border: 2px solid rgba(255,255,255,0.2);
+  margin-top: -8px;
+}
+
+.slider::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--dark-primary-color);
+  cursor: pointer;
+  border: 2px solid rgba(255,255,255,0.2);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+}
+
+.slider::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+}
+
+.slider::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--dark-theme-overlay-06dp);
+}
+
+.slider::-moz-range-progress {
+  background: var(--dark-primary-color);
+  height: 6px;
+  border-radius: 3px;
+}
+
+/* Style chips */
+.card-styles {
+  display: flex;
+  flex-direction: row;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 4px 0;
+  margin: 4px 0;
+}
+
+.card-styles > div {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 6px 14px;
+  border-radius: 16px;
+  font-size: 0.8em;
+  font-weight: 400;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+  border: 1px solid transparent;
+  background: var(--dark-theme-overlay-04dp);
+  color: var(--dark-medium-emphasis-text-color);
+}
+
+.card-styles > div:hover {
+  border-color: var(--dark-primary-color);
+}
+
+.card-styles > div.activeStyle {
+  background: var(--dark-primary-color);
+  color: #000;
+  font-weight: 500;
 }
 
 .layerStyle {

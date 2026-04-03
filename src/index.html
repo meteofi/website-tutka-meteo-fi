@@ -130,40 +130,63 @@
       <div><div id="currentMapTime"></div><div id="currentMapDate"></div></div>
     </div>
     <div id="timeline"></div>
-    <div id="playList">
-        <div id="satelliteLayerInfo">
-          <div id="satelliteLayerName" class="name">Sääsatelliitti</div>
-          <div id="satelliteLayerTitle" class="title">Sääsatelliitti</div>
-          <div id="satelliteLayerAbstract" class="abstract"></div>
-          <div id="satelliteLayerOpacity" class="opacity"></div>
-          <div id="satelliteLayerStyles" class="styles"></div>
-          <div id="satelliteLayerAttribution" class="attribution">EUMETSAT</div>
-        </div>
-        <div id="radarLayerInfo" class="playListContainer">
-          <div id="radarLayerName" class="name">Säätutka</div>
-          <div id="radarLayerTitle" class="title">Säätutka</div>
-          <div id="radarLayerAbstract" class="abstract"></div>
-          <div id="radarLayerOpacity" class="opacity"></div>
-          <div id="radarLayerStyles" class="styles"></div>
-          <div id="radarLayerAttribution" class="attribution">FMI (CC-BY-4.0)</div>
-        </div>
-        <div id="lightningLayerInfo">
-          <div id="lightningLayerName" class="name">Salamapaikannus</div>
-          <div id="lightningLayerTitle" class="title">Salamapaikannus</div>
-          <div id="lightningLayerAbstract" class="abstract"></div>
-          <div id="lightningLayerOpacity" class="opacity"></div>
-          <div id="lightningLayerStyles" class="styles"></div>
-          <div id="lightningLayerAttribution" class="attribution">FMI (CC-BY-4.0)</div>
-        </div>
-        <div id="observationLayerInfo">
-          <div id="observationLayerName" class="name">Säähavainto</div>
-          <div id="observationLayerTitle" class="title">Säähavainto</div>
-          <div id="observationLayerAbstract" class="abstract"></div>
-          <div id="observationLayerOpacity" class="opacity"></div>
-          <div id="observationLayerStyles" class="styles"></div>
-          <div id="observationLayerAttribution" class="attribution">FMI (CC-BY-4.0)</div>
-        </div>
+  </div>
+
+  <div id="playListBackdrop"></div>
+  <div id="playList">
+    <div class="playlist-handle"></div>
+    <div class="playlist-header">
+      <h2>Tasot</h2>
+      <div id="playlistCloseButton"><i class="material-icons">close</i></div>
+    </div>
+    <div id="satelliteLayerInfo" class="layer-card">
+      <div class="card-header">
+        <i class="material-icons card-category-icon">satellite_alt</i>
+        <span id="satelliteLayerName" class="card-category-name">Sääsatelliitti</span>
+        <div class="card-visibility-toggle" data-layer="satelliteLayer"><i class="material-icons">visibility</i></div>
       </div>
+      <div id="satelliteLayerTitle" class="card-title">Sääsatelliitti</div>
+      <div id="satelliteLayerAbstract" class="card-abstract"></div>
+      <div id="satelliteLayerOpacity" class="card-opacity"></div>
+      <div id="satelliteLayerStyles" class="card-styles"></div>
+      <div id="satelliteLayerAttribution" class="card-attribution">EUMETSAT</div>
+    </div>
+    <div id="radarLayerInfo" class="layer-card">
+      <div class="card-header">
+        <i class="material-icons card-category-icon">radar</i>
+        <span id="radarLayerName" class="card-category-name">Säätutka</span>
+        <div class="card-visibility-toggle" data-layer="radarLayer"><i class="material-icons">visibility</i></div>
+      </div>
+      <div id="radarLayerTitle" class="card-title">Säätutka</div>
+      <div id="radarLayerAbstract" class="card-abstract"></div>
+      <div id="radarLayerOpacity" class="card-opacity"></div>
+      <div id="radarLayerStyles" class="card-styles"></div>
+      <div id="radarLayerAttribution" class="card-attribution">FMI (CC-BY-4.0)</div>
+    </div>
+    <div id="lightningLayerInfo" class="layer-card">
+      <div class="card-header">
+        <i class="material-icons card-category-icon">flash_on</i>
+        <span id="lightningLayerName" class="card-category-name">Salamapaikannus</span>
+        <div class="card-visibility-toggle" data-layer="lightningLayer"><i class="material-icons">visibility</i></div>
+      </div>
+      <div id="lightningLayerTitle" class="card-title">Salamapaikannus</div>
+      <div id="lightningLayerAbstract" class="card-abstract"></div>
+      <div id="lightningLayerOpacity" class="card-opacity"></div>
+      <div id="lightningLayerStyles" class="card-styles"></div>
+      <div id="lightningLayerAttribution" class="card-attribution">FMI (CC-BY-4.0)</div>
+    </div>
+    <div id="observationLayerInfo" class="layer-card">
+      <div class="card-header">
+        <i class="material-icons card-category-icon">thermostat</i>
+        <span id="observationLayerName" class="card-category-name">Säähavainto</span>
+        <div class="card-visibility-toggle" data-layer="observationLayer"><i class="material-icons">visibility</i></div>
+      </div>
+      <div id="observationLayerTitle" class="card-title">Säähavainto</div>
+      <div id="observationLayerAbstract" class="card-abstract"></div>
+      <div id="observationLayerOpacity" class="card-opacity"></div>
+      <div id="observationLayerStyles" class="card-styles"></div>
+      <div id="observationLayerAttribution" class="card-attribution">FMI (CC-BY-4.0)</div>
+    </div>
   </div>
 
   <div id="help">
