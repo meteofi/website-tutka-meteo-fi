@@ -69,22 +69,74 @@ html, body {
     top: 0;
     display: flex;
     justify-content: space-around;
-    align-items: center;
+    align-items: stretch;
     color: var(--dark-medium-emphasis-text-color);
-    flex-flow: row wrap;
+    flex-flow: row nowrap;
     touch-action: none;
-  }
-
-  .navbar > div {
-    flex-grow: 1;
-    text-align: center;
-    font-size: 0.75em;
+    gap: 4px;
   }
 
   .navbar > button {
-    flex-grow: 1;
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
     text-align: center;
     font-size: 0.75em;
+    font-family: 'Roboto', sans-serif;
+    color: var(--dark-medium-emphasis-text-color);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    border-radius: 6px;
+    padding: 6px 4px;
+    min-height: 48px;
+    cursor: pointer;
+    box-sizing: border-box;
+    transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+    outline: none;
+  }
+
+  .navbar > button:hover {
+    background-color: var(--dark-theme-surface-hovered);
+  }
+
+  .navbar > button:active,
+  .navbar > button.pressing {
+    background-color: var(--dark-theme-surface-focused);
+    transform: scale(0.93);
+  }
+
+  .navbar > button:focus-visible {
+    outline: 2px solid var(--dark-primary-color);
+    outline-offset: -2px;
+  }
+
+  .btn-label {
+    font-size: inherit;
+    line-height: 1.3;
+  }
+
+  .menu-indicator {
+    font-size: 7px;
+    color: var(--dark-primary-color);
+    opacity: 0.7;
+    line-height: 1;
+  }
+
+  .menu-indicator .material-icons {
+    font-size: 10px;
+  }
+
+  .menu-spacer {
+    font-size: 7px;
+    line-height: 1;
+    visibility: hidden;
+  }
+
+  .menu-spacer .material-icons {
+    font-size: 10px;
   }
 
 
@@ -273,8 +325,13 @@ html, body {
 }
 
 .selectedButton {
-    /**color: #5BD5FD; */
     color: var(--dark-theme-on-surface);
+}
+
+.navbar > button.selectedButton {
+    color: var(--dark-theme-on-surface);
+    background-color: var(--dark-primary-color-bg);
+    border-bottom-color: var(--dark-primary-color);
 }
 
 .flexColumn {

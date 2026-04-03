@@ -64,15 +64,15 @@
 </head>
 
 <body>
-  <div class="toolbar navbar noselect">
-    <div id="locationLayerButton"><i id="gpsStatus" class="material-icons">gps_not_fixed</i></div>
-    <div id="mapLayerButton"><i class="material-icons">brightness_2</i></div>
-    <div id="satelliteLayerButton"><i class="material-icons">satellite</i><br>Satelliitti</div>
-    <div id="radarLayerButton" class="selectedButton"><i class="material-icons">filter_tilt_shift</i><br>Säätutka</div>
-    <div id="lightningLayerButton"><i class="material-icons">flash_on</i><br>Salamat</div>
-    <div id="observationLayerButton"><i class="material-icons">place</i><br>Havainto</div>
-    <div id="layersButton"><i class="material-icons">more_vert</i></div>
-  </div>
+  <nav class="toolbar navbar noselect">
+    <button id="locationLayerButton" aria-label="Paikannus" aria-pressed="false"><i id="gpsStatus" class="material-icons">gps_not_fixed</i><span class="menu-spacer" aria-hidden="true"><i class="material-icons">expand_more</i></span></button>
+    <button id="mapLayerButton" aria-label="Karttapohja" aria-pressed="false"><i class="material-icons">brightness_2</i><span class="menu-spacer" aria-hidden="true"><i class="material-icons">expand_more</i></span></button>
+    <button id="satelliteLayerButton" aria-pressed="false" aria-haspopup="menu"><i class="material-icons">satellite</i><span class="btn-label">Satelliitti</span><span class="menu-indicator"><i class="material-icons">expand_more</i></span></button>
+    <button id="radarLayerButton" class="selectedButton" aria-pressed="true" aria-haspopup="menu"><i class="material-icons">filter_tilt_shift</i><span class="btn-label">Säätutka</span><span class="menu-indicator"><i class="material-icons">expand_more</i></span></button>
+    <button id="lightningLayerButton" aria-pressed="false"><i class="material-icons">flash_on</i><span class="btn-label">Salamat</span><span class="menu-spacer" aria-hidden="true"><i class="material-icons">expand_more</i></span></button>
+    <button id="observationLayerButton" aria-pressed="false" aria-haspopup="menu"><i class="material-icons">place</i><span class="btn-label">Havainto</span><span class="menu-indicator"><i class="material-icons">expand_more</i></span></button>
+    <button id="layersButton" aria-label="Lisää tasoja"><i class="material-icons">more_vert</i><span class="menu-spacer" aria-hidden="true"><i class="material-icons">expand_more</i></span></button>
+  </nav>
   
   <div id="map"></div>
  
