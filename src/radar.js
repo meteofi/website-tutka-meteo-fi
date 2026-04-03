@@ -22,6 +22,8 @@ import LatLon from 'geodesy/latlon-spherical'
 import WMSCapabilities from 'ol/format/WMSCapabilities.js';
 import { transformExtent } from 'ol/proj';
 import Timeline from './timeline';
+import wmsServerConfiguration from './config';
+import createLongPressHandler from './longpress';
 import dayjs from 'dayjs';
 import 'dayjs/locale/fi';
 import utcPlugin from 'dayjs/plugin/utc';
@@ -43,142 +45,7 @@ const options = {
 	frameRate: 2, // fps
 	defaultFrameRate: 2, // fps
 	imageRatio: 1.5,
-	wmsServerConfiguration: {
-		'fmi-radar': {
-			url: 'https://openwms.fmi.fi/geoserver/Radar/wms',
-			refresh: 60000,
-			category: 'radarLayer',
-			attribution: 'FMI (CC-BY-4.0)',
-			disabled: false
-		},
-		'meteo-radar': {
-			url: 'https://wms.meteo.fi/geoserver/wms',
-			namespace: 'radar',
-			refresh: 60000,
-			category: 'radarLayer',
-			attribution: 'FMI (CC-BY-4.0)',
-			disabled: false
-		},
-		'meteo-obs-new': {
-			url: 'https://wms-obs.app.meteo.fi/geoserver/wms',
-			namespace: 'observation',
-			refresh: 300000,
-			category: 'observationLayer',
-			attribution: 'FMI (CC-BY-4.0)'
-		},
-		'meteo-obs': {
-			url: 'https://geoserver.app.meteo.fi/geoserver/wms',
-			namespace: 'observation',
-			refresh: 300000,
-			category: 'observationLayer',
-			attribution: 'FMI (CC-BY-4.0)',
-			disabled: true
-		},
-		'eumetsat': {
-			url: 'https://eumetview.eumetsat.int/geoserv/wms',
-			namespace: 'meteosat',
-			refresh: 300000,
-			category: "satelliteLayer",
-			attribution: 'EUMETSAT',
-			disabled: true
-		},
-		'eumetsat1': {
-			url: 'https://view.eumetsat.int/geoserver/msg_fes/rgb_eview/wms',
-			refresh: 300000,
-			category: "satelliteLayer",
-			title: 'Meteosat pilvialueet yö/päivä',
-			abstract: 'Päivällä alapilvet näkyvät keltaisen sävyissä ja korkeat pilvet sinertävinä. Yöllä sinertävässä infrapunakuvassa kylmät pilvet näkyvät kirkaina.',
-			attribution: 'EUMETSAT',
-			disabled: false
-		},
-		'eumetsat2': {
-			url: 'https://view.eumetsat.int/geoserver/msg_fes/rgb_convection/wms',
-			refresh: 300000,
-			category: "satelliteLayer",
-			title: 'Meteosat konvektiopilvet',
-			abstract: 'Vaaraa aiheuttavat konvektiiviset rajuilmat näkyvät kuvassa kirkkaan keltaisena. Ukkospilven alasimen läpäisevät huiput näkyvät kuvassa kirkkaan vaalean punaisena.',
-			attribution: 'EUMETSAT',
-			disabled: false
-		},
-		'eumetsat3': {
-			url: 'https://view.eumetsat.int/geoserver/msg_fes/rgb_naturalenhncd/wms',
-			refresh: 300000,
-			category: "satelliteLayer",
-			title: 'Meteosat pilvialueet',
-			abstract: 'Vesipilvet näkyvät kuvassa vaaleina, jäiset valkoisina, kasvillisuus vihreänä, maa ruskeana ja meri mustana.',
-			attribution: 'EUMETSAT',
-			disabled: false
-		},
-		'eumetsat4': {
-			url: 'https://eumetview.eumetsat.int/geoserv/meteosat/msg_airmass/wms',
-			refresh: 300000,
-			category: "satelliteLayer",
-			title: 'Meteosat ilmamassat',
-			abstract: 'Kylmä polaarinen ilma näkyy kuvassa violettina, lämmin trooppinen ilma vihreänä, kuiva ilma punaisena sekä paksut korkeat pilvet valkoisena.',
-			attribution: 'EUMETSAT',
-			disabled: true
-		},
-		ca: {
-			url: 'https://geo.weather.gc.ca/geomet/',
-			layer: 'RADAR_1KM_RRAI',
-			refresh: 300000,
-			category: 'radarLayer',
-			disabled: false
-		},
-		de: {
-			url: 'https://maps.dwd.de/geoserver/dwd/RX-Produkt/wms',
-			refresh: 60000,
-			category: 'radarLayer',
-			attribution: 'Deutscher Wetterdienst',
-			disabled: true
-		},
-		nl: {
-			url: 'https://geoservices.knmi.nl/cgi-bin/RADNL_OPER_R___25PCPRR_L3.cgi',
-			refresh: 60000,
-			category: 'radarLayer',
-			attribution: 'KNMI',
-			disabled: true
-		},
-		no: {
-			url: 'https://meteocore.app.meteo.fi/wms',
-			layer: 'met-radar-composite-dbz',
-			refresh: 60000,
-			category: 'radarLayer',
-			attribution: 'MET Norway',
-			disabled: false
-		},
-		se: {
-			url: 'https://meteocore.app.meteo.fi/wms',
-			layer: 'smhi-radar-composite-dbz',
-			refresh: 60000,
-			category: 'radarLayer',
-			attribution: 'SMHI',
-			disabled: false
-		},
-		dk: {
-			url: 'https://meteocore.app.meteo.fi/wms',
-			layer: 'dmi-radar-composite-dbz',
-			refresh: 60000,
-			category: 'radarLayer',
-			attribution: 'DMI',
-			disabled: false
-		},
-		vn: {
-			url: 'https://vietnam.smartmet.fi/wms',
-			namespace: 'vnmha:radar',
-			refresh: 60000,
-			category: "radarLayer",
-			attribution: 'VNMHA',
-			disabled: true
-		},
-		noaa: {
-			url: 'https://mesonet.agron.iastate.edu/cgi-bin/wms/nexrad/n0q-t.cgi',
-			refresh: 60000,
-			category: "radarLayer",
-			attribution: 'NOAA',
-			disabled: true
-		}
-	}
+	wmsServerConfiguration: wmsServerConfiguration
 }
 
 let DEBUG = false;
@@ -868,8 +735,8 @@ function setMapLayer(maplayer) {
 			darkGrayReferenceLayer.setVisible(false);
 			lightGrayBaseLayer.setVisible(true);
 			lightGrayReferenceLayer.setVisible(true);
-			document.getElementById("mapLayerButton").classList.remove("selectedButton");
 			IS_DARK = false;
+			setButtonState("mapLayerButton", false);
 			typeof umami !== 'undefined' && umami.track('theme-light');
 			break;
 		case 'dark':
@@ -877,8 +744,8 @@ function setMapLayer(maplayer) {
 			darkGrayReferenceLayer.setVisible(true);
 			lightGrayBaseLayer.setVisible(false);
 			lightGrayReferenceLayer.setVisible(false);
-			document.getElementById("mapLayerButton").classList.add("selectedButton");
 			IS_DARK = true;
+			setButtonState("mapLayerButton", true);
 			typeof umami !== 'undefined' && umami.track('theme-dark');
 			break;	
 	}
@@ -1141,14 +1008,14 @@ function onChangeVisible (event) {
 		if (document.getElementById(wmslayer)) {
 			document.getElementById(wmslayer).classList.add("selected");
 		}
-		document.getElementById(name+"Button").classList.add("selectedButton");
+		setButtonState(name+"Button", true);
 		document.getElementById(name+'Info').classList.remove("playListDisabled");
 	} else {
 		debug("Deactivated " + name);
 		VISIBLE.delete(name);
 		localStorage.setItem("VISIBLE",JSON.stringify([...VISIBLE]));
 		document.getElementById(name+"Off").classList.add("selected");
-		document.getElementById(name+"Button").classList.remove("selectedButton");
+		setButtonState(name+"Button", false);
 		document.getElementById(name+'Info').classList.add("playListDisabled");
 	}
 	updateCanonicalPage();
@@ -1262,38 +1129,32 @@ window.addEventListener('touchend', function (e) {
 	});
 });
 
-function setButtonStates() {
-	if (IS_TRACKING) {
-		document.getElementById("locationLayerButton").classList.add("selectedButton");
-	} else {
-		document.getElementById("locationLayerButton").classList.remove("selectedButton");
-	}
-	if (IS_DARK) {
-		document.getElementById("mapLayerButton").classList.add("selectedButton");
-	} else {
-		document.getElementById("mapLayerButton").classList.remove("selectedButton");
-	}
-	if (VISIBLE.has("satelliteLayer")) {
-		document.getElementById("satelliteLayerButton").classList.add("selectedButton");
-	} else {
-		document.getElementById("satelliteLayerButton").classList.remove("selectedButton");
-	}
-	if (VISIBLE.has("radarLayer")) {
-		document.getElementById("radarLayerButton").classList.add("selectedButton");
-	} else {
-		document.getElementById("radarLayerButton").classList.remove("selectedButton");
-	}
-	if (VISIBLE.has("lightningLayer")) {
-		document.getElementById("lightningLayerButton").classList.add("selectedButton");
-	} else {
-		document.getElementById("lightningLayerButton").classList.remove("selectedButton");
-	}
-	if (VISIBLE.has("observationLayer")) {
-		document.getElementById("observationLayerButton").classList.add("selectedButton");
-	} else {
-		document.getElementById("observationLayerButton").classList.remove("selectedButton");
-	}
+function setButtonState(id, active) {
+	const el = document.getElementById(id);
+	el.classList.toggle("selectedButton", active);
+	el.setAttribute("aria-pressed", String(active));
 }
+
+function setButtonStates() {
+	setButtonState("locationLayerButton", IS_TRACKING);
+	setButtonState("mapLayerButton", IS_DARK);
+	setButtonState("satelliteLayerButton", VISIBLE.has("satelliteLayer"));
+	setButtonState("radarLayerButton", VISIBLE.has("radarLayer"));
+	setButtonState("lightningLayerButton", VISIBLE.has("lightningLayer"));
+	setButtonState("observationLayerButton", VISIBLE.has("observationLayer"));
+}
+
+// Press feedback for all navbar buttons
+document.querySelectorAll('.navbar > button').forEach(function(btn) {
+	function addPress() { btn.classList.add('pressing'); }
+	function removePress() { btn.classList.remove('pressing'); }
+	btn.addEventListener('mousedown', addPress);
+	btn.addEventListener('mouseup', removePress);
+	btn.addEventListener('mouseleave', removePress);
+	btn.addEventListener('touchstart', addPress);
+	btn.addEventListener('touchend', removePress);
+	btn.addEventListener('touchcancel', removePress);
+});
 
 document.getElementById('locationLayerButton').addEventListener('mouseup', function() {
 	if (IS_TRACKING) {
@@ -1342,100 +1203,27 @@ document.getElementById('lightningLayerTitle').addEventListener('mouseup', funct
 	toggleLayerVisibility(lightningLayer);
 });
 
-// Long press functionality for observation layer button
-// Generic long-press menu handler
-function createLongPressHandler(buttonId, menuId, olLayer, onSelect) {
-	let timer = null;
-	let triggered = false;
-	let startTime = 0;
-	let button = document.getElementById(buttonId);
+// Long press menus for layer buttons
+const observationMenu = createLongPressHandler('observationLayerButton', 'observationLongPressMenu',
+	function() { toggleLayerVisibility(observationLayer); },
+	function(id) { updateLayer(observationLayer, id); observationMenu.hide(); },
+	function() { return observationLayer.getSource().getParams().LAYERS; },
+	function() { return observationLayer.getVisible(); }
+);
 
-	function showMenu(e) {
-		let menu = document.getElementById(menuId);
-		let menuItems = menu.querySelectorAll('.menu-item');
-		let currentLayer = olLayer.getSource().getParams().LAYERS;
-		let isVisible = olLayer.getVisible();
-		menuItems.forEach(function(item) {
-			item.classList.toggle('selected', isVisible && item.getAttribute('data-layer') === currentLayer);
-		});
+const satelliteMenu = createLongPressHandler('satelliteLayerButton', 'satelliteLongPressMenu',
+	function() { toggleLayerVisibility(satelliteLayer); },
+	function(id) { updateLayer(satelliteLayer, id); satelliteMenu.hide(); },
+	function() { return satelliteLayer.getSource().getParams().LAYERS; },
+	function() { return satelliteLayer.getVisible(); }
+);
 
-		let vw = window.innerWidth, vh = window.innerHeight;
-		let br = button.getBoundingClientRect();
-		menu.style.display = 'block';
-		menu.style.visibility = 'hidden';
-		let mr = menu.getBoundingClientRect();
-		let left = Math.max(10, Math.min(br.left, vw - mr.width - 10));
-		let top = br.bottom + 5;
-		if (top + mr.height > vh - 10) {
-			top = Math.max(10, br.top - mr.height - 5);
-		}
-		menu.style.left = left + 'px';
-		menu.style.top = top + 'px';
-		menu.style.visibility = 'visible';
-	}
-
-	function hideMenu() {
-		document.getElementById(menuId).style.display = 'none';
-	}
-
-	function start(e) {
-		triggered = false;
-		startTime = Date.now();
-		timer = setTimeout(function() {
-			triggered = true;
-			showMenu(e);
-		}, 500);
-	}
-
-	function end() {
-		clearTimeout(timer);
-		if (!triggered && Date.now() - startTime < 500) {
-			toggleLayerVisibility(olLayer);
-		}
-	}
-
-	function cancel() {
-		clearTimeout(timer);
-		triggered = false;
-	}
-
-	button.addEventListener('mousedown', start);
-	button.addEventListener('mouseup', end);
-	button.addEventListener('mouseleave', cancel);
-	button.addEventListener('touchstart', function(e) { e.preventDefault(); start(e); });
-	button.addEventListener('touchend', function(e) { e.preventDefault(); end(e); });
-	button.addEventListener('touchmove', function(e) { e.preventDefault(); cancel(); });
-	button.addEventListener('touchcancel', function(e) { e.preventDefault(); cancel(); });
-
-	// Menu item click/touch handlers
-	document.querySelectorAll('#' + menuId + ' .menu-item').forEach(function(item) {
-		item.addEventListener('click', function() {
-			onSelect(this.getAttribute('data-layer'));
-		});
-		item.addEventListener('touchend', function(e) {
-			e.preventDefault();
-			e.stopPropagation();
-			onSelect(this.getAttribute('data-layer'));
-		});
-	});
-
-	return { show: showMenu, hide: hideMenu };
-}
-
-const observationMenu = createLongPressHandler('observationLayerButton', 'observationLongPressMenu', observationLayer, function(id) {
-	updateLayer(observationLayer, id);
-	observationMenu.hide();
-});
-
-const satelliteMenu = createLongPressHandler('satelliteLayerButton', 'satelliteLongPressMenu', satelliteLayer, function(id) {
-	updateLayer(satelliteLayer, id);
-	satelliteMenu.hide();
-});
-
-const radarMenu = createLongPressHandler('radarLayerButton', 'radarLongPressMenu', radarLayer, function(id) {
-	updateLayer(radarLayer, id);
-	radarMenu.hide();
-});
+const radarMenu = createLongPressHandler('radarLayerButton', 'radarLongPressMenu',
+	function() { toggleLayerVisibility(radarLayer); },
+	function(id) { updateLayer(radarLayer, id); radarMenu.hide(); },
+	function() { return radarLayer.getSource().getParams().LAYERS; },
+	function() { return radarLayer.getVisible(); }
+);
 
 document.getElementById('layersButton').addEventListener('mouseup', function() {
 	let div = document.getElementById('layers');
