@@ -19,7 +19,7 @@ class Timeline {
   }
 
   next() {
-    this.position = Math.min(this.position + 1, this.size);
+    this.position = Math.min(this.position + 1, this.size - 1);
   }
 
   update(position) {

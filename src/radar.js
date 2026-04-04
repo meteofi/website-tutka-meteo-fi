@@ -55,10 +55,10 @@ function safeParseJSON(key, fallback) {
 	catch (e) { return fallback; }
 }
 
-let metLatitude = localStorage.getItem('metLatitude') || 60.2706;
-let metLongitude = localStorage.getItem('metLongitude') || 24.8725;
+let metLatitude = Number(localStorage.getItem('metLatitude')) || 60.2706;
+let metLongitude = Number(localStorage.getItem('metLongitude')) || 24.8725;
 let metPosition = safeParseJSON('metPosition', []);
-let metZoom = localStorage.getItem('metZoom') || 9;
+let metZoom = Number(localStorage.getItem('metZoom')) || 9;
 let ownPosition = [];
 let ownPosition4326 = [];
 let geolocation;
@@ -1030,8 +1030,9 @@ function layerInfoPlaylist(event) {
 	opacityContainer.appendChild(slider);
 
 	// Remove previous slider listener to prevent leaks
-	if (_playlistSliderHandlers[name]) {
-		slider.removeEventListener('input', _playlistSliderHandlers[name]);
+	const oldSlider = document.getElementById(name + 'Slider');
+	if (oldSlider && _playlistSliderHandlers[name]) {
+		oldSlider.removeEventListener('input', _playlistSliderHandlers[name]);
 	}
 	_playlistSliderHandlers[name] = function (e) {
 		const val = e.target.value;
@@ -1342,35 +1343,40 @@ document.addEventListener('keyup', function (event) {
 	}
 
 	let key = event.key || event.keyCode;
+	let handled = true;
 	if (key === ' ' || key === 'Space' || key === 32) {
 		skipNext();
 	} else if (key === ',' || key === 'Comma') {
-		skipPrevious(); 
+		skipPrevious();
 	} else if (key === '.' || key === 'Period') {
-		skipNext(); 
+		skipNext();
 	} else if (key === 'j' || key === 'KeyJ') {
-		skipPrevious(); 
+		skipPrevious();
 	} else if (key === 'k' || key === 'KeyK') {
-		playstop(); 
+		playstop();
 	} else if (key === 'l' || key === 'KeyL') {
-		skipNext(); 
+		skipNext();
 	} else if (key === '1' || key === 'Digit1') {
 		toggleLayerVisibility(satelliteLayer);
 	} else if (key === '2' || key === 'Digit2') {
-		toggleLayerVisibility(radarLayer);    
+		toggleLayerVisibility(radarLayer);
 	} else if (key === '3' || key === 'Digit3') {
-		toggleLayerVisibility(lightningLayer);    
+		toggleLayerVisibility(lightningLayer);
 	} else if (key === '4' || key === 'Digit4') {
-		toggleLayerVisibility(observationLayer);    
+		toggleLayerVisibility(observationLayer);
 	} else 	if (event.key === 'Control') {
 		document.getElementById('help').style.display = "none";
 	} else 	if (event.key === 'Home') {
 		stop();
 		setTime('last');
 	} else {
+		handled = false;
 		debug(event);
 	}
 
+	if (handled) {
+		event.preventDefault();
+	}
 });
 
 function updateLayerSelection(ollayer,type,filter) {
