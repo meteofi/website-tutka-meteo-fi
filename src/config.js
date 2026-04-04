@@ -81,11 +81,13 @@ const wmsServerConfiguration = {
 		disabled: false
 	},
 	de: {
-		url: 'https://maps.dwd.de/geoserver/dwd/RX-Produkt/wms',
+		url: 'https://meteocore.app.meteo.fi/wms',
+		layer: 'dwd-radar-composite-dbz',
 		refresh: 60000,
 		category: 'radarLayer',
-		attribution: 'Deutscher Wetterdienst',
-		disabled: true
+		attribution: 'DWD',
+		license: 'CC-BY-4.0',
+		disabled: false
 	},
 	nl: {
 		url: 'https://geoservices.knmi.nl/cgi-bin/RADNL_OPER_R___25PCPRR_L3.cgi',
@@ -100,6 +102,7 @@ const wmsServerConfiguration = {
 		refresh: 60000,
 		category: 'radarLayer',
 		attribution: 'MET Norway',
+		license: 'CC-BY-4.0',
 		disabled: false
 	},
 	se: {
@@ -108,6 +111,7 @@ const wmsServerConfiguration = {
 		refresh: 60000,
 		category: 'radarLayer',
 		attribution: 'SMHI',
+		license: 'CC-BY-4.0',
 		disabled: false
 	},
 	dk: {
@@ -116,6 +120,7 @@ const wmsServerConfiguration = {
 		refresh: 60000,
 		category: 'radarLayer',
 		attribution: 'DMI',
+		license: 'CC-BY-4.0',
 		disabled: false
 	},
 	vn: {

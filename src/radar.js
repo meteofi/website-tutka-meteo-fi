@@ -909,7 +909,9 @@ function layerInfoDiv(wmslayer) {
 		div.appendChild(createLayerInfoElement('Aikatiedot ei saatavilla','time'));
 	}
 	if (info && info.attribution && info.attribution.Title) {
-		div.appendChild(createLayerInfoElement(info.attribution.Title,'attribution'));
+		let attrText = info.attribution.Title;
+		if (info.license) attrText += ' (' + info.license + ')';
+		div.appendChild(createLayerInfoElement(attrText,'attribution'));
 	} else {
 		div.appendChild(createLayerInfoElement('','attribution'));
 	}
@@ -941,7 +943,11 @@ function layerInfoPlaylist(event) {
 	// Always update text content and visibility state (cheap DOM updates)
 	document.getElementById(name + 'Title').textContent = info.title || "";
 	document.getElementById(name + 'Abstract').textContent = info.abstract || "";
-	document.getElementById(name + 'Attribution').textContent = (info.attribution && info.attribution.Title) || "";
+	let attributionText = (info.attribution && info.attribution.Title) || "";
+	if (info.license) {
+		attributionText += (attributionText ? ' (' + info.license + ')' : info.license);
+	}
+	document.getElementById(name + 'Attribution').textContent = attributionText;
 	if (layer.getVisible()) {
 		document.getElementById(name + 'Info').classList.remove("playListDisabled");
 		let ti = document.querySelector('#' + name + 'Info .card-visibility-toggle .material-icons');
@@ -1516,6 +1522,10 @@ function getLayerInfo(layer,wms) {
 		product.attribution = layer.Attribution;
 	} else if (typeof wms.attribution !== "undefined") {
 		product.attribution = {Title: wms.attribution};
+	}
+
+	if (typeof wms.license !== "undefined") {
+		product.license = wms.license;
 	}
 
 	if (typeof layer.Dimension !== "undefined") {
