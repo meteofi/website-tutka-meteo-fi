@@ -107,7 +107,7 @@ const wmsServerConfiguration = {
 	},
 	eu: {
 		url: 'https://meteocore.app.meteo.fi/wms',
-		layer: 'opera-precipitation',
+		layer: 'opera-reflectivity',
 		refresh: 60000,
 		category: 'radarLayer',
 		attribution: 'EUMETNET OPERA',
