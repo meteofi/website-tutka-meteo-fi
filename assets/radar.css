@@ -162,10 +162,19 @@ html, body {
     touch-action: none;
   }
 
-  .playbar > div {
+  .playbar > div, .playbar > button {
     flex-grow: 1;
     text-align: center;
     /**font-size: 2em;**/
+  }
+
+  .playbar > button {
+    background: none;
+    border: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    padding: 0;
   }
 
   #timeline {
@@ -511,6 +520,9 @@ html, body {
   padding: 4px;
   border-radius: 50%;
   transition: background 0.15s;
+  background: none;
+  border: none;
+  font: inherit;
 }
 
 .card-visibility-toggle:hover {

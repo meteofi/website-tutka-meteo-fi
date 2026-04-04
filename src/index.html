@@ -67,10 +67,10 @@
   <nav class="toolbar navbar noselect">
     <button id="locationLayerButton" aria-label="Paikannus" aria-pressed="false"><i id="gpsStatus" class="material-icons">gps_not_fixed</i><span class="menu-spacer" aria-hidden="true"><i class="material-icons">expand_more</i></span></button>
     <button id="mapLayerButton" aria-label="Karttapohja" aria-pressed="false"><i class="material-icons">brightness_2</i><span class="menu-spacer" aria-hidden="true"><i class="material-icons">expand_more</i></span></button>
-    <button id="satelliteLayerButton" aria-pressed="false" aria-haspopup="menu"><i class="material-icons">satellite</i><span class="btn-label">Satelliitti</span><span class="menu-indicator"><i class="material-icons">expand_more</i></span></button>
+    <button id="satelliteLayerButton" aria-label="Satelliitti" aria-pressed="false" aria-haspopup="menu"><i class="material-icons">satellite</i><span class="btn-label">Satelliitti</span><span class="menu-indicator"><i class="material-icons">expand_more</i></span></button>
     <button id="radarLayerButton" class="selectedButton" aria-pressed="true" aria-haspopup="menu"><i class="material-icons">filter_tilt_shift</i><span class="btn-label">Säätutka</span><span class="menu-indicator"><i class="material-icons">expand_more</i></span></button>
     <button id="lightningLayerButton" aria-pressed="false"><i class="material-icons">flash_on</i><span class="btn-label">Salamat</span><span class="menu-spacer" aria-hidden="true"><i class="material-icons">expand_more</i></span></button>
-    <button id="observationLayerButton" aria-pressed="false" aria-haspopup="menu"><i class="material-icons">place</i><span class="btn-label">Havainto</span><span class="menu-indicator"><i class="material-icons">expand_more</i></span></button>
+    <button id="observationLayerButton" aria-label="Havainto" aria-pressed="false" aria-haspopup="menu"><i class="material-icons">place</i><span class="btn-label">Havainto</span><span class="menu-indicator"><i class="material-icons">expand_more</i></span></button>
     <button id="layersButton" aria-label="Lisää tasoja"><i class="material-icons">more_vert</i><span class="menu-spacer" aria-hidden="true"><i class="material-icons">expand_more</i></span></button>
   </nav>
   
@@ -120,13 +120,13 @@
   <div id="timecontrol" class="toolbar noselect">
     <div class="playbar noselect">
       <div id="currentSpeed"><div id="currentSpeedValue"></div><div style="font-size: 10px;">km/h</div></div>
-      <div id="playlistButton"><i class="material-icons">layers</i></div>
-      <div id="speedButton" style="font-size: 1em;">1×</div>
-      <div id="skipPreviousButton"><i class="material-icons">skip_previous</i></div>
-      <!--div id="previousButton"><i class="material-icons">navigate_before</i></div-->
-      <div id="playButton"><i id="playstopButton" class="material-icons">play_arrow</i></div>
-      <!--div id="nextButton"><i class="material-icons">navigate_next</i></div-->
-      <div id="skipNextButton"><i class="material-icons">skip_next</i></div>
+      <button id="playlistButton" aria-label="Tasot"><i class="material-icons">layers</i></button>
+      <button id="speedButton" aria-label="Nopeus" style="font-size: 1em;">1×</button>
+      <button id="skipPreviousButton" aria-label="Edellinen"><i class="material-icons">skip_previous</i></button>
+      <!--button id="previousButton"><i class="material-icons">navigate_before</i></button-->
+      <button id="playButton" aria-label="Toista"><i id="playstopButton" class="material-icons">play_arrow</i></button>
+      <!--button id="nextButton"><i class="material-icons">navigate_next</i></button-->
+      <button id="skipNextButton" aria-label="Seuraava"><i class="material-icons">skip_next</i></button>
       <div><div id="currentMapTime"></div><div id="currentMapDate"></div></div>
     </div>
     <div id="timeline"></div>
@@ -143,7 +143,7 @@
       <div class="card-header">
         <i class="material-icons card-category-icon">satellite_alt</i>
         <span id="satelliteLayerName" class="card-category-name">Sääsatelliitti</span>
-        <div class="card-visibility-toggle" data-layer="satelliteLayer"><i class="material-icons">visibility</i></div>
+        <button class="card-visibility-toggle" data-layer="satelliteLayer" aria-label="Näytä/piilota satelliittitaso"><i class="material-icons">visibility</i></button>
       </div>
       <div id="satelliteLayerTitle" class="card-title">Sääsatelliitti</div>
       <div id="satelliteLayerAbstract" class="card-abstract"></div>
@@ -155,7 +155,7 @@
       <div class="card-header">
         <i class="material-icons card-category-icon">radar</i>
         <span id="radarLayerName" class="card-category-name">Säätutka</span>
-        <div class="card-visibility-toggle" data-layer="radarLayer"><i class="material-icons">visibility</i></div>
+        <button class="card-visibility-toggle" data-layer="radarLayer" aria-label="Näytä/piilota säätutka"><i class="material-icons">visibility</i></button>
       </div>
       <div id="radarLayerTitle" class="card-title">Säätutka</div>
       <div id="radarLayerAbstract" class="card-abstract"></div>
@@ -167,7 +167,7 @@
       <div class="card-header">
         <i class="material-icons card-category-icon">flash_on</i>
         <span id="lightningLayerName" class="card-category-name">Salamapaikannus</span>
-        <div class="card-visibility-toggle" data-layer="lightningLayer"><i class="material-icons">visibility</i></div>
+        <button class="card-visibility-toggle" data-layer="lightningLayer" aria-label="Näytä/piilota salamat"><i class="material-icons">visibility</i></button>
       </div>
       <div id="lightningLayerTitle" class="card-title">Salamapaikannus</div>
       <div id="lightningLayerAbstract" class="card-abstract"></div>
@@ -179,7 +179,7 @@
       <div class="card-header">
         <i class="material-icons card-category-icon">thermostat</i>
         <span id="observationLayerName" class="card-category-name">Säähavainto</span>
-        <div class="card-visibility-toggle" data-layer="observationLayer"><i class="material-icons">visibility</i></div>
+        <button class="card-visibility-toggle" data-layer="observationLayer" aria-label="Näytä/piilota havainnot"><i class="material-icons">visibility</i></button>
       </div>
       <div id="observationLayerTitle" class="card-title">Säähavainto</div>
       <div id="observationLayerAbstract" class="card-abstract"></div>

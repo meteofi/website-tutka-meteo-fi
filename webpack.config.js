@@ -68,7 +68,7 @@ module.exports = (env, argv) => {
                 // Don't precache everything - be more selective
                 exclude: [/\.map$/, /manifest$/, /LICENSE/],
                 runtimeCaching: [{
-                    urlPattern: new RegExp('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/'),
+                    urlPattern: new RegExp('^https://server\\.arcgisonline\\.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/'),
                     handler: 'StaleWhileRevalidate',
                     options: {
                         cacheName: 'arcgis-cache',
@@ -79,7 +79,7 @@ module.exports = (env, argv) => {
                     },
                 },
                 {
-                    urlPattern: new RegExp('https://openlayers.org/en/latest/css/ol.css'),
+                    urlPattern: new RegExp('^https://openlayers\\.org/en/latest/css/ol\\.css'),
                     handler: 'StaleWhileRevalidate',
                     options: {
                         cacheName: 'openlayers-cache',
@@ -89,14 +89,14 @@ module.exports = (env, argv) => {
                     },
                 },
                 {
-                    urlPattern: new RegExp('radar.css'),
+                    urlPattern: /radar\.css/,
                     handler: 'StaleWhileRevalidate',
                     options: {
                         cacheName: 'css-cache',
                     },
                 },
                 {
-                    urlPattern: new RegExp('https://fonts.gstatic.com/'),
+                    urlPattern: new RegExp('^https://fonts\\.gstatic\\.com/'),
                     handler: 'StaleWhileRevalidate',
                     options: {
                         cacheName: 'google-fonts-cache',
@@ -106,15 +106,15 @@ module.exports = (env, argv) => {
                     },
                 },
                 {
-                    urlPattern: new RegExp('https://wms.meteo.fi/geoserver/.*request=GetCapabilities'),
+                    urlPattern: new RegExp('^https://wms\\.meteo\\.fi/geoserver/.*request=GetCapabilities'),
                     handler: 'NetworkFirst'
                 },
                 {
-                    urlPattern: new RegExp('https://geoserver.app.meteo.fi/geoserver/.*request=GetCapabilities'),
+                    urlPattern: new RegExp('^https://geoserver\\.app\\.meteo\\.fi/geoserver/.*request=GetCapabilities'),
                     handler: 'NetworkFirst'
                 },
                 {
-                    urlPattern: new RegExp('https://view.eumetsat.int/geoserv/.*request=GetCapabilities'),
+                    urlPattern: new RegExp('^https://view\\.eumetsat\\.int/geoserv/.*request=GetCapabilities'),
                     handler: 'NetworkFirst'
                 }
             ]
