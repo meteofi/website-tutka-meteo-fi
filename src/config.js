@@ -78,7 +78,7 @@ const wmsServerConfiguration = {
 		layer: 'RADAR_1KM_RRAI',
 		refresh: 300000,
 		category: 'radarLayer',
-		disabled: false
+		disabled: true
 	},
 	de: {
 		url: 'https://meteocore.app.meteo.fi/wms',
