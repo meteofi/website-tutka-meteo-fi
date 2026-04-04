@@ -91,6 +91,7 @@ ImageLayer.prototype.setLayerUrl = function (url) {
 ImageLayer.prototype.setLayerStyle = function (style) {
 	debug("Set layer style: " + style);
 	this.getSource().updateParams({ 'STYLES': style });
+	typeof umami !== 'undefined' && umami.track('layer-style', { style: style, category: this.get('name') });
 }
 
 ImageLayer.prototype.setLayerTime = function (time) {
@@ -773,6 +774,7 @@ function removeSelectedParameter(selector) {
 
 function updateLayer(layer, wmslayer) {
 	debug("Activated layer " + wmslayer);
+	typeof umami !== 'undefined' && umami.track('layer-switch', { layer: wmslayer, category: layer.get('name') });
 	debug(layerInfo[wmslayer]);
 	let info = layerInfo[wmslayer];
 	layer.set('info', info);
@@ -1048,6 +1050,7 @@ function onChangeVisible (event) {
 	let name = layer.get('name');
 	let isVisible = layer.getVisible();
 	removeSelectedParameter("#" + name + " > div");
+	typeof umami !== 'undefined' && umami.track('layer-visibility', { layer: wmslayer, category: name, visible: isVisible });
 	if (isVisible) {
 		debug("Activated " + name);
 		VISIBLE.add(name);
