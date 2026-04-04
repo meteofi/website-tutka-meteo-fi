@@ -91,6 +91,7 @@ ImageLayer.prototype.setLayerUrl = function (url) {
 ImageLayer.prototype.setLayerStyle = function (style) {
 	debug("Set layer style: " + style);
 	this.getSource().updateParams({ 'STYLES': style });
+	typeof umami !== 'undefined' && umami.track('layer-style', { style: style, category: this.get('name') });
 }
 
 ImageLayer.prototype.setLayerTime = function (time) {
@@ -773,6 +774,7 @@ function removeSelectedParameter(selector) {
 
 function updateLayer(layer, wmslayer) {
 	debug("Activated layer " + wmslayer);
+	typeof umami !== 'undefined' && umami.track('layer-switch', { layer: wmslayer, category: layer.get('name') });
 	debug(layerInfo[wmslayer]);
 	let info = layerInfo[wmslayer];
 	layer.set('info', info);
@@ -909,7 +911,9 @@ function layerInfoDiv(wmslayer) {
 		div.appendChild(createLayerInfoElement('Aikatiedot ei saatavilla','time'));
 	}
 	if (info && info.attribution && info.attribution.Title) {
-		div.appendChild(createLayerInfoElement(info.attribution.Title,'attribution'));
+		let attrText = info.attribution.Title;
+		if (info.license) attrText += ' (' + info.license + ')';
+		div.appendChild(createLayerInfoElement(attrText,'attribution'));
 	} else {
 		div.appendChild(createLayerInfoElement('','attribution'));
 	}
@@ -926,29 +930,64 @@ function layerInfoPlaylist(event) {
 
 	if (typeof info === "undefined") return
 
-	// Only do full DOM rebuild when playlist is visible
-	let playList = document.getElementById('playList');
-	if (playList.style.display === 'none' || playList.offsetParent === null) {
-		// Still update the visibility class (cheap)
-		if (layer.getVisible()) {
-			document.getElementById(name + 'Info').classList.remove("playListDisabled");
-		} else {
-			document.getElementById(name + 'Info').classList.add("playListDisabled");
+	// If only opacity changed, update slider value without full DOM rebuild
+	if (event.key === 'opacity') {
+		let existingSlider = document.getElementById(name + 'Slider');
+		if (existingSlider) {
+			existingSlider.value = opacity;
+			existingSlider.style.background = 'linear-gradient(to right, var(--dark-primary-color) ' + opacity + '%, var(--dark-theme-overlay-06dp) ' + opacity + '%)';
+			let valEl = document.getElementById(name + 'OpacityValue');
+			if (valEl) valEl.textContent = Math.round(opacity) + '%';
 		}
+		return;
+	}
+
+	// Always update text content and visibility state (cheap DOM updates)
+	document.getElementById(name + 'Title').textContent = info.title || "";
+	document.getElementById(name + 'Abstract').textContent = info.abstract || "";
+	let attributionText = (info.attribution && info.attribution.Title) || "";
+	if (info.license) {
+		attributionText += (attributionText ? ' (' + info.license + ')' : info.license);
+	}
+	document.getElementById(name + 'Attribution').textContent = attributionText;
+	if (layer.getVisible()) {
+		document.getElementById(name + 'Info').classList.remove("playListDisabled");
+		let ti = document.querySelector('#' + name + 'Info .card-visibility-toggle .material-icons');
+		if (ti) ti.textContent = 'visibility';
+	} else {
+		document.getElementById(name + 'Info').classList.add("playListDisabled");
+		let ti = document.querySelector('#' + name + 'Info .card-visibility-toggle .material-icons');
+		if (ti) ti.textContent = 'visibility_off';
+	}
+
+	// Only do full DOM rebuild (slider, style chips) when playlist is visible
+	let playList = document.getElementById('playList');
+	if (!playList.classList.contains('open')) {
 		return;
 	}
 
 	debug("Updating playlist for " + name);
 
+	const activeStyleParam = layer.getSource().getParams().STYLES || '';
 	if (typeof info.style !== "undefined") {
 		if (info.style.length > 1) {
+			// If no explicit style set, first style is the WMS default
+			const activeStyleName = activeStyleParam || (info.style[0] && info.style[0].Name) || '';
 			const parent = document.getElementById(name + 'Styles');
 			while (parent.firstChild) parent.removeChild(parent.firstChild);
 			info.style.forEach(style => {
 				let div = document.createElement("div");
 				div.textContent = style.Title;
 				div.id = style.Name;
-				div.addEventListener('mouseup', function () { layer.setLayerStyle(style.Name) });
+				if (style.Name === activeStyleName) {
+					div.classList.add('activeStyle');
+				}
+				div.addEventListener('mouseup', function () {
+					layer.setLayerStyle(style.Name);
+					// Update active chip immediately
+					parent.querySelectorAll('.activeStyle').forEach(function(el) { el.classList.remove('activeStyle'); });
+					div.classList.add('activeStyle');
+				});
 				parent.appendChild(div);
 			});
 		} else {
@@ -958,16 +997,26 @@ function layerInfoPlaylist(event) {
 		document.getElementById(name + 'Styles').textContent = "";
 	}
 
-	document.getElementById(name + 'Title').textContent = info.title || "";
-	document.getElementById(name + 'Abstract').textContent = info.abstract || "";
-	document.getElementById(name + 'Attribution').textContent = (info.attribution && info.attribution.Title) || "";
-
-	// Build slider without innerHTML
+	// Build opacity control with label row + slider
 	let opacityContainer = document.getElementById(name + 'Opacity');
 	opacityContainer.textContent = '';
+
+	let labelRow = document.createElement('div');
+	labelRow.className = 'opacity-label-row';
+
 	let label = document.createElement('label');
 	label.setAttribute('for', name + 'Slider');
+	label.className = 'opacity-label';
 	label.textContent = 'Läpikuultavuus';
+
+	let valueSpan = document.createElement('span');
+	valueSpan.className = 'opacity-value';
+	valueSpan.id = name + 'OpacityValue';
+	valueSpan.textContent = Math.round(opacity) + '%';
+
+	labelRow.appendChild(label);
+	labelRow.appendChild(valueSpan);
+
 	let slider = document.createElement('input');
 	slider.type = 'range';
 	slider.min = '1';
@@ -975,21 +1024,21 @@ function layerInfoPlaylist(event) {
 	slider.value = opacity;
 	slider.className = 'slider';
 	slider.id = name + 'Slider';
-	opacityContainer.appendChild(label);
-	opacityContainer.appendChild(slider);
+	slider.style.background = 'linear-gradient(to right, var(--dark-primary-color) ' + opacity + '%, var(--dark-theme-overlay-06dp) ' + opacity + '%)';
 
-	if (layer.getVisible()) {
-		document.getElementById(name + 'Info').classList.remove("playListDisabled");
-	} else {
-		document.getElementById(name + 'Info').classList.add("playListDisabled");
-	}
+	opacityContainer.appendChild(labelRow);
+	opacityContainer.appendChild(slider);
 
 	// Remove previous slider listener to prevent leaks
 	if (_playlistSliderHandlers[name]) {
 		slider.removeEventListener('input', _playlistSliderHandlers[name]);
 	}
 	_playlistSliderHandlers[name] = function (e) {
-		layer.setOpacity(e.target.value / 100);
+		const val = e.target.value;
+		layer.setOpacity(val / 100);
+		let valEl = document.getElementById(name + 'OpacityValue');
+		if (valEl) valEl.textContent = Math.round(val) + '%';
+		e.target.style.background = 'linear-gradient(to right, var(--dark-primary-color) ' + val + '%, var(--dark-theme-overlay-06dp) ' + val + '%)';
 		e.stopPropagation();
 	};
 	slider.addEventListener('input', _playlistSliderHandlers[name]);
@@ -1001,6 +1050,7 @@ function onChangeVisible (event) {
 	let name = layer.get('name');
 	let isVisible = layer.getVisible();
 	removeSelectedParameter("#" + name + " > div");
+	typeof umami !== 'undefined' && umami.track('layer-visibility', { layer: wmslayer, category: name, visible: isVisible });
 	if (isVisible) {
 		debug("Activated " + name);
 		VISIBLE.add(name);
@@ -1010,6 +1060,8 @@ function onChangeVisible (event) {
 		}
 		setButtonState(name+"Button", true);
 		document.getElementById(name+'Info').classList.remove("playListDisabled");
+		let toggleIcon = document.querySelector('#' + name + 'Info .card-visibility-toggle .material-icons');
+		if (toggleIcon) toggleIcon.textContent = 'visibility';
 	} else {
 		debug("Deactivated " + name);
 		VISIBLE.delete(name);
@@ -1017,6 +1069,8 @@ function onChangeVisible (event) {
 		document.getElementById(name+"Off").classList.add("selected");
 		setButtonState(name+"Button", false);
 		document.getElementById(name+'Info').classList.add("playListDisabled");
+		let toggleIcon = document.querySelector('#' + name + 'Info .card-visibility-toggle .material-icons');
+		if (toggleIcon) toggleIcon.textContent = 'visibility_off';
 	}
 	updateCanonicalPage();
 	updateLayerSelectionSelected();
@@ -1071,14 +1125,43 @@ document.getElementById('skipPreviousButton').addEventListener('mouseup', functi
 	skipPrevious();
 });
 
-document.getElementById('playlistButton').addEventListener('mouseup', function() {
+function openPlaylist() {
+	document.getElementById("playList").classList.add('open');
+	document.getElementById("playListBackdrop").classList.add('open');
+	// Force full rebuild of all layer cards (slider, style chips)
+	[satelliteLayer, radarLayer, lightningLayer, observationLayer].forEach(function(layer) {
+		layerInfoPlaylist({ target: layer, key: 'info' });
+	});
+}
+
+function closePlaylist() {
+	document.getElementById("playList").classList.remove('open');
+	document.getElementById("playListBackdrop").classList.remove('open');
+}
+
+function togglePlaylist() {
 	debug("playlist");
-	let elem = document.getElementById("playList");
-	if (elem.style.bottom === '0px') {
-		elem.style.bottom = '-90vh';
+	if (document.getElementById("playList").classList.contains('open')) {
+		closePlaylist();
 	} else {
-		elem.style.bottom = '0px';
+		openPlaylist();
 	}
+}
+
+document.getElementById('playlistButton').addEventListener('mouseup', togglePlaylist);
+
+document.getElementById('playlistCloseButton').addEventListener('mouseup', closePlaylist);
+
+document.getElementById('playListBackdrop').addEventListener('mouseup', closePlaylist);
+
+// Visibility toggle buttons inside layer cards
+document.querySelectorAll('.card-visibility-toggle').forEach(function(toggle) {
+	toggle.addEventListener('mouseup', function(e) {
+		const layerName = toggle.getAttribute('data-layer');
+		const layerObj = layerss[layerName];
+		if (layerObj) toggleLayerVisibility(layerObj);
+		e.stopPropagation();
+	});
 });
 
 // Close playlist if clicked outside of playlist
@@ -1086,10 +1169,7 @@ window.addEventListener('mouseup', function (e) {
 	// playlist
 	if (!document.getElementById('playList').contains(e.target)) {
 		if (document.getElementById('playlistButton').contains(e.target)) return
-		let elem = document.getElementById("playList");
-		if (elem.style.bottom === '0px') {
-			elem.style.bottom = '-90vh';
-		} 
+		closePlaylist();
 	}
 
 	// Layers
@@ -1445,6 +1525,10 @@ function getLayerInfo(layer,wms) {
 		product.attribution = layer.Attribution;
 	} else if (typeof wms.attribution !== "undefined") {
 		product.attribution = {Title: wms.attribution};
+	}
+
+	if (typeof wms.license !== "undefined") {
+		product.license = wms.license;
 	}
 
 	if (typeof layer.Dimension !== "undefined") {
