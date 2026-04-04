@@ -96,6 +96,24 @@ const wmsServerConfiguration = {
 		attribution: 'KNMI',
 		disabled: true
 	},
+	fi: {
+		url: 'https://meteocore.app.meteo.fi/wms',
+		layer: 'fmi-radar-composite-dbz',
+		refresh: 60000,
+		category: 'radarLayer',
+		attribution: 'FMI',
+		license: 'CC-BY-4.0',
+		disabled: false
+	},
+	eu: {
+		url: 'https://meteocore.app.meteo.fi/wms',
+		layer: 'opera-precipitation',
+		refresh: 60000,
+		category: 'radarLayer',
+		attribution: 'EUMETNET OPERA',
+		license: 'CC-BY-4.0',
+		disabled: false
+	},
 	no: {
 		url: 'https://meteocore.app.meteo.fi/wms',
 		layer: 'met-radar-composite-dbz',
