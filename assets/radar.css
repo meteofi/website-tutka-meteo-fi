@@ -398,7 +398,7 @@ html, body {
   z-index: 99; /* below timecontrol (100) so it slides behind it */
   display: flex;
   flex-direction: column;
-  background-color: rgba(18, 18, 18, 0.85);
+  background-color: rgba(18, 18, 18, 0.7);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   color: var(--dark-theme-on-surface);
