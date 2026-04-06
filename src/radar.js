@@ -785,7 +785,21 @@ function updateLayer(layer, wmslayer) {
 	if (info && info.url) {
 		layer.setLayerUrl(info.url);
 	}
-	layer.getSource().updateParams({ 'LAYERS': wmslayer });
+	// Reset style if the new layer doesn't support the currently active style
+	const currentStyle = layer.getSource().getParams().STYLES || '';
+	if (currentStyle && info && info.style) {
+		const validStyles = info.style.map(s => s.Name);
+		if (!validStyles.includes(currentStyle)) {
+			layer.getSource().updateParams({ 'LAYERS': wmslayer, 'STYLES': '' });
+		} else {
+			layer.getSource().updateParams({ 'LAYERS': wmslayer });
+		}
+	} else if (currentStyle) {
+		// No style info available for new layer, reset to default
+		layer.getSource().updateParams({ 'LAYERS': wmslayer, 'STYLES': '' });
+	} else {
+		layer.getSource().updateParams({ 'LAYERS': wmslayer });
+	}
 	if (layer.getVisible()) {
 		updateCanonicalPage();
 	} else {
