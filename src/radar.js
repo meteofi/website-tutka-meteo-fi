@@ -317,7 +317,7 @@ const radarLayer = new ImageLayer({
 	visible: VISIBLE.has("radarLayer"),
 	opacity: 0.7,
 	source: new ImageWMS({
-		url: options.wmsServerConfiguration["fmi-radar"].url,
+		url: options.wmsServerConfiguration.fi.url,
 		params: { 'LAYERS': options.defaultRadarLayer },
 		attributions: 'FMI (CC-BY-4.0)',
 		ratio: options.imageRatio,
