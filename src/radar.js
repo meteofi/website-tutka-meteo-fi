@@ -37,7 +37,7 @@ dayjs.extend(localizedFormat);
 dayjs.extend(durationPlugin);
 
 const options = {
-	defaultRadarLayer: 'suomi_dbz_eureffin',
+	defaultRadarLayer: 'fmi-radar-composite-dbz',
 	defaultLightningLayer: 'observation:lightning',
 	defaultObservationLayer: 'observation:airtemperature',
 	rangeRingSpacing: 50,
@@ -70,6 +70,13 @@ let mapTime = '';
 
 let VISIBLE = new Set(safeParseJSON('VISIBLE', ['radarLayer']));
 let ACTIVE = new Set(safeParseJSON('ACTIVE', [options.defaultRadarLayer]));
+
+// Migrate deprecated FMI openwms layer to meteocore equivalent
+if (ACTIVE.has('suomi_dbz_eureffin')) {
+	ACTIVE.delete('suomi_dbz_eureffin');
+	ACTIVE.add('fmi-radar-composite-dbz');
+	localStorage.setItem('ACTIVE', JSON.stringify([...ACTIVE]));
+}
 let IS_DARK = safeParseJSON('IS_DARK', true);
 let IS_TRACKING = safeParseJSON('IS_TRACKING', false);
 let IS_FOLLOWING = safeParseJSON('IS_FOLLOWING', false);
@@ -310,7 +317,7 @@ const radarLayer = new ImageLayer({
 	visible: VISIBLE.has("radarLayer"),
 	opacity: 0.7,
 	source: new ImageWMS({
-		url: options.wmsServerConfiguration["fmi-radar"].url,
+		url: options.wmsServerConfiguration.fi.url,
 		params: { 'LAYERS': options.defaultRadarLayer },
 		attributions: 'FMI (CC-BY-4.0)',
 		ratio: options.imageRatio,

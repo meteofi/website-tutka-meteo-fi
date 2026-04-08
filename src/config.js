@@ -4,7 +4,7 @@ const wmsServerConfiguration = {
 		refresh: 60000,
 		category: 'radarLayer',
 		attribution: 'FMI (CC-BY-4.0)',
-		disabled: false
+		disabled: true
 	},
 	'meteo-radar': {
 		url: 'https://wms.meteo.fi/geoserver/wms',
