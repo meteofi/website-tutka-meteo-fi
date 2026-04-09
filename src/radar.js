@@ -77,7 +77,9 @@ if (ACTIVE.has('suomi_dbz_eureffin')) {
 	ACTIVE.add('fmi-radar-composite-dbz');
 	localStorage.setItem('ACTIVE', JSON.stringify([...ACTIVE]));
 }
-let IS_DARK = safeParseJSON('IS_DARK', true);
+// IS_DARK: null = auto (follow OS), true = user picked dark, false = user picked light
+let IS_DARK = safeParseJSON('IS_DARK', null);
+let currentMapTheme = 'dark';
 let IS_TRACKING = safeParseJSON('IS_TRACKING', false);
 let IS_FOLLOWING = safeParseJSON('IS_FOLLOWING', false);
 let IS_NAUTICAL = safeParseJSON('IS_NAUTICAL', false);
@@ -735,15 +737,24 @@ document.getElementById("cursorDistanceTxt").style.display = "none";
 
 
 
+function getEffectiveTheme() {
+	if (IS_DARK !== null) return IS_DARK ? 'dark' : 'light';
+	return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
 function setMapLayer(maplayer) {
 	debug('Set ' + maplayer + ' map.');
+	const darkBaseEl = document.getElementById('darkBase');
+	const lightBaseEl = document.getElementById('lightBase');
 	switch (maplayer) {
 		case 'light':
 			darkGrayBaseLayer.setVisible(false);
 			darkGrayReferenceLayer.setVisible(false);
 			lightGrayBaseLayer.setVisible(true);
 			lightGrayReferenceLayer.setVisible(true);
-			IS_DARK = false;
+			currentMapTheme = 'light';
+			darkBaseEl.classList.remove('selected');
+			lightBaseEl.classList.add('selected');
 			setButtonState("mapLayerButton", false);
 			typeof umami !== 'undefined' && umami.track('theme-light');
 			break;
@@ -752,24 +763,27 @@ function setMapLayer(maplayer) {
 			darkGrayReferenceLayer.setVisible(true);
 			lightGrayBaseLayer.setVisible(false);
 			lightGrayReferenceLayer.setVisible(false);
-			IS_DARK = true;
+			currentMapTheme = 'dark';
+			lightBaseEl.classList.remove('selected');
+			darkBaseEl.classList.add('selected');
 			setButtonState("mapLayerButton", true);
 			typeof umami !== 'undefined' && umami.track('theme-dark');
-			break;	
+			break;
 	}
-	localStorage.setItem("IS_DARK",JSON.stringify(IS_DARK));
+}
+
+function setUserTheme(maplayer) {
+	IS_DARK = maplayer === 'dark';
+	localStorage.setItem("IS_DARK", JSON.stringify(IS_DARK));
+	setMapLayer(maplayer);
 }
 
 document.getElementById('darkBase').addEventListener('mouseup', function (event) {
-	event.target.classList.add("selected");
-	document.getElementById("lightBase").classList.remove("selected");
-	setMapLayer('dark');
+	setUserTheme('dark');
 });
 
 document.getElementById('lightBase').addEventListener('mouseup', function (event) {
-	event.target.classList.add("selected");
-	document.getElementById("darkBase").classList.remove("selected");
-	setMapLayer('light');
+	setUserTheme('light');
 });
 
 function removeSelectedParameter(selector) {
@@ -1239,7 +1253,7 @@ function setButtonState(id, active) {
 
 function setButtonStates() {
 	setButtonState("locationLayerButton", IS_TRACKING);
-	setButtonState("mapLayerButton", IS_DARK);
+	setButtonState("mapLayerButton", currentMapTheme === 'dark');
 	setButtonState("satelliteLayerButton", VISIBLE.has("satelliteLayer"));
 	setButtonState("radarLayerButton", VISIBLE.has("radarLayer"));
 	setButtonState("lightningLayerButton", VISIBLE.has("lightningLayer"));
@@ -1284,11 +1298,7 @@ document.getElementById('cursorDistanceTxt').addEventListener('mouseup', functio
 });
 
 document.getElementById('mapLayerButton').addEventListener('mouseup', function() {
-	if (IS_DARK) {
-		setMapLayer('light');
-	} else {
-		setMapLayer('dark');
-	}
+	setUserTheme(currentMapTheme === 'dark' ? 'light' : 'dark');
 });
 
 
@@ -1618,7 +1628,7 @@ const main = () => {
 	
 	timeline = new Timeline (13, document.getElementById("timeline"));
 
-	setMapLayer(IS_DARK ? 'dark' : 'light');
+	setMapLayer(getEffectiveTheme());
 
 	updateClock();
 
@@ -1676,11 +1686,9 @@ const main = () => {
 	});
 
 	window.matchMedia("(prefers-color-scheme: dark)").addEventListener('change', function(x) {
-		if (x.matches) {
-			setMapLayer('dark');
-		} else {
-			setMapLayer('light');
-		}
+		// Only follow OS changes while in auto mode (no explicit user choice)
+		if (IS_DARK !== null) return;
+		setMapLayer(x.matches ? 'dark' : 'light');
 	});
 
 
