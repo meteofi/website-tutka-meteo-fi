@@ -11,7 +11,7 @@ class Timeline {
     const fragment = new DocumentFragment();
     for (let i = 0; i < this.size; i++) {
       const div = document.createElement('div');
-      div.id = 'timeline-item-' + i;
+      div.id = `timeline-item-${i}`;
       div.classList.add('timeline-off');
       fragment.appendChild(div);
     }
@@ -24,7 +24,7 @@ class Timeline {
 
   update(position) {
     this.position = position;
-    this.parent.childNodes.forEach(function (elem) {
+    this.parent.childNodes.forEach((elem) => {
       if (parseInt(elem.id.split('-')[2], 10) <= position) {
         elem.classList.add('timeline-on');
         elem.classList.remove('timeline-off');
