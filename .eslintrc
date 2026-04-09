@@ -1,3 +1,26 @@
 {
-  "extends": "airbnb-base"
+  "extends": "airbnb-base",
+  "env": {
+    "browser": true,
+    "es2022": true
+  },
+  "globals": {
+    "umami": "readonly",
+    "BUILD_DATE": "readonly"
+  },
+  "rules": {
+    "func-names": "off",
+    "no-plusplus": "off",
+    "no-restricted-syntax": [
+      "error",
+      "LabeledStatement",
+      "WithStatement"
+    ],
+    "no-param-reassign": ["error", { "props": false }],
+    "no-nested-ternary": "off",
+    "no-use-before-define": ["error", { "functions": false, "classes": true, "variables": true }],
+    "no-underscore-dangle": "off",
+    "max-len": ["error", { "code": 140, "ignoreComments": true, "ignoreStrings": true, "ignoreTemplateLiterals": true, "ignoreUrls": true }],
+    "import/extensions": ["error", "ignorePackages", { "js": "never" }]
+  }
 }
