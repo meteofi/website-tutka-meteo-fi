@@ -36,4 +36,12 @@ export default class StickyImageWMS extends ImageWMS {
     const image = super.getImage(extent, resolution, pixelRatio, projection);
     if (image && image.getState() === ImageState.IDLE) image.load();
   }
+
+  // Drop the cached "last good" image. Call when the slot's semantic
+  // identity changes (product/style/URL switch, TIME reassignment) —
+  // otherwise the next pan would render the previous product's pixels
+  // under the stale-while-loading path.
+  invalidateSticky() {
+    this._sticky = null;
+  }
 }

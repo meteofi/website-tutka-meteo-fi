@@ -138,6 +138,9 @@ export default class FramePool {
         if (slot.time) merged.TIME = slot.time;
         slot.source.updateParams(merged);
       }
+      // Product/style/URL changed — any stale sticky is now for a
+      // different layer and would bleed through on the next pan/zoom.
+      slot.source.invalidateSticky();
     }
     this._triggerLoadAll();
   }
@@ -202,6 +205,10 @@ export default class FramePool {
         ...pickSyncParams(this.primary.getSource().getParams()),
         TIME: newTime,
       });
+      // Slot now represents a different TIME; the previous sticky is
+      // for the old TIME and would render the wrong frame until the
+      // new TIME's image lands.
+      slot.source.invalidateSticky();
       // Only trigger loads for slots we actually just reassigned, not
       // every slot — otherwise animation ticks during a drag would
       // fire requests for the current (mid-drag) extent.
