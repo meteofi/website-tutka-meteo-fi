@@ -98,12 +98,12 @@ export default class FramePool {
       map.addLayer(layer);
     }
 
-    map.on('moveend', () => this._triggerLoadAll());
+    map.on('moveend', () => this._prefetchAroundCurrent());
 
     // When the layer becomes visible after being hidden, catch up on
     // any view changes that happened while hidden.
     this.primary.on('change:visible', () => {
-      if (this.primary.getVisible()) this._triggerLoadAll();
+      if (this.primary.getVisible()) this._prefetchAroundCurrent();
     });
 
     this._primaryParamsSnap = this._snapPrimary();
@@ -159,7 +159,7 @@ export default class FramePool {
       // different layer and would bleed through on the next pan/zoom.
       slot.source.invalidateSticky();
     }
-    this._triggerLoadAll();
+    this._prefetchAroundCurrent();
   }
 
   _getViewContext() {
@@ -173,36 +173,33 @@ export default class FramePool {
     };
   }
 
-  // Slots ordered by fetch priority: current time first, then forward
-  // (future) frames, then backward (past) frames. Browsers cap HTTP/1.1
-  // concurrency at 6/host, so the firing order determines which frames
-  // end up in the first batch on the wire.
-  _slotsByPriority() {
-    if (!this.currentTime || !this.windowTimes) return this.slots.slice();
-    const curIdx = this.windowTimes.indexOf(this.currentTime);
-    if (curIdx < 0) return this.slots.slice();
-    const byTime = new Map();
-    for (const slot of this.slots) {
-      if (slot.time) byTime.set(slot.time, slot);
-    }
-    const ordered = [];
-    const add = (pos) => {
-      const t = this.windowTimes[pos];
-      const s = t ? byTime.get(t) : null;
-      if (s) ordered.push(s);
-    };
-    add(curIdx);
-    for (let i = curIdx + 1; i < this.size; i++) add(i);
-    for (let i = curIdx - 1; i >= 0; i--) add(i);
-    return ordered;
+  _slotAtIndex(idx) {
+    if (!this.windowTimes) return null;
+    const time = this.windowTimes[idx];
+    if (!time) return null;
+    return this.slots.find((s) => s.time === time) || null;
   }
 
-  _triggerLoadAll() {
+  // Prefetch only the frames the user is likely to look at next:
+  // current, current+1, current-1 (wrapped). As the animation advances
+  // past a frame, the new leading/trailing neighbor triggers on showTime.
+  // This keeps per-pan server load down (3 requests vs 13) and spreads
+  // the remaining prefetch across animation ticks.
+  _prefetchAroundCurrent() {
     if (!this.primary.getVisible()) return;
+    if (!this.currentTime || !this.windowTimes) return;
+    const curIdx = this.windowTimes.indexOf(this.currentTime);
+    if (curIdx < 0) return;
     const ctx = this._getViewContext();
     if (!ctx) return;
-    for (const slot of this._slotsByPriority()) {
-      if (slot.time) {
+    const indices = [
+      curIdx,
+      (curIdx + 1) % this.size,
+      (curIdx - 1 + this.size) % this.size,
+    ];
+    for (const idx of indices) {
+      const slot = this._slotAtIndex(idx);
+      if (slot && slot.time) {
         slot.source.triggerLoad(ctx.extent, ctx.resolution, 1, ctx.projection);
       }
     }
@@ -235,7 +232,6 @@ export default class FramePool {
     }
 
     const unassigned = times.filter((t) => !assigned.has(t));
-    const reassigned = new Set();
     for (let j = 0; j < needAssign.length; j++) {
       const slot = needAssign[j];
       const newTime = unassigned[j];
@@ -250,22 +246,10 @@ export default class FramePool {
       // for the old TIME and would render the wrong frame until the
       // new TIME's image lands.
       slot.source.invalidateSticky();
-      reassigned.add(slot);
     }
-
-    // Fire loads for reassigned slots in priority order (current-TIME
-    // first, then forward, then backward). Unchanged slots already have
-    // their image cached — no load needed — and triggering on them
-    // during an animation tick mid-drag would request the mid-drag
-    // extent.
-    const ctx = this._getViewContext();
-    if (ctx && reassigned.size > 0) {
-      for (const slot of this._slotsByPriority()) {
-        if (reassigned.has(slot)) {
-          slot.source.triggerLoad(ctx.extent, ctx.resolution, 1, ctx.projection);
-        }
-      }
-    }
+    // Prefetch is driven by showTime / moveend (current ± neighbors),
+    // not from setWindow. Reassigned slots outside the current ± 1
+    // window will load lazily when the cursor reaches them.
 
     // Resync load state per position. After a window slide the
     // positions in windowTimes shift, so per-slot notifications alone
@@ -290,6 +274,7 @@ export default class FramePool {
     if (this.primary.getSource() !== slot.source) {
       this.primary.setSource(slot.source);
     }
+    this._prefetchAroundCurrent();
     return true;
   }
 
