@@ -88,6 +88,11 @@ export default class FramePool {
           this.primary.changed();
         }
         this.map.render();
+        // Fan out: as the current ring of frames finishes loading,
+        // trigger the next ring outward. Throttles total wire traffic
+        // (never more than 2 new requests per ring) while eventually
+        // loading all 13 frames.
+        this._advanceFrontier();
       });
       source.on('imageloaderror', (event) => {
         if (event.image !== slot.source.image) return;
@@ -98,7 +103,30 @@ export default class FramePool {
       map.addLayer(layer);
     }
 
-    map.on('moveend', () => this._prefetchAroundCurrent());
+    map.on('moveend', () => {
+      // Probe each slot: if its cached image doesn't cover the new
+      // view, its `loaded` flag is stale. Reset so the timeline reflects
+      // which cells need to be re-fetched for the current view.
+      const ctx = this._getViewContext();
+      if (ctx) {
+        for (const slot of this.slots) {
+          if (!slot.time) {
+            continue; // eslint-disable-line no-continue
+          }
+          const fresh = slot.source.hasLoadedImageForView(
+            ctx.extent,
+            ctx.resolution,
+            1,
+            ctx.projection,
+          );
+          if (slot.loaded !== fresh) {
+            slot.loaded = fresh;
+            this._notifyLoadChange(slot);
+          }
+        }
+      }
+      this._prefetchAroundCurrent();
+    });
 
     // When the layer becomes visible after being hidden, catch up on
     // any view changes that happened while hidden.
@@ -180,11 +208,9 @@ export default class FramePool {
     return this.slots.find((s) => s.time === time) || null;
   }
 
-  // Prefetch only the frames the user is likely to look at next:
-  // current, current+1, current-1 (wrapped). As the animation advances
-  // past a frame, the new leading/trailing neighbor triggers on showTime.
-  // This keeps per-pan server load down (3 requests vs 13) and spreads
-  // the remaining prefetch across animation ticks.
+  // Prefetch the innermost ring around the cursor: current, current+1,
+  // current-1 (wrapped). Further rings are loaded via _advanceFrontier
+  // as this ring completes.
   _prefetchAroundCurrent() {
     if (!this.primary.getVisible()) return;
     if (!this.currentTime || !this.windowTimes) return;
@@ -201,6 +227,37 @@ export default class FramePool {
       const slot = this._slotAtIndex(idx);
       if (slot && slot.time) {
         slot.source.triggerLoad(ctx.extent, ctx.resolution, 1, ctx.projection);
+      }
+    }
+  }
+
+  // Find the closest ring to currentTime that has any unloaded slots
+  // and trigger them. Called from imageloadend so that each completion
+  // extends the loaded frontier one step at a time — the pool fans
+  // out from the cursor instead of firing everything at once.
+  _advanceFrontier() {
+    if (!this.primary.getVisible()) return;
+    if (!this.currentTime || !this.windowTimes) return;
+    const curIdx = this.windowTimes.indexOf(this.currentTime);
+    if (curIdx < 0) return;
+    const ctx = this._getViewContext();
+    if (!ctx) return;
+    const maxDist = Math.floor(this.size / 2);
+    for (let dist = 1; dist <= maxDist; dist++) {
+      const fwdIdx = (curIdx + dist) % this.size;
+      const bwdIdx = (curIdx - dist + this.size) % this.size;
+      const fwd = this._slotAtIndex(fwdIdx);
+      const bwd = this._slotAtIndex(bwdIdx);
+      const fwdLoaded = !fwd || fwd.loaded;
+      const bwdLoaded = !bwd || bwd.loaded;
+      if (!fwdLoaded || !bwdLoaded) {
+        if (!fwdLoaded && fwd.time) {
+          fwd.source.triggerLoad(ctx.extent, ctx.resolution, 1, ctx.projection);
+        }
+        if (!bwdLoaded && bwd.time && bwdIdx !== fwdIdx) {
+          bwd.source.triggerLoad(ctx.extent, ctx.resolution, 1, ctx.projection);
+        }
+        return;
       }
     }
   }

@@ -108,4 +108,14 @@ export default class StickyImageWMS extends ImageWMS {
       this._sticky = image;
     }
   }
+
+  // Does this source have a LOADED image covering the requested view?
+  // Used by the pool to decide whether a slot's `loaded` state is still
+  // valid after a view change. Side effect: creates a new IDLE wrapper
+  // on cache miss (that's OL's normal getImage behavior; fan-out will
+  // load it later).
+  hasLoadedImageForView(extent, resolution, pixelRatio, projection) {
+    const image = super.getImage(extent, resolution, pixelRatio, projection);
+    return !!(image && image.getState() === ImageState.LOADED);
+  }
 }
