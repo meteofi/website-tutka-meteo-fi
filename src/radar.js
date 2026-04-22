@@ -29,6 +29,7 @@ import durationPlugin from 'dayjs/plugin/duration';
 import Timeline from './timeline';
 import wmsServerConfiguration from './config';
 import createLongPressHandler from './longpress';
+import FramePool from './animation/framePool';
 
 dayjs.locale('fi');
 dayjs.extend(utcPlugin);
@@ -63,9 +64,37 @@ let animationId = null;
 const layerInfo = {};
 let timeline;
 let mapTime = '';
+const framePools = {
+  satelliteLayer: null,
+  radarLayer: null,
+  lightningLayer: null,
+  observationLayer: null,
+};
+const poolLoadStates = {
+  satelliteLayer: new Array(13).fill(false),
+  radarLayer: new Array(13).fill(false),
+  lightningLayer: new Array(13).fill(false),
+  observationLayer: new Array(13).fill(false),
+};
 
 const VISIBLE = new Set(safeParseJSON('VISIBLE', ['radarLayer']));
 const ACTIVE = new Set(safeParseJSON('ACTIVE', [options.defaultRadarLayer]));
+
+function updateTimelineCell(i) {
+  if (!timeline) return;
+  let allLoaded = true;
+  for (const name of Object.keys(framePools)) {
+    if (VISIBLE.has(name) && framePools[name] && !poolLoadStates[name][i]) {
+      allLoaded = false;
+      break;
+    }
+  }
+  timeline.setLoadState(i, allLoaded);
+}
+
+function recomputeAllTimelineCells() {
+  for (let i = 0; i < 13; i++) updateTimelineCell(i);
+}
 
 // Migrate deprecated FMI openwms layer to meteocore equivalent
 if (ACTIVE.has('suomi_dbz_eureffin')) {
@@ -102,19 +131,6 @@ ImageLayer.prototype.setLayerStyle = function (style) {
   debug(`Set layer style: ${style}`);
   this.getSource().updateParams({ STYLES: style });
   track('layer-style', { style, category: this.get('name') });
-};
-
-ImageLayer.prototype.setLayerTime = function (time) {
-  const timemoment = dayjs(time);
-  debug(`Set layer time dimension: ${timemoment.format()}`);
-  if (timemoment.isValid()) {
-    this.getSource().updateParams({ TIME: timemoment.format() });
-  }
-};
-
-ImageLayer.prototype.setLayerElevation = function (elevation) {
-  debug(`Set layer elevation dimension: ${elevation}`);
-  this.getSource().updateParams({ ELEVATION: elevation });
 };
 
 // STYLES
@@ -488,14 +504,11 @@ function onChangePosition(event) {
 // WMS
 const currentMapTimeDiv = document.getElementById('currentMapTime');
 const currentMapDateDiv = document.getElementById('currentMapDate');
-function setLayerTime(layer, time) {
+function updateMapTimeDisplay(time) {
   const t = dayjs(time);
-  layer.getSource().updateParams({ TIME: time });
   if (t.isValid() && mapTime !== time) {
-    const datestr = t.format('l');
-    const timestr = t.format('LT');
-    currentMapDateDiv.textContent = datestr;
-    currentMapTimeDiv.textContent = timestr;
+    currentMapDateDiv.textContent = t.format('l');
+    currentMapTimeDiv.textContent = t.format('LT');
     mapTime = time;
   }
 }
@@ -599,10 +612,26 @@ function setTime(action = 'next') {
   // debug("---");
   // debug(startDateFormat);
   // debug(startDate.toISOString());
-  if (VISIBLE.has('satelliteLayer')) setLayerTime(satelliteLayer, startDate.toISOString());
-  if (VISIBLE.has('radarLayer')) setLayerTime(radarLayer, startDate.toISOString());
-  if (VISIBLE.has('lightningLayer')) setLayerTime(lightningLayer, `PT${resolution / 60000}M/${startDate.toISOString()}`);
-  if (VISIBLE.has('observationLayer')) setLayerTime(observationLayer, `PT${resolution / 60000}M/${startDate.toISOString()}`);
+  const timeISO = startDate.toISOString();
+  const timeInterval = `PT${resolution / 60000}M/${timeISO}`;
+  const windowInstant = [];
+  const windowInterval = [];
+  for (let i = 0; i <= 12; i++) {
+    const t = new Date(start + i * resolution).toISOString();
+    windowInstant.push(t);
+    windowInterval.push(`PT${resolution / 60000}M/${t}`);
+  }
+  const routeLayer = (name, window, currentTime) => {
+    if (!VISIBLE.has(name)) return;
+    const pool = framePools[name];
+    pool.setWindow(window);
+    pool.showTime(currentTime);
+  };
+  routeLayer('satelliteLayer', windowInstant, timeISO);
+  routeLayer('radarLayer', windowInstant, timeISO);
+  routeLayer('lightningLayer', windowInterval, timeInterval);
+  routeLayer('observationLayer', windowInterval, timeInterval);
+  updateMapTimeDisplay(timeISO);
 }
 
 const currentDateValueDiv = document.getElementById('currentDateValue');
@@ -636,11 +665,19 @@ function updateClock() {
 // TIME CONTROLS
 //
 
+let isInteracting = false;
+
 const play = function () {
   if (animationId === null) {
     debug('PLAY');
     IS_FOLLOWING = false;
-    animationId = window.setInterval(setTime, 1000 / options.frameRate);
+    // Skip auto-advance ticks while the user is dragging/zooming —
+    // OL refuses to redraw during interaction (INTERACTING hint), so
+    // letting the clock and timeline advance while the image is frozen
+    // would desync them.
+    animationId = window.setInterval(() => {
+      if (!isInteracting) setTime();
+    }, 1000 / options.frameRate);
     document.getElementById('playstopButton').innerHTML = 'pause';
   }
 };
@@ -1025,6 +1062,7 @@ function onChangeVisible(event) {
   }
   updateCanonicalPage();
   updateLayerSelectionSelected();
+  recomputeAllTimelineCells();
 }
 
 /**
@@ -1531,6 +1569,23 @@ const main = () => {
 
   setButtonStates();
 
+  const pairs = [
+    ['satelliteLayer', satelliteLayer],
+    ['radarLayer', radarLayer],
+    ['lightningLayer', lightningLayer],
+    ['observationLayer', observationLayer],
+  ];
+  for (const [name, layer] of pairs) {
+    const pool = new FramePool({ primaryLayer: layer, map });
+    pool.onLoadStateChange = (idx, loaded) => {
+      poolLoadStates[name][idx] = loaded;
+      updateTimelineCell(idx);
+    };
+    framePools[name] = pool;
+  }
+  recomputeAllTimelineCells();
+  window.__tutka = { map, framePools };
+
   // GEOLOCATION
   geolocation = new Geolocation({
     trackingOptions: {
@@ -1563,7 +1618,9 @@ const main = () => {
     displayFeatureInfo(evt.pixel);
   });
 
+  map.on('pointerdrag', () => { isInteracting = true; });
   map.on('moveend', () => {
+    isInteracting = false;
     const zoom = Math.min(map.getView().getZoom(), 16);
     localStorage.setItem('metZoom', zoom);
   });

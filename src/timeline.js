@@ -12,7 +12,6 @@ class Timeline {
     for (let i = 0; i < this.size; i++) {
       const div = document.createElement('div');
       div.id = `timeline-item-${i}`;
-      div.classList.add('timeline-off');
       fragment.appendChild(div);
     }
     this.parent.appendChild(fragment);
@@ -24,15 +23,17 @@ class Timeline {
 
   update(position) {
     this.position = position;
-    this.parent.childNodes.forEach((elem) => {
-      if (parseInt(elem.id.split('-')[2], 10) <= position) {
-        elem.classList.add('timeline-on');
-        elem.classList.remove('timeline-off');
-      } else {
-        elem.classList.add('timeline-off');
-        elem.classList.remove('timeline-on');
-      }
-    });
+    const target = Math.round(position);
+    const n = this.parent.children.length;
+    for (let i = 0; i < n; i++) {
+      this.parent.children[i].classList.toggle('timeline-current', i === target);
+    }
+  }
+
+  setLoadState(index, loaded) {
+    const elem = this.parent.children[index];
+    if (!elem) return;
+    elem.classList.toggle('timeline-loading', !loaded);
   }
 }
 
