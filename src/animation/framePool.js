@@ -79,8 +79,14 @@ export default class FramePool {
         // sticky when their current image finishes loading.
         slot.source.setSticky(event.image);
         this._notifyLoadChange(slot);
-        // Sticky override masks OL's IDLE tracking so the renderer
-        // never learns the new image landed — schedule a render pass.
+        // Sticky override masks OL's IDLE tracking — the renderer
+        // never attached a CHANGE listener to the new image, so it
+        // doesn't know the new image landed. If this slot is the one
+        // primary is currently using, force the layer to re-render by
+        // marking it changed; otherwise a plain map.render() suffices.
+        if (this.primary.getSource() === slot.source) {
+          this.primary.changed();
+        }
         this.map.render();
       });
       source.on('imageloaderror', (event) => {
