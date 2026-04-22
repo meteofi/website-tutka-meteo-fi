@@ -208,9 +208,10 @@ export default class FramePool {
     return this.slots.find((s) => s.time === time) || null;
   }
 
-  // Prefetch the innermost ring around the cursor: current, current+1,
-  // current-1 (wrapped). Further rings are loaded via _advanceFrontier
-  // as this ring completes.
+  // Prefetch the initial ring: current, +1, +2 (wrapping). Animation
+  // plays forward the vast majority of the time, so we bias the
+  // initial fetch toward upcoming frames instead of the symmetric
+  // previous+next ring.
   _prefetchAroundCurrent() {
     if (!this.primary.getVisible()) return;
     if (!this.currentTime || !this.windowTimes) return;
@@ -218,12 +219,8 @@ export default class FramePool {
     if (curIdx < 0) return;
     const ctx = this._getViewContext();
     if (!ctx) return;
-    const indices = [
-      curIdx,
-      (curIdx + 1) % this.size,
-      (curIdx - 1 + this.size) % this.size,
-    ];
-    for (const idx of indices) {
+    for (let offset = 0; offset < 3; offset++) {
+      const idx = (curIdx + offset) % this.size;
       const slot = this._slotAtIndex(idx);
       if (slot && slot.time) {
         slot.source.triggerLoad(ctx.extent, ctx.resolution, 1, ctx.projection);
@@ -231,10 +228,11 @@ export default class FramePool {
     }
   }
 
-  // Find the closest ring to currentTime that has any unloaded slots
-  // and trigger them. Called from imageloadend so that each completion
-  // extends the loaded frontier one step at a time — the pool fans
-  // out from the cursor instead of firing everything at once.
+  // Extend the prefetch frontier forward. Called from imageloadend so
+  // that each completion pulls in the next couple of upcoming frames —
+  // scanning forward from current, wrapping at the end of the window.
+  // Backward frames are only re-fetched once the forward sweep wraps
+  // around, which matches typical playback behavior (rarely reverse).
   _advanceFrontier() {
     if (!this.primary.getVisible()) return;
     if (!this.currentTime || !this.windowTimes) return;
@@ -242,22 +240,13 @@ export default class FramePool {
     if (curIdx < 0) return;
     const ctx = this._getViewContext();
     if (!ctx) return;
-    const maxDist = Math.floor(this.size / 2);
-    for (let dist = 1; dist <= maxDist; dist++) {
-      const fwdIdx = (curIdx + dist) % this.size;
-      const bwdIdx = (curIdx - dist + this.size) % this.size;
-      const fwd = this._slotAtIndex(fwdIdx);
-      const bwd = this._slotAtIndex(bwdIdx);
-      const fwdLoaded = !fwd || fwd.loaded;
-      const bwdLoaded = !bwd || bwd.loaded;
-      if (!fwdLoaded || !bwdLoaded) {
-        if (!fwdLoaded && fwd.time) {
-          fwd.source.triggerLoad(ctx.extent, ctx.resolution, 1, ctx.projection);
-        }
-        if (!bwdLoaded && bwd.time && bwdIdx !== fwdIdx) {
-          bwd.source.triggerLoad(ctx.extent, ctx.resolution, 1, ctx.projection);
-        }
-        return;
+    let triggered = 0;
+    for (let offset = 0; offset < this.size && triggered < 2; offset++) {
+      const idx = (curIdx + offset) % this.size;
+      const slot = this._slotAtIndex(idx);
+      if (slot && slot.time && !slot.loaded) {
+        slot.source.triggerLoad(ctx.extent, ctx.resolution, 1, ctx.projection);
+        triggered++;
       }
     }
   }
