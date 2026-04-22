@@ -193,13 +193,18 @@ html, body {
     
   }
 
-  .timeline-on {
-    /* background-color:  #7B7C7D; */
+  /* Default: frame loaded for the current view — neutral dark gray. */
+  #timeline > div {
+    background-color: #3C3D3E;
+  }
+  /* Loading for the current view — warm amber, clearly contrasting. */
+  #timeline > div.timeline-loading {
+    background-color: #e0922f;
+  }
+  /* Current cursor — bright primary, wins over everything. */
+  #timeline > div.timeline-current {
     background-color: var(--dark-primary-color);
     border-left: 1px solid rgb(0, 84, 99);
-  }
-  .timeline-off {
-    background-color: #3C3D3E;
   }
 
 @supports (padding: max(0px)) {

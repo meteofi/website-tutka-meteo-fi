@@ -1,0 +1,249 @@
+import ImageLayer from 'ol/layer/Image';
+import StickyImageWMS from './stickyImageWMS';
+
+const SYNC_PARAM_KEYS = ['LAYERS', 'STYLES', 'FORMAT', 'ELEVATION'];
+
+function pickSyncParams(params) {
+  const out = {};
+  for (const k of SYNC_PARAM_KEYS) {
+    if (k in params) out[k] = params[k];
+  }
+  return out;
+}
+
+// Pool of N invisible ImageLayers, each with its own ImageWMS source
+// pinned to a specific TIME. All 13 sources preload in parallel (the
+// layers are hidden, so we drive loads manually via source.getImage +
+// image.load() on window change and moveend).
+//
+// On each animation tick, tryShowTime(t) finds the slot whose source has
+// a LOADED image covering the current view; if found, the primary layer's
+// source is re-pointed at that slot's source and the primary instantly
+// displays the preloaded frame with no refetch. If no slot is ready, the
+// primary stays on whichever slot it last displayed — the tick produces
+// no visible change rather than a blank.
+//
+// Window slides (IS_FOLLOWING pulling in new data) preserve 12 of 13
+// slots: we match existing slot.time values to the new window and only
+// refetch the one slot whose TIME left the window.
+export default class FramePool {
+  constructor({
+    primaryLayer, map, size = 13, ratio = 1.5,
+  }) {
+    this.primary = primaryLayer;
+    this.map = map;
+    this.size = size;
+    this.slots = [];
+    this.ratio = ratio;
+
+    this.onLoadStateChange = null;
+    this.windowTimes = null;
+
+    const baseSource = primaryLayer.getSource();
+    for (let i = 0; i < size; i++) {
+      const source = new StickyImageWMS({
+        url: baseSource.getUrl(),
+        params: { ...baseSource.getParams() },
+        attributions: baseSource.getAttributions(),
+        ratio,
+        hidpi: false,
+        serverType: 'geoserver',
+      });
+      const slot = {
+        layer: null, source, time: null, loaded: false,
+      };
+      const layer = new ImageLayer({
+        name: `${primaryLayer.get('name')}__slot${i}`,
+        visible: false,
+        opacity: 0,
+        source,
+      });
+      slot.layer = layer;
+      source.on('imageloadstart', () => {
+        slot.loaded = false;
+        this._notifyLoadChange(slot);
+      });
+      source.on('imageloadend', () => {
+        slot.loaded = true;
+        this._notifyLoadChange(slot);
+        // Our sticky getImage override returns the old LOADED image while
+        // the new one is loading. That masks the IDLE state from OL's
+        // renderer, which means it never attaches a CHANGE listener to
+        // the new image, so the map isn't told to re-render when the new
+        // image lands. Schedule a render pass ourselves.
+        this.map.render();
+      });
+      source.on('imageloaderror', () => {
+        slot.loaded = false;
+        this._notifyLoadChange(slot);
+      });
+      this.slots.push(slot);
+      map.addLayer(layer);
+    }
+
+    map.on('moveend', () => this._triggerLoadAll());
+
+    // When the layer becomes visible after being hidden, catch up on
+    // any view changes that happened while hidden.
+    this.primary.on('change:visible', () => {
+      if (this.primary.getVisible()) this._triggerLoadAll();
+    });
+
+    this._primaryParamsSnap = this._snapPrimary();
+    this._watchPrimarySource();
+    this.primary.on('change:source', () => this._watchPrimarySource());
+  }
+
+  _snapPrimary() {
+    const p = this.primary.getSource();
+    const pp = p.getParams();
+    return {
+      url: p.getUrl(),
+      layers: pp.LAYERS,
+      styles: pp.STYLES,
+      format: pp.FORMAT,
+      elevation: pp.ELEVATION,
+    };
+  }
+
+  _watchPrimarySource() {
+    const p = this.primary.getSource();
+    if (this._psListener) this._psListener.target.un('change', this._psListener.fn);
+    const fn = () => {
+      const snap = this._snapPrimary();
+      const prev = this._primaryParamsSnap;
+      if (
+        snap.url !== prev.url
+        || snap.layers !== prev.layers
+        || snap.styles !== prev.styles
+        || snap.format !== prev.format
+        || snap.elevation !== prev.elevation
+      ) {
+        this._primaryParamsSnap = snap;
+        this._resyncAllParams();
+      }
+    };
+    p.on('change', fn);
+    this._psListener = { target: p, fn };
+  }
+
+  _resyncAllParams() {
+    const p = this.primary.getSource();
+    const pParams = pickSyncParams(p.getParams());
+    for (const slot of this.slots) {
+      // primary's current source is already up-to-date; skip
+      if (slot.source !== p) {
+        if (slot.source.getUrl() !== p.getUrl()) slot.source.setUrl(p.getUrl());
+        const merged = { ...pParams };
+        if (slot.time) merged.TIME = slot.time;
+        slot.source.updateParams(merged);
+      }
+    }
+    this._triggerLoadAll();
+  }
+
+  _getViewContext() {
+    const view = this.map.getView();
+    const size = this.map.getSize();
+    if (!size) return null;
+    return {
+      extent: view.calculateExtent(size),
+      resolution: view.getResolution(),
+      projection: view.getProjection(),
+    };
+  }
+
+  _triggerLoadAll() {
+    if (!this.primary.getVisible()) return;
+    const ctx = this._getViewContext();
+    if (!ctx) return;
+    for (const slot of this.slots) {
+      if (slot.time) {
+        slot.source.triggerLoad(ctx.extent, ctx.resolution, 1, ctx.projection);
+      }
+    }
+  }
+
+  _notifyLoadChange(slot) {
+    if (!this.onLoadStateChange || !this.windowTimes) return;
+    const idx = this.windowTimes.indexOf(slot.time);
+    if (idx >= 0) this.onLoadStateChange(idx, slot.loaded);
+  }
+
+  // Accept a list of `size` ISO timestamps. Preserve slots whose TIME is
+  // still in the new window; reassign slots whose TIME dropped out to
+  // the new TIMEs that aren't already covered. Only changed slots refetch.
+  setWindow(times) {
+    if (times.length !== this.size) {
+      throw new Error(`FramePool.setWindow: expected ${this.size} times, got ${times.length}`);
+    }
+    this.windowTimes = times.slice();
+    const desired = new Set(times);
+    const assigned = new Set();
+    const needAssign = [];
+
+    for (const slot of this.slots) {
+      if (slot.time && desired.has(slot.time) && !assigned.has(slot.time)) {
+        assigned.add(slot.time);
+      } else {
+        needAssign.push(slot);
+      }
+    }
+
+    const unassigned = times.filter((t) => !assigned.has(t));
+    const ctx = this._getViewContext();
+    for (let j = 0; j < needAssign.length; j++) {
+      const slot = needAssign[j];
+      const newTime = unassigned[j];
+      if (!newTime) break;
+      slot.time = newTime;
+      slot.loaded = false;
+      slot.source.updateParams({
+        ...pickSyncParams(this.primary.getSource().getParams()),
+        TIME: newTime,
+      });
+      // Only trigger loads for slots we actually just reassigned, not
+      // every slot — otherwise animation ticks during a drag would
+      // fire requests for the current (mid-drag) extent.
+      if (ctx) {
+        slot.source.triggerLoad(ctx.extent, ctx.resolution, 1, ctx.projection);
+      }
+    }
+
+    // Resync load state per position. After a window slide the
+    // positions in windowTimes shift, so per-slot notifications alone
+    // can leave poolLoadStates positions carrying stale values from
+    // the previous window.
+    if (this.onLoadStateChange) {
+      for (let i = 0; i < this.size; i++) {
+        this.onLoadStateChange(i, this.isPositionLoaded(i));
+      }
+    }
+  }
+
+  // Point the primary at the slot matching `time`. The swap is
+  // unconditional — StickyImageWMS renders the slot's previous LOADED
+  // image while a new one is in flight, so the animation keeps ticking
+  // through frames during pan/zoom instead of stalling on whichever
+  // slot last finished.
+  showTime(time) {
+    const slot = this.slots.find((s) => s.time === time);
+    if (!slot) return false;
+    if (this.primary.getSource() !== slot.source) {
+      this.primary.setSource(slot.source);
+    }
+    return true;
+  }
+
+  // Is this time's slot's current-view image loaded?
+  isTimeLoaded(time) {
+    const slot = this.slots.find((s) => s.time === time);
+    return !!(slot && slot.loaded);
+  }
+
+  // Load state at timeline position (0..size-1).
+  isPositionLoaded(index) {
+    if (!this.windowTimes) return false;
+    return this.isTimeLoaded(this.windowTimes[index]);
+  }
+}
