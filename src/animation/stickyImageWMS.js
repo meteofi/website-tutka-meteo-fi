@@ -1,6 +1,59 @@
 import ImageWMS from 'ol/source/ImageWMS';
 import ImageState from 'ol/ImageState';
 
+// fetch() + AbortController based image loader. Each source tracks the
+// in-flight request; a new call aborts the previous one. This prevents
+// superseded requests (after rapid pan/zoom) from wasting server cycles
+// and bandwidth after the user has moved on.
+//
+// OL's default loader sets `img.src = url`, which the browser can't
+// reliably cancel. fetch() supports AbortSignal and has consistent
+// cancellation behavior.
+//
+// Flow: fetch response → Blob → object URL → img.src. The image element
+// fires 'load' which resolves OL's internal decode()/load() path the
+// same as a direct src assignment.
+function createAbortableImageLoader(source) {
+  return (imageWrapper, src) => {
+    if (source._currentAbortController) {
+      source._currentAbortController.abort();
+    }
+    const controller = new AbortController();
+    source._currentAbortController = controller;
+
+    const htmlImage = imageWrapper.getImage();
+
+    fetch(src, { signal: controller.signal })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.blob();
+      })
+      .then((blob) => {
+        if (controller.signal.aborted) return;
+        if (source._currentAbortController === controller) {
+          source._currentAbortController = null;
+        }
+        const blobUrl = URL.createObjectURL(blob);
+        const revoke = () => URL.revokeObjectURL(blobUrl);
+        htmlImage.addEventListener('load', revoke, { once: true });
+        htmlImage.addEventListener('error', revoke, { once: true });
+        htmlImage.src = blobUrl;
+      })
+      .catch(() => {
+        // On abort or network error, dispatch an error event on the
+        // image so OL's internal load promise rejects and the wrapper
+        // transitions to ERROR state. Superseded request events are
+        // filtered by event.image !== source.image in FramePool.
+        //
+        // Note: OL's ImageWrapper logs an `Image load error` to the
+        // console for every rejected load, including aborts. That's
+        // accepted noise; the alternative (leaving the wrapper in
+        // LOADING state forever) leaks state and is worse.
+        htmlImage.dispatchEvent(new Event('error'));
+      });
+  };
+}
+
 // ImageWMS that returns the last successfully-loaded image while a new
 // request is loading. The renderer keeps drawing old pixels at their
 // original world coordinates — OL's compositor translates/scales them
@@ -13,6 +66,8 @@ export default class StickyImageWMS extends ImageWMS {
   constructor(options) {
     super(options);
     this._sticky = null;
+    this._currentAbortController = null;
+    this.setImageLoadFunction(createAbortableImageLoader(this));
   }
 
   getImage(extent, resolution, pixelRatio, projection) {
