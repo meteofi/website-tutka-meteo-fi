@@ -38,6 +38,7 @@ export default class FramePool {
 
     this.onLoadStateChange = null;
     this.windowTimes = null;
+    this.currentTime = null;
 
     const baseSource = primaryLayer.getSource();
     for (let i = 0; i < size; i++) {
@@ -166,11 +167,35 @@ export default class FramePool {
     };
   }
 
+  // Slots ordered by fetch priority: current time first, then forward
+  // (future) frames, then backward (past) frames. Browsers cap HTTP/1.1
+  // concurrency at 6/host, so the firing order determines which frames
+  // end up in the first batch on the wire.
+  _slotsByPriority() {
+    if (!this.currentTime || !this.windowTimes) return this.slots.slice();
+    const curIdx = this.windowTimes.indexOf(this.currentTime);
+    if (curIdx < 0) return this.slots.slice();
+    const byTime = new Map();
+    for (const slot of this.slots) {
+      if (slot.time) byTime.set(slot.time, slot);
+    }
+    const ordered = [];
+    const add = (pos) => {
+      const t = this.windowTimes[pos];
+      const s = t ? byTime.get(t) : null;
+      if (s) ordered.push(s);
+    };
+    add(curIdx);
+    for (let i = curIdx + 1; i < this.size; i++) add(i);
+    for (let i = curIdx - 1; i >= 0; i--) add(i);
+    return ordered;
+  }
+
   _triggerLoadAll() {
     if (!this.primary.getVisible()) return;
     const ctx = this._getViewContext();
     if (!ctx) return;
-    for (const slot of this.slots) {
+    for (const slot of this._slotsByPriority()) {
       if (slot.time) {
         slot.source.triggerLoad(ctx.extent, ctx.resolution, 1, ctx.projection);
       }
@@ -204,7 +229,7 @@ export default class FramePool {
     }
 
     const unassigned = times.filter((t) => !assigned.has(t));
-    const ctx = this._getViewContext();
+    const reassigned = new Set();
     for (let j = 0; j < needAssign.length; j++) {
       const slot = needAssign[j];
       const newTime = unassigned[j];
@@ -219,11 +244,20 @@ export default class FramePool {
       // for the old TIME and would render the wrong frame until the
       // new TIME's image lands.
       slot.source.invalidateSticky();
-      // Only trigger loads for slots we actually just reassigned, not
-      // every slot — otherwise animation ticks during a drag would
-      // fire requests for the current (mid-drag) extent.
-      if (ctx) {
-        slot.source.triggerLoad(ctx.extent, ctx.resolution, 1, ctx.projection);
+      reassigned.add(slot);
+    }
+
+    // Fire loads for reassigned slots in priority order (current-TIME
+    // first, then forward, then backward). Unchanged slots already have
+    // their image cached — no load needed — and triggering on them
+    // during an animation tick mid-drag would request the mid-drag
+    // extent.
+    const ctx = this._getViewContext();
+    if (ctx && reassigned.size > 0) {
+      for (const slot of this._slotsByPriority()) {
+        if (reassigned.has(slot)) {
+          slot.source.triggerLoad(ctx.extent, ctx.resolution, 1, ctx.projection);
+        }
       }
     }
 
@@ -246,6 +280,7 @@ export default class FramePool {
   showTime(time) {
     const slot = this.slots.find((s) => s.time === time);
     if (!slot) return false;
+    this.currentTime = time;
     if (this.primary.getSource() !== slot.source) {
       this.primary.setSource(slot.source);
     }
