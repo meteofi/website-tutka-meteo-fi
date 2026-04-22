@@ -44,4 +44,13 @@ export default class StickyImageWMS extends ImageWMS {
   invalidateSticky() {
     this._sticky = null;
   }
+
+  // Promote an image to sticky. Used from imageloadend when the slot
+  // is not currently primary (so OL never calls getImage through the
+  // sticky override, which is the other place sticky gets updated).
+  setSticky(image) {
+    if (image && image.getState() === ImageState.LOADED) {
+      this._sticky = image;
+    }
+  }
 }

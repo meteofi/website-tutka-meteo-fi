@@ -59,21 +59,31 @@ export default class FramePool {
         source,
       });
       slot.layer = layer;
-      source.on('imageloadstart', () => {
+      // Only act on events for the source's CURRENT image. When the
+      // user pans/zooms rapidly, old requests get superseded by newer
+      // ones (source.image points at the newer one); the old requests
+      // keep loading in the background and eventually fire completion
+      // events for the OLD extent. Acting on those would mark the slot
+      // "loaded" and promote a stale image to sticky prematurely.
+      source.on('imageloadstart', (event) => {
+        if (event.image !== slot.source.image) return;
         slot.loaded = false;
         this._notifyLoadChange(slot);
       });
-      source.on('imageloadend', () => {
+      source.on('imageloadend', (event) => {
+        if (event.image !== slot.source.image) return;
         slot.loaded = true;
+        // Update sticky here so slots that are never primary (OL never
+        // calls getImage on invisible layers) still advance their
+        // sticky when their current image finishes loading.
+        slot.source.setSticky(event.image);
         this._notifyLoadChange(slot);
-        // Our sticky getImage override returns the old LOADED image while
-        // the new one is loading. That masks the IDLE state from OL's
-        // renderer, which means it never attaches a CHANGE listener to
-        // the new image, so the map isn't told to re-render when the new
-        // image lands. Schedule a render pass ourselves.
+        // Sticky override masks OL's IDLE tracking so the renderer
+        // never learns the new image landed — schedule a render pass.
         this.map.render();
       });
-      source.on('imageloaderror', () => {
+      source.on('imageloaderror', (event) => {
+        if (event.image !== slot.source.image) return;
         slot.loaded = false;
         this._notifyLoadChange(slot);
       });
