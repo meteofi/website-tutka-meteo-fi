@@ -1847,6 +1847,14 @@ const main = () => {
   map.on('pointerdrag', () => { isInteracting = true; });
   map.on('moveend', () => {
     isInteracting = false;
+    // Defer the next playback advance by a full stepDuration after any
+    // view change. Without this, the advance cadence fires on the very
+    // next RAF tick after a pan (since lastAdvance accumulated while
+    // isInteracting was true), which races with the moveend-triggered
+    // prefetch in FramePool — second prefetch aborts the first, noisy
+    // "Image load error" shows up in the console for every aborted
+    // request.
+    lastAdvance = window.performance.now();
     const zoom = Math.min(map.getView().getZoom(), 16);
     localStorage.setItem('metZoom', zoom);
   });
