@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Säätutka — toolbar redesign mockup</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Material+Icons&display=swap">
+
+  <style>
+    :root {
+      /* Design tokens from the designer spec */
+      --glass-bg: rgba(22, 22, 24, 0.62);
+      --glass-bg-floor: rgba(0, 0, 0, 0.60);
+      --glass-border: rgba(255, 255, 255, 0.08);
+      --glass-border-strong: rgba(255, 255, 255, 0.14);
+      --glass-blur: blur(24px) saturate(140%);
+      --glass-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+      --elev-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+
+      --accent: #12BCFA;
+      --accent-fill: rgba(18, 188, 250, 0.22);
+      --accent-ring: rgba(18, 188, 250, 0.55);
+      --accent-soft: rgba(18, 188, 250, 0.14);
+
+      --icon-idle: rgba(255, 255, 255, 0.82);
+      --icon-dim: rgba(255, 255, 255, 0.60);
+      --text-hi: rgba(255, 255, 255, 0.92);
+      --text-md: rgba(255, 255, 255, 0.72);
+      --text-lo: rgba(255, 255, 255, 0.52);
+      --divider: rgba(255, 255, 255, 0.08);
+
+      --timecontrol-height: 84px;
+
+      /* Safe-area fallbacks for viewing on desktop */
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-left: env(safe-area-inset-left, 0px);
+      --safe-right: env(safe-area-inset-right, 0px);
+    }
+
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #0a0a0d;
+      color: var(--text-hi);
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    i.material-icons { font-feature-settings: 'liga'; }
+    i.material-icons:before { display: none; } /* prevent flash */
+
+    button {
+      font-family: inherit;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* ==================================================================
+       Backdrop scenes — simulate real map content for contrast testing
+       ================================================================== */
+    .backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      background-color: #0a0a0d;
+      transition: background 600ms ease, opacity 600ms ease;
+    }
+
+    /* Dark map tiles (default-like base layer) */
+    body[data-backdrop="map-dark"] .backdrop {
+      background:
+        radial-gradient(ellipse 900px 600px at 30% 40%, rgba(40, 60, 80, 0.35), transparent 60%),
+        radial-gradient(ellipse 700px 900px at 70% 80%, rgba(20, 40, 60, 0.3), transparent 60%),
+        linear-gradient(180deg, #0d1218 0%, #0a0e12 100%);
+    }
+    body[data-backdrop="map-dark"] .backdrop::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image:
+        repeating-linear-gradient(45deg, rgba(255,255,255,0.015) 0 2px, transparent 2px 120px),
+        repeating-linear-gradient(-30deg, rgba(255,255,255,0.02) 0 1px, transparent 1px 80px);
+      opacity: 0.9;
+    }
+
+    /* Night sky — pitch black */
+    body[data-backdrop="sky-dark"] .backdrop {
+      background:
+        radial-gradient(ellipse 400px 260px at 82% 18%, rgba(180, 200, 220, 0.12), transparent 70%),
+        linear-gradient(160deg, #04060a 0%, #000000 100%);
+    }
+
+    /* Bright radar precipitation — simulates active storm */
+    body[data-backdrop="radar-precip"] .backdrop {
+      background:
+        radial-gradient(circle 180px at 22% 38%, rgba(255, 30, 30, 0.72), rgba(255, 120, 40, 0.55) 45%, rgba(240, 200, 40, 0.4) 70%, transparent 100%),
+        radial-gradient(circle 240px at 30% 44%, rgba(140, 230, 80, 0.55), rgba(60, 180, 60, 0.35) 60%, transparent 100%),
+        radial-gradient(circle 220px at 68% 60%, rgba(255, 200, 40, 0.55), rgba(120, 200, 60, 0.35) 60%, transparent 100%),
+        radial-gradient(circle 300px at 75% 28%, rgba(60, 170, 60, 0.32), transparent 70%),
+        radial-gradient(ellipse 1200px 700px at 50% 50%, #10171f 0%, #06090d 100%);
+    }
+
+    /* Bright white snow satellite (HRV cloud-tops) */
+    body[data-backdrop="sat-snow"] .backdrop {
+      background:
+        radial-gradient(ellipse 500px 380px at 28% 32%, rgba(255,255,255,0.95), rgba(230,240,250,0.7) 50%, transparent 85%),
+        radial-gradient(ellipse 420px 300px at 72% 66%, rgba(250,252,255,0.92), rgba(210,225,240,0.65) 55%, transparent 90%),
+        radial-gradient(ellipse 300px 260px at 55% 22%, rgba(255,255,255,0.88), transparent 80%),
+        linear-gradient(180deg, #b6c7d6 0%, #8ba0b4 100%);
+    }
+
+    /* Natural RGB — greens and browns */
+    body[data-backdrop="sat-natural"] .backdrop {
+      background:
+        radial-gradient(ellipse 400px 320px at 30% 58%, rgba(80, 120, 70, 0.65), transparent 75%),
+        radial-gradient(ellipse 320px 260px at 65% 35%, rgba(170, 170, 160, 0.5), transparent 80%),
+        radial-gradient(ellipse 500px 300px at 70% 72%, rgba(120, 140, 100, 0.55), transparent 80%),
+        linear-gradient(170deg, #2f3a2a 0%, #1d2418 100%);
+    }
+
+    /* Faint "landmass" overlay for all but sky-dark for realism */
+    .landmass {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+      pointer-events: none;
+      opacity: 0.35;
+      transition: opacity 400ms ease;
+    }
+    body[data-backdrop="sky-dark"] .landmass { opacity: 0.1; }
+    body[data-backdrop="sat-snow"] .landmass { opacity: 0.18; }
+
+    /* ==================================================================
+       Primary top toolbar — segmented pill variant
+       ================================================================== */
+    #primaryToolbar {
+      position: fixed;
+      top: calc(var(--safe-top) + 12px);
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      pointer-events: none; /* children re-enable */
+    }
+    #primaryToolbar > * { pointer-events: auto; }
+
+    /* Segmented pill */
+    .pill {
+      display: flex;
+      align-items: center;
+      height: 52px;
+      padding: 0;
+      border-radius: 26px;
+      background: var(--glass-bg);
+      background-color: var(--glass-bg-floor); /* fallback floor */
+      -webkit-backdrop-filter: var(--glass-blur);
+      backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--glass-border);
+      box-shadow: var(--glass-shadow);
+      overflow: hidden;
+      position: relative;
+    }
+    /* Stacked glass + floor for guaranteed contrast */
+    .pill::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(22, 22, 24, 0.28);
+      z-index: -1;
+      border-radius: inherit;
+    }
+
+    .seg {
+      all: unset;
+      width: 62px;
+      height: 52px;
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--icon-idle);
+      position: relative;
+      padding-top: 4px;
+      transition: color 180ms ease, background-color 180ms ease;
+      outline: none;
+    }
+    .seg + .seg::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 14px;
+      bottom: 14px;
+      width: 1px;
+      background: var(--divider);
+    }
+    .seg:hover { background-color: rgba(255, 255, 255, 0.04); }
+    .seg:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); border-radius: 24px; }
+    .seg .material-icons { font-size: 22px; line-height: 1; }
+
+    /* Always-visible indicator bar: shows that the segment has a variant menu
+       and communicates active state. Dim when off, cyan+wider when on. */
+    .seg .indicator {
+      display: block;
+      width: 8px;
+      height: 2px;
+      margin-top: 6px;
+      border-radius: 1px;
+      background: rgba(255, 255, 255, 0.32);
+      transition: width 200ms ease, background-color 200ms ease, height 200ms ease;
+    }
+    .seg:not([data-has-variants="true"]) .indicator { visibility: hidden; }
+
+    /* Active state: soft fill + icon recolor + indicator turns cyan and grows */
+    .seg[aria-pressed="true"] {
+      color: var(--accent);
+    }
+    .seg[aria-pressed="true"]::after {
+      content: '';
+      position: absolute;
+      inset: 4px 3px;
+      background: var(--accent-fill);
+      border-radius: 22px;
+      z-index: -1;
+    }
+    .seg[aria-pressed="true"] .indicator {
+      background: var(--accent);
+      width: 16px;
+      height: 2px;
+    }
+    /* Hide divider either side of active segment so the fill reads as one pill */
+    .seg[aria-pressed="true"]::before,
+    .seg[aria-pressed="true"] + .seg::before {
+      background: transparent;
+    }
+
+    /* Menu trigger (three-dots) */
+    .glass-fab {
+      all: unset;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--icon-idle);
+      background: var(--glass-bg);
+      background-color: var(--glass-bg-floor);
+      -webkit-backdrop-filter: var(--glass-blur);
+      backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--glass-border);
+      box-shadow: var(--glass-shadow);
+      transition: color 180ms ease, background-color 180ms ease, transform 180ms ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .glass-fab::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(22, 22, 24, 0.28);
+      z-index: -1;
+      border-radius: inherit;
+    }
+    .glass-fab:hover { background-color: rgba(22, 22, 24, 0.78); }
+    .glass-fab:active { transform: scale(0.94); }
+    .glass-fab .material-icons { font-size: 20px; }
+
+    #menuButton[aria-expanded="true"] {
+      color: var(--accent);
+    }
+
+    /* ==================================================================
+       Four-FAB variant (alternative layout)
+       ================================================================== */
+    #primaryToolbar[data-variant="fabs"] .pill { display: none; }
+    #primaryToolbar[data-variant="fabs"] .fab-row { display: flex; }
+    .fab-row {
+      display: none;
+      gap: 10px;
+      align-items: center;
+    }
+    .fab-row .fab-item {
+      all: unset;
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--icon-idle);
+      background: var(--glass-bg);
+      background-color: var(--glass-bg-floor);
+      -webkit-backdrop-filter: var(--glass-blur);
+      backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--glass-border);
+      box-shadow: var(--glass-shadow);
+      transition: color 180ms ease, background-color 180ms ease;
+      position: relative;
+    }
+    .fab-row .fab-item .material-icons { font-size: 22px; }
+    .fab-row .fab-item[aria-pressed="true"] {
+      color: var(--accent);
+      border-color: var(--accent-ring);
+      background-color: rgba(18, 188, 250, 0.14);
+      box-shadow: var(--glass-shadow), inset 0 0 0 1px var(--accent-ring);
+    }
+
+    /* ==================================================================
+       Overflow menu sheet
+       ================================================================== */
+    #overflowMenu {
+      position: fixed;
+      top: calc(var(--safe-top) + 12px + 52px + 10px); /* below pill */
+      right: max(16px, var(--safe-right) + 16px);
+      width: min(320px, calc(100vw - 32px));
+      z-index: 120;
+      background: var(--glass-bg);
+      background-color: rgba(22, 22, 24, 0.82);
+      -webkit-backdrop-filter: var(--glass-blur);
+      backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--glass-border-strong);
+      border-radius: 16px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+      padding: 8px 0 12px;
+      transform-origin: top right;
+      transform: translateY(-8px) scale(0.96);
+      opacity: 0;
+      transition: opacity 180ms ease, transform 180ms ease;
+      pointer-events: none;
+    }
+    #overflowMenu.open {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      pointer-events: auto;
+    }
+    #overflowMenu[hidden] { display: none !important; }
+
+    .menu-header {
+      padding: 8px 16px 4px;
+      font-size: 11px;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-lo);
+    }
+
+    .menu-row {
+      display: flex;
+      align-items: center;
+      height: 48px;
+      padding: 0 16px;
+      cursor: pointer;
+      gap: 14px;
+      color: var(--text-hi);
+      transition: background-color 120ms ease;
+    }
+    .menu-row:hover { background-color: rgba(255, 255, 255, 0.04); }
+    .menu-row .material-icons {
+      font-size: 20px;
+      color: var(--icon-dim);
+      flex-shrink: 0;
+    }
+    .menu-row[aria-checked="true"] .material-icons { color: var(--accent); }
+    .menu-label {
+      flex: 1;
+      font-size: 14px;
+      font-weight: 400;
+      color: var(--text-hi);
+    }
+    .menu-row.disabled {
+      cursor: not-allowed;
+      opacity: 0.45;
+    }
+    .menu-row.disabled .menu-label { font-style: italic; }
+
+    /* iOS-style switch */
+    .switch {
+      width: 36px;
+      height: 22px;
+      border-radius: 11px;
+      background: rgba(255, 255, 255, 0.16);
+      position: relative;
+      transition: background 180ms ease;
+      flex-shrink: 0;
+    }
+    .switch::after {
+      content: '';
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: #fff;
+      transition: transform 180ms ease;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    }
+    .menu-row[aria-checked="true"] .switch {
+      background: var(--accent);
+    }
+    .menu-row[aria-checked="true"] .switch::after {
+      transform: translateX(14px);
+    }
+
+    .menu-divider {
+      height: 1px;
+      background: var(--divider);
+      margin: 6px 16px;
+    }
+
+    .theme-chips {
+      display: flex;
+      gap: 6px;
+      padding: 4px 16px 6px;
+    }
+    .chip {
+      all: unset;
+      flex: 1;
+      text-align: center;
+      padding: 8px 4px;
+      font-size: 13px;
+      font-weight: 500;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-md);
+      cursor: pointer;
+      transition: all 120ms ease;
+    }
+    .chip:hover { background: rgba(255, 255, 255, 0.1); }
+    .chip.active {
+      background: var(--accent-fill);
+      color: var(--accent);
+      box-shadow: inset 0 0 0 1px var(--accent-ring);
+    }
+
+    /* Menu backdrop (invisible, catches outside clicks) */
+    #menuBackdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 110;
+      display: none;
+    }
+    #menuBackdrop.open { display: block; }
+
+    /* ==================================================================
+       Bottom time-control pill (kept roughly as today, shown for spatial
+       context)
+       ================================================================== */
+    #timecontrol {
+      position: fixed;
+      left: 50%;
+      bottom: calc(var(--safe-bottom) + 8px);
+      transform: translateX(-50%);
+      width: min(calc(100vw - 24px), 460px);
+      z-index: 100;
+      background: var(--glass-bg);
+      background-color: rgba(0, 0, 0, 0.72);
+      -webkit-backdrop-filter: var(--glass-blur);
+      backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--glass-border);
+      border-radius: 14px;
+      box-shadow: var(--glass-shadow);
+      padding: 8px 10px 6px;
+    }
+
+    .playbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 4px;
+      color: var(--text-hi);
+    }
+    .playbar > button {
+      all: unset;
+      flex: 1;
+      min-height: 40px;
+      text-align: center;
+      color: var(--icon-idle);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .playbar > button:hover { background: rgba(255, 255, 255, 0.05); }
+    .playbar > button .material-icons { font-size: 22px; }
+    .playbar > button.primary .material-icons { font-size: 26px; color: var(--text-hi); }
+    .time-block {
+      flex: 1;
+      text-align: center;
+      min-width: 72px;
+      padding: 0 6px;
+    }
+    .time-h { font-size: 17px; font-weight: 500; color: var(--text-hi); line-height: 1.1; }
+    .time-d { font-size: 11px; color: var(--text-md); }
+
+    .timeline {
+      display: flex;
+      width: 100%;
+      margin-top: 6px;
+      gap: 1px;
+    }
+    .timeline > div {
+      flex: 1;
+      height: 4px;
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 2px;
+    }
+    .timeline > div.loaded { background: rgba(255, 255, 255, 0.22); }
+    .timeline > div.current { background: var(--accent); }
+
+    /* ==================================================================
+       GPS FAB (bottom-right, above time-control)
+       ================================================================== */
+    #locationFab {
+      position: fixed;
+      right: max(16px, var(--safe-right) + 16px);
+      bottom: calc(var(--safe-bottom) + var(--timecontrol-height) + 16px);
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: var(--icon-idle);
+      background: var(--glass-bg);
+      background-color: var(--glass-bg-floor);
+      -webkit-backdrop-filter: var(--glass-blur);
+      backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--glass-border);
+      box-shadow: var(--elev-shadow);
+      z-index: 100;
+      transition: all 220ms ease;
+      padding: 0;
+    }
+    #locationFab .material-icons { font-size: 24px; }
+    #locationFab[data-state="following"] {
+      color: var(--accent);
+      box-shadow: var(--elev-shadow), inset 0 0 0 1.5px var(--accent);
+    }
+    #locationFab[data-state="tracking"] {
+      background-color: var(--accent);
+      color: #0a0a0a;
+      border-color: var(--accent);
+      box-shadow: var(--elev-shadow), 0 0 0 6px rgba(18, 188, 250, 0.18);
+    }
+    #locationFab:active { transform: scale(0.94); }
+
+    /* ==================================================================
+       Coachmark toast (onboarding the Finnish name)
+       ================================================================== */
+    #coachmark {
+      position: fixed;
+      top: calc(var(--safe-top) + 12px + 52px + 14px);
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 130;
+      padding: 6px 12px;
+      background: rgba(0, 0, 0, 0.85);
+      color: var(--text-hi);
+      font-size: 13px;
+      font-weight: 500;
+      border-radius: 12px;
+      -webkit-backdrop-filter: blur(16px);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--glass-border);
+      opacity: 0;
+      transition: opacity 200ms ease, transform 200ms ease;
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    #coachmark.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+    #coachmark[hidden] { display: none; }
+
+    /* ==================================================================
+       Dev panel (mockup-only — not part of the design)
+       ================================================================== */
+    .dev-panel {
+      position: fixed;
+      left: max(12px, var(--safe-left) + 12px);
+      top: max(12px, var(--safe-top) + 12px);
+      z-index: 200;
+      width: 240px;
+      background: rgba(12, 12, 16, 0.92);
+      border: 1px solid var(--glass-border-strong);
+      border-radius: 12px;
+      color: var(--text-hi);
+      font-size: 12px;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(12px);
+    }
+    .dev-panel header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-size: 10px;
+      color: var(--text-md);
+      border-bottom: 1px solid var(--divider);
+    }
+    .dev-panel header button {
+      all: unset;
+      cursor: pointer;
+      width: 20px;
+      height: 20px;
+      text-align: center;
+      border-radius: 4px;
+      color: var(--text-md);
+    }
+    .dev-panel header button:hover { background: rgba(255,255,255,0.06); }
+    .dev-panel .dev-body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 10px; }
+    .dev-panel.collapsed .dev-body { display: none; }
+    .dev-panel label {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-size: 11px;
+      color: var(--text-md);
+    }
+    .dev-panel label.check {
+      flex-direction: row;
+      align-items: center;
+      gap: 8px;
+    }
+    .dev-panel select, .dev-panel input[type="text"] {
+      font-family: inherit;
+      padding: 6px 8px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-hi);
+      border: 1px solid var(--divider);
+      font-size: 12px;
+    }
+    .dev-panel input[type="checkbox"] {
+      accent-color: var(--accent);
+    }
+    .dev-hint {
+      margin: 0;
+      font-size: 10px;
+      color: var(--text-lo);
+      line-height: 1.4;
+    }
+
+    /* ==================================================================
+       Annotation overlay
+       ================================================================== */
+    #annotations {
+      position: fixed;
+      inset: 0;
+      z-index: 150;
+      pointer-events: none;
+    }
+    #annotations[hidden] { display: none; }
+    .anno {
+      position: absolute;
+      font-size: 11px;
+      color: var(--accent);
+      background: rgba(10, 10, 14, 0.92);
+      border: 1px dashed var(--accent-ring);
+      padding: 4px 8px;
+      border-radius: 6px;
+      line-height: 1.35;
+      max-width: 200px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    }
+    .anno::before {
+      content: '';
+      position: absolute;
+      width: 1px;
+      height: 24px;
+      background: var(--accent-ring);
+    }
+    .anno[data-side="top"]::before { top: -24px; left: 50%; }
+    .anno[data-side="right"]::before { top: 50%; right: -24px; height: 1px; width: 24px; }
+    .anno[data-side="left"]::before { top: 50%; left: -24px; height: 1px; width: 24px; }
+
+    /* ==================================================================
+       Narrow-landscape crowd-check helper
+       ================================================================== */
+    @media (max-height: 420px) and (orientation: landscape) {
+      :root { --timecontrol-height: 68px; }
+      .dev-panel { width: 180px; }
+    }
+
+    /* Reduce motion */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+
+<body data-backdrop="map-dark">
+
+  <!-- Backdrop scenes -->
+  <div class="backdrop"></div>
+  <svg class="landmass" viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <!-- Stylised Finland/Baltic silhouette -->
+    <path d="M520 40 L560 80 L600 120 L640 180 L660 260 L690 340 L720 420 L700 500 L660 560 L600 600 L520 620 L460 600 L420 560 L410 480 L430 400 L460 320 L450 240 L440 160 L470 90 Z"
+      fill="rgba(255,255,255,0.10)" stroke="rgba(255,255,255,0.18)" stroke-width="1"/>
+    <path d="M240 380 L300 400 L340 430 L320 480 L270 490 L220 460 L210 420 Z"
+      fill="rgba(255,255,255,0.06)" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+  </svg>
+
+  <!-- Primary toolbar -->
+  <nav id="primaryToolbar" data-variant="pill" aria-label="Karttatasot">
+    <div class="pill" role="toolbar">
+      <button class="seg" aria-pressed="false" data-layer="sat" data-name="Satelliitti" data-has-variants="true">
+        <i class="material-icons" aria-hidden="true">satellite_alt</i>
+        <span class="indicator" aria-hidden="true"></span>
+      </button>
+      <button class="seg" aria-pressed="true" data-layer="radar" data-name="Säätutka" data-has-variants="true">
+        <i class="material-icons" aria-hidden="true">radar</i>
+        <span class="indicator" aria-hidden="true"></span>
+      </button>
+      <button class="seg" aria-pressed="false" data-layer="lightning" data-name="Salamat" data-has-variants="true">
+        <i class="material-icons" aria-hidden="true">bolt</i>
+        <span class="indicator" aria-hidden="true"></span>
+      </button>
+      <button class="seg" aria-pressed="false" data-layer="obs" data-name="Havainto" data-has-variants="true">
+        <i class="material-icons" aria-hidden="true">thermostat</i>
+        <span class="indicator" aria-hidden="true"></span>
+      </button>
+    </div>
+    <div class="fab-row">
+      <button class="fab-item" aria-pressed="false" data-layer="sat" data-name="Satelliitti">
+        <i class="material-icons" aria-hidden="true">satellite_alt</i>
+      </button>
+      <button class="fab-item" aria-pressed="true" data-layer="radar" data-name="Säätutka">
+        <i class="material-icons" aria-hidden="true">radar</i>
+      </button>
+      <button class="fab-item" aria-pressed="false" data-layer="lightning" data-name="Salamat">
+        <i class="material-icons" aria-hidden="true">bolt</i>
+      </button>
+      <button class="fab-item" aria-pressed="false" data-layer="obs" data-name="Havainto">
+        <i class="material-icons" aria-hidden="true">thermostat</i>
+      </button>
+    </div>
+    <button id="menuButton" class="glass-fab" aria-haspopup="menu" aria-expanded="false" aria-controls="overflowMenu" aria-label="Valikko">
+      <i class="material-icons" aria-hidden="true">more_horiz</i>
+    </button>
+  </nav>
+
+  <!-- Overflow menu -->
+  <div id="menuBackdrop" aria-hidden="true"></div>
+  <div id="overflowMenu" role="menu" hidden>
+    <div class="menu-header">Karttakohteet</div>
+    <div class="menu-row" role="menuitemcheckbox" aria-checked="true" data-poi="radars" tabindex="0">
+      <i class="material-icons" aria-hidden="true">cell_tower</i>
+      <span class="menu-label">Tutka-asemat</span>
+      <span class="switch" aria-hidden="true"></span>
+    </div>
+    <div class="menu-row" role="menuitemcheckbox" aria-checked="true" data-poi="airfields" tabindex="0">
+      <i class="material-icons" aria-hidden="true">flight</i>
+      <span class="menu-label">Lentokentät</span>
+      <span class="switch" aria-hidden="true"></span>
+    </div>
+    <div class="menu-row disabled" aria-disabled="true">
+      <i class="material-icons" aria-hidden="true">add_location_alt</i>
+      <span class="menu-label">Lisää kohteita tulossa…</span>
+    </div>
+    <div class="menu-divider"></div>
+    <div class="menu-header">Teema</div>
+    <div class="theme-chips" role="radiogroup" aria-label="Teema">
+      <button class="chip active" role="radio" aria-checked="true">Autom.</button>
+      <button class="chip" role="radio" aria-checked="false">Tumma</button>
+      <button class="chip" role="radio" aria-checked="false">Vaalea</button>
+    </div>
+  </div>
+
+  <!-- Bottom time control (shown for spatial context) -->
+  <div id="timecontrol" aria-label="Ajan hallinta">
+    <div class="playbar">
+      <button aria-label="Tasot"><i class="material-icons" aria-hidden="true">layers</i></button>
+      <button aria-label="Nopeus">1×</button>
+      <button aria-label="Edellinen"><i class="material-icons" aria-hidden="true">skip_previous</i></button>
+      <button class="primary" aria-label="Toista"><i class="material-icons" aria-hidden="true">play_arrow</i></button>
+      <button aria-label="Seuraava"><i class="material-icons" aria-hidden="true">skip_next</i></button>
+      <div class="time-block">
+        <div class="time-h">12:45</div>
+        <div class="time-d">Ke 23.4.</div>
+      </div>
+    </div>
+    <div class="timeline" id="timelineEl"></div>
+  </div>
+
+  <!-- GPS FAB -->
+  <button id="locationFab" data-state="off" aria-pressed="false" aria-label="Paikannus">
+    <i class="material-icons" aria-hidden="true">gps_not_fixed</i>
+  </button>
+
+  <!-- Coachmark toast -->
+  <div id="coachmark" hidden></div>
+
+  <!-- Annotation overlay -->
+  <div id="annotations" hidden>
+    <div class="anno" style="top: 14px; left: 50%; transform: translateX(-50%); margin-top: 76px;" data-side="top">
+      Segmenttipilleri — 52&nbsp;px korkea, glass-bg 0.62, blur 24&nbsp;px. Indikaattoriviiva aina näkyvissä: 8×2&nbsp;px harmaa → 16×2&nbsp;px syaani kun aktiivinen. Lisäksi aktiivinen saa pehmeän täytön ja värivaihdon.
+    </div>
+    <div class="anno" style="top: 14px; right: 12px; margin-top: 66px;" data-side="top">
+      Kolmipiste → "Karttakohteet" valikko (POI-kytkimet + teema)
+    </div>
+    <div class="anno" style="right: 80px; bottom: 120px;" data-side="right">
+      GPS-FAB 52&nbsp;px, kelluu aikapalkin yläpuolella; tilat off / following / tracking
+    </div>
+    <div class="anno" style="left: 50%; bottom: 104px; transform: translateX(-50%);" data-side="top">
+      Aikapalkki pysyy (hieman keveämpänä): pelkkä glass-kontti ilman hallitsevaa reunaa
+    </div>
+  </div>
+
+  <!-- Dev panel (mockup-only controls) -->
+  <aside class="dev-panel" id="devPanel">
+    <header>
+      <span>Mockup — toolbar</span>
+      <button id="devToggle" aria-label="Pienennä">−</button>
+    </header>
+    <div class="dev-body">
+      <label>Kartan tausta
+        <select id="backdropSelect">
+          <option value="map-dark">Tumma karttapohja</option>
+          <option value="sky-dark">Yötaivas (musta)</option>
+          <option value="radar-precip">Tutkakaiut (värikäs)</option>
+          <option value="sat-snow">Lumipilvet (HRV)</option>
+          <option value="sat-natural">Natural RGB</option>
+        </select>
+      </label>
+      <label>Yläpalkin tyyli
+        <select id="layoutSelect">
+          <option value="pill">Segmenttipilleri (suositus)</option>
+          <option value="fabs">Neljä erillistä nappia</option>
+        </select>
+      </label>
+      <label class="check">
+        <input type="checkbox" id="menuCheckbox"> Valikko auki
+      </label>
+      <label class="check">
+        <input type="checkbox" id="annotationToggle"> Näytä merkinnät
+      </label>
+      <p class="dev-hint">Napsauta segmenttejä vaihtaaksesi aktiivista tasoa. Napsauta GPS-FAB:a kiertääksesi tiloja (off → following → tracking). Kaksoisnapsauta segmenttiä nähdäksesi coachmark-viestin.</p>
+    </div>
+  </aside>
+
+  <script>
+    (function () {
+      'use strict';
+
+      // ======================================================
+      // Timeline cells (13 slots, current = middle)
+      // ======================================================
+      (function buildTimeline() {
+        var el = document.getElementById('timelineEl');
+        for (var i = 0; i < 13; i++) {
+          var c = document.createElement('div');
+          if (i < 11) c.classList.add('loaded');
+          if (i === 9) c.classList.add('current');
+          el.appendChild(c);
+        }
+      })();
+
+      // ======================================================
+      // Backdrop switcher
+      // ======================================================
+      var backdropSelect = document.getElementById('backdropSelect');
+      backdropSelect.addEventListener('change', function (e) {
+        document.body.setAttribute('data-backdrop', e.target.value);
+      });
+
+      // ======================================================
+      // Layout variant switcher (pill vs four FABs)
+      // ======================================================
+      var layoutSelect = document.getElementById('layoutSelect');
+      var toolbar = document.getElementById('primaryToolbar');
+      layoutSelect.addEventListener('change', function (e) {
+        toolbar.setAttribute('data-variant', e.target.value);
+      });
+
+      // ======================================================
+      // Segment / FAB toggle behavior + coachmark
+      // Tap: toggles aria-pressed (mirrors the real tap-toggle semantic)
+      // ======================================================
+      var coachmark = document.getElementById('coachmark');
+      var coachTimer = null;
+      function showCoachmark(text) {
+        coachmark.textContent = text;
+        coachmark.hidden = false;
+        // force reflow for the transition
+        void coachmark.offsetWidth;
+        coachmark.classList.add('show');
+        clearTimeout(coachTimer);
+        coachTimer = setTimeout(function () {
+          coachmark.classList.remove('show');
+          setTimeout(function () { coachmark.hidden = true; }, 220);
+        }, 1400);
+      }
+
+      function bindLayerButton(btn) {
+        btn.addEventListener('click', function () {
+          var pressed = btn.getAttribute('aria-pressed') === 'true';
+          btn.setAttribute('aria-pressed', pressed ? 'false' : 'true');
+          // Show the Finnish name as onboarding toast the first time (and here on every tap for demo)
+          var name = btn.getAttribute('data-name');
+          if (name) showCoachmark(name);
+        });
+      }
+      document.querySelectorAll('.seg').forEach(bindLayerButton);
+      document.querySelectorAll('.fab-item').forEach(bindLayerButton);
+
+      // ======================================================
+      // Overflow menu open/close
+      // ======================================================
+      var menuButton = document.getElementById('menuButton');
+      var menu = document.getElementById('overflowMenu');
+      var menuBackdrop = document.getElementById('menuBackdrop');
+      var menuCheckbox = document.getElementById('menuCheckbox');
+
+      function openMenu() {
+        menu.hidden = false;
+        // force reflow for the transition
+        void menu.offsetWidth;
+        menu.classList.add('open');
+        menuBackdrop.classList.add('open');
+        menuButton.setAttribute('aria-expanded', 'true');
+        menuCheckbox.checked = true;
+      }
+      function closeMenu() {
+        menu.classList.remove('open');
+        menuBackdrop.classList.remove('open');
+        menuButton.setAttribute('aria-expanded', 'false');
+        menuCheckbox.checked = false;
+        setTimeout(function () { if (!menu.classList.contains('open')) menu.hidden = true; }, 200);
+      }
+
+      menuButton.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (menu.classList.contains('open')) closeMenu(); else openMenu();
+      });
+      menuBackdrop.addEventListener('click', closeMenu);
+      menuCheckbox.addEventListener('change', function (e) {
+        if (e.target.checked) openMenu(); else closeMenu();
+      });
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+          if (menu.classList.contains('open')) { closeMenu(); menuButton.focus(); }
+        }
+      });
+
+      // ======================================================
+      // POI toggle rows
+      // ======================================================
+      document.querySelectorAll('.menu-row[role="menuitemcheckbox"]').forEach(function (row) {
+        row.addEventListener('click', function () {
+          var checked = row.getAttribute('aria-checked') === 'true';
+          row.setAttribute('aria-checked', checked ? 'false' : 'true');
+        });
+        row.addEventListener('keydown', function (e) {
+          if (e.key === ' ' || e.key === 'Enter') {
+            e.preventDefault();
+            row.click();
+          }
+        });
+      });
+
+      // Theme chips (radiogroup)
+      var chips = document.querySelectorAll('.theme-chips .chip');
+      chips.forEach(function (chip) {
+        chip.addEventListener('click', function () {
+          chips.forEach(function (c) {
+            c.classList.remove('active');
+            c.setAttribute('aria-checked', 'false');
+          });
+          chip.classList.add('active');
+          chip.setAttribute('aria-checked', 'true');
+        });
+      });
+
+      // ======================================================
+      // GPS FAB state cycle: off → following → tracking → off
+      // ======================================================
+      var fab = document.getElementById('locationFab');
+      var fabIcon = fab.querySelector('.material-icons');
+      var stateOrder = ['off', 'following', 'tracking'];
+      var iconMap = {
+        off: 'gps_not_fixed',
+        following: 'gps_fixed',
+        tracking: 'near_me'
+      };
+      fab.addEventListener('click', function () {
+        var cur = fab.getAttribute('data-state');
+        var next = stateOrder[(stateOrder.indexOf(cur) + 1) % stateOrder.length];
+        fab.setAttribute('data-state', next);
+        fab.setAttribute('aria-pressed', next === 'off' ? 'false' : 'true');
+        fabIcon.textContent = iconMap[next];
+      });
+
+      // ======================================================
+      // Dev panel collapse
+      // ======================================================
+      var devPanel = document.getElementById('devPanel');
+      var devToggle = document.getElementById('devToggle');
+      devToggle.addEventListener('click', function () {
+        var collapsed = devPanel.classList.toggle('collapsed');
+        devToggle.textContent = collapsed ? '+' : '−';
+      });
+
+      // Annotation overlay toggle
+      var annoToggle = document.getElementById('annotationToggle');
+      var annoLayer = document.getElementById('annotations');
+      annoToggle.addEventListener('change', function (e) {
+        annoLayer.hidden = !e.target.checked;
+      });
+
+      // ======================================================
+      // Keyboard shortcuts demo (1/2/3/4)
+      // ======================================================
+      document.addEventListener('keydown', function (e) {
+        if (e.target.matches('input, select, textarea')) return;
+        var map = { '1': 'sat', '2': 'radar', '3': 'lightning', '4': 'obs' };
+        var layer = map[e.key];
+        if (!layer) return;
+        // Toggle whichever variant is currently visible
+        var visible = toolbar.getAttribute('data-variant');
+        var selector = visible === 'pill' ? '.seg' : '.fab-item';
+        var btn = toolbar.querySelector(selector + '[data-layer="' + layer + '"]');
+        if (btn) btn.click();
+      });
+
+    })();
+  </script>
+</body>
+</html>
