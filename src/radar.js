@@ -82,9 +82,14 @@ const framePools = {
 let interpEnabled = false;
 canInterpolate().then((ok) => {
   interpEnabled = ok;
-  debug(`INTERP: ${interpEnabled ? 'enabled' : 'disabled'}`);
+  // eslint-disable-next-line no-console
+  console.info(`[tutka] INTERP: ${interpEnabled ? 'enabled' : 'disabled'}`);
   track(interpEnabled ? 'interp-available' : 'interp-unsupported');
   attachInterpolators();
+}).catch((err) => {
+  // eslint-disable-next-line no-console
+  console.warn('[tutka] INTERP probe failed:', err);
+  track('interp-probe-error');
 });
 
 function attachInterpolators() {

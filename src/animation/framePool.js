@@ -369,22 +369,20 @@ export default class FramePool {
     return true;
   }
 
-  // Attach an interpolator and build the warp layer it will render
-  // into. Called once from radar.js after canInterpolate resolves.
-  // Idempotent — a second call with the same interpolator is a no-op;
-  // with a different one, the old warp layer is torn down first.
+  // Attach an interpolator and build the warp layer. Warp is an
+  // overlay on top of the primary — it mirrors primary's visible
+  // and opacity. canvasFunction returns null while flow isn't ready
+  // (warp renders nothing; primary shows through). When ready, warp
+  // renders interpolated content; since warp is also at the user's
+  // opacity, the result is a mild double-exposure over primary — a
+  // known Phase 2 artifact that Phase 4 polishes out by making the
+  // swap cleaner. For now it validates the whole GL pipeline.
   setInterpolator(interpolator) {
     if (this.interpolator === interpolator) return;
     this._teardownWarpLayer();
     this.interpolator = interpolator;
     if (!interpolator) return;
 
-    this._userVisible = this.primary.getVisible();
-    this._settingVisInternally = false;
-
-    // canvasFunction reads _warpState populated by showInterpolated.
-    // Returning null leaves the layer blank — used when interp isn't
-    // active yet, or when flow isn't ready for the current pair.
     const canvasFunction = () => {
       if (!this.interpActive) return null;
       const { timeA, timeB, t } = this._warpState;
@@ -395,19 +393,18 @@ export default class FramePool {
 
     this.warpLayer = new ImageLayer({
       name: `${this.primary.get('name')}__warp`,
-      visible: false,
+      visible: this.primary.getVisible(),
       opacity: this.primary.getOpacity(),
-      source: new ImageCanvasSource({ canvasFunction, ratio: 1 }),
+      // Match the primary's WMS ratio (1.5 by default in radar.js)
+      // so OL asks canvasFunction for the same extent-and-size the
+      // primary's slot images were fetched at. Ratio=1 asked OL to
+      // interpret the 1.5× canvas as a 1× canvas — that's what was
+      // shrinking content to the middle of the viewport.
+      source: new ImageCanvasSource({ canvasFunction, ratio: this.ratio }),
     });
 
-    // Track user's visibility and opacity choices on the primary
-    // layer and mirror them onto warp. Internal visibility swaps
-    // (triggered by setInterpActive / showInterpolated) are filtered
-    // via _settingVisInternally so they don't re-write _userVisible.
     this._primaryVisListener = () => {
-      if (this._settingVisInternally) return;
-      this._userVisible = this.primary.getVisible();
-      this._syncVisibility();
+      this.warpLayer.setVisible(this.primary.getVisible());
     };
     this._primaryOpacityListener = () => {
       this.warpLayer.setOpacity(this.primary.getOpacity());
@@ -446,57 +443,34 @@ export default class FramePool {
   }
 
   // Toggle interpolated display on/off. radar.js calls this from
-  // play() / stop(). Actual layer swap happens inside _setWarpShowing,
-  // which only flips layers once we actually have content to show —
-  // avoids a blank frame at the start of play before flow is ready.
+  // play() / stop(). Forces the warp source to re-run canvasFunction
+  // so the next render reflects the new state (active → render
+  // content; inactive → return null, layer renders nothing and
+  // primary shows through).
   setInterpActive(active) {
     if (this.interpActive === active) return;
     this.interpActive = active;
-    if (!active) this._setWarpShowing(false);
     if (this.warpLayer) this.warpLayer.getSource().changed();
   }
 
-  // Render the warp at fractional t between current frame (A) and the
-  // next in windowTimes (B). No-op unless we've been put into interp
-  // mode AND the pool has a valid window AND the interpolator has
-  // what it needs to produce output. On first successful render,
-  // swaps layer visibility from primary to warp.
+  // Render the warp at fractional t between current frame (A) and
+  // the next in windowTimes (B). No-op unless the interpolator is
+  // attached and has a valid window.
   showInterpolated(t) {
     if (!this.interpolator || !this.interpActive) return;
     if (!this.windowTimes || !this.currentTime) return;
+    if (!this.warpLayer) return;
     const curIdx = this.windowTimes.indexOf(this.currentTime);
     if (curIdx < 0) return;
     const nextIdx = (curIdx + 1) % this.size;
     const timeB = this.windowTimes[nextIdx];
     if (!timeB) return;
-    if (!this.interpolator.hasFlow(this.currentTime, timeB)) return;
 
     this._warpState.timeA = this.currentTime;
     this._warpState.timeB = timeB;
     this._warpState.t = t;
 
     this.warpLayer.getSource().changed();
-    this._setWarpShowing(true);
-  }
-
-  // Internal: flip primary ↔ warp visibility without disturbing the
-  // user's layer-toggle state.
-  _setWarpShowing(showing) {
-    if (!this.warpLayer) return;
-    const desiredWarp = showing && this._userVisible;
-    const desiredPrimary = !showing && this._userVisible;
-    if (this.warpLayer.getVisible() === desiredWarp
-        && this.primary.getVisible() === desiredPrimary) return;
-    this._settingVisInternally = true;
-    this.warpLayer.setVisible(desiredWarp);
-    this.primary.setVisible(desiredPrimary);
-    this._settingVisInternally = false;
-  }
-
-  _syncVisibility() {
-    if (!this.warpLayer) return;
-    const warpShowing = this.warpLayer.getVisible();
-    this._setWarpShowing(warpShowing);
   }
 
   // Is this time's slot's current-view image loaded?
