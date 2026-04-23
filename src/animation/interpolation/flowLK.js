@@ -41,15 +41,20 @@ uniform vec2 uStep;   // 1 / resolution, in UV
 in vec2 vUv;
 out vec4 fragColor;
 
-float lum(vec4 c) {
-  return dot(c.rgb, vec3(0.2126, 0.7152, 0.0722));
-}
-
 void main() {
   // 7×7 window centered on vUv. radius can be tuned — bigger window
   // is more robust to noise but smooths out motion boundaries.
   const int RADIUS = 3;
 
+  // Accumulate the 5 LK moments across all three RGB channels.
+  // Stepped radar palettes (e.g. FMI classical green/yellow/red
+  // bands) have near-zero luminance gradient inside each band — LK
+  // on luminance alone produces a singular 2×2 and clamps flow to
+  // zero. Hue changes between bands though, so summing per-channel
+  // gradients recovers the motion signal. With a continuous
+  // colormap (e.g. Bookbinder viridis-like), all three channels
+  // produce similar signal and the sum is roughly 3× luminance —
+  // no harm.
   float sumIx2  = 0.0;
   float sumIy2  = 0.0;
   float sumIxIy = 0.0;
@@ -60,22 +65,21 @@ void main() {
     for (int dx = -RADIUS; dx <= RADIUS; dx++) {
       vec2 pt = vUv + vec2(float(dx), float(dy)) * uStep;
 
-      // Central difference on A: Sobel-lite (3-tap).
-      float aL = lum(texture(uA, pt + vec2(-uStep.x, 0.0)));
-      float aR = lum(texture(uA, pt + vec2( uStep.x, 0.0)));
-      float aT = lum(texture(uA, pt + vec2(0.0, -uStep.y)));
-      float aB = lum(texture(uA, pt + vec2(0.0,  uStep.y)));
+      vec3 aL = texture(uA, pt + vec2(-uStep.x, 0.0)).rgb;
+      vec3 aR = texture(uA, pt + vec2( uStep.x, 0.0)).rgb;
+      vec3 aT = texture(uA, pt + vec2(0.0, -uStep.y)).rgb;
+      vec3 aB = texture(uA, pt + vec2(0.0,  uStep.y)).rgb;
 
-      float Ix = (aR - aL) * 0.5;
-      float Iy = (aB - aT) * 0.5;
+      vec3 Ix = (aR - aL) * 0.5;
+      vec3 Iy = (aB - aT) * 0.5;
 
-      float It = lum(texture(uB, pt)) - lum(texture(uA, pt));
+      vec3 It = texture(uB, pt).rgb - texture(uA, pt).rgb;
 
-      sumIx2  += Ix * Ix;
-      sumIy2  += Iy * Iy;
-      sumIxIy += Ix * Iy;
-      sumIxIt += Ix * It;
-      sumIyIt += Iy * It;
+      sumIx2  += dot(Ix, Ix);
+      sumIy2  += dot(Iy, Iy);
+      sumIxIy += dot(Ix, Iy);
+      sumIxIt += dot(Ix, It);
+      sumIyIt += dot(Iy, It);
     }
   }
 

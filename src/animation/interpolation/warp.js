@@ -51,17 +51,24 @@ void main() {
   // (also computed in that space) is applied consistently.
   vec4 a = texture(uFrameA, src - uT * flow);
   vec4 b = texture(uFrameB, src + (1.0 - uT) * flow);
-  // Nodata fallback: at coastlines and radar-range edges one sample
-  // is full-alpha and the other is zero. mix() would fade the
-  // boundary towards alpha 0.5 at t=0.5 — visible as brightness
-  // pumping during playback. Prefer whichever side has data so the
-  // edge stays stable.
+  // Nodata handling. Three regimes depending on sample alphas:
+  //   - both transparent → output transparent.
+  //   - one transparent (leading/trailing edge of a moving cell,
+  //     or a coastline/range boundary): use the other side's color
+  //     at full intensity but fade its alpha linearly with t. The
+  //     naive mix() faded color AND alpha, giving a quadratic
+  //     composite that dimmed boundaries mid-loop (brightness
+  //     pumping). Snap-to-full alpha at the first nonzero t made
+  //     echoes pop forward at each advance. Linear alpha fade is
+  //     the right middle: color stays correct, alpha slides 0↔1
+  //     linearly, no pumping and no popping.
+  //   - both opaque → normal mix.
   if (a.a < 0.001 && b.a < 0.001) {
     fragColor = vec4(0.0);
   } else if (a.a < 0.001) {
-    fragColor = b;
+    fragColor = vec4(b.rgb, b.a * uT);
   } else if (b.a < 0.001) {
-    fragColor = a;
+    fragColor = vec4(a.rgb, a.a * (1.0 - uT));
   } else {
     fragColor = mix(a, b, uT);
   }
