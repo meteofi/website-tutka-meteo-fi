@@ -178,6 +178,18 @@ const poolLoadStates = {
   lightningLayer: new Array(13).fill(false),
   observationLayer: new Array(13).fill(false),
 };
+// Per-cell "flow ready" state. Only populated for pools that have an
+// interpolator attached (radar, satellite when interp is enabled).
+// True means both endpoints of the pair starting at this index are
+// loaded AND the interpolator has a computed flow field — playback
+// through this timestep will show a motion-compensated warp instead
+// of a jump to the next discrete frame.
+const poolFlowStates = {
+  satelliteLayer: new Array(13).fill(false),
+  radarLayer: new Array(13).fill(false),
+  lightningLayer: new Array(13).fill(false),
+  observationLayer: new Array(13).fill(false),
+};
 
 const VISIBLE = new Set(safeParseJSON('VISIBLE', ['radarLayer']));
 const ACTIVE = new Set(safeParseJSON('ACTIVE', [options.defaultRadarLayer]));
@@ -185,13 +197,20 @@ const ACTIVE = new Set(safeParseJSON('ACTIVE', [options.defaultRadarLayer]));
 function updateTimelineCell(i) {
   if (!timeline) return;
   let allLoaded = true;
+  let flowPending = false;
   for (const name of Object.keys(framePools)) {
-    if (VISIBLE.has(name) && framePools[name] && !poolLoadStates[name][i]) {
-      allLoaded = false;
-      break;
-    }
+    const pool = framePools[name];
+    if (!pool || !VISIBLE.has(name)) continue; // eslint-disable-line no-continue
+    if (!poolLoadStates[name][i]) allLoaded = false;
+    // A pool only marks flow-pending if it actually has an
+    // interpolator attached. Lightning/observation (no interp) and
+    // radar/satellite with mode=off never flag this cell.
+    if (pool.interpolator && !poolFlowStates[name][i]) flowPending = true;
   }
   timeline.setLoadState(i, allLoaded);
+  // Flow-pending only meaningful when the cell is loaded — a not-
+  // yet-loaded cell is shown as "loading" with priority anyway.
+  timeline.setFlowPending(i, allLoaded && flowPending);
 }
 
 function recomputeAllTimelineCells() {
@@ -1944,6 +1963,10 @@ const main = () => {
     const pool = new FramePool({ primaryLayer: layer, map });
     pool.onLoadStateChange = (idx, loaded) => {
       poolLoadStates[name][idx] = loaded;
+      updateTimelineCell(idx);
+    };
+    pool.onFlowStateChange = (idx, ready) => {
+      poolFlowStates[name][idx] = ready;
       updateTimelineCell(idx);
     };
     framePools[name] = pool;

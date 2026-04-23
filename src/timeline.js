@@ -35,6 +35,17 @@ class Timeline {
     if (!elem) return;
     elem.classList.toggle('timeline-loading', !loaded);
   }
+
+  // Flow-pending means the raw bitmap is loaded but the interpolator
+  // doesn't have a flow field yet for the pair starting at this
+  // index. Shown as a distinct color so the user can see which
+  // timesteps will "jump" during playback because the warp has no
+  // intermediate to render.
+  setFlowPending(index, pending) {
+    const elem = this.parent.children[index];
+    if (!elem) return;
+    elem.classList.toggle('timeline-flow-pending', pending);
+  }
 }
 
 export default Timeline;

@@ -60,6 +60,12 @@ export default class FramePool {
     this._warpState = { timeA: null, timeB: null, t: 0 };
 
     this.onLoadStateChange = null;
+    // Per-index callback fired when the pair starting at that index
+    // may have changed flow-ready status — both endpoints loaded
+    // AND the interpolator has a flow pair for (windowTimes[i],
+    // windowTimes[i+1]). Radar.js uses it to paint a "loaded but
+    // no-flow" indicator on the timeline.
+    this.onFlowStateChange = null;
     this.windowTimes = null;
     this.currentTime = null;
 
@@ -168,6 +174,7 @@ export default class FramePool {
         }
       }
       this._prefetchAroundCurrent();
+      this._notifyAllFlowState();
     });
 
     // When the layer becomes visible after being hidden, catch up on
@@ -241,6 +248,7 @@ export default class FramePool {
         && prev.elevation === now.elevation
       );
       this.interpolator.onParamsChanged({ flowInvariant });
+      this._notifyAllFlowState();
     }
     this._prefetchAroundCurrent();
   }
@@ -368,6 +376,7 @@ export default class FramePool {
         this.onLoadStateChange(i, this.isPositionLoaded(i));
       }
     }
+    this._notifyAllFlowState();
   }
 
   // Point the primary at the slot matching `time`. The swap is
@@ -528,6 +537,9 @@ export default class FramePool {
     this.warpLayer = null;
     this._emptyCanvas = null;
     this._userOpacity = undefined;
+    // Interp is gone → no pair can be flow-ready. Refresh the
+    // timeline so the indicator drops any pending highlights.
+    this._notifyAllFlowState();
   }
 
   // Toggle interpolated display on/off. radar.js calls this from
@@ -636,6 +648,7 @@ export default class FramePool {
         this.interpolator.computeFlow(time, nextTime);
       }
     }
+    this._notifyAllFlowState();
   }
 
   // Re-compute flow for every pair in the current window whose
@@ -652,6 +665,7 @@ export default class FramePool {
         this.interpolator.computeFlow(tA, tB);
       }
     }
+    this._notifyAllFlowState();
   }
 
   // Current map view extent in world coords (EPSG:3857 meters).
@@ -691,6 +705,26 @@ export default class FramePool {
   isTimeLoaded(time) {
     const slot = this.slots.find((s) => s.time === time);
     return !!(slot && slot.loaded);
+  }
+
+  // Does the pair starting at `index` in the current window have a
+  // flow computed? Used by the timeline UI to mark cells that are
+  // loaded but will still "jump" during playback because the warp
+  // has no interpolation to render.
+  isPairFlowReady(index) {
+    if (!this.interpolator || !this.windowTimes) return false;
+    if (index < 0 || index >= this.windowTimes.length - 1) return false;
+    const tA = this.windowTimes[index];
+    const tB = this.windowTimes[index + 1];
+    if (!tA || !tB) return false;
+    return this.interpolator.hasFlow(tA, tB);
+  }
+
+  _notifyAllFlowState() {
+    if (!this.onFlowStateChange || !this.windowTimes) return;
+    for (let i = 0; i < this.size; i++) {
+      this.onFlowStateChange(i, this.isPairFlowReady(i));
+    }
   }
 
   // Load state at timeline position (0..size-1).
