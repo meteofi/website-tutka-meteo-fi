@@ -592,12 +592,17 @@ export default class FramePool {
     this._setPrimaryTransparent(hasFlow);
 
     if (!hasFlow) {
-      // Force canvasFunction to re-run (returning our empty 1×1
-      // canvas) so the warp layer drops any stale content that was
-      // last drawn for a previous (A, B). Otherwise after pan/zoom
-      // invalidates the frames, the warp keeps displaying its last
-      // interpolated image over the primary — looks like "a frame
-      // stuck" until the window slides around to it again.
+      // Clear _warpState so canvasFunction's own hasFlow check sees
+      // a null pair and returns _emptyCanvas. Without this the
+      // closure in canvasFunction reads the PREVIOUS pair's
+      // (timeA, timeB) — and if that pair still has valid flow +
+      // extent for the current view, renderAt runs and the warp
+      // keeps showing the previous pair's interpolation on top of
+      // the primary layer. That's the "stuck frame plus next
+      // frames visible" ghost: previous pair warp over current pair
+      // primary, both at user opacity.
+      this._warpState.timeA = null;
+      this._warpState.timeB = null;
       this.warpLayer.getSource().changed();
       return;
     }
