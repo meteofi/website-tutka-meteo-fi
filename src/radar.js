@@ -30,7 +30,7 @@ import Timeline from './timeline';
 import wmsServerConfiguration from './config';
 import createLongPressHandler from './longpress';
 import FramePool from './animation/framePool';
-import { canInterpolate } from './animation/interpolation';
+import { canInterpolate, RadarInterpolator } from './animation/interpolation';
 
 dayjs.locale('fi');
 dayjs.extend(utcPlugin);
@@ -65,15 +65,6 @@ let startDate = new Date(Math.floor(Date.now() / 300000) * 300000 - 300000 * 12)
 // id — was a setInterval handle before the RAF refactor). Null when paused.
 let animationId = null;
 let lastAdvance = 0;
-// Resolved at module load; Phase 1 only logs the result. Pool construction
-// does not block on this. Phase 2 will read interpEnabled to gate
-// constructing a RadarInterpolator for the radar and satellite pools.
-let interpEnabled = false;
-canInterpolate().then((ok) => {
-  interpEnabled = ok;
-  debug(`INTERP: ${interpEnabled ? 'enabled' : 'disabled'}`);
-  track(interpEnabled ? 'interp-available' : 'interp-unsupported');
-});
 const layerInfo = {};
 let timeline;
 let mapTime = '';
@@ -83,6 +74,33 @@ const framePools = {
   lightningLayer: null,
   observationLayer: null,
 };
+
+// Probe runs at module load and may settle before or after main()
+// constructs the pools. attachInterpolators is idempotent; it's
+// called both from this .then and from the end of pool construction
+// in main() so whichever runs later does the wiring.
+let interpEnabled = false;
+canInterpolate().then((ok) => {
+  interpEnabled = ok;
+  debug(`INTERP: ${interpEnabled ? 'enabled' : 'disabled'}`);
+  track(interpEnabled ? 'interp-available' : 'interp-unsupported');
+  attachInterpolators();
+});
+
+function attachInterpolators() {
+  if (!interpEnabled) return;
+  const playing = animationId !== null;
+  for (const name of ['radarLayer', 'satelliteLayer']) {
+    const pool = framePools[name];
+    if (pool && !pool.interpolator) {
+      pool.setInterpolator(new RadarInterpolator());
+      // If the user is already playing when the probe finishes
+      // resolving, catch up — otherwise interp stays off until the
+      // user pauses and plays again.
+      if (playing) pool.setInterpActive(true);
+    }
+  }
+}
 const poolLoadStates = {
   satelliteLayer: new Array(13).fill(false),
   radarLayer: new Array(13).fill(false),
@@ -712,6 +730,13 @@ const renderTick = function (now) {
   }
 };
 
+function setInterpActiveAll(active) {
+  for (const name of Object.keys(framePools)) {
+    const pool = framePools[name];
+    if (pool && pool.interpolator) pool.setInterpActive(active);
+  }
+}
+
 const play = function () {
   if (animationId === null) {
     debug('PLAY');
@@ -719,6 +744,7 @@ const play = function () {
     lastAdvance = window.performance.now();
     animationId = window.requestAnimationFrame(renderTick);
     document.getElementById('playstopButton').innerHTML = 'pause';
+    setInterpActiveAll(true);
   }
 };
 
@@ -729,6 +755,7 @@ const stop = function () {
     window.cancelAnimationFrame(animationId);
     animationId = null;
     document.getElementById('playstopButton').innerHTML = 'play_arrow';
+    setInterpActiveAll(false);
   }
 };
 
@@ -1809,6 +1836,10 @@ const main = () => {
     };
     framePools[name] = pool;
   }
+  // Pools are now in framePools. If the capability probe has already
+  // resolved, wire interpolators up now; otherwise the probe's .then
+  // will call attachInterpolators once the verdict lands.
+  attachInterpolators();
   recomputeAllTimelineCells();
   window.__tutka = { map, framePools };
 

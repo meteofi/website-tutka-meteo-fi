@@ -1,4 +1,5 @@
 import ImageLayer from 'ol/layer/Image';
+import ImageCanvasSource from 'ol/source/ImageCanvas';
 import StickyImageWMS from './stickyImageWMS';
 
 const SYNC_PARAM_KEYS = ['LAYERS', 'STYLES', 'FORMAT', 'ELEVATION'];
@@ -35,10 +36,16 @@ export default class FramePool {
     this.size = size;
     this.slots = [];
     this.ratio = ratio;
-    // Optional RadarInterpolator instance. When present, later phases
-    // dispatch per-RAF warp requests through it; Phase 1 just stores
-    // the reference and keeps showInterpolated as a no-op.
+    // Optional RadarInterpolator instance. When present, showInterpolated
+    // drives the interpolator's warp shader and a separate warp layer
+    // displays the interpolated canvas.
     this.interpolator = interpolator;
+    this.warpLayer = null;
+    this.interpActive = false;
+    // Updated each RAF so the warp source's canvasFunction can read
+    // the current (A, B, t) it should render. Kept as an object
+    // reference so closures in setInterpolator can read through it.
+    this._warpState = { timeA: null, timeB: null, t: 0 };
 
     this.onLoadStateChange = null;
     this.windowTimes = null;
@@ -92,6 +99,13 @@ export default class FramePool {
           this.primary.changed();
         }
         this.map.render();
+        // Hand the fresh bitmap to the interpolator so it can upload
+        // a GL texture keyed by the slot's TIME. Safe for interp=null
+        // pools (lightning, observation) — the method is only called
+        // when an interpolator has been attached.
+        if (this.interpolator) {
+          this.interpolator.onSlotLoaded(slot, event.image.getImage());
+        }
         // Fan out: as the current ring of frames finishes loading,
         // trigger the next ring outward. Throttles total wire traffic
         // (never more than 2 new requests per ring) while eventually
@@ -126,6 +140,13 @@ export default class FramePool {
           if (slot.loaded !== fresh) {
             slot.loaded = fresh;
             this._notifyLoadChange(slot);
+            // Slot's sticky no longer covers the view — any flow pair
+            // built from the now-stale bitmap is suspect. Drop the
+            // frame texture and pair entries; onSlotLoaded will repopulate
+            // when the slot refetches.
+            if (!fresh && this.interpolator && slot.time) {
+              this.interpolator.invalidateSlot(slot.time);
+            }
           }
         }
       }
@@ -169,14 +190,14 @@ export default class FramePool {
         || snap.elevation !== prev.elevation
       ) {
         this._primaryParamsSnap = snap;
-        this._resyncAllParams();
+        this._resyncAllParams(prev, snap);
       }
     };
     p.on('change', fn);
     this._psListener = { target: p, fn };
   }
 
-  _resyncAllParams() {
+  _resyncAllParams(prev, now) {
     const p = this.primary.getSource();
     const pParams = pickSyncParams(p.getParams());
     for (const slot of this.slots) {
@@ -190,6 +211,19 @@ export default class FramePool {
       // Product/style/URL changed — any stale sticky is now for a
       // different layer and would bleed through on the next pan/zoom.
       slot.source.invalidateSticky();
+    }
+    // Flow is STYLES- and FORMAT-invariant: a colormap swap doesn't
+    // change the underlying motion field, so the interpolator can
+    // keep its flow cache and reuse it with the re-styled bitmaps
+    // once they land. URL / LAYERS / ELEVATION changes cross physical
+    // fields and must drop the cache.
+    if (this.interpolator && prev && now) {
+      const flowInvariant = (
+        prev.url === now.url
+        && prev.layers === now.layers
+        && prev.elevation === now.elevation
+      );
+      this.interpolator.onParamsChanged({ flowInvariant });
     }
     this._prefetchAroundCurrent();
   }
@@ -286,6 +320,10 @@ export default class FramePool {
       const slot = needAssign[j];
       const newTime = unassigned[j];
       if (!newTime) break;
+      // Capture old time BEFORE overwriting so the interpolator can
+      // drop flow pairs referencing the dropped TIME. Doing this
+      // after `slot.time = newTime` would lose the identity we need.
+      const oldTime = slot.time;
       slot.time = newTime;
       slot.loaded = false;
       slot.source.updateParams({
@@ -296,6 +334,9 @@ export default class FramePool {
       // for the old TIME and would render the wrong frame until the
       // new TIME's image lands.
       slot.source.invalidateSticky();
+      if (this.interpolator && oldTime) {
+        this.interpolator.invalidateSlot(oldTime);
+      }
     }
     // Prefetch is driven by showTime / moveend (current ± neighbors),
     // not from setWindow. Reassigned slots outside the current ± 1
@@ -328,17 +369,134 @@ export default class FramePool {
     return true;
   }
 
-  // Render the slot at a fractional position `t` in [0, 1] between
-  // the current frame (A) and the next frame in windowTimes (B).
-  // Phase 1 stub: the discrete frame is already on screen because
-  // setTime → showTime(A) ran at the most recent advance; there is
-  // nothing to do per-RAF without an active interpolator. Later
-  // phases will dispatch into this.interpolator.renderAt(A, B, t)
-  // when the pair has computed flow and swap the primary layer to
-  // the warp canvas.
-  // eslint-disable-next-line class-methods-use-this, no-unused-vars
+  // Attach an interpolator and build the warp layer it will render
+  // into. Called once from radar.js after canInterpolate resolves.
+  // Idempotent — a second call with the same interpolator is a no-op;
+  // with a different one, the old warp layer is torn down first.
+  setInterpolator(interpolator) {
+    if (this.interpolator === interpolator) return;
+    this._teardownWarpLayer();
+    this.interpolator = interpolator;
+    if (!interpolator) return;
+
+    this._userVisible = this.primary.getVisible();
+    this._settingVisInternally = false;
+
+    // canvasFunction reads _warpState populated by showInterpolated.
+    // Returning null leaves the layer blank — used when interp isn't
+    // active yet, or when flow isn't ready for the current pair.
+    const canvasFunction = () => {
+      if (!this.interpActive) return null;
+      const { timeA, timeB, t } = this._warpState;
+      if (!timeA || !timeB) return null;
+      if (!interpolator.hasFlow(timeA, timeB)) return null;
+      return interpolator.renderAt(timeA, timeB, t);
+    };
+
+    this.warpLayer = new ImageLayer({
+      name: `${this.primary.get('name')}__warp`,
+      visible: false,
+      opacity: this.primary.getOpacity(),
+      source: new ImageCanvasSource({ canvasFunction, ratio: 1 }),
+    });
+
+    // Track user's visibility and opacity choices on the primary
+    // layer and mirror them onto warp. Internal visibility swaps
+    // (triggered by setInterpActive / showInterpolated) are filtered
+    // via _settingVisInternally so they don't re-write _userVisible.
+    this._primaryVisListener = () => {
+      if (this._settingVisInternally) return;
+      this._userVisible = this.primary.getVisible();
+      this._syncVisibility();
+    };
+    this._primaryOpacityListener = () => {
+      this.warpLayer.setOpacity(this.primary.getOpacity());
+    };
+    this.primary.on('change:visible', this._primaryVisListener);
+    this.primary.on('change:opacity', this._primaryOpacityListener);
+    this.map.addLayer(this.warpLayer);
+
+    // Retroactively upload already-loaded slot bitmaps so hasFlow
+    // returns true on the first showInterpolated call after a delayed
+    // attach (canInterpolate is async; some slots may already be
+    // loaded by the time we get here).
+    for (const slot of this.slots) {
+      if (!slot.loaded || !slot.time) continue; // eslint-disable-line no-continue
+      const wrapper = slot.source._sticky;
+      if (!wrapper) continue; // eslint-disable-line no-continue
+      const img = wrapper.getImage();
+      if (img && img.complete && img.naturalWidth) {
+        interpolator.onSlotLoaded(slot, img);
+      }
+    }
+  }
+
+  _teardownWarpLayer() {
+    if (!this.warpLayer) return;
+    if (this._primaryVisListener) {
+      this.primary.un('change:visible', this._primaryVisListener);
+      this._primaryVisListener = null;
+    }
+    if (this._primaryOpacityListener) {
+      this.primary.un('change:opacity', this._primaryOpacityListener);
+      this._primaryOpacityListener = null;
+    }
+    this.map.removeLayer(this.warpLayer);
+    this.warpLayer = null;
+  }
+
+  // Toggle interpolated display on/off. radar.js calls this from
+  // play() / stop(). Actual layer swap happens inside _setWarpShowing,
+  // which only flips layers once we actually have content to show —
+  // avoids a blank frame at the start of play before flow is ready.
+  setInterpActive(active) {
+    if (this.interpActive === active) return;
+    this.interpActive = active;
+    if (!active) this._setWarpShowing(false);
+    if (this.warpLayer) this.warpLayer.getSource().changed();
+  }
+
+  // Render the warp at fractional t between current frame (A) and the
+  // next in windowTimes (B). No-op unless we've been put into interp
+  // mode AND the pool has a valid window AND the interpolator has
+  // what it needs to produce output. On first successful render,
+  // swaps layer visibility from primary to warp.
   showInterpolated(t) {
-    // phase 1: no-op
+    if (!this.interpolator || !this.interpActive) return;
+    if (!this.windowTimes || !this.currentTime) return;
+    const curIdx = this.windowTimes.indexOf(this.currentTime);
+    if (curIdx < 0) return;
+    const nextIdx = (curIdx + 1) % this.size;
+    const timeB = this.windowTimes[nextIdx];
+    if (!timeB) return;
+    if (!this.interpolator.hasFlow(this.currentTime, timeB)) return;
+
+    this._warpState.timeA = this.currentTime;
+    this._warpState.timeB = timeB;
+    this._warpState.t = t;
+
+    this.warpLayer.getSource().changed();
+    this._setWarpShowing(true);
+  }
+
+  // Internal: flip primary ↔ warp visibility without disturbing the
+  // user's layer-toggle state.
+  _setWarpShowing(showing) {
+    if (!this.warpLayer) return;
+    const desiredWarp = showing && this._userVisible;
+    const desiredPrimary = !showing && this._userVisible;
+    if (this.warpLayer.getVisible() === desiredWarp
+        && this.primary.getVisible() === desiredPrimary) return;
+    this._settingVisInternally = true;
+    this.warpLayer.setVisible(desiredWarp);
+    this.primary.setVisible(desiredPrimary);
+    this._settingVisInternally = false;
+  }
+
+  _syncVisibility() {
+    if (!this.warpLayer) return;
+    const warpShowing = this.warpLayer.getVisible();
+    this._setWarpShowing(warpShowing);
   }
 
   // Is this time's slot's current-view image loaded?

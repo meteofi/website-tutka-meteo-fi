@@ -1,52 +1,162 @@
-// Public API for optical-flow interpolation. Phase 1 skeleton: the
-// class compiles, plugs into the call sites FramePool will use in
-// later phases, and never actually warps a pixel. Every method is a
-// no-op or returns a sentinel that makes the caller fall back to
-// discrete frame display.
+// Client-side pyramidal Lucas-Kanade optical flow + motion-compensated
+// warp for radar animation interpolation.
 //
-// Phase 2 will add the warp renderer (with zero flow, visually a
-// crossfade) to validate GL context plumbing and OL integration.
-// Phase 3 adds pyramidal Lucas–Kanade flow computation. Phase 4
-// handles nodata masking, webglcontextlost recovery, and memory
-// budget enforcement.
+// Phase 2 state: frame upload, canvas output, OpenLayers integration,
+// and the warp shader all work. Flow fields are zeroed RG16F textures
+// (no LK yet), so the visual effect is a straight crossfade — but the
+// whole GPU pipeline is exercised so Phase 3 only needs to swap in
+// real flow compute.
+//
+// Instance ownership: one RadarInterpolator per interpolating pool
+// (radar, satellite). Each owns its own WebGL2 context on an offscreen
+// canvas; that canvas is what the pool's warp layer displays via an
+// ol/source/ImageCanvas. Sharing a single GL context across pools is a
+// Phase 4 optimization — per-pool GL is simpler and, with only two
+// interpolating pools, the memory cost is tolerable.
 
 import canInterpolate from './capabilities';
+import WarpRenderer from './warp';
+import { createRgbaTexture, createRg16fTexture } from './glUtils';
 
 export { canInterpolate };
 
-// Phase 1 skeleton methods don't read `this`. Later phases will hold GPU
-// state (textures, programs, flow cache) and access it through `this`.
-/* eslint-disable class-methods-use-this */
 export class RadarInterpolator {
-  constructor(opts = {}) {
-    this.gl = opts.gl || null;
-    this.flowResolution = opts.flowResolution || 256;
-    this.pyramidLevels = opts.pyramidLevels || 3;
-    this.iterations = opts.iterations || 5;
+  constructor({ flowResolution = 256 } = {}) {
+    this.flowResolution = flowResolution;
+
+    this.canvas = document.createElement('canvas');
+    this.canvas.width = 1;
+    this.canvas.height = 1;
+    this.gl = this.canvas.getContext('webgl2', {
+      alpha: true,
+      premultipliedAlpha: true,
+      preserveDrawingBuffer: true,
+      antialias: false,
+    });
+    if (!this.gl) {
+      throw new Error('RadarInterpolator: WebGL2 unavailable');
+    }
+    // Enable either extension — canInterpolate already verified one
+    // of them is available; we just need to activate it for the
+    // RG16F flow texture to be renderable later.
+    this.gl.getExtension('EXT_color_buffer_half_float');
+    this.gl.getExtension('EXT_color_buffer_float');
+
+    this.warp = new WarpRenderer(this.gl);
+
+    // Keyed by time ISO string. Values: { texture, width, height }.
+    this.frames = new Map();
+    // Keyed by `${timeA}|${timeB}`. Values: { texture }.
+    this.flows = new Map();
   }
 
-  // Called from FramePool.imageloadend once a slot's bitmap finishes
-  // loading. Phase 3 will upload to GPU and kick off flow computation
-  // for any newly-completable pair.
-  onSlotLoaded(/* slot, image */) {}
+  // Called from FramePool on imageloadend once a slot's bitmap is
+  // usable. Uploads the image to a GL texture keyed by the slot's
+  // TIME. If a previous texture existed for that TIME (e.g., after a
+  // STYLES change invalidated it), it's replaced.
+  onSlotLoaded(slot, image) {
+    if (!slot || !slot.time || !image) return;
+    const w = image.naturalWidth || image.width;
+    const h = image.naturalHeight || image.height;
+    if (!w || !h) return;
+    const existing = this.frames.get(slot.time);
+    if (existing) this.gl.deleteTexture(existing.texture);
+    const texture = createRgbaTexture(this.gl, w, h, image);
+    this.frames.set(slot.time, { texture, width: w, height: h });
+  }
 
-  // Called from FramePool._resyncAllParams after a WMS-param change.
-  // `flowInvariant` is true when only STYLES / FORMAT changed — flow
-  // can be kept and reused with the re-styled bitmaps once they land.
-  // Phase 3 will conditionally clear the flow cache.
-  onParamsChanged(/* { flowInvariant } */) {}
+  // Called from FramePool._resyncAllParams. If the change wasn't
+  // flow-invariant (LAYERS / ELEVATION / URL moved), throw out the
+  // flow cache — the underlying physical field has changed. Frame
+  // textures are separately invalidated when the pool's slots
+  // refetch; onSlotLoaded overwrites them when the new bitmaps land.
+  onParamsChanged({ flowInvariant } = {}) {
+    if (!flowInvariant) {
+      for (const f of this.flows.values()) this.gl.deleteTexture(f.texture);
+      this.flows.clear();
+    }
+    // Frame textures are always replaced on new bitmaps, so we don't
+    // pre-emptively delete them here — doing so would leave a window
+    // where hasFlow returned false but showTime was already showing
+    // the new frame.
+  }
 
-  // Called when a slot's view-cached image is no longer valid (pan /
-  // zoom pushed the sticky out of the requested extent) OR when the
-  // slot's TIME is reassigned during a window slide. Phase 3 will
-  // drop any flow pair that references the invalidated time.
-  invalidateSlot(/* time */) {}
+  // Called from FramePool when a slot goes stale (pan/zoom invalidated
+  // view coverage, or window slide dropped this TIME). Drop the frame
+  // texture and any flow pairs referencing this time.
+  invalidateSlot(time) {
+    if (!time) return;
+    const f = this.frames.get(time);
+    if (f) {
+      this.gl.deleteTexture(f.texture);
+      this.frames.delete(time);
+    }
+    for (const [key, flow] of this.flows) {
+      if (key.startsWith(`${time}|`) || key.endsWith(`|${time}`)) {
+        this.gl.deleteTexture(flow.texture);
+        this.flows.delete(key);
+      }
+    }
+  }
 
-  // Is there a usable flow field for (A, B)? Phase 1 always returns
-  // false so FramePool.showInterpolated falls back to the discrete
-  // display path.
-  hasFlow(/* timeA, timeB */) { return false; }
+  // Is there enough data to render (A, B, t)? In Phase 2, "flow
+  // ready" really just means "both bitmaps uploaded" — the zero flow
+  // texture is created on demand.
+  hasFlow(timeA, timeB) {
+    return this.frames.has(timeA) && this.frames.has(timeB);
+  }
 
-  // Render the warped frame for (A, B, t). Phase 1 returns null.
-  renderAt(/* timeA, timeB, t */) { return null; }
+  // Draw the warped image for (A, B, t) into this.canvas. Returns
+  // the canvas, or null if we don't have both frames yet.
+  renderAt(timeA, timeB, t) {
+    const a = this.frames.get(timeA);
+    const b = this.frames.get(timeB);
+    if (!a || !b) return null;
+
+    // A and B can disagree on pixel dimensions if the user panned
+    // between their loads. Phase 2 picks A's dimensions as the
+    // analysis grid; the warp shader samples B using the same UVs
+    // regardless, which smears B at the edges when dimensions
+    // differ. Acceptable for the shake-out phase; Phase 3 will
+    // resample both onto a common analysis grid before LK runs.
+    const w = a.width;
+    const h = a.height;
+
+    if (this.canvas.width !== w || this.canvas.height !== h) {
+      this.canvas.width = w;
+      this.canvas.height = h;
+    }
+
+    const flowTex = this._getOrCreateFlow(timeA, timeB);
+
+    const { gl } = this;
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    this.warp.render(a.texture, b.texture, flowTex, t, w, h);
+
+    return this.canvas;
+  }
+
+  _getOrCreateFlow(timeA, timeB) {
+    const key = `${timeA}|${timeB}`;
+    let flow = this.flows.get(key);
+    if (!flow) {
+      // Phase 2: zero-filled flow. Phase 3 will populate this via
+      // pyramidal LK before any render call that needs it.
+      const r = this.flowResolution;
+      const texture = createRg16fTexture(this.gl, r, r, null);
+      flow = { texture };
+      this.flows.set(key, flow);
+    }
+    return flow.texture;
+  }
+
+  dispose() {
+    for (const f of this.frames.values()) this.gl.deleteTexture(f.texture);
+    for (const f of this.flows.values()) this.gl.deleteTexture(f.texture);
+    this.frames.clear();
+    this.flows.clear();
+    this.warp.dispose();
+  }
 }
