@@ -1013,8 +1013,24 @@ function layerInfoPlaylist(event) {
 
   if (typeof info === 'undefined') return;
 
-  // If only opacity changed, update slider value without full DOM rebuild
+  // FramePool.showTime swaps primary.setSource(slot.source) every
+  // discrete frame advance during playback. That fires propertychange
+  // with key='source'. Without this guard the whole playlist DOM
+  // rebuilds 2× per second during playback (visible as a pulsing
+  // hover state on style chips), churning CPU for no user-visible
+  // reason — source swaps within the pool never change which WMS
+  // layer/style/URL the user selected.
+  if (event.key === 'source') return;
+
+  // If only opacity changed, update slider value without full DOM rebuild.
+  // Skip updates triggered by the interpolator's internal transparent
+  // swap (framepool._setPrimaryTransparent), which marks the layer
+  // with `_interpHiding` before writing opacity — otherwise the slider
+  // would jump to 0 whenever the warp takes over.
   if (event.key === 'opacity') {
+    if (layer.get('_interpHiding') !== undefined && layer.get('_interpHiding') !== false) {
+      return;
+    }
     const existingSlider = document.getElementById(`${name}Slider`);
     if (existingSlider) {
       existingSlider.value = opacity;

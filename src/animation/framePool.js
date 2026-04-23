@@ -544,13 +544,19 @@ export default class FramePool {
   }
 
   // Flip primary's opacity between 0 (warp is rendering content) and
-  // the user's chosen opacity. Guarded so our own writes don't get
-  // captured by the change:opacity listener as a new "user opacity".
+  // the user's chosen opacity. Guarded on two fronts:
+  //   - our change:opacity listener filters on _settingOpacityInternally
+  //     so it doesn't capture our writes as a new "user opacity".
+  //   - we mark the layer with `_interpHiding` before the opacity write
+  //     so radar.js's layerInfoPlaylist can skip the slider-UI update —
+  //     otherwise the slider would jump to 0 (and the user's drag
+  //     would get overridden back to 0 on the next RAF).
   _setPrimaryTransparent(transparent) {
     if (!this.warpLayer) return;
     const desired = transparent ? 0 : this._userOpacity;
     if (this.primary.getOpacity() === desired) return;
     this._settingOpacityInternally = true;
+    this.primary.set('_interpHiding', transparent, true);
     this.primary.setOpacity(desired);
     this._settingOpacityInternally = false;
   }
