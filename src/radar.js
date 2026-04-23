@@ -30,6 +30,7 @@ import Timeline from './timeline';
 import wmsServerConfiguration from './config';
 import createLongPressHandler from './longpress';
 import FramePool from './animation/framePool';
+import { canInterpolate } from './animation/interpolation';
 
 dayjs.locale('fi');
 dayjs.extend(utcPlugin);
@@ -60,7 +61,19 @@ let ownPosition = [];
 let ownPosition4326 = [];
 let geolocation;
 let startDate = new Date(Math.floor(Date.now() / 300000) * 300000 - 300000 * 12);
+// Handle of the currently-running playback loop (now a requestAnimationFrame
+// id — was a setInterval handle before the RAF refactor). Null when paused.
 let animationId = null;
+let lastAdvance = 0;
+// Resolved at module load; Phase 1 only logs the result. Pool construction
+// does not block on this. Phase 2 will read interpEnabled to gate
+// constructing a RadarInterpolator for the radar and satellite pools.
+let interpEnabled = false;
+canInterpolate().then((ok) => {
+  interpEnabled = ok;
+  debug(`INTERP: ${interpEnabled ? 'enabled' : 'disabled'}`);
+  track(interpEnabled ? 'interp-available' : 'interp-unsupported');
+});
 const layerInfo = {};
 let timeline;
 let mapTime = '';
@@ -666,17 +679,45 @@ function updateClock() {
 
 let isInteracting = false;
 
+// Playback loop. Split into two cadences so interpolation can layer on
+// top cleanly in later phases:
+//   - Advance (slow): bump the discrete timestep by a full frame when
+//     wall-clock elapsed exceeds stepDuration. This is today's setTime
+//     call. stepDuration is read from options.frameRate on every tick
+//     so the speed button takes effect without restart.
+//   - Render (fast): every RAF, ask each visible pool to render at the
+//     current fractional `t` between the last advance and the next.
+//     Phase 1's showInterpolated is a no-op, so playback is visually
+//     identical to the previous setInterval-based loop.
+//
+// isInteracting gates both cadences — OL won't redraw during pan/zoom
+// and advancing the clock while the image is frozen would desync the
+// timeline from what's on screen.
+const renderTick = function (now) {
+  animationId = window.requestAnimationFrame(renderTick);
+  if (isInteracting) return;
+
+  const stepDuration = 1000 / options.frameRate;
+  if (now - lastAdvance >= stepDuration) {
+    lastAdvance = now;
+    setTime();
+    return;
+  }
+
+  const t = (now - lastAdvance) / stepDuration;
+  for (const name of Object.keys(framePools)) {
+    if (!VISIBLE.has(name)) continue; // eslint-disable-line no-continue
+    const pool = framePools[name];
+    if (pool) pool.showInterpolated(t);
+  }
+};
+
 const play = function () {
   if (animationId === null) {
     debug('PLAY');
     IS_FOLLOWING = false;
-    // Skip auto-advance ticks while the user is dragging/zooming —
-    // OL refuses to redraw during interaction (INTERACTING hint), so
-    // letting the clock and timeline advance while the image is frozen
-    // would desync them.
-    animationId = window.setInterval(() => {
-      if (!isInteracting) setTime();
-    }, 1000 / options.frameRate);
+    lastAdvance = window.performance.now();
+    animationId = window.requestAnimationFrame(renderTick);
     document.getElementById('playstopButton').innerHTML = 'pause';
   }
 };
@@ -685,7 +726,7 @@ const stop = function () {
   if (animationId !== null) {
     debug('STOP');
     IS_FOLLOWING = false;
-    window.clearInterval(animationId);
+    window.cancelAnimationFrame(animationId);
     animationId = null;
     document.getElementById('playstopButton').innerHTML = 'play_arrow';
   }

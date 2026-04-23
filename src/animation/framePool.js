@@ -28,13 +28,17 @@ function pickSyncParams(params) {
 // refetch the one slot whose TIME left the window.
 export default class FramePool {
   constructor({
-    primaryLayer, map, size = 13, ratio = 1.5,
+    primaryLayer, map, size = 13, ratio = 1.5, interpolator = null,
   }) {
     this.primary = primaryLayer;
     this.map = map;
     this.size = size;
     this.slots = [];
     this.ratio = ratio;
+    // Optional RadarInterpolator instance. When present, later phases
+    // dispatch per-RAF warp requests through it; Phase 1 just stores
+    // the reference and keeps showInterpolated as a no-op.
+    this.interpolator = interpolator;
 
     this.onLoadStateChange = null;
     this.windowTimes = null;
@@ -322,6 +326,19 @@ export default class FramePool {
     }
     this._prefetchAroundCurrent();
     return true;
+  }
+
+  // Render the slot at a fractional position `t` in [0, 1] between
+  // the current frame (A) and the next frame in windowTimes (B).
+  // Phase 1 stub: the discrete frame is already on screen because
+  // setTime → showTime(A) ran at the most recent advance; there is
+  // nothing to do per-RAF without an active interpolator. Later
+  // phases will dispatch into this.interpolator.renderAt(A, B, t)
+  // when the pair has computed flow and swap the primary layer to
+  // the warp canvas.
+  // eslint-disable-next-line class-methods-use-this, no-unused-vars
+  showInterpolated(t) {
+    // phase 1: no-op
   }
 
   // Is this time's slot's current-view image loaded?
