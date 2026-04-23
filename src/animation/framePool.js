@@ -407,6 +407,11 @@ export default class FramePool {
 
     this._userOpacity = this.primary.getOpacity();
     this._settingOpacityInternally = false;
+    // Publish _userOpacity as a custom property on the primary layer
+    // so the playlist UI can show the user's chosen opacity even
+    // when our transparent swap has the actual layer.opacity at 0.
+    // Silent set — no propertychange event fires.
+    this.primary.set('_userOpacity', this._userOpacity, true);
 
     // 1×1 transparent canvas we return from canvasFunction when the
     // warp has nothing to show. Returning null from canvasFunction
@@ -460,6 +465,7 @@ export default class FramePool {
     this._primaryOpacityListener = () => {
       if (this._settingOpacityInternally) return;
       this._userOpacity = this.primary.getOpacity();
+      this.primary.set('_userOpacity', this._userOpacity, true);
       this.warpLayer.setOpacity(this._userOpacity);
     };
     this.primary.on('change:visible', this._primaryVisListener);
@@ -504,6 +510,9 @@ export default class FramePool {
       this.primary.setOpacity(this._userOpacity);
       this._settingOpacityInternally = false;
     }
+    // Clear the custom property so the playlist falls back to
+    // layer.opacity again (which is now the user's value).
+    this.primary.set('_userOpacity', undefined, true);
     if (this._primaryVisListener) {
       this.primary.un('change:visible', this._primaryVisListener);
       this._primaryVisListener = null;

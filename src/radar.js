@@ -1074,7 +1074,13 @@ function layerInfoPlaylist(event) {
   const layer = event.target;
   const name = layer.get('name');
   const info = layer.get('info');
-  const opacity = layer.get('opacity') * 100;
+  // Prefer the user-chosen opacity when the interpolator has zeroed
+  // the layer's actual opacity for its transparent swap. Falls back
+  // to layer.opacity for non-interp layers (lightning, observation,
+  // or any layer when interp is off).
+  const userOp = layer.get('_userOpacity');
+  const effectiveOpacity = userOp !== undefined ? userOp : layer.get('opacity');
+  const opacity = effectiveOpacity * 100;
 
   if (typeof info === 'undefined') return;
 
