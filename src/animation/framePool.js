@@ -464,7 +464,18 @@ export default class FramePool {
     };
     this.primary.on('change:visible', this._primaryVisListener);
     this.primary.on('change:opacity', this._primaryOpacityListener);
-    this.map.addLayer(this.warpLayer);
+    // Insert the warp layer right after the primary so it takes
+    // over the primary's z-slot. addLayer would append to the end,
+    // which puts the warp above POIs, range rings and the
+    // observation layer — wrong z-order. If the primary isn't in
+    // the collection for some reason, fall back to appending.
+    const mapLayers = this.map.getLayers();
+    const primaryIdx = mapLayers.getArray().indexOf(this.primary);
+    if (primaryIdx >= 0) {
+      mapLayers.insertAt(primaryIdx + 1, this.warpLayer);
+    } else {
+      mapLayers.push(this.warpLayer);
+    }
 
     // Retroactively upload already-loaded slot bitmaps so hasFlow
     // returns true on the first showInterpolated call after a delayed
