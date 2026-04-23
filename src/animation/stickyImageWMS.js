@@ -100,6 +100,26 @@ export default class StickyImageWMS extends ImageWMS {
     this._sticky = null;
   }
 
+  // Clear the parent ImageSource's cached image wrapper so the next
+  // super.getImage call creates a fresh one at the current view
+  // extent. Needed because OL's own render pipeline keeps calling
+  // getImage on the primary layer's source during a pan, and the
+  // cache can lock in an intermediate wrapper whose extent doesn't
+  // match the final view. A load completing on that wrapper stores
+  // the mid-pan extent on the interpolator frame, which then fails
+  // the extent-equality check against neighbouring slots loaded at
+  // the final view and the LK compute is skipped.
+  //
+  // Sticky is preserved so the layer keeps drawing the old-extent
+  // image while the new wrapper loads.
+  resetImageCache() {
+    this.image_ = null;
+    if (this._currentAbortController) {
+      this._currentAbortController.abort();
+      this._currentAbortController = null;
+    }
+  }
+
   // Promote an image to sticky. Used from imageloadend when the slot
   // is not currently primary (so OL never calls getImage through the
   // sticky override, which is the other place sticky gets updated).

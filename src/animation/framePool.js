@@ -150,6 +150,19 @@ export default class FramePool {
       // which cells need to be re-fetched for the current view.
       const ctx = this._getViewContext();
       if (ctx) {
+        // First, drop each source's cached ImageWMS wrapper. OL's own
+        // render pipeline calls getImage on the primary layer's source
+        // during a pan, and the cache locks in a wrapper whose extent
+        // reflects the intermediate view. Without this reset, loads
+        // completing on those wrappers would store mid-pan extents
+        // that fail extentApproxEqual against neighbouring slots
+        // (which didn't get render-hit during the pan), and the
+        // interpolator would skip computeFlow for any pair involving
+        // the current slot — visible as two permanently-green cells
+        // on the timeline.
+        for (const slot of this.slots) {
+          slot.source.resetImageCache();
+        }
         for (const slot of this.slots) {
           if (!slot.time) {
             continue; // eslint-disable-line no-continue
