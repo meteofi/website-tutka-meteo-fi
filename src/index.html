@@ -63,16 +63,49 @@
 </head>
 
 <body>
-  <nav class="toolbar navbar noselect">
-    <button id="locationLayerButton" aria-label="Paikannus" aria-pressed="false"><i id="gpsStatus" class="material-icons">gps_not_fixed</i><span class="menu-spacer" aria-hidden="true"><i class="material-icons">expand_more</i></span></button>
-    <button id="mapLayerButton" aria-label="Karttapohja" aria-pressed="false"><i class="material-icons">brightness_2</i><span class="menu-spacer" aria-hidden="true"><i class="material-icons">expand_more</i></span></button>
-    <button id="satelliteLayerButton" aria-label="Satelliitti" aria-pressed="false" aria-haspopup="menu"><i class="material-icons">satellite</i><span class="btn-label">Satelliitti</span><span class="menu-indicator"><i class="material-icons">expand_more</i></span></button>
-    <button id="radarLayerButton" class="selectedButton" aria-pressed="true" aria-haspopup="menu"><i class="material-icons">filter_tilt_shift</i><span class="btn-label">Säätutka</span><span class="menu-indicator"><i class="material-icons">expand_more</i></span></button>
-    <button id="lightningLayerButton" aria-pressed="false"><i class="material-icons">flash_on</i><span class="btn-label">Salamat</span><span class="menu-spacer" aria-hidden="true"><i class="material-icons">expand_more</i></span></button>
-    <button id="observationLayerButton" aria-label="Havainto" aria-pressed="false" aria-haspopup="menu"><i class="material-icons">place</i><span class="btn-label">Havainto</span><span class="menu-indicator"><i class="material-icons">expand_more</i></span></button>
-    <button id="layersButton" aria-label="Lisää tasoja"><i class="material-icons">more_vert</i><span class="menu-spacer" aria-hidden="true"><i class="material-icons">expand_more</i></span></button>
+  <nav id="primaryToolbar" class="noselect" aria-label="Karttatasot">
+    <div class="pill" role="toolbar">
+      <button id="satelliteLayerButton" class="seg" aria-pressed="false" aria-label="Satelliitti" aria-haspopup="menu" data-name="Satelliitti">
+        <i class="material-icons" aria-hidden="true">satellite_alt</i>
+        <span class="indicator" aria-hidden="true"></span>
+      </button>
+      <button id="radarLayerButton" class="seg selectedButton" aria-pressed="true" aria-label="Säätutka" aria-haspopup="menu" data-name="Säätutka">
+        <i class="material-icons" aria-hidden="true">radar</i>
+        <span class="indicator" aria-hidden="true"></span>
+      </button>
+      <button id="lightningLayerButton" class="seg" aria-pressed="false" aria-label="Salamat" data-name="Salamat">
+        <i class="material-icons" aria-hidden="true">bolt</i>
+        <span class="indicator" aria-hidden="true"></span>
+      </button>
+      <button id="observationLayerButton" class="seg" aria-pressed="false" aria-label="Havainto" aria-haspopup="menu" data-name="Havainto">
+        <i class="material-icons" aria-hidden="true">thermostat</i>
+        <span class="indicator" aria-hidden="true"></span>
+      </button>
+    </div>
+    <button id="menuButton" class="glass-fab" aria-haspopup="menu" aria-expanded="false" aria-controls="overflowMenu" aria-label="Valikko">
+      <i class="material-icons" aria-hidden="true">more_horiz</i>
+    </button>
   </nav>
-  
+
+  <div id="overflowMenuBackdrop"></div>
+  <div id="overflowMenu" role="menu" hidden>
+    <div class="menu-header">Karttakohteet</div>
+    <div id="poiList"></div>
+    <div class="menu-divider"></div>
+    <div class="menu-header">Teema</div>
+    <div class="theme-chips" role="radiogroup" aria-label="Teema">
+      <button class="chip" role="radio" aria-checked="false" data-theme="auto">Automaattinen</button>
+      <button class="chip" role="radio" aria-checked="false" data-theme="dark">Tumma</button>
+      <button class="chip" role="radio" aria-checked="false" data-theme="light">Vaalea</button>
+    </div>
+  </div>
+
+  <button id="locationLayerButton" class="location-fab noselect" aria-pressed="false" aria-label="Paikannus">
+    <i id="gpsStatus" class="material-icons" aria-hidden="true">gps_not_fixed</i>
+  </button>
+
+  <div id="coachmark" aria-live="polite" hidden></div>
+
   <div id="map"></div>
  
   <div id="infopanel" class="noselect">

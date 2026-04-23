@@ -104,7 +104,6 @@ if (ACTIVE.has('suomi_dbz_eureffin')) {
 }
 // IS_DARK: null = auto (follow OS), true = user picked dark, false = user picked light
 let IS_DARK = safeParseJSON('IS_DARK', null);
-let currentMapTheme = 'dark';
 let IS_TRACKING = safeParseJSON('IS_TRACKING', false);
 let IS_FOLLOWING = safeParseJSON('IS_FOLLOWING', false);
 let IS_NAUTICAL = safeParseJSON('IS_NAUTICAL', false);
@@ -355,7 +354,7 @@ const icaoLayer = new VectorLayer({
     format: new GeoJSON(),
     url: 'airfields-finland.json',
   }),
-  visible: true,
+  visible: false,
   style(feature) {
     icaoStyle.getText().setText(feature.get('icao'));
     return icaoStyle;
@@ -734,10 +733,8 @@ function setMapLayer(maplayer) {
       darkGrayReferenceLayer.setVisible(false);
       lightGrayBaseLayer.setVisible(true);
       lightGrayReferenceLayer.setVisible(true);
-      currentMapTheme = 'light';
       darkBaseEl.classList.remove('selected');
       lightBaseEl.classList.add('selected');
-      setButtonState('mapLayerButton', false);
       track('theme-light');
       break;
     case 'dark':
@@ -745,10 +742,8 @@ function setMapLayer(maplayer) {
       darkGrayReferenceLayer.setVisible(true);
       lightGrayBaseLayer.setVisible(false);
       lightGrayReferenceLayer.setVisible(false);
-      currentMapTheme = 'dark';
       lightBaseEl.classList.remove('selected');
       darkBaseEl.classList.add('selected');
-      setButtonState('mapLayerButton', true);
       track('theme-dark');
       break;
     default:
@@ -756,10 +751,30 @@ function setMapLayer(maplayer) {
   }
 }
 
-function setUserTheme(maplayer) {
-  IS_DARK = maplayer === 'dark';
-  localStorage.setItem('IS_DARK', JSON.stringify(IS_DARK));
-  setMapLayer(maplayer);
+function getThemeMode() {
+  if (IS_DARK === null) return 'auto';
+  return IS_DARK ? 'dark' : 'light';
+}
+
+function updateThemeChipsState() {
+  const mode = getThemeMode();
+  document.querySelectorAll('#overflowMenu .chip[data-theme]').forEach((chip) => {
+    const match = chip.getAttribute('data-theme') === mode;
+    chip.setAttribute('aria-checked', String(match));
+  });
+}
+
+function setUserTheme(mode) {
+  if (mode === 'auto') {
+    IS_DARK = null;
+    localStorage.removeItem('IS_DARK');
+    setMapLayer(getEffectiveTheme());
+  } else {
+    IS_DARK = mode === 'dark';
+    localStorage.setItem('IS_DARK', JSON.stringify(IS_DARK));
+    setMapLayer(mode);
+  }
+  updateThemeChipsState();
 }
 
 document.getElementById('darkBase').addEventListener('mouseup', () => {
@@ -1047,6 +1062,10 @@ function onChangeVisible(event) {
       document.getElementById(wmslayer).classList.add('selected');
     }
     setButtonState(`${name}Button`, true);
+    const segEl = document.getElementById(`${name}Button`);
+    if (segEl && typeof showCoachmark === 'function') {
+      showCoachmark(segEl.getAttribute('data-name'));
+    }
     document.getElementById(`${name}Info`).classList.remove('playListDisabled');
     const toggleIcon = document.querySelector(`#${name}Info .card-visibility-toggle .material-icons`);
     if (toggleIcon) toggleIcon.textContent = 'visibility';
@@ -1156,15 +1175,6 @@ window.addEventListener('mouseup', (e) => {
     closePlaylist();
   }
 
-  // Layers
-  if (!document.getElementById('layers').contains(e.target)) {
-    if (document.getElementById('layersButton').contains(e.target)) return;
-    const elem = document.getElementById('layers');
-    // if (elem.style.display === 'block') {
-    elem.style.display = 'none';
-    // }
-  }
-
   // Close long-press menus when clicking/touching outside
   const longPressMenus = [
     { menuId: 'observationLongPressMenu', buttonId: 'observationLayerButton' },
@@ -1201,15 +1211,15 @@ function setButtonState(id, active) {
 
 function setButtonStates() {
   setButtonState('locationLayerButton', IS_TRACKING);
-  setButtonState('mapLayerButton', currentMapTheme === 'dark');
   setButtonState('satelliteLayerButton', VISIBLE.has('satelliteLayer'));
   setButtonState('radarLayerButton', VISIBLE.has('radarLayer'));
   setButtonState('lightningLayerButton', VISIBLE.has('lightningLayer'));
   setButtonState('observationLayerButton', VISIBLE.has('observationLayer'));
+  updateThemeChipsState();
 }
 
-// Press feedback for all navbar buttons
-document.querySelectorAll('.navbar > button').forEach((btn) => {
+// Press feedback for all floating controls
+document.querySelectorAll('.pill .seg, #menuButton, .location-fab').forEach((btn) => {
   function addPress() { btn.classList.add('pressing'); }
   function removePress() { btn.classList.remove('pressing'); }
   btn.addEventListener('mousedown', addPress);
@@ -1243,10 +1253,6 @@ document.getElementById('locationLayerButton').addEventListener('mouseup', () =>
 document.getElementById('cursorDistanceTxt').addEventListener('mouseup', () => {
   IS_NAUTICAL = !IS_NAUTICAL;
   localStorage.setItem('IS_NAUTICAL', JSON.stringify(IS_NAUTICAL));
-});
-
-document.getElementById('mapLayerButton').addEventListener('mouseup', () => {
-  setUserTheme(currentMapTheme === 'dark' ? 'light' : 'dark');
 });
 
 document.getElementById('radarLayerTitle').addEventListener('mouseup', () => {
@@ -1289,14 +1295,176 @@ const radarMenu = createLongPressHandler(
   () => radarLayer.getVisible(),
 );
 
-document.getElementById('layersButton').addEventListener('mouseup', () => {
-  const div = document.getElementById('layers');
-  if (div.style.display === 'none') {
-    div.style.display = 'grid';
-  } else {
-    div.style.display = 'none';
-  }
+// Overflow menu (three-dots) — open/close + theme chip wiring
+const overflowMenuEl = document.getElementById('overflowMenu');
+const overflowBackdropEl = document.getElementById('overflowMenuBackdrop');
+const menuButtonEl = document.getElementById('menuButton');
+
+function openOverflowMenu() {
+  overflowMenuEl.hidden = false;
+  // force reflow so the CSS transition runs from the initial state
+  overflowMenuEl.getBoundingClientRect();
+  overflowMenuEl.classList.add('open');
+  overflowBackdropEl.classList.add('open');
+  menuButtonEl.setAttribute('aria-expanded', 'true');
+  updateThemeChipsState();
+  updatePoiMenuState();
+}
+
+function closeOverflowMenu() {
+  overflowMenuEl.classList.remove('open');
+  overflowBackdropEl.classList.remove('open');
+  menuButtonEl.setAttribute('aria-expanded', 'false');
+  setTimeout(() => {
+    if (!overflowMenuEl.classList.contains('open')) overflowMenuEl.hidden = true;
+  }, 200);
+}
+
+menuButtonEl.addEventListener('mouseup', () => {
+  if (overflowMenuEl.classList.contains('open')) closeOverflowMenu();
+  else openOverflowMenu();
 });
+
+overflowBackdropEl.addEventListener('mouseup', closeOverflowMenu);
+
+window.addEventListener('mouseup', (e) => {
+  if (!overflowMenuEl.classList.contains('open')) return;
+  if (overflowMenuEl.contains(e.target)) return;
+  if (menuButtonEl.contains(e.target)) return;
+  closeOverflowMenu();
+});
+
+document.querySelectorAll('#overflowMenu .chip[data-theme]').forEach((chip) => {
+  chip.addEventListener('mouseup', () => {
+    setUserTheme(chip.getAttribute('data-theme'));
+  });
+});
+
+// POI layers — map features that users can toggle independently of data layers.
+// Adding a future POI = one entry in this registry; the overflow menu row and
+// localStorage persistence fall out automatically.
+const poiRegistry = [
+  {
+    id: 'radars',
+    label: 'Tutka-asemat',
+    icon: 'cell_tower',
+    defaultOn: true,
+    layerRef: () => radarSiteLayer,
+  },
+  {
+    id: 'airfields',
+    label: 'Lentokentät',
+    icon: 'flight',
+    defaultOn: false,
+    layerRef: () => icaoLayer,
+  },
+];
+
+// POI_STATE is reconciled against the current registry on every load: unknown
+// persisted keys are dropped, and new registry entries fall back to defaultOn.
+const POI_STATE = (() => {
+  const persisted = safeParseJSON('POI_STATE', null) || {};
+  const state = {};
+  poiRegistry.forEach((entry) => {
+    state[entry.id] = Object.prototype.hasOwnProperty.call(persisted, entry.id)
+      ? !!persisted[entry.id]
+      : entry.defaultOn;
+  });
+  return state;
+})();
+
+function persistPoiState() {
+  localStorage.setItem('POI_STATE', JSON.stringify(POI_STATE));
+}
+
+function applyPoiVisibility() {
+  poiRegistry.forEach((entry) => {
+    entry.layerRef().setVisible(!!POI_STATE[entry.id]);
+  });
+}
+
+function updatePoiMenuState() {
+  document.querySelectorAll('#poiList .menu-row[data-poi]').forEach((row) => {
+    const id = row.getAttribute('data-poi');
+    row.setAttribute('aria-checked', String(!!POI_STATE[id]));
+  });
+}
+
+function togglePoi(id) {
+  POI_STATE[id] = !POI_STATE[id];
+  applyPoiVisibility();
+  persistPoiState();
+  updatePoiMenuState();
+  track('poi-toggle', { id, visible: POI_STATE[id] });
+}
+
+function buildPoiMenuRows() {
+  const container = document.getElementById('poiList');
+  if (!container) return;
+  container.textContent = '';
+  poiRegistry.forEach((entry) => {
+    const row = document.createElement('div');
+    row.className = 'menu-row';
+    row.setAttribute('role', 'menuitemcheckbox');
+    row.setAttribute('aria-checked', String(!!POI_STATE[entry.id]));
+    row.setAttribute('data-poi', entry.id);
+    row.setAttribute('tabindex', '0');
+
+    const iconEl = document.createElement('i');
+    iconEl.className = 'material-icons';
+    iconEl.setAttribute('aria-hidden', 'true');
+    iconEl.textContent = entry.icon;
+
+    const labelEl = document.createElement('span');
+    labelEl.className = 'menu-label';
+    labelEl.textContent = entry.label;
+
+    const switchEl = document.createElement('span');
+    switchEl.className = 'switch';
+    switchEl.setAttribute('aria-hidden', 'true');
+
+    row.appendChild(iconEl);
+    row.appendChild(labelEl);
+    row.appendChild(switchEl);
+
+    row.addEventListener('mouseup', () => togglePoi(entry.id));
+    row.addEventListener('keydown', (e) => {
+      if (e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        togglePoi(entry.id);
+      }
+    });
+
+    container.appendChild(row);
+  });
+}
+
+// Reconcile persisted state against layer visibility (handles the case where
+// persisted state diverges from the layer's declared default), then render the
+// menu rows once. Also re-persists cleaned state so stale keys drop from
+// localStorage the first time a user opens the page after a registry change.
+applyPoiVisibility();
+persistPoiState();
+buildPoiMenuRows();
+
+// Coachmark: briefly surfaces the Finnish layer name after it becomes visible,
+// so icon-only segments stay learnable.
+const coachmarkEl = document.getElementById('coachmark');
+let coachmarkTimer = null;
+function showCoachmark(text) {
+  if (!text) return;
+  coachmarkEl.textContent = text;
+  coachmarkEl.hidden = false;
+  coachmarkEl.getBoundingClientRect();
+  coachmarkEl.classList.add('show');
+  if (coachmarkTimer) clearTimeout(coachmarkTimer);
+  coachmarkTimer = setTimeout(() => {
+    coachmarkEl.classList.remove('show');
+    setTimeout(() => {
+      if (!coachmarkEl.classList.contains('show')) coachmarkEl.hidden = true;
+    }, 220);
+  }, 1400);
+}
 
 document.addEventListener('keyup', (event) => {
   if (event.defaultPrevented) {
@@ -1325,6 +1493,9 @@ document.addEventListener('keyup', (event) => {
     toggleLayerVisibility(lightningLayer);
   } else if (key === '4' || key === 'Digit4') {
     toggleLayerVisibility(observationLayer);
+  } else if (event.key === 'Escape') {
+    if (overflowMenuEl.classList.contains('open')) closeOverflowMenu();
+    else handled = false;
   } else if (event.key === 'Control') {
     document.getElementById('help').style.display = 'none';
   } else if (event.key === 'Home') {
