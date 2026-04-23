@@ -51,27 +51,16 @@ void main() {
   // (also computed in that space) is applied consistently.
   vec4 a = texture(uFrameA, src - uT * flow);
   vec4 b = texture(uFrameB, src + (1.0 - uT) * flow);
-  // Nodata handling. Three regimes depending on sample alphas:
-  //   - both transparent → output transparent.
-  //   - one transparent (leading/trailing edge of a moving cell,
-  //     or a coastline/range boundary): use the other side's color
-  //     at full intensity but fade its alpha linearly with t. The
-  //     naive mix() faded color AND alpha, giving a quadratic
-  //     composite that dimmed boundaries mid-loop (brightness
-  //     pumping). Snap-to-full alpha at the first nonzero t made
-  //     echoes pop forward at each advance. Linear alpha fade is
-  //     the right middle: color stays correct, alpha slides 0↔1
-  //     linearly, no pumping and no popping.
-  //   - both opaque → normal mix.
-  if (a.a < 0.001 && b.a < 0.001) {
-    fragColor = vec4(0.0);
-  } else if (a.a < 0.001) {
-    fragColor = vec4(b.rgb, b.a * uT);
-  } else if (b.a < 0.001) {
-    fragColor = vec4(a.rgb, a.a * (1.0 - uT));
-  } else {
-    fragColor = mix(a, b, uT);
-  }
+  // Plain mix, no nodata fallback. Earlier experiments with a
+  // snap-to-full fallback and a linear-alpha fade both made
+  // non-overlapping cell regions (leading/trailing edges where the
+  // flow hasn't closed the gap) MORE visible as ghosts, which the
+  // user reads as blur. mix()'s quadratic composite keeps those
+  // ghosts at ~25% intensity instead, closer to invisible. The
+  // underlying issue that creates the ghosts is that flow isn't
+  // tracking enough of the motion; fixing that removes the need
+  // for any clever boundary treatment.
+  fragColor = mix(a, b, uT);
 }
 `;
 

@@ -42,9 +42,11 @@ in vec2 vUv;
 out vec4 fragColor;
 
 void main() {
-  // 7×7 window centered on vUv. radius can be tuned — bigger window
-  // is more robust to noise but smooths out motion boundaries.
-  const int RADIUS = 3;
+  // 11×11 window. Bigger windows are more robust for our inputs
+  // (stepped palettes, bilinear-resampled radar) and the extra
+  // smoothing across motion boundaries is acceptable at this
+  // analysis resolution.
+  const int RADIUS = 5;
 
   // Accumulate the 5 LK moments across all three RGB channels.
   // Stepped radar palettes (e.g. FMI classical green/yellow/red
@@ -88,8 +90,10 @@ void main() {
   float det = sumIx2 * sumIy2 - sumIxIy * sumIxIy;
   vec2 flow = vec2(0.0);
   // Threshold guards pixels with no structure (flat regions) — the
-  // matrix is singular there and the "flow" is noise.
-  if (det > 1e-6) {
+  // matrix is singular there and the "flow" is noise. The RGB-summed
+  // moments span roughly [0, 100] for cell edges, so a floor well
+  // above floating-point noise keeps the output clean.
+  if (det > 1e-3) {
     float invDet = 1.0 / det;
     // Note the signs: the RHS is (-ΣIxIt, -ΣIyIt) so we multiply
     // through with negatives here.
