@@ -383,12 +383,18 @@ export default class FramePool {
     this.interpolator = interpolator;
     if (!interpolator) return;
 
-    const canvasFunction = () => {
+    // canvasFunction is given the size OL wants rendered, in device
+    // pixels. That's usually viewSize × ratio × devicePixelRatio —
+    // larger than A's native bitmap on retina because the slot's
+    // StickyImageWMS uses hidpi:false. Render at that size so the
+    // canvas covers the requested extent; the shader upscales from
+    // A's bitmap with bilinear filtering.
+    const canvasFunction = (extent, resolution, pixelRatio, size) => {
       if (!this.interpActive) return null;
       const { timeA, timeB, t } = this._warpState;
       if (!timeA || !timeB) return null;
       if (!interpolator.hasFlow(timeA, timeB)) return null;
-      return interpolator.renderAt(timeA, timeB, t);
+      return interpolator.renderAt(timeA, timeB, t, size[0], size[1]);
     };
 
     this.warpLayer = new ImageLayer({

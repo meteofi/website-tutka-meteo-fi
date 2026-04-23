@@ -107,20 +107,24 @@ export class RadarInterpolator {
   }
 
   // Draw the warped image for (A, B, t) into this.canvas. Returns
-  // the canvas, or null if we don't have both frames yet.
-  renderAt(timeA, timeB, t) {
+  // the canvas, or null if we don't have both frames yet. If the
+  // caller passes targetW/H, the canvas is sized and the viewport
+  // rendered at that resolution; otherwise A's native bitmap size
+  // is used. Callers that go through ol/source/ImageCanvas pass
+  // the pixelRatio-adjusted size OL requested, which matters on
+  // retina (source images are fetched with hidpi:false, so A's
+  // native size is half of what OL wants on 2× displays).
+  renderAt(timeA, timeB, t, targetW = 0, targetH = 0) {
     const a = this.frames.get(timeA);
     const b = this.frames.get(timeB);
     if (!a || !b) return null;
 
     // A and B can disagree on pixel dimensions if the user panned
-    // between their loads. Phase 2 picks A's dimensions as the
-    // analysis grid; the warp shader samples B using the same UVs
-    // regardless, which smears B at the edges when dimensions
-    // differ. Acceptable for the shake-out phase; Phase 3 will
-    // resample both onto a common analysis grid before LK runs.
-    const w = a.width;
-    const h = a.height;
+    // between their loads. The shader samples both via UV so
+    // dimensions only matter for output. Phase 3 will resample A
+    // and B onto a shared analysis grid before LK runs.
+    const w = targetW || a.width;
+    const h = targetH || a.height;
 
     if (this.canvas.width !== w || this.canvas.height !== h) {
       this.canvas.width = w;
