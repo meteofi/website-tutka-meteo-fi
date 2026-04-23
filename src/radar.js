@@ -1062,10 +1062,6 @@ function onChangeVisible(event) {
       document.getElementById(wmslayer).classList.add('selected');
     }
     setButtonState(`${name}Button`, true);
-    const segEl = document.getElementById(`${name}Button`);
-    if (segEl && typeof showCoachmark === 'function') {
-      showCoachmark(segEl.getAttribute('data-name'));
-    }
     document.getElementById(`${name}Info`).classList.remove('playListDisabled');
     const toggleIcon = document.querySelector(`#${name}Info .card-visibility-toggle .material-icons`);
     if (toggleIcon) toggleIcon.textContent = 'visibility';
@@ -1092,6 +1088,20 @@ function onChangeVisible(event) {
  */
 function toggleLayerVisibility(layer) {
   layer.setVisible(!layer.getVisible());
+}
+
+// Toggle wrapper for segment-originated actions (button taps + keyboard
+// shortcuts). Announces the Finnish layer name via coachmark only when the
+// toggle turned the layer on. Deliberately not used by the playlist eye icon
+// or long-press variant selection so those paths stay quiet.
+function toggleAndAnnounce(layer, segId) {
+  toggleLayerVisibility(layer);
+  if (layer.getVisible()) {
+    const seg = document.getElementById(segId);
+    if (seg && typeof showCoachmark === 'function') {
+      showCoachmark(seg.getAttribute('data-name'));
+    }
+  }
 }
 
 //
@@ -1260,7 +1270,7 @@ document.getElementById('radarLayerTitle').addEventListener('mouseup', () => {
 });
 
 document.getElementById('lightningLayerButton').addEventListener('mouseup', () => {
-  toggleLayerVisibility(lightningLayer);
+  toggleAndAnnounce(lightningLayer, 'lightningLayerButton');
 });
 
 document.getElementById('lightningLayerTitle').addEventListener('mouseup', () => {
@@ -1271,7 +1281,7 @@ document.getElementById('lightningLayerTitle').addEventListener('mouseup', () =>
 const observationMenu = createLongPressHandler(
   'observationLayerButton',
   'observationLongPressMenu',
-  () => { toggleLayerVisibility(observationLayer); },
+  () => { toggleAndAnnounce(observationLayer, 'observationLayerButton'); },
   (id) => { updateLayer(observationLayer, id); observationMenu.hide(); },
   () => observationLayer.getSource().getParams().LAYERS,
   () => observationLayer.getVisible(),
@@ -1280,7 +1290,7 @@ const observationMenu = createLongPressHandler(
 const satelliteMenu = createLongPressHandler(
   'satelliteLayerButton',
   'satelliteLongPressMenu',
-  () => { toggleLayerVisibility(satelliteLayer); },
+  () => { toggleAndAnnounce(satelliteLayer, 'satelliteLayerButton'); },
   (id) => { updateLayer(satelliteLayer, id); satelliteMenu.hide(); },
   () => satelliteLayer.getSource().getParams().LAYERS,
   () => satelliteLayer.getVisible(),
@@ -1289,7 +1299,7 @@ const satelliteMenu = createLongPressHandler(
 const radarMenu = createLongPressHandler(
   'radarLayerButton',
   'radarLongPressMenu',
-  () => { toggleLayerVisibility(radarLayer); },
+  () => { toggleAndAnnounce(radarLayer, 'radarLayerButton'); },
   (id) => { updateLayer(radarLayer, id); radarMenu.hide(); },
   () => radarLayer.getSource().getParams().LAYERS,
   () => radarLayer.getVisible(),
@@ -1327,12 +1337,16 @@ menuButtonEl.addEventListener('mouseup', () => {
 
 overflowBackdropEl.addEventListener('mouseup', closeOverflowMenu);
 
-window.addEventListener('mouseup', (e) => {
+function closeOverflowIfOutside(e) {
   if (!overflowMenuEl.classList.contains('open')) return;
   if (overflowMenuEl.contains(e.target)) return;
   if (menuButtonEl.contains(e.target)) return;
   closeOverflowMenu();
-});
+}
+window.addEventListener('mouseup', closeOverflowIfOutside);
+// Mirror on touchend for touch-only devices where upstream preventDefault
+// can swallow the synthesized mouseup (same pattern the long-press menus use).
+window.addEventListener('touchend', closeOverflowIfOutside);
 
 document.querySelectorAll('#overflowMenu .chip[data-theme]').forEach((chip) => {
   chip.addEventListener('mouseup', () => {
@@ -1486,13 +1500,13 @@ document.addEventListener('keyup', (event) => {
   } else if (key === 'l' || key === 'KeyL') {
     skipNext();
   } else if (key === '1' || key === 'Digit1') {
-    toggleLayerVisibility(satelliteLayer);
+    toggleAndAnnounce(satelliteLayer, 'satelliteLayerButton');
   } else if (key === '2' || key === 'Digit2') {
-    toggleLayerVisibility(radarLayer);
+    toggleAndAnnounce(radarLayer, 'radarLayerButton');
   } else if (key === '3' || key === 'Digit3') {
-    toggleLayerVisibility(lightningLayer);
+    toggleAndAnnounce(lightningLayer, 'lightningLayerButton');
   } else if (key === '4' || key === 'Digit4') {
-    toggleLayerVisibility(observationLayer);
+    toggleAndAnnounce(observationLayer, 'observationLayerButton');
   } else if (event.key === 'Escape') {
     if (overflowMenuEl.classList.contains('open')) closeOverflowMenu();
     else handled = false;
