@@ -20,6 +20,23 @@ import { createRgbaTexture, createRg16fTexture } from './glUtils';
 
 export { canInterpolate };
 
+// Loose extent equality: two bounding boxes are considered the same
+// view when each corner agrees within 0.5% of the stored extent's
+// width/height. That tolerates floating-point drift from view
+// animations while still catching real pan/zoom deltas.
+function extentMatches(stored, current) {
+  if (!stored || !current) return false;
+  const w = stored[2] - stored[0];
+  const h = stored[3] - stored[1];
+  if (!w || !h) return false;
+  const tolW = Math.abs(w) * 0.005;
+  const tolH = Math.abs(h) * 0.005;
+  return Math.abs(stored[0] - current[0]) <= tolW
+    && Math.abs(stored[2] - current[2]) <= tolW
+    && Math.abs(stored[1] - current[1]) <= tolH
+    && Math.abs(stored[3] - current[3]) <= tolH;
+}
+
 export class RadarInterpolator {
   constructor({ flowResolution = 256 } = {}) {
     this.flowResolution = flowResolution;
@@ -60,9 +77,11 @@ export class RadarInterpolator {
 
   // Called from FramePool on imageloadend once a slot's bitmap is
   // usable. Uploads the image to a GL texture keyed by the slot's
-  // TIME. If a previous texture existed for that TIME (e.g., after a
-  // STYLES change invalidated it), it's replaced.
-  onSlotLoaded(slot, image) {
+  // TIME. The caller-provided `extent` is stored so hasFlow can
+  // later detect a stale pair whose content is for a different view
+  // (happens during zoom/pan before the new bitmaps land — without
+  // this the warp draws old-extent pixels at the new extent).
+  onSlotLoaded(slot, image, extent) {
     if (!slot || !slot.time || !image) return;
     const w = image.naturalWidth || image.width;
     const h = image.naturalHeight || image.height;
@@ -70,7 +89,9 @@ export class RadarInterpolator {
     const existing = this.frames.get(slot.time);
     if (existing) this.gl.deleteTexture(existing.texture);
     const texture = createRgbaTexture(this.gl, w, h, image);
-    this.frames.set(slot.time, { texture, width: w, height: h });
+    this.frames.set(slot.time, {
+      texture, width: w, height: h, extent: extent ? extent.slice() : null,
+    });
   }
 
   // Called from FramePool._resyncAllParams. If the change wasn't
@@ -107,11 +128,18 @@ export class RadarInterpolator {
     }
   }
 
-  // Is there enough data to render (A, B, t)? In Phase 2, "flow
-  // ready" really just means "both bitmaps uploaded" — the zero flow
-  // texture is created on demand.
-  hasFlow(timeA, timeB) {
-    return this.frames.has(timeA) && this.frames.has(timeB);
+  // Is there enough data to render (A, B, t) for the given extent?
+  // In Phase 2, "flow ready" means both bitmaps are uploaded AND,
+  // if the caller passes a view extent, both frames' stored extents
+  // are close enough to it that blitting the warp output at the
+  // requested extent will look correct. Without the extent check,
+  // zooming keeps rendering old-extent pixels at the new view.
+  hasFlow(timeA, timeB, extent = null) {
+    const a = this.frames.get(timeA);
+    const b = this.frames.get(timeB);
+    if (!a || !b) return false;
+    if (!extent) return true;
+    return extentMatches(a.extent, extent) && extentMatches(b.extent, extent);
   }
 
   // Draw the warped image for (A, B, t) into this.canvas. Returns

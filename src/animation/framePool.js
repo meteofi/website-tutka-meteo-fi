@@ -100,11 +100,12 @@ export default class FramePool {
         }
         this.map.render();
         // Hand the fresh bitmap to the interpolator so it can upload
-        // a GL texture keyed by the slot's TIME. Safe for interp=null
-        // pools (lightning, observation) — the method is only called
-        // when an interpolator has been attached.
+        // a GL texture keyed by the slot's TIME. Pass the extent the
+        // image was loaded at too, so hasFlow can detect when the
+        // view has since moved to a different extent (zoom/pan
+        // pending refetch).
         if (this.interpolator) {
-          this.interpolator.onSlotLoaded(slot, event.image.getImage());
+          this.interpolator.onSlotLoaded(slot, event.image.getImage(), event.image.getExtent());
         }
         // Fan out: as the current ring of frames finishes loading,
         // trigger the next ring outward. Throttles total wire traffic
@@ -406,7 +407,10 @@ export default class FramePool {
       if (!this.interpActive) return this._emptyCanvas;
       const { timeA, timeB, t } = this._warpState;
       if (!timeA || !timeB) return this._emptyCanvas;
-      if (!interpolator.hasFlow(timeA, timeB)) return this._emptyCanvas;
+      // Pass extent to hasFlow so we bail when the view has moved
+      // past what A and B were loaded for — OL would otherwise blit
+      // our old-extent canvas at the new extent.
+      if (!interpolator.hasFlow(timeA, timeB, extent)) return this._emptyCanvas;
       return interpolator.renderAt(timeA, timeB, t, size[0], size[1]);
     };
 
@@ -496,7 +500,14 @@ export default class FramePool {
     const timeB = this.windowTimes[nextIdx];
     if (!timeB) return;
 
-    const hasFlow = this.interpolator.hasFlow(this.currentTime, timeB);
+    // Use the current view extent scaled by this.ratio to match
+    // what ImageCanvasSource will pass to canvasFunction. If the
+    // view has moved past what A and B were loaded for, hasFlow
+    // returns false — primary becomes visible again (at user
+    // opacity) so its stale-while-loading sticky can bridge the
+    // gap until new frames arrive for the new extent.
+    const viewExtent = this._viewExtentScaled();
+    const hasFlow = this.interpolator.hasFlow(this.currentTime, timeB, viewExtent);
     this._setPrimaryTransparent(hasFlow);
     if (!hasFlow) return;
 
@@ -505,6 +516,23 @@ export default class FramePool {
     this._warpState.t = t;
 
     this.warpLayer.getSource().changed();
+  }
+
+  // Current view extent padded by this.ratio, mirroring how
+  // ImageCanvasSource scales the requested extent before handing
+  // it to canvasFunction. Used for hasFlow's extent check so the
+  // view extent we compare against matches what frames were loaded
+  // for (StickyImageWMS uses the same ratio when fetching).
+  _viewExtentScaled() {
+    const view = this.map.getView();
+    const size = this.map.getSize();
+    if (!size) return null;
+    const e = view.calculateExtent(size);
+    const cx = (e[0] + e[2]) / 2;
+    const cy = (e[1] + e[3]) / 2;
+    const hw = (e[2] - e[0]) * 0.5 * this.ratio;
+    const hh = (e[3] - e[1]) * 0.5 * this.ratio;
+    return [cx - hw, cy - hh, cx + hw, cy + hh];
   }
 
   // Flip primary's opacity between 0 (warp is rendering content) and
