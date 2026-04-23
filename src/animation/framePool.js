@@ -524,15 +524,38 @@ export default class FramePool {
   // the next in windowTimes (B). Toggles primary's opacity: zeroed
   // while warp has real content (so the user sees only the
   // interpolated frame), restored to _userOpacity otherwise.
+  //
+  // Loop end: the last window frame has no meaningful next frame
+  // (wrapping back to the first would be a 60-minute temporal
+  // discontinuity). Instead of falling through to primary on that
+  // one tick — which caused a visible brightness pop because primary
+  // renders sharper than warp — hold at t=1 on the previous pair.
+  // Warp at t=1 equals B = current time, so the content matches the
+  // adjacent warp frames and the whole loop stays on a consistent
+  // rendering path.
   showInterpolated(t) {
     if (!this.interpolator || !this.interpActive) return;
     if (!this.windowTimes || !this.currentTime) return;
     if (!this.warpLayer) return;
     const curIdx = this.windowTimes.indexOf(this.currentTime);
     if (curIdx < 0) return;
-    const nextIdx = (curIdx + 1) % this.size;
-    const timeB = this.windowTimes[nextIdx];
-    if (!timeB) return;
+
+    let timeA;
+    let timeB;
+    let effectiveT;
+    if (curIdx < this.size - 1) {
+      timeA = this.currentTime;
+      timeB = this.windowTimes[curIdx + 1];
+      effectiveT = t;
+    } else if (curIdx > 0) {
+      // Last frame: reuse the previous pair held at its end.
+      timeA = this.windowTimes[curIdx - 1];
+      timeB = this.currentTime;
+      effectiveT = 1;
+    } else {
+      return;
+    }
+    if (!timeA || !timeB) return;
 
     // Pass the 1× view extent — hasFlow checks whether the stored
     // frames cover the visible area, not the 1.5× fetch buffer, so
@@ -540,7 +563,7 @@ export default class FramePool {
     // the view moves out of the buffer, hasFlow falls back to false
     // and primary's stale-while-loading sticky covers the gap.
     const viewExtent = this._viewExtent();
-    const hasFlow = this.interpolator.hasFlow(this.currentTime, timeB, viewExtent);
+    const hasFlow = this.interpolator.hasFlow(timeA, timeB, viewExtent);
     this._setPrimaryTransparent(hasFlow);
 
     if (!hasFlow) {
@@ -554,9 +577,9 @@ export default class FramePool {
       return;
     }
 
-    this._warpState.timeA = this.currentTime;
+    this._warpState.timeA = timeA;
     this._warpState.timeB = timeB;
-    this._warpState.t = t;
+    this._warpState.t = effectiveT;
 
     this.warpLayer.getSource().changed();
   }

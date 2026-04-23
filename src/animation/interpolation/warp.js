@@ -51,7 +51,20 @@ void main() {
   // (also computed in that space) is applied consistently.
   vec4 a = texture(uFrameA, src - uT * flow);
   vec4 b = texture(uFrameB, src + (1.0 - uT) * flow);
-  fragColor = mix(a, b, uT);
+  // Nodata fallback: at coastlines and radar-range edges one sample
+  // is full-alpha and the other is zero. mix() would fade the
+  // boundary towards alpha 0.5 at t=0.5 — visible as brightness
+  // pumping during playback. Prefer whichever side has data so the
+  // edge stays stable.
+  if (a.a < 0.001 && b.a < 0.001) {
+    fragColor = vec4(0.0);
+  } else if (a.a < 0.001) {
+    fragColor = b;
+  } else if (b.a < 0.001) {
+    fragColor = a;
+  } else {
+    fragColor = mix(a, b, uT);
+  }
 }
 `;
 
