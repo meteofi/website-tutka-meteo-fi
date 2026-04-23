@@ -12,6 +12,18 @@ function pickSyncParams(params) {
   return out;
 }
 
+// Given a padded canvas extent and the padding ratio (e.g., 1.5),
+// return the inner 1× view extent (canvas minus buffer) with the
+// same center.
+function deriveViewExtent(paddedExtent, ratio) {
+  if (!paddedExtent || !ratio) return paddedExtent;
+  const cx = (paddedExtent[0] + paddedExtent[2]) / 2;
+  const cy = (paddedExtent[1] + paddedExtent[3]) / 2;
+  const hw = ((paddedExtent[2] - paddedExtent[0]) * 0.5) / ratio;
+  const hh = ((paddedExtent[3] - paddedExtent[1]) * 0.5) / ratio;
+  return [cx - hw, cy - hh, cx + hw, cy + hh];
+}
+
 // Pool of N invisible ImageLayers, each with its own ImageWMS source
 // pinned to a specific TIME. All 13 sources preload in parallel (the
 // layers are hidden, so we drive loads manually via source.getImage +
@@ -416,11 +428,15 @@ export default class FramePool {
       if (!this.interpActive) return this._emptyCanvas;
       const { timeA, timeB, t } = this._warpState;
       if (!timeA || !timeB) return this._emptyCanvas;
-      // Pass extent to hasFlow so we bail when the view has moved
-      // past what A and B were loaded for — OL would otherwise blit
-      // our old-extent canvas at the new extent.
-      if (!interpolator.hasFlow(timeA, timeB, extent)) return this._emptyCanvas;
-      return interpolator.renderAt(timeA, timeB, t, size[0], size[1]);
+      // Derive the 1× view extent from OL's requested 1.5× canvas
+      // extent. hasFlow checks whether the stored frames cover the
+      // 1× view (not the 1.5× buffer area) so small pans within the
+      // buffer keep flow active.
+      const viewExtent = deriveViewExtent(extent, this.ratio);
+      if (!interpolator.hasFlow(timeA, timeB, viewExtent)) return this._emptyCanvas;
+      // Pass the canvas extent so renderAt can compute the UV
+      // transform that places content at the correct world position.
+      return interpolator.renderAt(timeA, timeB, t, size[0], size[1], extent);
     };
 
     this.warpLayer = new ImageLayer({
@@ -518,13 +534,12 @@ export default class FramePool {
     const timeB = this.windowTimes[nextIdx];
     if (!timeB) return;
 
-    // Use the current view extent scaled by this.ratio to match
-    // what ImageCanvasSource will pass to canvasFunction. If the
-    // view has moved past what A and B were loaded for, hasFlow
-    // returns false — primary becomes visible again (at user
-    // opacity) so its stale-while-loading sticky can bridge the
-    // gap until new frames arrive for the new extent.
-    const viewExtent = this._viewExtentScaled();
+    // Pass the 1× view extent — hasFlow checks whether the stored
+    // frames cover the visible area, not the 1.5× fetch buffer, so
+    // a small pan still within the buffer keeps flow engaged. When
+    // the view moves out of the buffer, hasFlow falls back to false
+    // and primary's stale-while-loading sticky covers the gap.
+    const viewExtent = this._viewExtent();
     const hasFlow = this.interpolator.hasFlow(this.currentTime, timeB, viewExtent);
     this._setPrimaryTransparent(hasFlow);
 
@@ -591,21 +606,14 @@ export default class FramePool {
     }
   }
 
-  // Current view extent padded by this.ratio, mirroring how
-  // ImageCanvasSource scales the requested extent before handing
-  // it to canvasFunction. Used for hasFlow's extent check so the
-  // view extent we compare against matches what frames were loaded
-  // for (StickyImageWMS uses the same ratio when fetching).
-  _viewExtentScaled() {
-    const view = this.map.getView();
+  // Current map view extent in world coords (EPSG:3857 meters).
+  // Returned as the 1× viewport area, not padded by this.ratio —
+  // hasFlow checks whether the stored frame's extent (which does
+  // include the 1.5× fetch buffer) contains this 1× view.
+  _viewExtent() {
     const size = this.map.getSize();
     if (!size) return null;
-    const e = view.calculateExtent(size);
-    const cx = (e[0] + e[2]) / 2;
-    const cy = (e[1] + e[3]) / 2;
-    const hw = (e[2] - e[0]) * 0.5 * this.ratio;
-    const hh = (e[3] - e[1]) * 0.5 * this.ratio;
-    return [cx - hw, cy - hh, cx + hw, cy + hh];
+    return this.map.getView().calculateExtent(size);
   }
 
   // Flip primary's opacity between 0 (warp is rendering content) and

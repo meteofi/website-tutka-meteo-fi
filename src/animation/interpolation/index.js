@@ -21,21 +21,36 @@ import { createRgbaTexture, createRg16fTexture } from './glUtils';
 
 export { canInterpolate };
 
-// Loose extent equality: two bounding boxes are considered the same
-// view when each corner agrees within 0.5% of the stored extent's
-// width/height. That tolerates floating-point drift from view
-// animations while still catching real pan/zoom deltas.
-function extentMatches(stored, current) {
-  if (!stored || !current) return false;
-  const w = stored[2] - stored[0];
-  const h = stored[3] - stored[1];
-  if (!w || !h) return false;
-  const tolW = Math.abs(w) * 0.005;
-  const tolH = Math.abs(h) * 0.005;
-  return Math.abs(stored[0] - current[0]) <= tolW
-    && Math.abs(stored[2] - current[2]) <= tolW
-    && Math.abs(stored[1] - current[1]) <= tolH
-    && Math.abs(stored[3] - current[3]) <= tolH;
+// Approximate equality (0.5% of size). Used to confirm A and B were
+// fetched at the same extent — if they weren't, sampling them at a
+// shared UV would hit different world coordinates and the flow would
+// be nonsense.
+function extentApproxEqual(a, b) {
+  if (!a || !b) return false;
+  const w = Math.abs(a[2] - a[0]);
+  const h = Math.abs(a[3] - a[1]);
+  const tolW = w * 0.005;
+  const tolH = h * 0.005;
+  return Math.abs(a[0] - b[0]) <= tolW
+    && Math.abs(a[2] - b[2]) <= tolW
+    && Math.abs(a[1] - b[1]) <= tolH
+    && Math.abs(a[3] - b[3]) <= tolH;
+}
+
+// Does `stored` fully contain `other`? StickyImageWMS fetches each
+// frame with a 1.5× buffer around the view, so small pans stay
+// inside the buffer and the stored extent still covers the new view.
+// When it does, we can keep using the frames with a UV offset in the
+// warp shader to line content up at the correct world position.
+function extentContains(stored, other) {
+  if (!stored || !other) return false;
+  const w = Math.abs(stored[2] - stored[0]);
+  const h = Math.abs(stored[3] - stored[1]);
+  const tol = Math.max(w, h) * 1e-4;
+  return stored[0] <= other[0] + tol
+    && stored[1] <= other[1] + tol
+    && stored[2] >= other[2] - tol
+    && stored[3] >= other[3] - tol;
 }
 
 export class RadarInterpolator {
@@ -156,18 +171,25 @@ export class RadarInterpolator {
     }
   }
 
-  // Is there enough data to render (A, B, t) for the given extent?
-  // Requires: both frame textures uploaded, a flow texture computed
-  // for the pair (via computeFlow), and — if a view extent is
-  // passed — both frames' stored extents close enough to it that the
-  // warp output will align when OL blits it at the current view.
+  // Is there enough data to render (A, B, t) covering the given
+  // view extent? Requires:
+  //   - both frame textures uploaded,
+  //   - a flow texture computed for the pair (via computeFlow),
+  //   - A and B fetched at approximately the same stored extent so
+  //     they share a UV coordinate system for the flow,
+  //   - the stored extent fully contains the current view so the
+  //     warp shader's UV-transformed sampling has data to fetch.
+  // When the view has only shifted within the stored buffer, this
+  // returns true and renderAt builds a UV offset to place content
+  // at the correct world position in the output canvas.
   hasFlow(timeA, timeB, extent = null) {
     const a = this.frames.get(timeA);
     const b = this.frames.get(timeB);
     if (!a || !b) return false;
     if (!this.flows.has(`${timeA}|${timeB}`)) return false;
     if (!extent) return true;
-    return extentMatches(a.extent, extent) && extentMatches(b.extent, extent);
+    if (!extentApproxEqual(a.extent, b.extent)) return false;
+    return extentContains(a.extent, extent);
   }
 
   // Produce the flow texture for (A, B) — LK-computed if useFlow is
@@ -199,7 +221,7 @@ export class RadarInterpolator {
   // the pixelRatio-adjusted size OL requested, which matters on
   // retina (source images are fetched with hidpi:false, so A's
   // native size is half of what OL wants on 2× displays).
-  renderAt(timeA, timeB, t, targetW = 0, targetH = 0) {
+  renderAt(timeA, timeB, t, targetW = 0, targetH = 0, canvasExtent = null) {
     const a = this.frames.get(timeA);
     const b = this.frames.get(timeB);
     const flow = this.flows.get(`${timeA}|${timeB}`);
@@ -216,11 +238,44 @@ export class RadarInterpolator {
       this.canvas.height = h;
     }
 
+    // Compute the UV transform from output canvas → stored frame UV
+    // so the shader draws content at the correct world position when
+    // the canvas extent differs from the stored extent (small pan
+    // within the 1.5× fetch buffer). Identity when extents match.
+    let scaleX = 1;
+    let scaleY = 1;
+    let offsetX = 0;
+    let offsetY = 0;
+    if (canvasExtent && a.extent) {
+      const se = a.extent;
+      const seW = se[2] - se[0];
+      const seH = se[3] - se[1];
+      if (seW && seH) {
+        const ceW = canvasExtent[2] - canvasExtent[0];
+        const ceH = canvasExtent[3] - canvasExtent[1];
+        scaleX = ceW / seW;
+        scaleY = ceH / seH;
+        offsetX = (canvasExtent[0] - se[0]) / seW;
+        offsetY = (canvasExtent[1] - se[1]) / seH;
+      }
+    }
+
     const { gl } = this;
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
-    this.warp.render(a.texture, b.texture, flow.texture, t, w, h);
+    this.warp.render(
+      a.texture,
+      b.texture,
+      flow.texture,
+      t,
+      w,
+      h,
+      scaleX,
+      scaleY,
+      offsetX,
+      offsetY,
+    );
 
     return this.canvas;
   }

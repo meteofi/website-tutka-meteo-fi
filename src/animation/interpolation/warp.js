@@ -32,15 +32,25 @@ uniform sampler2D uFrameA;
 uniform sampler2D uFrameB;
 uniform sampler2D uFlow;
 uniform float uT;
+// Affine transform from output-canvas UV to stored-frame UV.
+// When canvas extent equals stored extent: uScale=(1,1), uOffset=(0,0).
+// When canvas has shifted (small pan within the loaded buffer):
+// uOffset moves the sampling so the content lands at the correct
+// world position in the output.
+uniform vec2 uScale;
+uniform vec2 uOffset;
 
 in vec2 vUv;
 out vec4 fragColor;
 
 void main() {
-  vec2 flow = texture(uFlow, vUv).rg;
+  vec2 src = vUv * uScale + uOffset;
+  vec2 flow = texture(uFlow, src).rg;
   // Forward-warp A by t*flow, backward-warp B by (1-t)*flow, blend.
-  vec4 a = texture(uFrameA, vUv - uT * flow);
-  vec4 b = texture(uFrameB, vUv + (1.0 - uT) * flow);
+  // All UVs here are in the stored frames' space so the flow texture
+  // (also computed in that space) is applied consistently.
+  vec4 a = texture(uFrameA, src - uT * flow);
+  vec4 b = texture(uFrameB, src + (1.0 - uT) * flow);
   fragColor = mix(a, b, uT);
 }
 `;
@@ -55,12 +65,28 @@ export default class WarpRenderer {
     this.uFrameB = gl.getUniformLocation(this.program, 'uFrameB');
     this.uFlow = gl.getUniformLocation(this.program, 'uFlow');
     this.uT = gl.getUniformLocation(this.program, 'uT');
+    this.uScale = gl.getUniformLocation(this.program, 'uScale');
+    this.uOffset = gl.getUniformLocation(this.program, 'uOffset');
   }
 
   // Draw to whatever FBO is currently bound (null = default FBO =
   // this.gl.canvas). Caller is responsible for binding the right
-  // FBO and clearing it before calling.
-  render(frameATex, frameBTex, flowTex, t, viewportW, viewportH) {
+  // FBO and clearing it before calling. scaleX/Y and offsetX/Y
+  // define an affine mapping from output UV to stored-frame UV —
+  // identity (1,1,0,0) when the canvas extent equals the stored
+  // extent.
+  render(
+    frameATex,
+    frameBTex,
+    flowTex,
+    t,
+    viewportW,
+    viewportH,
+    scaleX = 1,
+    scaleY = 1,
+    offsetX = 0,
+    offsetY = 0,
+  ) {
     const { gl } = this;
     // Ensure the draw fully overwrites the cleared buffer rather
     // than blending with any leftover content — defensive against
@@ -82,6 +108,8 @@ export default class WarpRenderer {
     gl.uniform1i(this.uFlow, 2);
 
     gl.uniform1f(this.uT, t);
+    gl.uniform2f(this.uScale, scaleX, scaleY);
+    gl.uniform2f(this.uOffset, offsetX, offsetY);
 
     drawFullscreen(gl, this.vbo, this.aPos);
   }
