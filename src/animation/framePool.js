@@ -106,6 +106,10 @@ export default class FramePool {
         // pending refetch).
         if (this.interpolator) {
           this.interpolator.onSlotLoaded(slot, event.image.getImage(), event.image.getExtent());
+          // Compute flow for pairs neighbouring this time that now
+          // have both endpoints loaded. The interpolator decides
+          // whether to run LK or zero-fill based on its useFlow flag.
+          this._checkFlowCompute(slot.time);
         }
         // Fan out: as the current ring of frames finishes loading,
         // trigger the next ring outward. Throttles total wire traffic
@@ -381,6 +385,11 @@ export default class FramePool {
   setInterpolator(interpolator) {
     if (this.interpolator === interpolator) return;
     this._teardownWarpLayer();
+    // Release the old interpolator's GPU resources before dropping
+    // the reference, otherwise textures / programs / FBOs leak.
+    if (this.interpolator && this.interpolator !== interpolator) {
+      this.interpolator.dispose();
+    }
     this.interpolator = interpolator;
     if (!interpolator) return;
 
@@ -524,6 +533,51 @@ export default class FramePool {
     this._warpState.t = t;
 
     this.warpLayer.getSource().changed();
+  }
+
+  // Called from imageloadend after a slot's bitmap is uploaded to
+  // the interpolator. Triggers computeFlow for the (prev, this) and
+  // (this, next) pairs when both endpoints are loaded. No-op if the
+  // interpolator isn't attached or the time isn't in the current
+  // window. Non-wrapping: the last window slot doesn't pair with
+  // the first.
+  _checkFlowCompute(time) {
+    if (!this.interpolator || !this.windowTimes) return;
+    const idx = this.windowTimes.indexOf(time);
+    if (idx < 0) return;
+    if (idx > 0) {
+      const prevTime = this.windowTimes[idx - 1];
+      if (this._isLoaded(prevTime)) {
+        this.interpolator.computeFlow(prevTime, time);
+      }
+    }
+    if (idx < this.windowTimes.length - 1) {
+      const nextTime = this.windowTimes[idx + 1];
+      if (this._isLoaded(nextTime)) {
+        this.interpolator.computeFlow(time, nextTime);
+      }
+    }
+  }
+
+  _isLoaded(time) {
+    const slot = this.slots.find((s) => s.time === time);
+    return !!(slot && slot.loaded);
+  }
+
+  // Re-compute flow for every pair in the current window whose
+  // both endpoints are loaded. Called from radar.js after a mode
+  // switch (crossfade ↔ flow) — the interpolator cleared its flow
+  // cache, so without this the warp layer would stay blank until
+  // the next frame arrived via prefetch.
+  refreshFlows() {
+    if (!this.interpolator || !this.windowTimes) return;
+    for (let i = 0; i < this.windowTimes.length - 1; i++) {
+      const tA = this.windowTimes[i];
+      const tB = this.windowTimes[i + 1];
+      if (this._isLoaded(tA) && this._isLoaded(tB)) {
+        this.interpolator.computeFlow(tA, tB);
+      }
+    }
   }
 
   // Current view extent padded by this.ratio, mirroring how

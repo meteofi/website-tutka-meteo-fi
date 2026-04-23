@@ -76,17 +76,34 @@ const framePools = {
   observationLayer: null,
 };
 
-// Probe runs at module load and may settle before or after main()
-// constructs the pools. attachInterpolators is idempotent; it's
-// called both from this .then and from the end of pool construction
-// in main() so whichever runs later does the wiring.
-let interpEnabled = false;
+// Three interpolation modes:
+//   - 'off'       : no warp layer; animation shows discrete frames only.
+//   - 'crossfade' : warp layer with zero-flow — smooth A→B fade.
+//   - 'flow'      : warp layer with LK-computed optical flow — motion-
+//                   compensated interpolation.
+// Resolved on boot from URL override (?interp=…) then localStorage,
+// defaulting to 'flow' when the device is capable.
+const VALID_INTERP_MODES = ['off', 'crossfade', 'flow'];
+const INTERP_MODE_KEY = 'interpMode';
+let interpMode = 'off';
+let interpCapable = false;
+
+function readInitialInterpMode() {
+  const urlMode = new URLSearchParams(window.location.search).get('interp');
+  if (VALID_INTERP_MODES.includes(urlMode)) return urlMode;
+  const stored = localStorage.getItem(INTERP_MODE_KEY);
+  if (VALID_INTERP_MODES.includes(stored)) return stored;
+  return 'flow';
+}
+
 canInterpolate().then((ok) => {
-  interpEnabled = ok;
+  interpCapable = ok;
+  interpMode = ok ? readInitialInterpMode() : 'off';
   // eslint-disable-next-line no-console
-  console.info(`[tutka] INTERP: ${interpEnabled ? 'enabled' : 'disabled'}`);
-  track(interpEnabled ? 'interp-available' : 'interp-unsupported');
+  console.info(`[tutka] INTERP: capable=${ok} mode=${interpMode}`);
+  track(ok ? 'interp-available' : 'interp-unsupported');
   attachInterpolators();
+  updateInterpChipsState();
 }).catch((err) => {
   // eslint-disable-next-line no-console
   console.warn('[tutka] INTERP probe failed:', err);
@@ -94,18 +111,66 @@ canInterpolate().then((ok) => {
 });
 
 function attachInterpolators() {
-  if (!interpEnabled) return;
+  if (interpMode === 'off') return;
   const playing = animationId !== null;
+  const useFlow = interpMode === 'flow';
   for (const name of ['radarLayer', 'satelliteLayer']) {
     const pool = framePools[name];
     if (pool && !pool.interpolator) {
-      pool.setInterpolator(new RadarInterpolator());
-      // If the user is already playing when the probe finishes
-      // resolving, catch up — otherwise interp stays off until the
-      // user pauses and plays again.
+      pool.setInterpolator(new RadarInterpolator({ useFlow }));
+      pool.refreshFlows();
       if (playing) pool.setInterpActive(true);
     }
   }
+}
+
+function detachInterpolators() {
+  for (const name of ['radarLayer', 'satelliteLayer']) {
+    const pool = framePools[name];
+    if (pool && pool.interpolator) {
+      pool.setInterpActive(false);
+      pool.setInterpolator(null);
+    }
+  }
+}
+
+function setInterpMode(mode) {
+  if (!VALID_INTERP_MODES.includes(mode)) return;
+  if (mode !== 'off' && !interpCapable) return;
+  if (interpMode === mode) return;
+  const prev = interpMode;
+  interpMode = mode;
+  localStorage.setItem(INTERP_MODE_KEY, mode);
+  if (mode === 'off') {
+    detachInterpolators();
+  } else if (prev === 'off') {
+    attachInterpolators();
+  } else {
+    // Swap between crossfade and flow on existing interpolators —
+    // cheaper than rebuilding the whole pipeline.
+    const useFlow = mode === 'flow';
+    for (const name of ['radarLayer', 'satelliteLayer']) {
+      const pool = framePools[name];
+      if (pool && pool.interpolator) {
+        pool.interpolator.setUseFlow(useFlow);
+        pool.refreshFlows();
+      }
+    }
+  }
+  updateInterpChipsState();
+  track('interp-mode', { mode });
+}
+
+function updateInterpChipsState() {
+  document.querySelectorAll('#overflowMenu .chip[data-interp]').forEach((chip) => {
+    const m = chip.getAttribute('data-interp');
+    chip.setAttribute('aria-checked', String(m === interpMode));
+    if (!interpCapable && m !== 'off') {
+      chip.setAttribute('aria-disabled', 'true');
+    } else {
+      chip.removeAttribute('aria-disabled');
+    }
+  });
 }
 const poolLoadStates = {
   satelliteLayer: new Array(13).fill(false),
@@ -1448,6 +1513,13 @@ window.addEventListener('touchend', closeOverflowIfOutside);
 document.querySelectorAll('#overflowMenu .chip[data-theme]').forEach((chip) => {
   chip.addEventListener('mouseup', () => {
     setUserTheme(chip.getAttribute('data-theme'));
+  });
+});
+
+document.querySelectorAll('#overflowMenu .chip[data-interp]').forEach((chip) => {
+  chip.addEventListener('mouseup', () => {
+    if (chip.getAttribute('aria-disabled') === 'true') return;
+    setInterpMode(chip.getAttribute('data-interp'));
   });
 });
 

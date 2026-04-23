@@ -16,6 +16,7 @@
 
 import canInterpolate from './capabilities';
 import WarpRenderer from './warp';
+import FlowLK from './flowLK';
 import { createRgbaTexture, createRg16fTexture } from './glUtils';
 
 export { canInterpolate };
@@ -38,8 +39,12 @@ function extentMatches(stored, current) {
 }
 
 export class RadarInterpolator {
-  constructor({ flowResolution = 256 } = {}) {
+  constructor({ flowResolution = 256, useFlow = false } = {}) {
     this.flowResolution = flowResolution;
+    // When true, flows are computed via Lucas-Kanade; when false,
+    // flows are zero-filled (interpolation degenerates to crossfade).
+    // Swapped at runtime via setUseFlow.
+    this.useFlow = useFlow;
 
     this.canvas = document.createElement('canvas');
     this.canvas.width = 1;
@@ -68,11 +73,25 @@ export class RadarInterpolator {
     this.gl.getExtension('EXT_color_buffer_float');
 
     this.warp = new WarpRenderer(this.gl);
+    this.flowLK = new FlowLK(this.gl, flowResolution);
 
-    // Keyed by time ISO string. Values: { texture, width, height }.
+    // Keyed by time ISO string. Values: { texture, width, height, extent }.
     this.frames = new Map();
-    // Keyed by `${timeA}|${timeB}`. Values: { texture }.
+    // Keyed by `${timeA}|${timeB}`. Values: { texture }. Populated
+    // lazily by computeFlow; hasFlow returns false for pairs not yet
+    // populated, so the caller sees "not ready" until the flow (zero
+    // or LK, depending on useFlow) has actually been created.
     this.flows = new Map();
+  }
+
+  // Flip between zero-flow (crossfade) and LK flow. Clears any
+  // computed flows; callers should refresh them for currently-loaded
+  // pairs so the next render has the new flow type ready.
+  setUseFlow(useFlow) {
+    if (this.useFlow === useFlow) return;
+    this.useFlow = useFlow;
+    for (const f of this.flows.values()) this.gl.deleteTexture(f.texture);
+    this.flows.clear();
   }
 
   // Called from FramePool on imageloadend once a slot's bitmap is
@@ -92,6 +111,15 @@ export class RadarInterpolator {
     this.frames.set(slot.time, {
       texture, width: w, height: h, extent: extent ? extent.slice() : null,
     });
+    // The new bitmap invalidates any flow pairs that referenced the
+    // previous bitmap for this time — drop them so the next
+    // computeFlow call produces fresh flow from the new texture.
+    for (const [key, flow] of this.flows) {
+      if (key.startsWith(`${slot.time}|`) || key.endsWith(`|${slot.time}`)) {
+        this.gl.deleteTexture(flow.texture);
+        this.flows.delete(key);
+      }
+    }
   }
 
   // Called from FramePool._resyncAllParams. If the change wasn't
@@ -129,17 +157,38 @@ export class RadarInterpolator {
   }
 
   // Is there enough data to render (A, B, t) for the given extent?
-  // In Phase 2, "flow ready" means both bitmaps are uploaded AND,
-  // if the caller passes a view extent, both frames' stored extents
-  // are close enough to it that blitting the warp output at the
-  // requested extent will look correct. Without the extent check,
-  // zooming keeps rendering old-extent pixels at the new view.
+  // Requires: both frame textures uploaded, a flow texture computed
+  // for the pair (via computeFlow), and — if a view extent is
+  // passed — both frames' stored extents close enough to it that the
+  // warp output will align when OL blits it at the current view.
   hasFlow(timeA, timeB, extent = null) {
     const a = this.frames.get(timeA);
     const b = this.frames.get(timeB);
     if (!a || !b) return false;
+    if (!this.flows.has(`${timeA}|${timeB}`)) return false;
     if (!extent) return true;
     return extentMatches(a.extent, extent) && extentMatches(b.extent, extent);
+  }
+
+  // Produce the flow texture for (A, B) — LK-computed if useFlow is
+  // true, zero-filled otherwise. Framepool calls this from
+  // imageloadend when both frames of a pair become available. No-op
+  // if the pair already has a flow (the frames themselves are
+  // replaced in onSlotLoaded; a new compute is triggered then by
+  // having that call invalidate the flow first).
+  computeFlow(timeA, timeB) {
+    const key = `${timeA}|${timeB}`;
+    if (this.flows.has(key)) return;
+    const a = this.frames.get(timeA);
+    const b = this.frames.get(timeB);
+    if (!a || !b) return;
+    let texture;
+    if (this.useFlow) {
+      texture = this.flowLK.compute(a.texture, b.texture);
+    } else {
+      texture = createRg16fTexture(this.gl, this.flowResolution, this.flowResolution, null);
+    }
+    this.flows.set(key, { texture });
   }
 
   // Draw the warped image for (A, B, t) into this.canvas. Returns
@@ -153,12 +202,12 @@ export class RadarInterpolator {
   renderAt(timeA, timeB, t, targetW = 0, targetH = 0) {
     const a = this.frames.get(timeA);
     const b = this.frames.get(timeB);
-    if (!a || !b) return null;
+    const flow = this.flows.get(`${timeA}|${timeB}`);
+    if (!a || !b || !flow) return null;
 
     // A and B can disagree on pixel dimensions if the user panned
     // between their loads. The shader samples both via UV so
-    // dimensions only matter for output. Phase 3 will resample A
-    // and B onto a shared analysis grid before LK runs.
+    // dimensions only matter for output.
     const w = targetW || a.width;
     const h = targetH || a.height;
 
@@ -167,29 +216,13 @@ export class RadarInterpolator {
       this.canvas.height = h;
     }
 
-    const flowTex = this._getOrCreateFlow(timeA, timeB);
-
     const { gl } = this;
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
-    this.warp.render(a.texture, b.texture, flowTex, t, w, h);
+    this.warp.render(a.texture, b.texture, flow.texture, t, w, h);
 
     return this.canvas;
-  }
-
-  _getOrCreateFlow(timeA, timeB) {
-    const key = `${timeA}|${timeB}`;
-    let flow = this.flows.get(key);
-    if (!flow) {
-      // Phase 2: zero-filled flow. Phase 3 will populate this via
-      // pyramidal LK before any render call that needs it.
-      const r = this.flowResolution;
-      const texture = createRg16fTexture(this.gl, r, r, null);
-      flow = { texture };
-      this.flows.set(key, flow);
-    }
-    return flow.texture;
   }
 
   dispose() {
@@ -198,5 +231,6 @@ export class RadarInterpolator {
     this.frames.clear();
     this.flows.clear();
     this.warp.dispose();
+    this.flowLK.dispose();
   }
 }
