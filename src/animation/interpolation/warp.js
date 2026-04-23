@@ -43,14 +43,28 @@ uniform vec2 uOffset;
 in vec2 vUv;
 out vec4 fragColor;
 
+// Sample the texture only when the UV is inside [0,1]; outside,
+// return transparent. CLAMP_TO_EDGE wrap would otherwise smear a
+// stretched row of edge pixels along the viewport boundary when the
+// canvas extent sits near the stored frame's edge (small pan right
+// to the limit of the 1.5× fetch buffer).
+vec4 sampleBounded(sampler2D tex, vec2 uv) {
+  if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
+    return vec4(0.0);
+  }
+  return texture(tex, uv);
+}
+
 void main() {
   vec2 src = vUv * uScale + uOffset;
   vec2 flow = texture(uFlow, src).rg;
   // Forward-warp A by t*flow, backward-warp B by (1-t)*flow, blend.
   // All UVs here are in the stored frames' space so the flow texture
   // (also computed in that space) is applied consistently.
-  vec4 a = texture(uFrameA, src - uT * flow);
-  vec4 b = texture(uFrameB, src + (1.0 - uT) * flow);
+  vec2 srcA = src - uT * flow;
+  vec2 srcB = src + (1.0 - uT) * flow;
+  vec4 a = sampleBounded(uFrameA, srcA);
+  vec4 b = sampleBounded(uFrameB, srcB);
   // Plain mix, no nodata fallback. Earlier experiments with a
   // snap-to-full fallback and a linear-alpha fade both made
   // non-overlapping cell regions (leading/trailing edges where the

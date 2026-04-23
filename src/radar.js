@@ -1528,6 +1528,11 @@ document.querySelectorAll('#overflowMenu .chip[data-interp]').forEach((chip) => 
     setInterpMode(chip.getAttribute('data-interp'));
   });
 });
+// Initialise chip disabled/selected state up front — before the
+// capability probe resolves, interpCapable is false so only 'off'
+// is tappable. Otherwise taps arrive at setInterpMode which
+// silently rejects non-'off' modes, and the user sees no feedback.
+updateInterpChipsState();
 
 // POI layers — map features that users can toggle independently of data layers.
 // Adding a future POI = one entry in this registry; the overflow menu row and

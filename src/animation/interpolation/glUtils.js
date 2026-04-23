@@ -50,13 +50,19 @@ export function createRgbaTexture(gl, width, height, source = null) {
 }
 
 // RG16F render-target storage for flow fields. `data` must be either
-// null (zero-filled, Phase 2) or a Uint16Array of half-floats.
-export function createRg16fTexture(gl, width, height, data = null) {
+// null (zero-filled, Phase 2) or a Uint16Array of half-floats. `filter`
+// controls min/mag filter — LINEAR is desirable for smooth flow
+// across the 256²→display upscale but requires
+// OES_texture_half_float_linear; callers on devices without that
+// extension should pass gl.NEAREST to avoid silent black/blocky
+// sampling.
+export function createRg16fTexture(gl, width, height, data, filter) {
   const tex = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, tex);
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RG16F, width, height, 0, gl.RG, gl.HALF_FLOAT, data);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  const f = filter === undefined ? gl.LINEAR : filter;
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, f);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, f);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   return tex;

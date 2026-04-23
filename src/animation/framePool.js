@@ -510,9 +510,12 @@ export default class FramePool {
       this.primary.setOpacity(this._userOpacity);
       this._settingOpacityInternally = false;
     }
-    // Clear the custom property so the playlist falls back to
-    // layer.opacity again (which is now the user's value).
+    // Clear the custom properties so the playlist falls back to
+    // layer.opacity again (which is now the user's value), and so
+    // any later _interpHiding check from a stale path sees a clean
+    // state.
     this.primary.set('_userOpacity', undefined, true);
+    this.primary.set('_interpHiding', undefined, true);
     if (this._primaryVisListener) {
       this.primary.un('change:visible', this._primaryVisListener);
       this._primaryVisListener = null;
@@ -523,6 +526,8 @@ export default class FramePool {
     }
     this.map.removeLayer(this.warpLayer);
     this.warpLayer = null;
+    this._emptyCanvas = null;
+    this._userOpacity = undefined;
   }
 
   // Toggle interpolated display on/off. radar.js calls this from
@@ -616,21 +621,16 @@ export default class FramePool {
     if (idx < 0) return;
     if (idx > 0) {
       const prevTime = this.windowTimes[idx - 1];
-      if (this._isLoaded(prevTime)) {
+      if (this.isTimeLoaded(prevTime)) {
         this.interpolator.computeFlow(prevTime, time);
       }
     }
     if (idx < this.windowTimes.length - 1) {
       const nextTime = this.windowTimes[idx + 1];
-      if (this._isLoaded(nextTime)) {
+      if (this.isTimeLoaded(nextTime)) {
         this.interpolator.computeFlow(time, nextTime);
       }
     }
-  }
-
-  _isLoaded(time) {
-    const slot = this.slots.find((s) => s.time === time);
-    return !!(slot && slot.loaded);
   }
 
   // Re-compute flow for every pair in the current window whose
@@ -643,7 +643,7 @@ export default class FramePool {
     for (let i = 0; i < this.windowTimes.length - 1; i++) {
       const tA = this.windowTimes[i];
       const tB = this.windowTimes[i + 1];
-      if (this._isLoaded(tA) && this._isLoaded(tB)) {
+      if (this.isTimeLoaded(tA) && this.isTimeLoaded(tB)) {
         this.interpolator.computeFlow(tA, tB);
       }
     }
@@ -669,10 +669,15 @@ export default class FramePool {
   //     would get overridden back to 0 on the next RAF).
   _setPrimaryTransparent(transparent) {
     if (!this.warpLayer) return;
+    // Write _interpHiding BEFORE the opacity-equal early return.
+    // If opacity already matches the desired value but _interpHiding
+    // still holds a stale truthy value from an earlier transparent
+    // swap, the playlist's change:opacity filter will keep rejecting
+    // the user's slider drags.
+    this.primary.set('_interpHiding', transparent, true);
     const desired = transparent ? 0 : this._userOpacity;
     if (this.primary.getOpacity() === desired) return;
     this._settingOpacityInternally = true;
-    this.primary.set('_interpHiding', transparent, true);
     this.primary.setOpacity(desired);
     this._settingOpacityInternally = false;
   }

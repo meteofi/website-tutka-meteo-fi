@@ -21,16 +21,20 @@ import { createRgbaTexture, createRg16fTexture } from './glUtils';
 
 export { canInterpolate };
 
-// Approximate equality (0.5% of size). Used to confirm A and B were
-// fetched at the same extent — if they weren't, sampling them at a
-// shared UV would hit different world coordinates and the flow would
-// be nonsense.
+// Approximate equality for two extents that are supposed to be bit-
+// identical (A and B fetched at the same view+resolution). The only
+// reason for a tolerance at all is floating-point rounding in the
+// OL extent math. 1e-6 of the extent size is well below any view
+// displacement we could see and still well above float noise.
+// Previously this was 0.5%, which at Finland scale is ~10 km — that
+// let systematically-mismatched pairs through and LK's flow came
+// out with a constant bias riding on top of real motion.
 function extentApproxEqual(a, b) {
   if (!a || !b) return false;
   const w = Math.abs(a[2] - a[0]);
   const h = Math.abs(a[3] - a[1]);
-  const tolW = w * 0.005;
-  const tolH = h * 0.005;
+  const tolW = Math.max(w * 1e-6, 1e-3);
+  const tolH = Math.max(h * 1e-6, 1e-3);
   return Math.abs(a[0] - b[0]) <= tolW
     && Math.abs(a[2] - b[2]) <= tolW
     && Math.abs(a[1] - b[1]) <= tolH
@@ -86,6 +90,15 @@ export class RadarInterpolator {
     // RG16F flow texture to be renderable later.
     this.gl.getExtension('EXT_color_buffer_half_float');
     this.gl.getExtension('EXT_color_buffer_float');
+    // Linear filtering of half-float textures needs a separate
+    // extension. Without it, sampling RG16F with LINEAR returns
+    // either NEAREST (blocky) or black/NaN on various drivers
+    // (Android Mali, some iOS Safari versions). If the extension is
+    // unavailable, fall back to NEAREST sampling on flow textures —
+    // warp gets a blockier motion field but stays correct.
+    this.flowFilter = this.gl.getExtension('OES_texture_half_float_linear')
+      ? this.gl.LINEAR
+      : this.gl.NEAREST;
 
     this.warp = new WarpRenderer(this.gl);
     this.flowLK = new FlowLK(this.gl, flowResolution);
@@ -97,6 +110,25 @@ export class RadarInterpolator {
     // populated, so the caller sees "not ready" until the flow (zero
     // or LK, depending on useFlow) has actually been created.
     this.flows = new Map();
+
+    // iOS Safari can evict WebGL2 contexts when the tab goes
+    // background or under memory pressure. When it happens all GPU
+    // handles we're holding are invalid — we can't even dispose
+    // them cleanly — and any subsequent draw silently fails. Mark
+    // ourselves unusable on loss; hasFlow returns false afterwards
+    // so the pool keeps the primary layer visible and the warp
+    // stays blank. preventDefault allows the restore event, but we
+    // don't attempt a live rebuild — the cheapest path back is for
+    // the user to toggle interp off and on via the menu, which
+    // constructs a fresh interpolator.
+    this.contextLost = false;
+    this._onContextLost = (e) => {
+      e.preventDefault();
+      this.contextLost = true;
+      this.frames.clear();
+      this.flows.clear();
+    };
+    this.canvas.addEventListener('webglcontextlost', this._onContextLost);
   }
 
   // Flip between zero-flow (crossfade) and LK flow. Clears any
@@ -116,6 +148,7 @@ export class RadarInterpolator {
   // (happens during zoom/pan before the new bitmaps land — without
   // this the warp draws old-extent pixels at the new extent).
   onSlotLoaded(slot, image, extent) {
+    if (this.contextLost) return;
     if (!slot || !slot.time || !image) return;
     const w = image.naturalWidth || image.width;
     const h = image.naturalHeight || image.height;
@@ -183,6 +216,7 @@ export class RadarInterpolator {
   // returns true and renderAt builds a UV offset to place content
   // at the correct world position in the output canvas.
   hasFlow(timeA, timeB, extent = null) {
+    if (this.contextLost) return false;
     const a = this.frames.get(timeA);
     const b = this.frames.get(timeB);
     if (!a || !b) return false;
@@ -199,16 +233,24 @@ export class RadarInterpolator {
   // replaced in onSlotLoaded; a new compute is triggered then by
   // having that call invalidate the flow first).
   computeFlow(timeA, timeB) {
+    if (this.contextLost) return;
     const key = `${timeA}|${timeB}`;
     if (this.flows.has(key)) return;
     const a = this.frames.get(timeA);
     const b = this.frames.get(timeB);
     if (!a || !b) return;
+    // A and B must share a stored extent for LK's result to be
+    // meaningful — sampling at a common UV would otherwise hit
+    // different world coordinates. Skipping here avoids burning GPU
+    // cycles on garbage flow during rapid pan/zoom when slots load
+    // at different extents; hasFlow's extent check would reject
+    // this pair at display time anyway.
+    if (this.useFlow && !extentApproxEqual(a.extent, b.extent)) return;
     let texture;
     if (this.useFlow) {
-      texture = this.flowLK.compute(a.texture, b.texture);
+      texture = this.flowLK.compute(a.texture, b.texture, this.flowFilter);
     } else {
-      texture = createRg16fTexture(this.gl, this.flowResolution, this.flowResolution, null);
+      texture = createRg16fTexture(this.gl, this.flowResolution, this.flowResolution, null, this.flowFilter);
     }
     this.flows.set(key, { texture });
   }
@@ -222,6 +264,7 @@ export class RadarInterpolator {
   // retina (source images are fetched with hidpi:false, so A's
   // native size is half of what OL wants on 2× displays).
   renderAt(timeA, timeB, t, targetW = 0, targetH = 0, canvasExtent = null) {
+    if (this.contextLost) return null;
     const a = this.frames.get(timeA);
     const b = this.frames.get(timeB);
     const flow = this.flows.get(`${timeA}|${timeB}`);
@@ -276,11 +319,21 @@ export class RadarInterpolator {
       offsetX,
       offsetY,
     );
+    // Flush pending draw commands so the compositor reads fully-
+    // drawn pixels when it pulls the canvas — iOS Safari otherwise
+    // occasionally presents a half-drawn buffer during fast playback.
+    gl.flush();
 
     return this.canvas;
   }
 
   dispose() {
+    if (this._onContextLost) {
+      this.canvas.removeEventListener('webglcontextlost', this._onContextLost);
+      this._onContextLost = null;
+    }
+    // If the context is already lost, deleteTexture calls are no-ops
+    // — safe to run either way.
     for (const f of this.frames.values()) this.gl.deleteTexture(f.texture);
     for (const f of this.flows.values()) this.gl.deleteTexture(f.texture);
     this.frames.clear();
