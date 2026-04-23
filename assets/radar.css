@@ -24,6 +24,7 @@
   --dark-theme-shadow-24dp: 0 9px 46px 8px rgba(0, 0, 0, 0.14),
                             0 11px 15px -7px rgba(0, 0, 0, 0.12),
                             0 24px 38px 3px rgba(0, 0, 0, 0.20);
+  --timecontrol-height: 84px;
 }
 
 html, body {
@@ -65,79 +66,340 @@ html, body {
     }
 }
 
-  .navbar {
-    top: calc(env(safe-area-inset-top, 0px) + 2px);
+  /* ========================================================================
+     Primary toolbar — segmented pill + detached menu button, floating
+     ======================================================================== */
+  #primaryToolbar {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100;
     display: flex;
-    justify-content: space-around;
-    align-items: stretch;
-    color: var(--dark-medium-emphasis-text-color);
-    flex-flow: row nowrap;
+    align-items: center;
+    gap: 10px;
     touch-action: none;
-    gap: 4px;
+    pointer-events: none;
+  }
+  #primaryToolbar > * { pointer-events: auto; }
+
+  .pill {
+    display: flex;
+    align-items: center;
+    height: 52px;
+    padding: 0;
+    border-radius: 26px;
+    background: rgba(22, 22, 24, 0.62);
+    background-color: rgba(0, 0, 0, 0.60); /* contrast floor */
+    -webkit-backdrop-filter: blur(24px) saturate(140%);
+    backdrop-filter: blur(24px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+    position: relative;
+    overflow: hidden;
+  }
+  .pill::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(22, 22, 24, 0.28);
+    border-radius: inherit;
+    z-index: -1;
   }
 
-  .navbar > button {
-    flex: 1 1 0;
-    display: flex;
+  .seg {
+    all: unset;
+    width: 62px;
+    height: 52px;
+    display: inline-flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    text-align: center;
-    font-size: 0.75em;
-    font-family: 'Roboto', sans-serif;
-    color: var(--dark-medium-emphasis-text-color);
-    background: none;
-    border: none;
-    border-bottom: 2px solid transparent;
-    border-radius: 6px;
-    padding: 6px 4px;
-    min-height: 48px;
+    padding-top: 4px;
     cursor: pointer;
-    box-sizing: border-box;
-    transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+    color: rgba(255, 255, 255, 0.82);
+    position: relative;
+    transition: color 180ms ease, background-color 180ms ease, transform 120ms ease;
     outline: none;
   }
+  .seg + .seg::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 14px;
+    bottom: 14px;
+    width: 1px;
+    background: rgba(255, 255, 255, 0.08);
+  }
+  .seg:hover { background-color: rgba(255, 255, 255, 0.04); }
+  .seg:active,
+  .seg.pressing { transform: scale(0.95); background-color: rgba(255, 255, 255, 0.06); }
+  .seg:focus-visible { box-shadow: inset 0 0 0 2px var(--dark-primary-color); border-radius: 24px; }
+  .seg .material-icons { font-size: 22px; line-height: 1; }
 
-  .navbar > button:hover {
-    background-color: var(--dark-theme-surface-hovered);
+  /* Always-visible indicator bar under each segment. Cues that the segment has
+     a long-press variant menu and doubles as the active-state signal. */
+  .seg .indicator {
+    display: block;
+    width: 8px;
+    height: 2px;
+    margin-top: 6px;
+    border-radius: 1px;
+    background: rgba(255, 255, 255, 0.32);
+    transition: width 200ms ease, background-color 200ms ease;
   }
 
-  .navbar > button:active,
-  .navbar > button.pressing {
-    background-color: var(--dark-theme-surface-focused);
-    transform: scale(0.93);
-  }
-
-  .navbar > button:focus-visible {
-    outline: 2px solid var(--dark-primary-color);
-    outline-offset: -2px;
-  }
-
-  .btn-label {
-    font-size: inherit;
-    line-height: 1.3;
-  }
-
-  .menu-indicator {
-    font-size: 7px;
+  /* Active: soft fill + icon recolor + indicator turns cyan and grows */
+  .seg[aria-pressed="true"],
+  .seg.selectedButton {
     color: var(--dark-primary-color);
-    opacity: 0.7;
-    line-height: 1;
+  }
+  .seg[aria-pressed="true"]::after,
+  .seg.selectedButton::after {
+    content: '';
+    position: absolute;
+    inset: 4px 3px;
+    background: rgba(18, 188, 250, 0.18);
+    border-radius: 22px;
+    z-index: -1;
+  }
+  .seg[aria-pressed="true"] .indicator,
+  .seg.selectedButton .indicator {
+    background: var(--dark-primary-color);
+    width: 16px;
+  }
+  /* Hide dividers either side of active segment so the fill reads clean */
+  .seg[aria-pressed="true"]::before,
+  .seg[aria-pressed="true"] + .seg::before,
+  .seg.selectedButton::before,
+  .seg.selectedButton + .seg::before {
+    background: transparent;
   }
 
-  .menu-indicator .material-icons {
-    font-size: 10px;
+  /* Floating round buttons: overflow-menu trigger + GPS FAB share a common base */
+  .glass-fab,
+  .location-fab {
+    all: unset;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.82);
+    background: rgba(22, 22, 24, 0.62);
+    background-color: rgba(0, 0, 0, 0.60);
+    -webkit-backdrop-filter: blur(24px) saturate(140%);
+    backdrop-filter: blur(24px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+    transition: color 180ms ease, background-color 180ms ease, transform 120ms ease;
+    position: relative;
+    overflow: hidden;
+    box-sizing: border-box;
+  }
+  .glass-fab::before,
+  .location-fab::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(22, 22, 24, 0.28);
+    border-radius: inherit;
+    z-index: -1;
+  }
+  .glass-fab:hover,
+  .location-fab:hover { background-color: rgba(22, 22, 24, 0.78); }
+  .glass-fab:active,
+  .glass-fab.pressing,
+  .location-fab:active,
+  .location-fab.pressing { transform: scale(0.94); }
+  .glass-fab:focus-visible,
+  .location-fab:focus-visible { box-shadow: 0 0 0 2px var(--dark-primary-color); }
+  .glass-fab .material-icons { font-size: 20px; }
+
+  #menuButton[aria-expanded="true"] { color: var(--dark-primary-color); }
+
+  /* Location FAB: larger, bottom-right, sits above the time-control pill */
+  .location-fab {
+    position: fixed;
+    right: max(16px, env(safe-area-inset-right, 0px) + 16px);
+    bottom: calc(env(safe-area-inset-bottom, 0px) + var(--timecontrol-height, 84px) + 16px);
+    width: 52px;
+    height: 52px;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+    z-index: 100;
+  }
+  .location-fab .material-icons { font-size: 24px; }
+  .location-fab[aria-pressed="true"],
+  .location-fab.selectedButton {
+    color: var(--dark-primary-color);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4), inset 0 0 0 1.5px var(--dark-primary-color);
   }
 
-  .menu-spacer {
-    font-size: 7px;
-    line-height: 1;
-    visibility: hidden;
+  /* ========================================================================
+     Overflow menu (three-dots) — drops below top bar, anchored to menu button
+     ======================================================================== */
+  #overflowMenuBackdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 110;
+    display: none;
+  }
+  #overflowMenuBackdrop.open { display: block; }
+
+  #overflowMenu {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 8px + 52px + 10px);
+    right: max(12px, env(safe-area-inset-right, 0px) + 12px);
+    width: min(300px, calc(100vw - 24px));
+    z-index: 120;
+    background: rgba(22, 22, 24, 0.82);
+    -webkit-backdrop-filter: blur(24px) saturate(140%);
+    backdrop-filter: blur(24px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+    padding: 8px 0 12px;
+    transform-origin: top right;
+    transform: translateY(-8px) scale(0.96);
+    opacity: 0;
+    transition: opacity 180ms ease, transform 180ms ease;
+    pointer-events: none;
+    box-sizing: border-box;
+  }
+  #overflowMenu.open {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+  }
+  #overflowMenu[hidden] { display: none !important; }
+
+  #overflowMenu .menu-header {
+    padding: 6px 16px 4px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--dark-medium-emphasis-text-color);
   }
 
-  .menu-spacer .material-icons {
-    font-size: 10px;
+  #overflowMenu .menu-row {
+    display: flex;
+    align-items: center;
+    height: 48px;
+    padding: 0 16px;
+    gap: 14px;
+    cursor: pointer;
+    color: var(--dark-high-emphasis-text-color);
+    transition: background-color 120ms ease;
+    outline: none;
   }
+  #overflowMenu .menu-row:hover { background-color: rgba(255, 255, 255, 0.04); }
+  #overflowMenu .menu-row:focus-visible { background-color: rgba(255, 255, 255, 0.06); }
+  #overflowMenu .menu-row .material-icons {
+    font-size: 20px;
+    color: var(--dark-medium-emphasis-text-color);
+    flex-shrink: 0;
+  }
+  #overflowMenu .menu-row[aria-checked="true"] .material-icons {
+    color: var(--dark-primary-color);
+  }
+  #overflowMenu .menu-row .menu-label {
+    flex: 1;
+    font-size: 14px;
+    font-weight: 400;
+  }
+
+  #overflowMenu .switch {
+    width: 36px;
+    height: 22px;
+    border-radius: 11px;
+    background: rgba(255, 255, 255, 0.16);
+    position: relative;
+    transition: background 180ms ease;
+    flex-shrink: 0;
+  }
+  #overflowMenu .switch::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+    transition: transform 180ms ease;
+  }
+  #overflowMenu .menu-row[aria-checked="true"] .switch {
+    background: var(--dark-primary-color);
+  }
+  #overflowMenu .menu-row[aria-checked="true"] .switch::after {
+    transform: translateX(14px);
+  }
+
+  #overflowMenu .menu-divider {
+    height: 1px;
+    background: rgba(255, 255, 255, 0.08);
+    margin: 6px 16px;
+  }
+
+  #overflowMenu .theme-chips {
+    display: flex;
+    gap: 6px;
+    padding: 4px 12px 6px;
+  }
+  #overflowMenu .chip {
+    all: unset;
+    flex: 1;
+    text-align: center;
+    padding: 8px 6px;
+    font-family: 'Roboto', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--dark-medium-emphasis-text-color);
+    cursor: pointer;
+    transition: background 120ms ease, color 120ms ease, box-shadow 120ms ease;
+  }
+  #overflowMenu .chip:hover { background: rgba(255, 255, 255, 0.1); }
+  #overflowMenu .chip[aria-checked="true"] {
+    background: var(--dark-primary-color-bg);
+    color: var(--dark-primary-color);
+    box-shadow: inset 0 0 0 1px rgba(18, 188, 250, 0.55);
+  }
+  #overflowMenu .chip:focus-visible {
+    box-shadow: 0 0 0 2px var(--dark-primary-color);
+  }
+
+  /* ========================================================================
+     Coachmark toast — shows Finnish layer name briefly on activation
+     ======================================================================== */
+  #coachmark {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 8px + 52px + 14px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 130;
+    padding: 6px 12px;
+    background: rgba(0, 0, 0, 0.85);
+    color: var(--dark-high-emphasis-text-color);
+    font-family: 'Roboto', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 12px;
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    opacity: 0;
+    transition: opacity 200ms ease;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  #coachmark.show { opacity: 1; }
+  #coachmark[hidden] { display: none; }
 
 
   #timecontrol {
@@ -294,7 +556,7 @@ html, body {
     }
 }
 
-#layersButton, #infoItemMap {
+#infoItemMap {
     display: none;
 }
 
@@ -331,12 +593,6 @@ html, body {
 
 .selectedButton {
     color: var(--dark-theme-on-surface);
-}
-
-.navbar > button.selectedButton {
-    color: var(--dark-theme-on-surface);
-    background-color: var(--dark-primary-color-bg);
-    border-bottom-color: var(--dark-primary-color);
 }
 
 .flexColumn {
