@@ -27,9 +27,17 @@ export class RadarInterpolator {
     this.canvas = document.createElement('canvas');
     this.canvas.width = 1;
     this.canvas.height = 1;
+    // premultipliedAlpha:false — our warp shader outputs straight
+    // (non-premultiplied) RGBA by taking mix() of two non-premultiplied
+    // texture samples. With premultipliedAlpha:true the browser would
+    // re-multiply during compositing, darkening semi-transparent pixels
+    // (coastlines, radar-range edges, nodata). preserveDrawingBuffer:true
+    // keeps the buffer between our gl.clear calls — OL may read the
+    // canvas slightly out of phase with our draws, and without this the
+    // browser can wipe the buffer between draw and composite.
     this.gl = this.canvas.getContext('webgl2', {
       alpha: true,
-      premultipliedAlpha: true,
+      premultipliedAlpha: false,
       preserveDrawingBuffer: true,
       antialias: false,
     });

@@ -59,9 +59,13 @@ export default class WarpRenderer {
 
   // Draw to whatever FBO is currently bound (null = default FBO =
   // this.gl.canvas). Caller is responsible for binding the right
-  // FBO and setting the canvas dimensions before calling.
+  // FBO and clearing it before calling.
   render(frameATex, frameBTex, flowTex, t, viewportW, viewportH) {
     const { gl } = this;
+    // Ensure the draw fully overwrites the cleared buffer rather
+    // than blending with any leftover content — defensive against
+    // GL state getting nudged into BLEND by another code path.
+    gl.disable(gl.BLEND);
     gl.viewport(0, 0, viewportW, viewportH);
     gl.useProgram(this.program);
 

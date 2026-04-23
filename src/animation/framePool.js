@@ -386,6 +386,16 @@ export default class FramePool {
     this._userOpacity = this.primary.getOpacity();
     this._settingOpacityInternally = false;
 
+    // 1×1 transparent canvas we return from canvasFunction when the
+    // warp has nothing to show. Returning null from canvasFunction
+    // causes ol/source/ImageCanvas to keep its last cached canvas
+    // visible — which means old warp content stays displayed after
+    // stop + step. Returning a new empty canvas forces the layer to
+    // display a transparent pixel instead, so primary shows through.
+    this._emptyCanvas = document.createElement('canvas');
+    this._emptyCanvas.width = 1;
+    this._emptyCanvas.height = 1;
+
     // canvasFunction is given the size OL wants rendered, in device
     // pixels. That's usually viewSize × ratio × devicePixelRatio —
     // larger than A's native bitmap on retina because the slot's
@@ -393,10 +403,10 @@ export default class FramePool {
     // canvas covers the requested extent; the shader upscales from
     // A's bitmap with bilinear filtering.
     const canvasFunction = (extent, resolution, pixelRatio, size) => {
-      if (!this.interpActive) return null;
+      if (!this.interpActive) return this._emptyCanvas;
       const { timeA, timeB, t } = this._warpState;
-      if (!timeA || !timeB) return null;
-      if (!interpolator.hasFlow(timeA, timeB)) return null;
+      if (!timeA || !timeB) return this._emptyCanvas;
+      if (!interpolator.hasFlow(timeA, timeB)) return this._emptyCanvas;
       return interpolator.renderAt(timeA, timeB, t, size[0], size[1]);
     };
 
