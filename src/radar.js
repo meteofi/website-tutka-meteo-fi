@@ -65,6 +65,7 @@ let startDate = new Date(Math.floor(Date.now() / 300000) * 300000 - 300000 * 12)
 // id — was a setInterval handle before the RAF refactor). Null when paused.
 let animationId = null;
 let lastAdvance = 0;
+let lastWarpTick = 0;
 const layerInfo = {};
 let timeline;
 let mapTime = '';
@@ -726,6 +727,13 @@ const renderTick = function (now) {
     setTime();
     return;
   }
+
+  // Throttle warp updates to ~30 Hz. Crossfade is visually smooth
+  // at 30 fps and halves the number of full OL renders we trigger
+  // (each showInterpolated call bumps the warp source's revision,
+  // which schedules an OL layer re-render).
+  if (now - lastWarpTick < 33) return;
+  lastWarpTick = now;
 
   const t = (now - lastAdvance) / stepDuration;
   for (const name of Object.keys(framePools)) {

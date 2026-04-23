@@ -416,7 +416,10 @@ export default class FramePool {
 
     this.warpLayer = new ImageLayer({
       name: `${this.primary.get('name')}__warp`,
-      visible: this.primary.getVisible(),
+      // Hidden until interp becomes active — OL skips the layer
+      // entirely (no canvasFunction calls, no compositor work) while
+      // playback is paused, which lets the GPU process actually idle.
+      visible: false,
       opacity: this._userOpacity,
       // Match the primary's WMS ratio (1.5 by default in radar.js)
       // so OL asks canvasFunction for the same extent-and-size the
@@ -425,7 +428,7 @@ export default class FramePool {
     });
 
     this._primaryVisListener = () => {
-      this.warpLayer.setVisible(this.primary.getVisible());
+      this.warpLayer.setVisible(this.interpActive && this.primary.getVisible());
     };
     // Opacity listener is guarded so our own transparent/restore
     // writes don't get captured as "the user's chosen opacity".
@@ -477,13 +480,18 @@ export default class FramePool {
   }
 
   // Toggle interpolated display on/off. radar.js calls this from
-  // play() / stop(). On stop, restore primary's opacity so the user
-  // sees the discrete frame at their chosen opacity again.
+  // play() / stop(). Show/hide the warp layer accordingly — while
+  // hidden, OL skips it during render so the GPU process can idle.
+  // On stop, also restore primary's opacity so the user sees the
+  // discrete frame at their chosen opacity again.
   setInterpActive(active) {
     if (this.interpActive === active) return;
     this.interpActive = active;
     if (!active) this._setPrimaryTransparent(false);
-    if (this.warpLayer) this.warpLayer.getSource().changed();
+    if (this.warpLayer) {
+      this.warpLayer.setVisible(active && this.primary.getVisible());
+      this.warpLayer.getSource().changed();
+    }
   }
 
   // Render the warp at fractional t between current frame (A) and
