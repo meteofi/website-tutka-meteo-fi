@@ -453,14 +453,15 @@ export default class FramePool {
     // Retroactively upload already-loaded slot bitmaps so hasFlow
     // returns true on the first showInterpolated call after a delayed
     // attach (canInterpolate is async; some slots may already be
-    // loaded by the time we get here).
+    // loaded by the time we get here). Pass extent along so hasFlow's
+    // extent check isn't permanently stuck on a null stored extent.
     for (const slot of this.slots) {
       if (!slot.loaded || !slot.time) continue; // eslint-disable-line no-continue
       const wrapper = slot.source._sticky;
       if (!wrapper) continue; // eslint-disable-line no-continue
       const img = wrapper.getImage();
       if (img && img.complete && img.naturalWidth) {
-        interpolator.onSlotLoaded(slot, img);
+        interpolator.onSlotLoaded(slot, img, wrapper.getExtent());
       }
     }
   }
@@ -526,7 +527,17 @@ export default class FramePool {
     const viewExtent = this._viewExtentScaled();
     const hasFlow = this.interpolator.hasFlow(this.currentTime, timeB, viewExtent);
     this._setPrimaryTransparent(hasFlow);
-    if (!hasFlow) return;
+
+    if (!hasFlow) {
+      // Force canvasFunction to re-run (returning our empty 1×1
+      // canvas) so the warp layer drops any stale content that was
+      // last drawn for a previous (A, B). Otherwise after pan/zoom
+      // invalidates the frames, the warp keeps displaying its last
+      // interpolated image over the primary — looks like "a frame
+      // stuck" until the window slides around to it again.
+      this.warpLayer.getSource().changed();
+      return;
+    }
 
     this._warpState.timeA = this.currentTime;
     this._warpState.timeB = timeB;
