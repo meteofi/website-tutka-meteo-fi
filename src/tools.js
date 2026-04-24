@@ -24,13 +24,6 @@ const COMPASS_16_EN = [
   'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW',
 ];
 
-const COMPASS_16_FI = [
-  'pohjoinen', 'pohjois-koillinen', 'koillinen', 'itä-koillinen',
-  'itä', 'itä-kaakko', 'kaakko', 'etelä-kaakko',
-  'etelä', 'etelä-lounas', 'lounas', 'länsi-lounas',
-  'länsi', 'länsi-luode', 'luode', 'pohjois-luode',
-];
-
 function compassIndex(deg) {
   return Math.round(((deg % 360) + 360) / 22.5) % 16;
 }
@@ -134,10 +127,9 @@ export default function initTools({ map, getOwnPosition }) {
       const p1 = new LatLon(own[1], own[0]);
       const p2 = new LatLon(coord4326[1], coord4326[0]);
       const brg = p1.initialBearingTo(p2);
-      const idx = compassIndex(brg);
       distValue.textContent = formatDistance(meters);
       bearValue.textContent = `${brg.toFixed(0)}°`;
-      bearSub.textContent = `${COMPASS_16_FI[idx]} (${COMPASS_16_EN[idx]})`;
+      bearSub.textContent = COMPASS_16_EN[compassIndex(brg)];
       distRow.hidden = false;
       bearRow.hidden = false;
     } else {
