@@ -102,16 +102,20 @@ function readInitialInterpMode() {
 
 canInterpolate().then((ok) => {
   interpCapable = ok;
-  interpMode = ok ? readInitialInterpMode() : 'off';
+  interpMode = ok ? readInitialInterpMode() : DEFAULT_INTERP_MODE;
   // eslint-disable-next-line no-console
   console.info(`[tutka] INTERP: capable=${ok} mode=${interpMode}`);
-  track(ok ? 'interp-available' : 'interp-unsupported');
+  // One event per boot with both properties so Umami can split
+  // capability counts AND see the resolved initial mode. Returning
+  // visitors whose localStorage already opted into a non-default
+  // mode show up here too, which lets us track adoption over time.
+  track('interp-boot', { capable: ok, mode: interpMode });
   attachInterpolators();
   updateInterpChipsState();
 }).catch((err) => {
   // eslint-disable-next-line no-console
   console.warn('[tutka] INTERP probe failed:', err);
-  track('interp-probe-error');
+  track('interp-boot', { capable: false, mode: DEFAULT_INTERP_MODE, error: true });
 });
 
 function attachInterpolators() {
