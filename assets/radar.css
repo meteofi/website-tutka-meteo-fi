@@ -455,9 +455,19 @@ html, body {
     
   }
 
-  /* Default: frame loaded for the current view — neutral dark gray. */
+  /* Default: frame loaded AND flow ready for the current view —
+     neutral dark gray. Interpolation will animate through this
+     timestep smoothly. */
   #timeline > div {
     background-color: #3C3D3E;
+  }
+  /* Loaded but interpolator flow isn't ready yet — the bitmap is on
+     screen but playback through this timestep will "jump" instead
+     of warping. Green so the user can see which cells are holding
+     up smooth animation. Below timeline-loading in specificity so
+     a still-loading cell stays amber. */
+  #timeline > div.timeline-flow-pending {
+    background-color: #3a8a4a;
   }
   /* Loading for the current view — warm amber, clearly contrasting. */
   #timeline > div.timeline-loading {

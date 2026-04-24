@@ -30,6 +30,7 @@ import Timeline from './timeline';
 import wmsServerConfiguration from './config';
 import createLongPressHandler from './longpress';
 import FramePool from './animation/framePool';
+import { canInterpolate, RadarInterpolator } from './animation/interpolation';
 
 dayjs.locale('fi');
 dayjs.extend(utcPlugin);
@@ -60,7 +61,11 @@ let ownPosition = [];
 let ownPosition4326 = [];
 let geolocation;
 let startDate = new Date(Math.floor(Date.now() / 300000) * 300000 - 300000 * 12);
+// Handle of the currently-running playback loop (now a requestAnimationFrame
+// id — was a setInterval handle before the RAF refactor). Null when paused.
 let animationId = null;
+let lastAdvance = 0;
+let lastWarpTick = 0;
 const layerInfo = {};
 let timeline;
 let mapTime = '';
@@ -70,7 +75,124 @@ const framePools = {
   lightningLayer: null,
   observationLayer: null,
 };
+
+// Three interpolation modes:
+//   - 'off'       : no warp layer; animation shows discrete frames only.
+//   - 'crossfade' : warp layer with zero-flow — smooth A→B fade.
+//   - 'flow'      : warp layer with LK-computed optical flow — motion-
+//                   compensated interpolation.
+// Resolved on boot from URL override (?interp=…) then localStorage.
+// Default is 'off' (discrete frames, the historical behavior). A
+// stored mode that's no longer in VALID_INTERP_MODES — e.g. if we
+// ever rename or drop an option — is ignored and the default wins,
+// so the live storage format is self-healing across releases.
+const VALID_INTERP_MODES = ['off', 'crossfade', 'flow'];
+const INTERP_MODE_KEY = 'interpMode';
+const DEFAULT_INTERP_MODE = 'off';
+let interpMode = DEFAULT_INTERP_MODE;
+let interpCapable = false;
+
+function readInitialInterpMode() {
+  const urlMode = new URLSearchParams(window.location.search).get('interp');
+  if (VALID_INTERP_MODES.includes(urlMode)) return urlMode;
+  const stored = localStorage.getItem(INTERP_MODE_KEY);
+  if (VALID_INTERP_MODES.includes(stored)) return stored;
+  return DEFAULT_INTERP_MODE;
+}
+
+canInterpolate().then((ok) => {
+  interpCapable = ok;
+  interpMode = ok ? readInitialInterpMode() : DEFAULT_INTERP_MODE;
+  // eslint-disable-next-line no-console
+  console.info(`[tutka] INTERP: capable=${ok} mode=${interpMode}`);
+  // One event per boot with both properties so Umami can split
+  // capability counts AND see the resolved initial mode. Returning
+  // visitors whose localStorage already opted into a non-default
+  // mode show up here too, which lets us track adoption over time.
+  track('interp-boot', { capable: ok, mode: interpMode });
+  attachInterpolators();
+  updateInterpChipsState();
+}).catch((err) => {
+  // eslint-disable-next-line no-console
+  console.warn('[tutka] INTERP probe failed:', err);
+  track('interp-boot', { capable: false, mode: DEFAULT_INTERP_MODE, error: true });
+});
+
+function attachInterpolators() {
+  if (interpMode === 'off') return;
+  const playing = animationId !== null;
+  const useFlow = interpMode === 'flow';
+  for (const name of ['radarLayer', 'satelliteLayer']) {
+    const pool = framePools[name];
+    if (pool && !pool.interpolator) {
+      pool.setInterpolator(new RadarInterpolator({ useFlow }));
+      pool.refreshFlows();
+      if (playing) pool.setInterpActive(true);
+    }
+  }
+}
+
+function detachInterpolators() {
+  for (const name of ['radarLayer', 'satelliteLayer']) {
+    const pool = framePools[name];
+    if (pool && pool.interpolator) {
+      pool.setInterpActive(false);
+      pool.setInterpolator(null);
+    }
+  }
+}
+
+function setInterpMode(mode) {
+  if (!VALID_INTERP_MODES.includes(mode)) return;
+  if (mode !== 'off' && !interpCapable) return;
+  if (interpMode === mode) return;
+  const prev = interpMode;
+  interpMode = mode;
+  localStorage.setItem(INTERP_MODE_KEY, mode);
+  if (mode === 'off') {
+    detachInterpolators();
+  } else if (prev === 'off') {
+    attachInterpolators();
+  } else {
+    // Swap between crossfade and flow on existing interpolators —
+    // cheaper than rebuilding the whole pipeline.
+    const useFlow = mode === 'flow';
+    for (const name of ['radarLayer', 'satelliteLayer']) {
+      const pool = framePools[name];
+      if (pool && pool.interpolator) {
+        pool.interpolator.setUseFlow(useFlow);
+        pool.refreshFlows();
+      }
+    }
+  }
+  updateInterpChipsState();
+  track('interp-mode', { mode });
+}
+
+function updateInterpChipsState() {
+  document.querySelectorAll('#overflowMenu .chip[data-interp]').forEach((chip) => {
+    const m = chip.getAttribute('data-interp');
+    chip.setAttribute('aria-checked', String(m === interpMode));
+    if (!interpCapable && m !== 'off') {
+      chip.setAttribute('aria-disabled', 'true');
+    } else {
+      chip.removeAttribute('aria-disabled');
+    }
+  });
+}
 const poolLoadStates = {
+  satelliteLayer: new Array(13).fill(false),
+  radarLayer: new Array(13).fill(false),
+  lightningLayer: new Array(13).fill(false),
+  observationLayer: new Array(13).fill(false),
+};
+// Per-cell "flow ready" state. Only populated for pools that have an
+// interpolator attached (radar, satellite when interp is enabled).
+// True means both endpoints of the pair starting at this index are
+// loaded AND the interpolator has a computed flow field — playback
+// through this timestep will show a motion-compensated warp instead
+// of a jump to the next discrete frame.
+const poolFlowStates = {
   satelliteLayer: new Array(13).fill(false),
   radarLayer: new Array(13).fill(false),
   lightningLayer: new Array(13).fill(false),
@@ -83,13 +205,20 @@ const ACTIVE = new Set(safeParseJSON('ACTIVE', [options.defaultRadarLayer]));
 function updateTimelineCell(i) {
   if (!timeline) return;
   let allLoaded = true;
+  let flowPending = false;
   for (const name of Object.keys(framePools)) {
-    if (VISIBLE.has(name) && framePools[name] && !poolLoadStates[name][i]) {
-      allLoaded = false;
-      break;
-    }
+    const pool = framePools[name];
+    if (!pool || !VISIBLE.has(name)) continue; // eslint-disable-line no-continue
+    if (!poolLoadStates[name][i]) allLoaded = false;
+    // A pool only marks flow-pending if it actually has an
+    // interpolator attached. Lightning/observation (no interp) and
+    // radar/satellite with mode=off never flag this cell.
+    if (pool.interpolator && !poolFlowStates[name][i]) flowPending = true;
   }
   timeline.setLoadState(i, allLoaded);
+  // Flow-pending only meaningful when the cell is loaded — a not-
+  // yet-loaded cell is shown as "loading" with priority anyway.
+  timeline.setFlowPending(i, allLoaded && flowPending);
 }
 
 function recomputeAllTimelineCells() {
@@ -666,18 +795,77 @@ function updateClock() {
 
 let isInteracting = false;
 
+function anyPoolZooming() {
+  for (const name of Object.keys(framePools)) {
+    const p = framePools[name];
+    if (p && p.isZoomGestureActive && p.isZoomGestureActive()) return true;
+  }
+  return false;
+}
+
+// Playback loop. Split into two cadences so interpolation can layer on
+// top cleanly in later phases:
+//   - Advance (slow): bump the discrete timestep by a full frame when
+//     wall-clock elapsed exceeds stepDuration. This is today's setTime
+//     call. stepDuration is read from options.frameRate on every tick
+//     so the speed button takes effect without restart.
+//   - Render (fast): every RAF, ask each visible pool to render at the
+//     current fractional `t` between the last advance and the next.
+//     Phase 1's showInterpolated is a no-op, so playback is visually
+//     identical to the previous setInterval-based loop.
+//
+// isInteracting gates both cadences — OL won't redraw during pan/zoom
+// and advancing the clock while the image is frozen would desync the
+// timeline from what's on screen.
+const renderTick = function (now) {
+  animationId = window.requestAnimationFrame(renderTick);
+  // Skip both advance and warp render while the user is mid-drag,
+  // while OL is mid-tween (e.g., smooth zoom from a scroll wheel),
+  // or while any pool is inside an active wheel-zoom gesture (we
+  // hold the pause until 300ms after the last wheel event so slow
+  // scrolls don't fire prefetch bursts between tween gaps).
+  // Without these gates, every wheel tick keeps playback
+  // advancing, and each advance fires pool.showTime →
+  // _prefetchAroundCurrent → 3-6 WMS fetches per visible pool.
+  if (isInteracting || map.getView().getAnimating() || anyPoolZooming()) return;
+
+  const stepDuration = 1000 / options.frameRate;
+  if (now - lastAdvance >= stepDuration) {
+    lastAdvance = now;
+    setTime();
+    return;
+  }
+
+  // Throttle warp updates to ~30 Hz. Crossfade is visually smooth
+  // at 30 fps and halves the number of full OL renders we trigger
+  // (each showInterpolated call bumps the warp source's revision,
+  // which schedules an OL layer re-render).
+  if (now - lastWarpTick < 33) return;
+  lastWarpTick = now;
+
+  const t = (now - lastAdvance) / stepDuration;
+  for (const name of Object.keys(framePools)) {
+    if (!VISIBLE.has(name)) continue; // eslint-disable-line no-continue
+    const pool = framePools[name];
+    if (pool) pool.showInterpolated(t);
+  }
+};
+
+function setInterpActiveAll(active) {
+  for (const name of Object.keys(framePools)) {
+    const pool = framePools[name];
+    if (pool && pool.interpolator) pool.setInterpActive(active);
+  }
+}
+
 const play = function () {
   if (animationId === null) {
     debug('PLAY');
     IS_FOLLOWING = false;
-    // Skip auto-advance ticks while the user is dragging/zooming —
-    // OL refuses to redraw during interaction (INTERACTING hint), so
-    // letting the clock and timeline advance while the image is frozen
-    // would desync them.
-    animationId = window.setInterval(() => {
-      if (!isInteracting) setTime();
-    }, 1000 / options.frameRate);
+    lastAdvance = window.performance.now();
+    animationId = window.requestAnimationFrame(renderTick);
     document.getElementById('playstopButton').innerHTML = 'pause';
+    setInterpActiveAll(true);
   }
 };
 
@@ -685,9 +873,10 @@ const stop = function () {
   if (animationId !== null) {
     debug('STOP');
     IS_FOLLOWING = false;
-    window.clearInterval(animationId);
+    window.cancelAnimationFrame(animationId);
     animationId = null;
     document.getElementById('playstopButton').innerHTML = 'play_arrow';
+    setInterpActiveAll(false);
   }
 };
 
@@ -928,12 +1117,34 @@ function layerInfoPlaylist(event) {
   const layer = event.target;
   const name = layer.get('name');
   const info = layer.get('info');
-  const opacity = layer.get('opacity') * 100;
+  // Prefer the user-chosen opacity when the interpolator has zeroed
+  // the layer's actual opacity for its transparent swap. Falls back
+  // to layer.opacity for non-interp layers (lightning, observation,
+  // or any layer when interp is off).
+  const userOp = layer.get('_userOpacity');
+  const effectiveOpacity = userOp !== undefined ? userOp : layer.get('opacity');
+  const opacity = effectiveOpacity * 100;
 
   if (typeof info === 'undefined') return;
 
-  // If only opacity changed, update slider value without full DOM rebuild
+  // FramePool.showTime swaps primary.setSource(slot.source) every
+  // discrete frame advance during playback. That fires propertychange
+  // with key='source'. Without this guard the whole playlist DOM
+  // rebuilds 2× per second during playback (visible as a pulsing
+  // hover state on style chips), churning CPU for no user-visible
+  // reason — source swaps within the pool never change which WMS
+  // layer/style/URL the user selected.
+  if (event.key === 'source') return;
+
+  // If only opacity changed, update slider value without full DOM rebuild.
+  // Skip updates triggered by the interpolator's internal transparent
+  // swap (framepool._setPrimaryTransparent), which marks the layer
+  // with `_interpHiding` before writing opacity — otherwise the slider
+  // would jump to 0 whenever the warp takes over.
   if (event.key === 'opacity') {
+    if (layer.get('_interpHiding') !== undefined && layer.get('_interpHiding') !== false) {
+      return;
+    }
     const existingSlider = document.getElementById(`${name}Slider`);
     if (existingSlider) {
       existingSlider.value = opacity;
@@ -1354,6 +1565,18 @@ document.querySelectorAll('#overflowMenu .chip[data-theme]').forEach((chip) => {
   });
 });
 
+document.querySelectorAll('#overflowMenu .chip[data-interp]').forEach((chip) => {
+  chip.addEventListener('mouseup', () => {
+    if (chip.getAttribute('aria-disabled') === 'true') return;
+    setInterpMode(chip.getAttribute('data-interp'));
+  });
+});
+// Initialise chip disabled/selected state up front — before the
+// capability probe resolves, interpCapable is false so only 'off'
+// is tappable. Otherwise taps arrive at setInterpMode which
+// silently rejects non-'off' modes, and the user sees no feedback.
+updateInterpChipsState();
+
 // POI layers — map features that users can toggle independently of data layers.
 // Adding a future POI = one entry in this registry; the overflow menu row and
 // localStorage persistence fall out automatically.
@@ -1766,8 +1989,16 @@ const main = () => {
       poolLoadStates[name][idx] = loaded;
       updateTimelineCell(idx);
     };
+    pool.onFlowStateChange = (idx, ready) => {
+      poolFlowStates[name][idx] = ready;
+      updateTimelineCell(idx);
+    };
     framePools[name] = pool;
   }
+  // Pools are now in framePools. If the capability probe has already
+  // resolved, wire interpolators up now; otherwise the probe's .then
+  // will call attachInterpolators once the verdict lands.
+  attachInterpolators();
   recomputeAllTimelineCells();
   window.__tutka = { map, framePools };
 
@@ -1806,6 +2037,14 @@ const main = () => {
   map.on('pointerdrag', () => { isInteracting = true; });
   map.on('moveend', () => {
     isInteracting = false;
+    // Defer the next playback advance by a full stepDuration after any
+    // view change. Without this, the advance cadence fires on the very
+    // next RAF tick after a pan (since lastAdvance accumulated while
+    // isInteracting was true), which races with the moveend-triggered
+    // prefetch in FramePool — second prefetch aborts the first, noisy
+    // "Image load error" shows up in the console for every aborted
+    // request.
+    lastAdvance = window.performance.now();
     const zoom = Math.min(map.getView().getZoom(), 16);
     localStorage.setItem('metZoom', zoom);
   });
