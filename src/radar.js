@@ -787,6 +787,14 @@ function updateClock() {
 
 let isInteracting = false;
 
+function anyPoolZooming() {
+  for (const name of Object.keys(framePools)) {
+    const p = framePools[name];
+    if (p && p.isZoomGestureActive && p.isZoomGestureActive()) return true;
+  }
+  return false;
+}
+
 // Playback loop. Split into two cadences so interpolation can layer on
 // top cleanly in later phases:
 //   - Advance (slow): bump the discrete timestep by a full frame when
@@ -803,14 +811,15 @@ let isInteracting = false;
 // timeline from what's on screen.
 const renderTick = function (now) {
   animationId = window.requestAnimationFrame(renderTick);
-  // Skip both advance and warp render while the user is mid-drag
-  // OR while OL is mid-tween (e.g., smooth zoom from a scroll wheel).
-  // Without the getAnimating() check, every wheel tick keeps
-  // playback advancing, and each advance fires pool.showTime →
-  // _prefetchAroundCurrent → 3-6 WMS fetches per visible pool. A
-  // few seconds of scroll-while-playing can launch 30-60 fetches
-  // on top of what the debounced moveend will prefetch.
-  if (isInteracting || map.getView().getAnimating()) return;
+  // Skip both advance and warp render while the user is mid-drag,
+  // while OL is mid-tween (e.g., smooth zoom from a scroll wheel),
+  // or while any pool is inside an active wheel-zoom gesture (we
+  // hold the pause until 300ms after the last wheel event so slow
+  // scrolls don't fire prefetch bursts between tween gaps).
+  // Without these gates, every wheel tick keeps playback
+  // advancing, and each advance fires pool.showTime →
+  // _prefetchAroundCurrent → 3-6 WMS fetches per visible pool.
+  if (isInteracting || map.getView().getAnimating() || anyPoolZooming()) return;
 
   const stepDuration = 1000 / options.frameRate;
   if (now - lastAdvance >= stepDuration) {

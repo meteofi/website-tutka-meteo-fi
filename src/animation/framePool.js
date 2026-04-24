@@ -144,26 +144,35 @@ export default class FramePool {
       map.addLayer(layer);
     }
 
-    // Debounce moveend-driven invalidate+prefetch. OL fires a
-    // moveend at the end of every view animation, and a scroll-wheel
-    // zoom decomposes into many short animations as the wheel ticks
-    // — so a fast scroll burst fires several moveends in quick
-    // succession and would trigger several rounds of prefetch
-    // (3-6 fetches per visible pool each). The aborted requests
-    // still leave the browser before our AbortController catches
-    // them, hammering the WMS server. Wait for ~200ms of quiet
-    // before doing the work; sticky-while-loading covers the user
-    // during the debounce window.
+    // Debounce moveend-driven invalidate+prefetch AND coalesce across
+    // a whole wheel-zoom gesture. OL fires a moveend at the end of
+    // every view-animation tween, and a scroll-wheel zoom is a train
+    // of such tweens. A moveend-only debounce expires in the gap
+    // between tweens during a slow scroll, so each wheel tick ends
+    // up firing its own prefetch burst. We also listen to raw DOM
+    // `wheel` events and restart the timer on each one — the
+    // gesture only "ends" after QUIET_MS of no wheel AND no moveend.
+    // While the timer is pending we treat the pool as mid-gesture:
+    // prefetch, frontier-advance and playback-advance are all
+    // suppressed. Sticky-while-loading covers the user until the
+    // flush runs.
+    const QUIET_MS = 300;
     this._moveendTimer = null;
-    map.on('moveend', () => {
-      if (this._moveendTimer) {
-        clearTimeout(this._moveendTimer);
-      }
+    this._gestureEndAt = 0;
+    const scheduleFlush = () => {
+      if (this._moveendTimer) clearTimeout(this._moveendTimer);
+      this._gestureEndAt = performance.now() + QUIET_MS;
       this._moveendTimer = setTimeout(() => {
         this._moveendTimer = null;
+        this._gestureEndAt = 0;
         this._handleMoveend();
-      }, 200);
-    });
+      }, QUIET_MS);
+    };
+    map.on('moveend', scheduleFlush);
+    const viewport = map.getViewport && map.getViewport();
+    if (viewport) {
+      viewport.addEventListener('wheel', scheduleFlush, { passive: true });
+    }
 
     // When the layer becomes visible after being hidden, catch up on
     // any view changes that happened while hidden.
@@ -259,12 +268,17 @@ export default class FramePool {
     return this.slots.find((s) => s.time === time) || null;
   }
 
+  isZoomGestureActive() {
+    return this._gestureEndAt > 0 && performance.now() < this._gestureEndAt;
+  }
+
   // Prefetch the initial ring: current, +1, +2 (wrapping). Animation
   // plays forward the vast majority of the time, so we bias the
   // initial fetch toward upcoming frames instead of the symmetric
   // previous+next ring.
   _prefetchAroundCurrent() {
     if (!this.primary.getVisible()) return;
+    if (this.isZoomGestureActive()) return;
     if (!this.currentTime || !this.windowTimes) return;
     const curIdx = this.windowTimes.indexOf(this.currentTime);
     if (curIdx < 0) return;
@@ -286,6 +300,7 @@ export default class FramePool {
   // around, which matches typical playback behavior (rarely reverse).
   _advanceFrontier() {
     if (!this.primary.getVisible()) return;
+    if (this.isZoomGestureActive()) return;
     if (!this.currentTime || !this.windowTimes) return;
     const curIdx = this.windowTimes.indexOf(this.currentTime);
     if (curIdx < 0) return;
