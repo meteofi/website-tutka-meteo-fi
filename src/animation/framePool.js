@@ -144,50 +144,25 @@ export default class FramePool {
       map.addLayer(layer);
     }
 
+    // Debounce moveend-driven invalidate+prefetch. OL fires a
+    // moveend at the end of every view animation, and a scroll-wheel
+    // zoom decomposes into many short animations as the wheel ticks
+    // — so a fast scroll burst fires several moveends in quick
+    // succession and would trigger several rounds of prefetch
+    // (3-6 fetches per visible pool each). The aborted requests
+    // still leave the browser before our AbortController catches
+    // them, hammering the WMS server. Wait for ~200ms of quiet
+    // before doing the work; sticky-while-loading covers the user
+    // during the debounce window.
+    this._moveendTimer = null;
     map.on('moveend', () => {
-      // Probe each slot: if its cached image doesn't cover the new
-      // view, its `loaded` flag is stale. Reset so the timeline reflects
-      // which cells need to be re-fetched for the current view.
-      const ctx = this._getViewContext();
-      if (ctx) {
-        // First, drop each source's cached ImageWMS wrapper. OL's own
-        // render pipeline calls getImage on the primary layer's source
-        // during a pan, and the cache locks in a wrapper whose extent
-        // reflects the intermediate view. Without this reset, loads
-        // completing on those wrappers would store mid-pan extents
-        // that fail extentApproxEqual against neighbouring slots
-        // (which didn't get render-hit during the pan), and the
-        // interpolator would skip computeFlow for any pair involving
-        // the current slot — visible as two permanently-green cells
-        // on the timeline.
-        for (const slot of this.slots) {
-          slot.source.resetImageCache();
-        }
-        for (const slot of this.slots) {
-          if (!slot.time) {
-            continue; // eslint-disable-line no-continue
-          }
-          const fresh = slot.source.hasLoadedImageForView(
-            ctx.extent,
-            ctx.resolution,
-            1,
-            ctx.projection,
-          );
-          if (slot.loaded !== fresh) {
-            slot.loaded = fresh;
-            this._notifyLoadChange(slot);
-            // Slot's sticky no longer covers the view — any flow pair
-            // built from the now-stale bitmap is suspect. Drop the
-            // frame texture and pair entries; onSlotLoaded will repopulate
-            // when the slot refetches.
-            if (!fresh && this.interpolator && slot.time) {
-              this.interpolator.invalidateSlot(slot.time);
-            }
-          }
-        }
+      if (this._moveendTimer) {
+        clearTimeout(this._moveendTimer);
       }
-      this._prefetchAroundCurrent();
-      this._notifyAllFlowState();
+      this._moveendTimer = setTimeout(() => {
+        this._moveendTimer = null;
+        this._handleMoveend();
+      }, 200);
     });
 
     // When the layer becomes visible after being hidden, catch up on
@@ -637,6 +612,52 @@ export default class FramePool {
     this._warpState.t = effectiveT;
 
     this.warpLayer.getSource().changed();
+  }
+
+  // Run once per debounced moveend. Drops OL's cached image wrapper
+  // on every slot source (so OL re-creates a fresh wrapper at the
+  // current view), checks each slot's loaded state against the new
+  // view, invalidates interpolator frames whose stickies no longer
+  // cover, then triggers prefetch around the current frame.
+  _handleMoveend() {
+    const ctx = this._getViewContext();
+    if (ctx) {
+      // First, drop each source's cached ImageWMS wrapper. OL's own
+      // render pipeline calls getImage on the primary layer's source
+      // during a pan, and the cache locks in a wrapper whose extent
+      // reflects the intermediate view. Without this reset, loads
+      // completing on those wrappers would store mid-pan extents
+      // that fail extentApproxEqual against neighbouring slots
+      // (which didn't get render-hit during the pan), and the
+      // interpolator would skip computeFlow for any pair involving
+      // the current slot — visible as two permanently-green cells
+      // on the timeline.
+      for (const slot of this.slots) {
+        slot.source.resetImageCache();
+      }
+      for (const slot of this.slots) {
+        if (!slot.time) continue; // eslint-disable-line no-continue
+        const fresh = slot.source.hasLoadedImageForView(
+          ctx.extent,
+          ctx.resolution,
+          1,
+          ctx.projection,
+        );
+        if (slot.loaded !== fresh) {
+          slot.loaded = fresh;
+          this._notifyLoadChange(slot);
+          // Slot's sticky no longer covers the view — any flow pair
+          // built from the now-stale bitmap is suspect. Drop the
+          // frame texture and pair entries; onSlotLoaded will repopulate
+          // when the slot refetches.
+          if (!fresh && this.interpolator && slot.time) {
+            this.interpolator.invalidateSlot(slot.time);
+          }
+        }
+      }
+    }
+    this._prefetchAroundCurrent();
+    this._notifyAllFlowState();
   }
 
   // Called from imageloadend after a slot's bitmap is uploaded to
