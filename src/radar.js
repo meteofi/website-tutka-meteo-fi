@@ -81,11 +81,15 @@ const framePools = {
 //   - 'crossfade' : warp layer with zero-flow — smooth A→B fade.
 //   - 'flow'      : warp layer with LK-computed optical flow — motion-
 //                   compensated interpolation.
-// Resolved on boot from URL override (?interp=…) then localStorage,
-// defaulting to 'flow' when the device is capable.
+// Resolved on boot from URL override (?interp=…) then localStorage.
+// Default is 'off' (discrete frames, the historical behavior). A
+// stored mode that's no longer in VALID_INTERP_MODES — e.g. if we
+// ever rename or drop an option — is ignored and the default wins,
+// so the live storage format is self-healing across releases.
 const VALID_INTERP_MODES = ['off', 'crossfade', 'flow'];
 const INTERP_MODE_KEY = 'interpMode';
-let interpMode = 'off';
+const DEFAULT_INTERP_MODE = 'off';
+let interpMode = DEFAULT_INTERP_MODE;
 let interpCapable = false;
 
 function readInitialInterpMode() {
@@ -93,7 +97,7 @@ function readInitialInterpMode() {
   if (VALID_INTERP_MODES.includes(urlMode)) return urlMode;
   const stored = localStorage.getItem(INTERP_MODE_KEY);
   if (VALID_INTERP_MODES.includes(stored)) return stored;
-  return 'flow';
+  return DEFAULT_INTERP_MODE;
 }
 
 canInterpolate().then((ok) => {
