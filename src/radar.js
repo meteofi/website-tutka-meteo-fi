@@ -803,7 +803,14 @@ let isInteracting = false;
 // timeline from what's on screen.
 const renderTick = function (now) {
   animationId = window.requestAnimationFrame(renderTick);
-  if (isInteracting) return;
+  // Skip both advance and warp render while the user is mid-drag
+  // OR while OL is mid-tween (e.g., smooth zoom from a scroll wheel).
+  // Without the getAnimating() check, every wheel tick keeps
+  // playback advancing, and each advance fires pool.showTime →
+  // _prefetchAroundCurrent → 3-6 WMS fetches per visible pool. A
+  // few seconds of scroll-while-playing can launch 30-60 fetches
+  // on top of what the debounced moveend will prefetch.
+  if (isInteracting || map.getView().getAnimating()) return;
 
   const stepDuration = 1000 / options.frameRate;
   if (now - lastAdvance >= stepDuration) {
