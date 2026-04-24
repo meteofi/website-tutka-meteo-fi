@@ -1,0 +1,1373 @@
+<!doctype html>
+<html lang="fi">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tutka.meteo.fi – Työkalut-valikko (mockup v2)</title>
+
+<!--
+===============================================================================
+DESIGN RATIONALE  (revised 2026-04-24 — after user feedback + devil's advocate)
+===============================================================================
+The location marker is NOT a modal tool. Tapping the map ALWAYS drops a marker
+and shows coords + distance + bearing — like the old mouse-hover sidebar, but
+touch-friendly. The marker is movable (tap elsewhere or drag) and never needs
+to be explicitly "activated" or "exited".
+
+Tap precedence on the map (user-confirmed option 1a):
+  1. If the tap hits a map feature (airfield / radar site) → show FEATURE INFO.
+  2. If the tap hits empty map → drop / move the LOCATION MARKER.
+
+Because the marker is the default behaviour, the Työkalut menu holds only tools
+that require a *mode* (multi-step interaction). After merging two-point
+distance and storm-velocity into ONE tool (velocity only renders when T1 and T2
+sit on different timestamps), the menu contains exactly one entry: `Mittaa`.
+
+-------------------------------------------------------------------------------
+OPEN QUESTION shown as side-by-side variants (State 3 below):
+-------------------------------------------------------------------------------
+  A) Promoottoripainike:  marker card has a small ruler icon (straighten) in
+     its header. Tap promotes the current marker to T1 of a measurement.
+     Pro: zero extra taps to measure from a spot you already have.
+     Con: adds one icon to every marker card, even when unused.
+
+  B) Erillinen työkalu:   marker card has no promote affordance. Measurement
+     is launched only from Työkalut → Mittaa.
+     Pro: card stays as minimal as the user asked for.
+     Con: to measure from the current marker you re-tap A, then B.
+
+User leaned towards icon (not a text button) if A is chosen — an icon does not
+inflate the compact card.
+
+===============================================================================
+CSS TOKENS  (v1 + new)
+===============================================================================
+  --tool-chip-bg          rgba(0,0,0,0.60)
+  --tool-card-bg          rgba(22,22,24,0.82)
+  --tool-pin-color        var(--dark-primary-color)  #12BCFA
+  --tool-pin-t1-color     #9DE6FF
+  --tool-pin-t2-color     #E255C7  (magenta — was amber, changed per DA: amber
+                                     collided with timeline-loading colour)
+  --tool-measure-line     rgba(18,188,250,0.85)
+  --tool-readout-radius   14px
+  --tool-feature-bg       rgba(22,22,24,0.88)      NEW
+  --tool-promote-bg       rgba(18,188,250,0.12)    NEW
+
+===============================================================================
+DELIBERATELY NOT DONE
+===============================================================================
+  1) No dedicated toolbar row under the primary pill (as in v1).
+  2) Marker does not persist across sessions — ephemeral only.
+  3) Feature info popup and marker card are visually DISTINCT (smaller, with
+     a pointer anchor) so the user can always tell whether a tap hit something
+     or just opened coordinates on empty map.
+===============================================================================
+DESKTOP NOTES  (mockup is mobile-first, 390px phone frames)
+===============================================================================
+  - Marker card widens to ~320px and anchors top-right with 16px margin.
+  - Feature info popup keeps its anchored-pointer style (works on both).
+  - Keyboard: Esc removes the marker/feature popup; Esc twice exits Mittaa.
+===============================================================================
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+
+<style>
+  :root {
+    --dark-background-color: #121212;
+    --dark-surface-color: #121212;
+    --dark-theme-on-surface: white;
+    --dark-high-emphasis-text-color: rgba(255,255,255,0.87);
+    --dark-medium-emphasis-text-color: rgba(255,255,255,0.60);
+    --dark-primary-color: #12BCFA;
+    --dark-primary-color-bg: #12BCFA1F;
+
+    /* tool tokens */
+    --tool-chip-bg: rgba(0,0,0,0.60);
+    --tool-card-bg: rgba(22,22,24,0.82);
+    --tool-pin-color: var(--dark-primary-color);
+    --tool-pin-t1-color: #9DE6FF;
+    --tool-pin-t2-color: #E255C7;
+    --tool-measure-line: rgba(18,188,250,0.85);
+    --tool-readout-radius: 14px;
+    --tool-feature-bg: rgba(22,22,24,0.88);
+    --tool-promote-bg: rgba(18,188,250,0.12);
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #1a1a1c;
+    color: var(--dark-high-emphasis-text-color);
+    font-family: 'Roboto', sans-serif;
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---------- Page layout ---------- */
+  .page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 32px;
+    padding: 40px 16px 80px;
+    min-height: 100vh;
+  }
+  .page h1 {
+    font-size: 18px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.85);
+    margin: 0 0 4px;
+    text-align: center;
+    letter-spacing: 0.02em;
+  }
+  .page .subtitle {
+    font-size: 12px;
+    color: var(--dark-medium-emphasis-text-color);
+    margin-bottom: 12px;
+    text-align: center;
+    max-width: 520px;
+    line-height: 1.55;
+  }
+  .state-label {
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    color: var(--dark-medium-emphasis-text-color);
+    text-transform: uppercase;
+    margin: 0 0 10px;
+    text-align: center;
+  }
+  .state-label b { color: var(--dark-primary-color); font-weight: 500; }
+
+  /* Side-by-side comparison row */
+  .comparison {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    justify-content: center;
+    align-items: flex-start;
+  }
+  .comparison > div { max-width: 390px; }
+  .variant-label {
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--dark-primary-color);
+    margin-bottom: 8px;
+    text-align: center;
+  }
+  .variant-label .vs {
+    color: var(--dark-medium-emphasis-text-color);
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 400;
+    font-size: 11px;
+    margin-left: 6px;
+  }
+
+  /* ---------- Device frame ---------- */
+  .device {
+    width: 390px;
+    height: 780px;
+    border-radius: 44px;
+    background: #000;
+    padding: 10px;
+    box-shadow:
+      0 0 0 2px #2a2a2d,
+      0 30px 60px -20px rgba(0,0,0,0.7),
+      0 10px 20px rgba(0,0,0,0.4);
+    position: relative;
+  }
+  .device-screen {
+    width: 100%; height: 100%;
+    border-radius: 36px;
+    overflow: hidden;
+    position: relative;
+    background: #08121a;
+  }
+  .device::before {
+    content: '';
+    position: absolute;
+    top: 18px; left: 50%;
+    transform: translateX(-50%);
+    width: 120px; height: 34px;
+    background: #000;
+    border-radius: 20px;
+    z-index: 200;
+  }
+
+  /* ---------- Fake radar backdrop ---------- */
+  .map {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse at 30% 20%, rgba(18,188,250,0.20), transparent 50%),
+      radial-gradient(ellipse at 70% 40%, rgba(18,188,250,0.12), transparent 55%),
+      radial-gradient(ellipse at 50% 85%, rgba(187,134,252,0.10), transparent 60%),
+      linear-gradient(180deg, #0b1720 0%, #08121a 40%, #050a0f 100%);
+    overflow: hidden;
+  }
+  .map::before {
+    content: '';
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    background-position: -1px -1px;
+    opacity: 0.6;
+  }
+  .echo {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(6px);
+    pointer-events: none;
+  }
+  .echo.a { top: 180px; left: 80px;  width: 120px; height: 90px;
+            background: radial-gradient(circle, rgba(18,188,250,0.55), rgba(18,188,250,0.05) 70%); }
+  .echo.b { top: 260px; left: 180px; width: 160px; height: 110px;
+            background: radial-gradient(circle, rgba(120,220,255,0.40), rgba(18,188,250,0.02) 70%); }
+  .echo.c { top: 380px; left: 130px; width: 90px;  height: 90px;
+            background: radial-gradient(circle, rgba(255,180,70,0.55), rgba(255,180,70,0.02) 70%); }
+  .echo.d { top: 440px; left: 220px; width: 70px;  height: 70px;
+            background: radial-gradient(circle, rgba(233,85,120,0.55), rgba(233,85,120,0.02) 70%); }
+
+  /* Airfield marker (for feature-hit-test demo) */
+  .airfield {
+    position: absolute;
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.55);
+    border: 1px solid rgba(255,255,255,0.25);
+    color: rgba(255,255,255,0.85);
+    transform: translate(-50%, -50%);
+  }
+  .airfield .material-icons { font-size: 16px; }
+  .airfield .af-code {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    font-weight: 700;
+    color: rgba(255,255,255,0.75);
+    margin-top: 2px;
+    white-space: nowrap;
+  }
+
+  /* ---------- Primary toolbar ---------- */
+  .primaryToolbar {
+    position: absolute;
+    top: 60px; left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    z-index: 100;
+  }
+  .pill {
+    display: flex;
+    align-items: center;
+    height: 52px;
+    padding: 0;
+    border-radius: 26px;
+    background-color: rgba(0,0,0,0.60);
+    -webkit-backdrop-filter: blur(24px) saturate(140%);
+    backdrop-filter: blur(24px) saturate(140%);
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+    position: relative;
+    overflow: hidden;
+  }
+  .seg {
+    all: unset;
+    width: 62px; height: 52px;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding-top: 4px;
+    cursor: pointer;
+    color: rgba(255,255,255,0.82);
+    position: relative;
+    box-sizing: border-box;
+  }
+  .seg + .seg::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 14px; bottom: 14px;
+    width: 1px;
+    background: rgba(255,255,255,0.08);
+  }
+  .seg .material-icons { font-size: 22px; line-height: 1; }
+  .seg .indicator {
+    display: block;
+    width: 8px; height: 2px;
+    margin-top: 6px;
+    border-radius: 1px;
+    background: rgba(255,255,255,0.32);
+  }
+  .seg[aria-pressed="true"] { color: var(--dark-primary-color); }
+  .seg[aria-pressed="true"]::after {
+    content: '';
+    position: absolute;
+    inset: 4px 3px;
+    background: rgba(18,188,250,0.18);
+    border-radius: 22px;
+    z-index: -1;
+  }
+  .seg[aria-pressed="true"] .indicator {
+    background: var(--dark-primary-color);
+    width: 16px;
+  }
+  .seg[aria-pressed="true"]::before,
+  .seg[aria-pressed="true"] + .seg::before { background: transparent; }
+
+  .glass-fab {
+    all: unset;
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: rgba(255,255,255,0.82);
+    background-color: rgba(0,0,0,0.60);
+    -webkit-backdrop-filter: blur(24px) saturate(140%);
+    backdrop-filter: blur(24px) saturate(140%);
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+    box-sizing: border-box;
+  }
+  .glass-fab .material-icons { font-size: 20px; }
+  .glass-fab[aria-expanded="true"] { color: var(--dark-primary-color); }
+  /* When a tool is armed, more_horiz glows cyan (per DA fix: State 4 used to miss this) */
+  .glass-fab.tool-armed {
+    color: var(--dark-primary-color);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.35), inset 0 0 0 1.5px rgba(18,188,250,0.55);
+  }
+
+  /* ---------- Overflow menu ---------- */
+  .overflowMenu {
+    position: absolute;
+    top: 128px; right: 12px;
+    width: 300px;
+    z-index: 120;
+    background: var(--tool-card-bg);
+    -webkit-backdrop-filter: blur(24px) saturate(140%);
+    backdrop-filter: blur(24px) saturate(140%);
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.45);
+    padding: 8px 0 12px;
+  }
+  .menu-header {
+    padding: 6px 16px 4px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--dark-medium-emphasis-text-color);
+  }
+  .menu-row {
+    display: flex;
+    align-items: center;
+    height: 48px;
+    padding: 0 16px;
+    gap: 14px;
+    color: var(--dark-high-emphasis-text-color);
+    cursor: pointer;
+  }
+  .menu-row .material-icons {
+    font-size: 20px;
+    color: var(--dark-medium-emphasis-text-color);
+  }
+  .menu-row[aria-checked="true"] .material-icons { color: var(--dark-primary-color); }
+  .menu-row .menu-label { flex: 1; font-size: 14px; }
+  .menu-row .menu-sub {
+    font-size: 12px;
+    color: var(--dark-medium-emphasis-text-color);
+  }
+  .menu-divider {
+    height: 1px;
+    background: rgba(255,255,255,0.08);
+    margin: 6px 16px;
+  }
+  .menu-row:hover { background-color: rgba(255,255,255,0.04); }
+  .menu-row.tool .material-icons { color: var(--dark-primary-color); }
+  .menu-row.tool:hover { background-color: rgba(18,188,250,0.08); }
+  .menu-row.tool .menu-label { font-weight: 500; }
+
+  /* ---------- Tool chip (only when a MODE is armed — measurement) ---------- */
+  .toolChip {
+    position: absolute;
+    top: 120px; left: 50%;
+    transform: translateX(-50%);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 36px;
+    padding: 0 10px 0 12px;
+    background-color: var(--tool-chip-bg);
+    -webkit-backdrop-filter: blur(24px) saturate(140%);
+    backdrop-filter: blur(24px) saturate(140%);
+    border: 1px solid rgba(18,188,250,0.45);
+    border-radius: 18px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(18,188,250,0.15);
+    color: var(--dark-high-emphasis-text-color);
+    font-size: 13px;
+    font-weight: 500;
+    z-index: 99;
+  }
+  .toolChip .material-icons { font-size: 18px; color: var(--dark-primary-color); }
+  .toolChip .chip-label { letter-spacing: 0.04em; }
+  .toolChip .chip-hint {
+    font-size: 11px;
+    color: var(--dark-medium-emphasis-text-color);
+    margin-left: 2px;
+    font-weight: 400;
+  }
+  .toolChip .chip-close {
+    margin-left: 2px;
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center; justify-content: center;
+    background: rgba(255,255,255,0.08);
+    cursor: pointer;
+  }
+  .toolChip .chip-close .material-icons { font-size: 14px; color: rgba(255,255,255,0.85); }
+
+  /* ---------- Pins ---------- */
+  .pin {
+    position: absolute;
+    width: 28px; height: 28px;
+    transform: translate(-50%, -100%);
+    pointer-events: none;
+  }
+  .pin .pin-head {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: var(--tool-pin-color);
+    border: 2px solid #fff;
+    margin: 0 auto;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.6);
+    position: relative;
+  }
+  .pin .pin-head::after {
+    content: '';
+    position: absolute;
+    left: 50%; bottom: -8px;
+    width: 2px; height: 10px;
+    background: var(--tool-pin-color);
+    transform: translateX(-50%);
+  }
+  .pin .pin-dot {
+    width: 6px; height: 6px;
+    margin: -3px auto 0;
+    border-radius: 50%;
+    background: #fff;
+    position: relative;
+    z-index: 2;
+    top: -13px;
+  }
+  .pin .pin-pulse {
+    position: absolute;
+    inset: -8px 0 0 0;
+    margin: auto;
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    border: 2px solid var(--tool-pin-color);
+    opacity: 0.35;
+    animation: pulse 2s ease-out infinite;
+  }
+  @keyframes pulse {
+    0%   { transform: scale(0.6); opacity: 0.55; }
+    100% { transform: scale(1.4); opacity: 0;    }
+  }
+  .pin.user .pin-head {
+    background: #fff;
+    border: 2px solid var(--dark-primary-color);
+    width: 14px; height: 14px;
+  }
+  .pin.user .pin-head::after { display: none; }
+  .pin.t1 .pin-head { background: var(--tool-pin-t1-color); }
+  .pin.t1 .pin-head::after { background: var(--tool-pin-t1-color); }
+  .pin.t2 .pin-head { background: var(--tool-pin-t2-color); }
+  .pin.t2 .pin-head::after { background: var(--tool-pin-t2-color); }
+
+  .pin-label {
+    position: absolute;
+    top: -24px; left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: #0a1218;
+    background: var(--tool-pin-color);
+    padding: 2px 6px;
+    border-radius: 8px;
+    white-space: nowrap;
+  }
+  .pin.t1 .pin-label { background: var(--tool-pin-t1-color); color: #06202a; }
+  .pin.t2 .pin-label { background: var(--tool-pin-t2-color); color: #2a001f; }
+
+  .measure-line {
+    position: absolute;
+    height: 2px;
+    background: var(--tool-measure-line);
+    transform-origin: 0 50%;
+    pointer-events: none;
+    opacity: 0.9;
+    border-radius: 1px;
+  }
+  .measure-line::after {
+    content: '';
+    position: absolute;
+    inset: -2px 0;
+    background: repeating-linear-gradient(
+      90deg,
+      var(--tool-measure-line) 0 6px,
+      transparent 6px 12px
+    );
+    height: 2px;
+    top: 0;
+  }
+
+  /* ---------- Marker readout card (ambient, floating) ---------- */
+  .readout {
+    position: absolute;
+    background: var(--tool-card-bg);
+    -webkit-backdrop-filter: blur(24px) saturate(140%);
+    backdrop-filter: blur(24px) saturate(140%);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: var(--tool-readout-radius);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    color: var(--dark-high-emphasis-text-color);
+    min-width: 220px;
+    padding: 10px 12px 12px;
+    z-index: 90;
+  }
+  .readout-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .readout-head .material-icons {
+    font-size: 18px;
+    color: var(--dark-primary-color);
+  }
+  .readout-head .r-title {
+    flex: 1;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--dark-medium-emphasis-text-color);
+    font-weight: 500;
+  }
+  .readout-head .r-btn-icon,
+  .readout-head .r-close {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center; justify-content: center;
+    background: rgba(255,255,255,0.06);
+    cursor: pointer;
+  }
+  .readout-head .r-btn-icon .material-icons,
+  .readout-head .r-close .material-icons { font-size: 15px; color: rgba(255,255,255,0.82); }
+  .readout-head .r-btn-icon {
+    background: var(--tool-promote-bg);
+    margin-right: 2px;
+  }
+  .readout-head .r-btn-icon .material-icons { color: var(--dark-primary-color); }
+
+  /* Copyable coord block — tap to copy decimal degrees.
+     margin-left/right match padding-left/right so inner content aligns with
+     the non-copyable rows below; highlight just extends into card padding. */
+  .r-item.copyable {
+    all: unset;
+    display: block;
+    box-sizing: border-box;
+    padding: 6px 8px;
+    margin: -2px -8px 4px;
+    border-radius: 8px;
+    cursor: pointer;
+    position: relative;
+    transition: background 0.15s;
+    min-width: 0;
+  }
+  .r-item.copyable:hover,
+  .r-item.copyable:focus { background: rgba(18,188,250,0.08); }
+  .r-item.copyable:active { background: rgba(18,188,250,0.15); }
+  .r-item.copyable .copy-hint {
+    font-size: 13px;
+    color: var(--dark-medium-emphasis-text-color);
+    margin-left: 4px;
+    vertical-align: -2px;
+    opacity: 0.75;
+  }
+
+  .readout-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 12px;
+  }
+  .readout-grid.one { grid-template-columns: 1fr; }
+
+  .r-item { min-width: 0; }
+  .r-item .r-label {
+    display: block;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--dark-medium-emphasis-text-color);
+    margin-bottom: 2px;
+  }
+  .r-item .r-value {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--dark-theme-on-surface);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .r-item .r-value.big {
+    font-size: 18px;
+    color: var(--dark-primary-color);
+  }
+  .r-item .r-sub {
+    display: block;
+    font-size: 11px;
+    color: var(--dark-medium-emphasis-text-color);
+    margin-top: 1px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .readout-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+  }
+  .r-btn {
+    all: unset;
+    flex: 1;
+    text-align: center;
+    padding: 6px 8px;
+    font-size: 12px;
+    font-weight: 500;
+    border-radius: 8px;
+    background: rgba(255,255,255,0.06);
+    color: var(--dark-high-emphasis-text-color);
+    cursor: pointer;
+  }
+  .r-btn.primary {
+    background: var(--dark-primary-color-bg);
+    color: var(--dark-primary-color);
+    box-shadow: inset 0 0 0 1px rgba(18,188,250,0.45);
+  }
+
+  /* ---------- Feature info popup (airfield / radar-site tap) ---------- */
+  .feature-popup {
+    position: absolute;
+    min-width: 200px;
+    background: var(--tool-feature-bg);
+    -webkit-backdrop-filter: blur(22px) saturate(140%);
+    backdrop-filter: blur(22px) saturate(140%);
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    padding: 10px 12px 10px;
+    z-index: 95;
+    transform: translate(-50%, calc(-100% - 14px));
+  }
+  /* pointer arrow at bottom centre */
+  .feature-popup::after {
+    content: '';
+    position: absolute;
+    top: 100%; left: 50%;
+    transform: translateX(-50%);
+    border: 7px solid transparent;
+    border-top-color: var(--tool-feature-bg);
+    filter: drop-shadow(0 1px 0 rgba(255,255,255,0.06));
+  }
+  .feature-popup .fp-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .feature-popup .fp-icon {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    background: rgba(18,188,250,0.15);
+    display: inline-flex;
+    align-items: center; justify-content: center;
+  }
+  .feature-popup .fp-icon .material-icons {
+    font-size: 16px;
+    color: var(--dark-primary-color);
+  }
+  .feature-popup .fp-title { flex: 1; }
+  .feature-popup .fp-code {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--dark-primary-color);
+  }
+  .feature-popup .fp-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--dark-high-emphasis-text-color);
+  }
+  .feature-popup .fp-close {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.06);
+    display: inline-flex;
+    align-items: center; justify-content: center;
+    cursor: pointer;
+  }
+  .feature-popup .fp-close .material-icons { font-size: 14px; color: rgba(255,255,255,0.82); }
+  .feature-popup .fp-rows {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: 10px;
+    row-gap: 3px;
+    font-size: 12px;
+  }
+  .feature-popup .fp-k {
+    color: var(--dark-medium-emphasis-text-color);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding-top: 2px;
+  }
+  .feature-popup .fp-v {
+    font-variant-numeric: tabular-nums;
+    color: var(--dark-high-emphasis-text-color);
+  }
+
+  /* ---------- Timebar ---------- */
+  .timeBar {
+    position: absolute;
+    left: 8px; right: 8px;
+    bottom: 16px;
+    z-index: 100;
+    padding: 8px 10px 10px;
+    background: rgba(0,0,0,0.72);
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 14px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+  }
+  .timeBar-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--dark-theme-on-surface);
+    margin-bottom: 8px;
+  }
+  .timeBar-top .t-btn {
+    all: unset;
+    width: 28px; height: 28px;
+    display: inline-flex;
+    align-items: center; justify-content: center;
+    color: rgba(255,255,255,0.85);
+    cursor: pointer;
+  }
+  .timeBar-top .t-btn .material-icons { font-size: 22px; }
+  .timeBar-top .t-now {
+    flex: 1;
+    text-align: center;
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+  .timeBar-top .t-date {
+    font-size: 11px;
+    color: var(--dark-medium-emphasis-text-color);
+    font-variant-numeric: tabular-nums;
+  }
+  .timeline {
+    display: flex;
+    gap: 2px;
+    height: 10px;
+    position: relative;
+  }
+  .timeline > div {
+    flex: 1 1 0;
+    height: 4px;
+    align-self: center;
+    background: #3C3D3E;
+    border-radius: 1px;
+  }
+  .timeline > div.current {
+    background: var(--dark-primary-color);
+    height: 8px;
+  }
+  .timeline > div.loading { background: #e0922f; }
+
+  .tl-marker {
+    position: absolute;
+    top: -6px;
+    width: 3px;
+    height: 20px;
+    border-radius: 2px;
+    transform: translateX(-50%);
+  }
+  .tl-marker .tl-flag {
+    position: absolute;
+    top: -14px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    padding: 1px 5px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+  .tl-marker.t1      { background: var(--tool-pin-t1-color); }
+  .tl-marker.t1 .tl-flag { background: var(--tool-pin-t1-color); color: #06202a; }
+  .tl-marker.t2      { background: var(--tool-pin-t2-color); }
+  .tl-marker.t2 .tl-flag { background: var(--tool-pin-t2-color); color: #2a001f; }
+
+  /* ---------- Location FAB ---------- */
+  .location-fab {
+    position: absolute;
+    right: 16px;
+    bottom: 96px;
+    width: 52px; height: 52px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center; justify-content: center;
+    background-color: rgba(0,0,0,0.60);
+    -webkit-backdrop-filter: blur(24px) saturate(140%);
+    backdrop-filter: blur(24px) saturate(140%);
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+    color: rgba(255,255,255,0.82);
+    z-index: 100;
+  }
+  .location-fab .material-icons { font-size: 24px; }
+
+  .caption {
+    margin-top: 10px;
+    max-width: 390px;
+    text-align: center;
+    font-size: 12px;
+    color: var(--dark-medium-emphasis-text-color);
+    line-height: 1.55;
+  }
+  .caption code {
+    background: rgba(255,255,255,0.06);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 11px;
+    color: var(--dark-primary-color);
+  }
+  .caption b { color: var(--dark-high-emphasis-text-color); font-weight: 500; }
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <div>
+    <h1>Tutka.meteo.fi — Työkalut &amp; sijaintimerkki</h1>
+    <div class="subtitle">
+      Mockup v2 — sijaintimerkki on kartan oletuskäyttäytymistä, ei modaalinen
+      työkalu. Napauta karttaa → merkki putoaa. Napauta kohdetta (lentokenttä /
+      tutka-asema) → kohteen tiedot. Työkalut-valikossa on vain moodi-työkalu
+      <i>Mittaa</i> (etäisyys + nopeus).
+    </div>
+  </div>
+
+  <!-- =============================================================== -->
+  <!-- STATE 1 · Työkalut-valikko auki (supistettu)                    -->
+  <!-- =============================================================== -->
+  <div>
+    <div class="state-label">Tila 1 · <b>Työkalut-valikko auki</b> — vain yksi työkalu</div>
+    <div class="device">
+      <div class="device-screen">
+        <div class="map">
+          <div class="echo a"></div>
+          <div class="echo b"></div>
+          <div class="echo c"></div>
+          <div class="echo d"></div>
+        </div>
+
+        <nav class="primaryToolbar" aria-label="Karttatasot">
+          <div class="pill">
+            <button class="seg" aria-pressed="false" aria-label="Satelliitti">
+              <i class="material-icons">satellite_alt</i><span class="indicator"></span>
+            </button>
+            <button class="seg" aria-pressed="true" aria-label="Säätutka">
+              <i class="material-icons">radar</i><span class="indicator"></span>
+            </button>
+            <button class="seg" aria-pressed="false" aria-label="Salamat">
+              <i class="material-icons">bolt</i><span class="indicator"></span>
+            </button>
+            <button class="seg" aria-pressed="false" aria-label="Havainto">
+              <i class="material-icons">thermostat</i><span class="indicator"></span>
+            </button>
+          </div>
+          <button class="glass-fab" aria-expanded="true" aria-label="Lisää">
+            <i class="material-icons">more_horiz</i>
+          </button>
+        </nav>
+
+        <div class="overflowMenu" role="menu">
+          <div class="menu-header">Työkalut</div>
+          <div class="menu-row tool" role="menuitem">
+            <i class="material-icons">straighten</i>
+            <span class="menu-label">Mittaa</span>
+            <span class="menu-sub">etäisyys · nopeus</span>
+          </div>
+
+          <div class="menu-divider"></div>
+
+          <div class="menu-header">Näkymä</div>
+          <div class="menu-row" role="menuitem" aria-checked="true">
+            <i class="material-icons">my_location</i>
+            <span class="menu-label">Näytä sijaintini</span>
+          </div>
+          <div class="menu-row" role="menuitem" aria-checked="false">
+            <i class="material-icons">auto_awesome</i>
+            <span class="menu-label">Interpolaatio</span>
+            <span class="menu-sub">pois</span>
+          </div>
+        </div>
+
+        <div class="timeBar">
+          <div class="timeBar-top">
+            <button class="t-btn"><i class="material-icons">skip_previous</i></button>
+            <button class="t-btn"><i class="material-icons">play_arrow</i></button>
+            <div class="t-now">14:35 <span class="t-date">· Pe 24.4.</span></div>
+            <button class="t-btn"><i class="material-icons">skip_next</i></button>
+          </div>
+          <div class="timeline">
+            <div></div><div></div><div></div><div></div><div></div>
+            <div></div><div></div><div></div><div></div><div></div>
+            <div></div><div class="loading"></div><div class="current"></div>
+          </div>
+        </div>
+
+        <div class="location-fab" aria-pressed="false" aria-label="Paikannus">
+          <i class="material-icons">gps_not_fixed</i>
+        </div>
+      </div>
+    </div>
+    <div class="caption">
+      Sijaintimerkki ei ole valikkotyökalu — sen saa aina napauttamalla
+      karttaa. Valikossa on vain <code>Mittaa</code>, joka vaatii useamman
+      pisteen ja siksi tarvitsee moodin.
+    </div>
+  </div>
+
+  <!-- =============================================================== -->
+  <!-- STATE 2 · Kartan kohteen info (feature hit-test, option 1a)     -->
+  <!-- =============================================================== -->
+  <div>
+    <div class="state-label">Tila 2 · <b>Kohteen napautus</b> — lentokenttä / tutka-asema</div>
+    <div class="device">
+      <div class="device-screen">
+        <div class="map">
+          <div class="echo a"></div>
+          <div class="echo b"></div>
+          <div class="echo c"></div>
+          <div class="echo d"></div>
+        </div>
+
+        <nav class="primaryToolbar" aria-label="Karttatasot">
+          <div class="pill">
+            <button class="seg" aria-pressed="false"><i class="material-icons">satellite_alt</i><span class="indicator"></span></button>
+            <button class="seg" aria-pressed="true"><i class="material-icons">radar</i><span class="indicator"></span></button>
+            <button class="seg" aria-pressed="false"><i class="material-icons">bolt</i><span class="indicator"></span></button>
+            <button class="seg" aria-pressed="false"><i class="material-icons">thermostat</i><span class="indicator"></span></button>
+          </div>
+          <button class="glass-fab" aria-expanded="false" aria-label="Lisää">
+            <i class="material-icons">more_horiz</i>
+          </button>
+        </nav>
+
+        <!-- User position pin -->
+        <div class="pin user" style="top: 520px; left: 110px;">
+          <div class="pin-head"></div>
+        </div>
+
+        <!-- Airfield feature being tapped -->
+        <div class="airfield" style="top: 340px; left: 230px;">
+          <i class="material-icons">local_airport</i>
+          <span class="af-code">EFHK</span>
+        </div>
+
+        <!-- Feature info popup anchored above -->
+        <div class="feature-popup" style="top: 340px; left: 230px;">
+          <div class="fp-head">
+            <div class="fp-icon"><i class="material-icons">local_airport</i></div>
+            <div class="fp-title">
+              <div class="fp-code">EFHK</div>
+              <div class="fp-name">Helsinki-Vantaa</div>
+            </div>
+            <div class="fp-close"><i class="material-icons">close</i></div>
+          </div>
+          <div class="fp-rows">
+            <div class="fp-k">Tyyppi</div>    <div class="fp-v">Lentokenttä</div>
+            <div class="fp-k">Koord.</div>    <div class="fp-v">60° 19′ N · 24° 58′ E</div>
+            <div class="fp-k">Etäisyys</div>  <div class="fp-v">16,2 km · 042° NE</div>
+          </div>
+        </div>
+
+        <div class="timeBar">
+          <div class="timeBar-top">
+            <button class="t-btn"><i class="material-icons">skip_previous</i></button>
+            <button class="t-btn"><i class="material-icons">play_arrow</i></button>
+            <div class="t-now">14:35 <span class="t-date">· Pe 24.4.</span></div>
+            <button class="t-btn"><i class="material-icons">skip_next</i></button>
+          </div>
+          <div class="timeline">
+            <div></div><div></div><div></div><div></div><div></div>
+            <div></div><div></div><div></div><div></div><div></div>
+            <div></div><div></div><div class="current"></div>
+          </div>
+        </div>
+
+        <div class="location-fab" aria-pressed="true" aria-label="Paikannus päällä" style="color: var(--dark-primary-color); box-shadow: 0 6px 16px rgba(0,0,0,0.4), inset 0 0 0 1.5px var(--dark-primary-color);">
+          <i class="material-icons">gps_fixed</i>
+        </div>
+      </div>
+    </div>
+    <div class="caption">
+      <b>Tapajärjestys 1a:</b> napautus osuu ensin kohteeseen → näytetään kohteen
+      ankkuroitu info-popup (osoitinkärki alaspäin). Tyhjän kartan napautus
+      → pudottaa sijaintimerkin. Info-popup on visuaalisesti eri kuin
+      sijaintimerkin kortti (kärki + pienempi koko) jotta näkee heti,
+      osuiko napautus kohteeseen.
+    </div>
+  </div>
+
+  <!-- =============================================================== -->
+  <!-- STATE 3 · Sijaintimerkki — kaksi vaihtoehtoa rinnakkain         -->
+  <!-- =============================================================== -->
+  <div>
+    <div class="state-label">Tila 3 · <b>Sijaintimerkki kartalla</b> — mittauksen käynnistys: A vs B</div>
+
+    <div class="comparison">
+
+      <!-- ================== Variant A: Promoottoripainike =============== -->
+      <div>
+        <div class="variant-label">Versio A · Promoottoripainike <span class="vs">kortissa pieni mittaus-ikoni</span></div>
+        <div class="device">
+          <div class="device-screen">
+            <div class="map">
+              <div class="echo a"></div>
+              <div class="echo b"></div>
+              <div class="echo c"></div>
+              <div class="echo d"></div>
+            </div>
+
+            <nav class="primaryToolbar" aria-label="Karttatasot">
+              <div class="pill">
+                <button class="seg" aria-pressed="false"><i class="material-icons">satellite_alt</i><span class="indicator"></span></button>
+                <button class="seg" aria-pressed="true"><i class="material-icons">radar</i><span class="indicator"></span></button>
+                <button class="seg" aria-pressed="false"><i class="material-icons">bolt</i><span class="indicator"></span></button>
+                <button class="seg" aria-pressed="false"><i class="material-icons">thermostat</i><span class="indicator"></span></button>
+              </div>
+              <button class="glass-fab" aria-expanded="false" aria-label="Lisää">
+                <i class="material-icons">more_horiz</i>
+              </button>
+            </nav>
+
+            <!-- User pin -->
+            <div class="pin user" style="top: 520px; left: 110px;"><div class="pin-head"></div></div>
+
+            <!-- Ambient location marker -->
+            <div class="pin" style="top: 280px; left: 250px;">
+              <div class="pin-pulse"></div>
+              <div class="pin-head"></div>
+            </div>
+
+            <!-- Marker card WITH promote icon -->
+            <div class="readout" style="top: 300px; left: 40px; width: 280px;">
+              <div class="readout-head">
+                <i class="material-icons">location_on</i>
+                <span class="r-title">Sijainti</span>
+                <span class="r-btn-icon" aria-label="Aloita mittaus tästä" title="Aloita mittaus tästä">
+                  <i class="material-icons">straighten</i>
+                </span>
+                <span class="r-close"><i class="material-icons">close</i></span>
+              </div>
+              <div class="readout-grid">
+                <div class="r-item" style="grid-column: 1 / -1;">
+                  <span class="r-label">Koordinaatit</span>
+                  <span class="r-value">60° 10.42′ N  24° 56.18′ E</span>
+                  <span class="r-sub">60.17370° · 24.93637°</span>
+                </div>
+                <div class="r-item">
+                  <span class="r-label">Etäisyys</span>
+                  <span class="r-value big">12,4 km</span>
+                  <span class="r-sub">linnuntietä</span>
+                </div>
+                <div class="r-item">
+                  <span class="r-label">Suunta</span>
+                  <span class="r-value big">048°</span>
+                  <span class="r-sub">koillinen (NE)</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="timeBar">
+              <div class="timeBar-top">
+                <button class="t-btn"><i class="material-icons">skip_previous</i></button>
+                <button class="t-btn"><i class="material-icons">play_arrow</i></button>
+                <div class="t-now">14:35 <span class="t-date">· Pe 24.4.</span></div>
+                <button class="t-btn"><i class="material-icons">skip_next</i></button>
+              </div>
+              <div class="timeline">
+                <div></div><div></div><div></div><div></div><div></div>
+                <div></div><div></div><div></div><div></div><div></div>
+                <div></div><div></div><div class="current"></div>
+              </div>
+            </div>
+
+            <div class="location-fab" aria-pressed="true" aria-label="Paikannus päällä" style="color: var(--dark-primary-color); box-shadow: 0 6px 16px rgba(0,0,0,0.4), inset 0 0 0 1.5px var(--dark-primary-color);">
+              <i class="material-icons">gps_fixed</i>
+            </div>
+          </div>
+        </div>
+        <div class="caption">
+          Kortissa pieni <code>straighten</code>-ikoni sulku-napin vieressä.
+          Napautus → merkki muuttuu mittauksen ensimmäiseksi pisteeksi,
+          kortti vaihtuu mittausmuotoon. <b>0 lisänapautusta</b> aloittaa
+          mittauksen nykyisestä pisteestä. Nastan napautus piilottaa kortin
+          (nasta jää); X poistaa molemmat.
+        </div>
+      </div>
+
+      <!-- ================== Variant B: Erillinen työkalu ================ -->
+      <div>
+        <div class="variant-label">Versio B · Erillinen työkalu <span class="vs">kortti mahdollisimman kevyt</span></div>
+        <div class="device">
+          <div class="device-screen">
+            <div class="map">
+              <div class="echo a"></div>
+              <div class="echo b"></div>
+              <div class="echo c"></div>
+              <div class="echo d"></div>
+            </div>
+
+            <nav class="primaryToolbar" aria-label="Karttatasot">
+              <div class="pill">
+                <button class="seg" aria-pressed="false"><i class="material-icons">satellite_alt</i><span class="indicator"></span></button>
+                <button class="seg" aria-pressed="true"><i class="material-icons">radar</i><span class="indicator"></span></button>
+                <button class="seg" aria-pressed="false"><i class="material-icons">bolt</i><span class="indicator"></span></button>
+                <button class="seg" aria-pressed="false"><i class="material-icons">thermostat</i><span class="indicator"></span></button>
+              </div>
+              <button class="glass-fab" aria-expanded="false" aria-label="Lisää">
+                <i class="material-icons">more_horiz</i>
+              </button>
+            </nav>
+
+            <div class="pin user" style="top: 520px; left: 110px;"><div class="pin-head"></div></div>
+
+            <div class="pin" style="top: 280px; left: 250px;">
+              <div class="pin-pulse"></div>
+              <div class="pin-head"></div>
+            </div>
+
+            <!-- Marker card WITHOUT promote icon — narrow, no coord label, tighter padding -->
+            <div class="readout" style="top: 310px; left: 40px; width: 220px; padding: 8px 10px 10px;">
+              <div class="readout-head">
+                <i class="material-icons">location_on</i>
+                <span class="r-title">Sijainti</span>
+                <span class="r-close"><i class="material-icons">close</i></span>
+              </div>
+              <div class="readout-grid">
+                <button class="r-item copyable" style="grid-column: 1 / -1;" aria-label="Kopioi koordinaatit desimaalimuodossa">
+                  <span class="r-value">
+                    60° 10.42′ N  24° 56.18′ E
+                    <i class="material-icons copy-hint">content_copy</i>
+                  </span>
+                  <span class="r-sub">60.17370° · 24.93637°</span>
+                </button>
+                <div class="r-item">
+                  <span class="r-label">Etäisyys</span>
+                  <span class="r-value big">12,4 km</span>
+                  <span class="r-sub">linnuntietä</span>
+                </div>
+                <div class="r-item">
+                  <span class="r-label">Suunta</span>
+                  <span class="r-value big">048°</span>
+                  <span class="r-sub">koillinen (NE)</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="timeBar">
+              <div class="timeBar-top">
+                <button class="t-btn"><i class="material-icons">skip_previous</i></button>
+                <button class="t-btn"><i class="material-icons">play_arrow</i></button>
+                <div class="t-now">14:35 <span class="t-date">· Pe 24.4.</span></div>
+                <button class="t-btn"><i class="material-icons">skip_next</i></button>
+              </div>
+              <div class="timeline">
+                <div></div><div></div><div></div><div></div><div></div>
+                <div></div><div></div><div></div><div></div><div></div>
+                <div></div><div></div><div class="current"></div>
+              </div>
+            </div>
+
+            <div class="location-fab" aria-pressed="true" aria-label="Paikannus päällä" style="color: var(--dark-primary-color); box-shadow: 0 6px 16px rgba(0,0,0,0.4), inset 0 0 0 1.5px var(--dark-primary-color);">
+              <i class="material-icons">gps_fixed</i>
+            </div>
+          </div>
+        </div>
+        <div class="caption">
+          Sama otsikkorakenne kuin A:ssa, mutta <b>220px</b> leveä (A: 280px)
+          ja pienempi sisäpadding. Koordinaateilta pudotettu
+          <code>KOORDINAATIT</code>-label — otsikko <i>Sijainti</i> kertoo
+          sen jo. Koordinaattirivin napautus <b>kopioi desimaalimuodon</b>
+          leikepöydälle (<code>content_copy</code>-ikoni vihjeenä).
+          Mittaus aina <code>more_horiz → Mittaa</code> → <b>+2 napautusta</b>.
+          Nastan napautus piilottaa kortin; X poistaa merkin.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =============================================================== -->
+  <!-- STATE 4 · Mittaustyökalu aktiivinen                             -->
+  <!-- =============================================================== -->
+  <div>
+    <div class="state-label">Tila 4 · <b>Mittaa aktiivinen</b> — T1 asetettu eri ruudusta, T2 nykyinen</div>
+    <div class="device">
+      <div class="device-screen">
+        <div class="map">
+          <div class="echo a"></div>
+          <div class="echo b"></div>
+          <div class="echo c"></div>
+          <div class="echo d"></div>
+        </div>
+
+        <nav class="primaryToolbar" aria-label="Karttatasot">
+          <div class="pill">
+            <button class="seg" aria-pressed="false"><i class="material-icons">satellite_alt</i><span class="indicator"></span></button>
+            <button class="seg" aria-pressed="true"><i class="material-icons">radar</i><span class="indicator"></span></button>
+            <button class="seg" aria-pressed="false"><i class="material-icons">bolt</i><span class="indicator"></span></button>
+            <button class="seg" aria-pressed="false"><i class="material-icons">thermostat</i><span class="indicator"></span></button>
+          </div>
+          <!-- tool-armed → more_horiz glows cyan (DA fix) -->
+          <button class="glass-fab tool-armed" aria-expanded="false" aria-label="Lisää">
+            <i class="material-icons">more_horiz</i>
+          </button>
+        </nav>
+
+        <!-- Mode chip (valid here: measurement IS modal) -->
+        <div class="toolChip">
+          <i class="material-icons">straighten</i>
+          <span class="chip-label">MITTAA</span>
+          <span class="chip-hint">· T1 &amp; T2 asetettu</span>
+          <span class="chip-close" aria-label="Sulje">
+            <i class="material-icons">close</i>
+          </span>
+        </div>
+
+        <!-- T1 at (130,330), T2 at (290,260). dx=160 dy=-70 length≈175 angle≈-23.6deg -->
+        <div class="measure-line" style="left: 130px; top: 330px; width: 175px; transform: rotate(-23.6deg);"></div>
+
+        <div class="pin t1" style="top: 330px; left: 130px;">
+          <div class="pin-head"></div>
+          <span class="pin-label">T1 · 14:05</span>
+        </div>
+
+        <div class="pin t2" style="top: 260px; left: 290px;">
+          <div class="pin-head"></div>
+          <span class="pin-label">T2 · 14:35</span>
+        </div>
+
+        <!-- Readout: etäisyys + nopeus combined (velocity renders because t1≠t2) -->
+        <div class="readout" style="top: 380px; left: 40px; width: 300px;">
+          <div class="readout-head">
+            <i class="material-icons">straighten</i>
+            <span class="r-title">Mittaus</span>
+            <span class="r-close"><i class="material-icons">close</i></span>
+          </div>
+          <div class="readout-grid">
+            <div class="r-item">
+              <span class="r-label">Etäisyys</span>
+              <span class="r-value big">27,3 km</span>
+              <span class="r-sub">T1 → T2</span>
+            </div>
+            <div class="r-item">
+              <span class="r-label">Suunta</span>
+              <span class="r-value big">066°</span>
+              <span class="r-sub">itä-koillinen (ENE)</span>
+            </div>
+            <div class="r-item">
+              <span class="r-label">Aika</span>
+              <span class="r-value big">30 min</span>
+              <span class="r-sub">14:05 → 14:35</span>
+            </div>
+            <div class="r-item">
+              <span class="r-label">Nopeus</span>
+              <span class="r-value big">15,2 m/s</span>
+              <span class="r-sub">54,7 km/h</span>
+            </div>
+          </div>
+          <div class="readout-actions">
+            <button class="r-btn">Nollaa</button>
+            <button class="r-btn">Kopioi</button>
+            <button class="r-btn primary">Valmis</button>
+          </div>
+        </div>
+
+        <div class="timeBar">
+          <div class="timeBar-top">
+            <button class="t-btn"><i class="material-icons">skip_previous</i></button>
+            <button class="t-btn"><i class="material-icons">play_arrow</i></button>
+            <div class="t-now">14:35 <span class="t-date">· Pe 24.4.</span></div>
+            <button class="t-btn"><i class="material-icons">skip_next</i></button>
+          </div>
+          <div class="timeline" style="position: relative;">
+            <div></div><div></div><div></div><div></div><div></div>
+            <div></div><div></div><div></div><div></div><div></div>
+            <div></div><div></div><div class="current"></div>
+            <span class="tl-marker t1" style="left: 54%;"><span class="tl-flag">T1</span></span>
+            <span class="tl-marker t2" style="left: 96%;"><span class="tl-flag">T2</span></span>
+          </div>
+        </div>
+
+        <div class="location-fab" aria-pressed="false" aria-label="Paikannus">
+          <i class="material-icons">gps_not_fixed</i>
+        </div>
+      </div>
+    </div>
+    <div class="caption">
+      Ensimmäinen rivi <b>Etäisyys · Suunta</b>, toinen <b>Aika · Nopeus</b> —
+      jos T1 ja T2 ovat samassa ruudussa, toinen rivi piilotetaan ja kortti
+      jää etäisyys+suunta-muotoon (sama mittaus ilman nopeutta).
+      T2-nasta on <b>magenta</b> — ei enää amber, joka sekoittuisi
+      <code>timeline-loading</code>-väriin. Moodissa
+      <code>more_horiz</code> hohtaa cyanina (työkalu-armed).
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

@@ -29,6 +29,7 @@ import durationPlugin from 'dayjs/plugin/duration';
 import Timeline from './timeline';
 import wmsServerConfiguration from './config';
 import createLongPressHandler from './longpress';
+import initTools from './tools';
 import FramePool from './animation/framePool';
 import { canInterpolate, RadarInterpolator } from './animation/interpolation';
 
@@ -60,6 +61,7 @@ const metZoom = Number(localStorage.getItem('metZoom')) || 9;
 let ownPosition = [];
 let ownPosition4326 = [];
 let geolocation;
+let tools = null;
 let startDate = new Date(Math.floor(Date.now() / 300000) * 300000 - 300000 * 12);
 // Handle of the currently-running playback loop (now a requestAnimationFrame
 // id — was a setInterval handle before the RAF refactor). Null when paused.
@@ -627,6 +629,7 @@ function onChangePosition(event) {
   localStorage.setItem('metLatitude', ownPosition4326[1]);
   localStorage.setItem('metLongitude', ownPosition4326[0]);
   localStorage.setItem('metPosition', JSON.stringify(ownPosition));
+  if (tools) tools.refresh();
 }
 
 // WMS
@@ -2000,7 +2003,13 @@ const main = () => {
   // will call attachInterpolators once the verdict lands.
   attachInterpolators();
   recomputeAllTimelineCells();
-  window.__tutka = { map, framePools };
+
+  tools = initTools({
+    map,
+    getOwnPosition: () => ownPosition4326,
+  });
+
+  window.__tutka = { map, framePools, tools };
 
   // GEOLOCATION
   geolocation = new Geolocation({
@@ -2031,7 +2040,24 @@ const main = () => {
   addEventListeners('#observationLayer > div');
 
   map.on('click', (evt) => {
+    const hit = map.forEachFeatureAtPixel(evt.pixel, (f) => f);
+    const pin = tools && tools.getPinFeature();
+
+    if (pin && hit === pin) {
+      // Tap on our own marker pin — toggle its readout card.
+      tools.toggleCard();
+      return;
+    }
+
+    if (hit) {
+      // Airfield / radar site etc. — keep existing feature-info behaviour.
+      displayFeatureInfo(evt.pixel);
+      return;
+    }
+
+    // Empty map — clear any highlighted feature, then drop/move the marker.
     displayFeatureInfo(evt.pixel);
+    if (tools) tools.dropOrMove(evt.coordinate);
   });
 
   map.on('pointerdrag', () => { isInteracting = true; });
