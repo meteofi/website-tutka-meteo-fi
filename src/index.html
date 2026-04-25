@@ -89,6 +89,13 @@
 
   <div id="overflowMenuBackdrop"></div>
   <div id="overflowMenu" role="menu" hidden>
+    <div class="menu-header">Työkalut</div>
+    <button id="measureTool" class="menu-row menu-tool" type="button" role="menuitem">
+      <i class="material-icons" aria-hidden="true">straighten</i>
+      <span class="menu-label">Mittaa</span>
+      <span class="menu-sub">etäisyys · nopeus</span>
+    </button>
+    <div class="menu-divider"></div>
     <div class="menu-header">Karttakohteet</div>
     <div id="poiList"></div>
     <div class="menu-divider"></div>
@@ -112,6 +119,52 @@
   </button>
 
   <div id="coachmark" aria-live="polite" hidden></div>
+
+  <div id="toolChip" class="tool-chip" role="status" hidden>
+    <i class="material-icons chip-icon" aria-hidden="true">straighten</i>
+    <span class="chip-label">MITTAA</span>
+    <span class="chip-hint"></span>
+    <button type="button" class="chip-close" aria-label="Sulje työkalu">
+      <i class="material-icons" aria-hidden="true">close</i>
+    </button>
+  </div>
+
+  <div id="measureCard" class="measure-card" role="region" aria-label="Mittaus" hidden>
+    <div class="measure-card-head">
+      <i class="material-icons measure-card-icon" aria-hidden="true">straighten</i>
+      <span class="measure-card-title">Mittaus</span>
+      <button type="button" class="measure-card-close measure-action-done" aria-label="Sulje mittaus">
+        <i class="material-icons" aria-hidden="true">close</i>
+      </button>
+    </div>
+    <div class="measure-card-grid">
+      <div class="measure-item measure-distance">
+        <span class="measure-label">Etäisyys</span>
+        <span class="measure-value"></span>
+        <span class="measure-sub">T1 → T2</span>
+      </div>
+      <div class="measure-item measure-bearing">
+        <span class="measure-label">Suunta</span>
+        <span class="measure-value"></span>
+        <span class="measure-sub"></span>
+      </div>
+      <div class="measure-item measure-time">
+        <span class="measure-label">Aika</span>
+        <span class="measure-value"></span>
+        <span class="measure-sub"></span>
+      </div>
+      <div class="measure-item measure-velocity">
+        <span class="measure-label">Nopeus</span>
+        <span class="measure-value"></span>
+        <span class="measure-sub"></span>
+      </div>
+    </div>
+    <div class="measure-actions">
+      <button type="button" class="measure-btn measure-action-reset">Nollaa</button>
+      <button type="button" class="measure-btn measure-action-copy">Kopioi</button>
+      <button type="button" class="measure-btn measure-btn-primary measure-action-done">Valmis</button>
+    </div>
+  </div>
 
   <div id="map"></div>
  

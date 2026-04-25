@@ -2007,7 +2007,16 @@ const main = () => {
   tools = initTools({
     map,
     getOwnPosition: () => ownPosition4326,
+    getFrameTimestamp: () => (startDate ? startDate.getTime() : Date.now()),
   });
+
+  const measureToolBtn = document.getElementById('measureTool');
+  if (measureToolBtn) {
+    measureToolBtn.addEventListener('click', () => {
+      closeOverflowMenu();
+      tools.arm();
+    });
+  }
 
   window.__tutka = { map, framePools, tools };
 
@@ -2042,6 +2051,18 @@ const main = () => {
   map.on('click', (evt) => {
     const hit = map.forEachFeatureAtPixel(evt.pixel, (f) => f);
     const pin = tools && tools.getPinFeature();
+
+    // Measurement mode: route taps to the measure tool. Snap to the
+    // feature's own coordinate when the tap hits a Point feature so
+    // users can measure from a radar site or airfield exactly.
+    if (tools && tools.isArmed()) {
+      let coord = evt.coordinate;
+      if (hit && hit.getGeometry && hit.getGeometry().getType() === 'Point') {
+        coord = hit.getGeometry().getCoordinates();
+      }
+      tools.handleMeasureTap(coord);
+      return;
+    }
 
     if (pin && hit === pin) {
       // Tap on our own marker pin — toggle its readout card.
