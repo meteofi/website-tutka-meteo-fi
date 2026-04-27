@@ -4,6 +4,7 @@ import VectorSource from 'ol/source/Vector';
 import Feature from 'ol/Feature';
 import Point from 'ol/geom/Point';
 import LineString from 'ol/geom/LineString';
+import Translate from 'ol/interaction/Translate';
 import {
   Circle as CircleStyle, Fill, Stroke, Style, Text,
 } from 'ol/style';
@@ -227,6 +228,18 @@ export default function initTools({ map, getOwnPosition, getFrameTimestamp }) {
     updateMarkerCardVisibility();
   }
 
+  // Drag the marker to update coords + distance + bearing in real time —
+  // useful for finding a place at a specific distance from the user.
+  const markerTranslate = new Translate({ layers: [markerLayer] });
+  map.addInteraction(markerTranslate);
+  markerTranslate.on('translating', () => {
+    if (!markerFeature) return;
+    const coords = markerFeature.getGeometry().getCoordinates();
+    markerCoord4326 = transform(coords, map.getView().getProjection(), 'EPSG:4326');
+    if (markerCardVisible) markerOverlay.setPosition(fromLonLat(markerCoord4326));
+    renderMarker();
+  });
+
   markerCloseBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     removeMarker();
@@ -262,6 +275,7 @@ export default function initTools({ map, getOwnPosition, getFrameTimestamp }) {
   const toolChipHint = toolChip ? toolChip.querySelector('.chip-hint') : null;
   const toolChipClose = toolChip ? toolChip.querySelector('.chip-close') : null;
   const menuButtonEl = document.getElementById('menuButton');
+  const measureFabEl = document.getElementById('measureFab');
 
   let measureArmed = false;
   let measureState = 'idle'; // 'idle' | 'awaiting-t1' | 'awaiting-t2' | 'showing-result'
@@ -354,6 +368,11 @@ export default function initTools({ map, getOwnPosition, getFrameTimestamp }) {
     if (toolChip) toolChip.hidden = false;
     setChipHint('napauta karttaa');
     if (menuButtonEl) menuButtonEl.classList.add('tool-armed');
+    if (measureFabEl) {
+      measureFabEl.classList.add('tool-armed');
+      measureFabEl.setAttribute('aria-pressed', 'true');
+    }
+    markerTranslate.setActive(false);
   }
 
   function disarmMeasure() {
@@ -363,6 +382,11 @@ export default function initTools({ map, getOwnPosition, getFrameTimestamp }) {
     clearMeasureFeatures();
     if (toolChip) toolChip.hidden = true;
     if (menuButtonEl) menuButtonEl.classList.remove('tool-armed');
+    if (measureFabEl) {
+      measureFabEl.classList.remove('tool-armed');
+      measureFabEl.setAttribute('aria-pressed', 'false');
+    }
+    markerTranslate.setActive(true);
     // Restore marker card if the pin is still there and it was visible before
     if (markerFeature && markerCoord4326 && markerCardVisible) {
       markerOverlay.setPosition(fromLonLat(markerCoord4326));
