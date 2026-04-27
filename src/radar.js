@@ -29,6 +29,7 @@ import createLongPressHandler from './longpress';
 import initTools from './tools';
 import FramePool from './animation/framePool';
 import { canInterpolate, RadarInterpolator } from './animation/interpolation';
+import { track } from './analytics';
 
 dayjs.locale('fi');
 dayjs.extend(utcPlugin);
@@ -104,17 +105,13 @@ canInterpolate().then((ok) => {
   interpMode = ok ? readInitialInterpMode() : DEFAULT_INTERP_MODE;
   // eslint-disable-next-line no-console
   console.info(`[tutka] INTERP: capable=${ok} mode=${interpMode}`);
-  // One event per boot with both properties so Umami can split
-  // capability counts AND see the resolved initial mode. Returning
-  // visitors whose localStorage already opted into a non-default
-  // mode show up here too, which lets us track adoption over time.
-  track('interp-boot', { capable: ok, mode: interpMode });
+  trackBoot({ capable: ok, mode: interpMode });
   attachInterpolators();
   updateInterpChipsState();
 }).catch((err) => {
   // eslint-disable-next-line no-console
   console.warn('[tutka] INTERP probe failed:', err);
-  track('interp-boot', { capable: false, mode: DEFAULT_INTERP_MODE, error: true });
+  trackBoot({ capable: false, mode: DEFAULT_INTERP_MODE, error: true });
 });
 
 function attachInterpolators() {
@@ -261,8 +258,19 @@ function debug(str) {
   }
 }
 
-function track(event, data) {
-  if (typeof umami !== 'undefined') umami.track(event, data);
+// OL layer name → headline event name. Only the four content categories
+// emit per-category events; helper layers (basemap, position, etc.) are
+// silent.
+const CATEGORY_EVENT = {
+  satelliteLayer: 'satellite',
+  radarLayer: 'radar',
+  lightningLayer: 'lightning',
+  observationLayer: 'observation',
+};
+
+function trackCategory(layer, props) {
+  const event = CATEGORY_EVENT[layer.get('name')];
+  if (event) track(event, props);
 }
 
 ImageLayer.prototype.setLayerUrl = function (url) {
@@ -270,10 +278,10 @@ ImageLayer.prototype.setLayerUrl = function (url) {
   this.getSource().setUrl(url);
 };
 
-ImageLayer.prototype.setLayerStyle = function (style) {
+ImageLayer.prototype.setLayerStyle = function (style, source) {
   debug(`Set layer style: ${style}`);
   this.getSource().updateParams({ STYLES: style });
-  track('layer-style', { style, category: this.get('name') });
+  if (source) trackCategory(this, { action: 'style', style, source });
 };
 
 // STYLES
@@ -664,9 +672,6 @@ function updateCanonicalPage() {
     page = `${page}/${(split.length > 1) ? split[1] : split[0]}`;
   }
   debug(`Set page: ${page}`);
-  // debug("Set title: " + title);
-  // document.title = title;
-  // gtag('config', 'UA-23910741-3', { 'page_path': page });
 }
 
 function setTime(action = 'next') {
@@ -914,14 +919,12 @@ function setMapLayer(maplayer) {
       darkGrayReferenceLayer.setVisible(false);
       lightGrayBaseLayer.setVisible(true);
       lightGrayReferenceLayer.setVisible(true);
-      track('theme-light');
       break;
     case 'dark':
       darkGrayBaseLayer.setVisible(true);
       darkGrayReferenceLayer.setVisible(true);
       lightGrayBaseLayer.setVisible(false);
       lightGrayReferenceLayer.setVisible(false);
-      track('theme-dark');
       break;
     default:
       break;
@@ -952,6 +955,7 @@ function setUserTheme(mode) {
     setMapLayer(mode);
   }
   updateThemeChipsState();
+  track('theme-change', { pref: mode, shown: getEffectiveTheme() });
 }
 
 function removeSelectedParameter(selector) {
@@ -962,10 +966,12 @@ function removeSelectedParameter(selector) {
 }
 
 function updateLayer(layer, wmslayer, opts = {}) {
-  const { skipVisibility = false, skipTracking = false, skipPersist = false } = opts;
+  const {
+    skipVisibility = false, skipTracking = false, skipPersist = false, source,
+  } = opts;
   debug(`Activated layer ${wmslayer}`);
-  if (!skipTracking) {
-    track('layer-switch', { layer: wmslayer, category: layer.get('name') });
+  if (!skipTracking && source) {
+    trackCategory(layer, { action: 'pick', layer: wmslayer, source });
   }
   debug(layerInfo[wmslayer]);
   const info = layerInfo[wmslayer];
@@ -1200,7 +1206,7 @@ function layerInfoPlaylist(event) {
           div.classList.add('activeStyle');
         }
         div.addEventListener('mouseup', () => {
-          layer.setLayerStyle(layerStyle.Name);
+          layer.setLayerStyle(layerStyle.Name, 'playlist');
           // Update active chip immediately
           parent.querySelectorAll('.activeStyle').forEach((el) => { el.classList.remove('activeStyle'); });
           div.classList.add('activeStyle');
@@ -1268,7 +1274,6 @@ function onChangeVisible(event) {
   const name = layer.get('name');
   const isVisible = layer.getVisible();
   removeSelectedParameter(`#${name} > div`);
-  track('layer-visibility', { layer: wmslayer, category: name, visible: isVisible });
   if (isVisible) {
     debug(`Activated ${name}`);
     VISIBLE.add(name);
@@ -1306,16 +1311,19 @@ function onChangeVisible(event) {
  *
  * @param {ol.layer} layer - The layer whose visibility will be toggled.
  */
-function toggleLayerVisibility(layer) {
+function toggleLayerVisibility(layer, source) {
   layer.setVisible(!layer.getVisible());
+  if (source) {
+    trackCategory(layer, { action: 'toggle', visible: layer.getVisible(), source });
+  }
 }
 
 // Toggle wrapper for segment-originated actions (button taps + keyboard
 // shortcuts). Announces the Finnish layer name via coachmark only when the
 // toggle turned the layer on. Deliberately not used by the playlist eye icon
 // or long-press variant selection so those paths stay quiet.
-function toggleAndAnnounce(layer, segId) {
-  toggleLayerVisibility(layer);
+function toggleAndAnnounce(layer, segId, source) {
+  toggleLayerVisibility(layer, source);
   if (layer.getVisible()) {
     const seg = document.getElementById(segId);
     if (seg && typeof showCoachmark === 'function') {
@@ -1343,7 +1351,6 @@ document.getElementById('speedButton').addEventListener('mouseup', () => {
   stop();
   play();
   debug(`SPEED: ${options.frameRate}`);
-  // gtag('event', 'speed', {'event_category' : 'timecontrol', 'event_label' : options.frameRate / options.defaultFrameRate + "×"});
 });
 
 document.getElementById('playButton').addEventListener('mouseup', () => {
@@ -1392,7 +1399,7 @@ document.querySelectorAll('.card-visibility-toggle').forEach((toggle) => {
   toggle.addEventListener('mouseup', (e) => {
     const layerName = toggle.getAttribute('data-layer');
     const layerObj = layerss[layerName];
-    if (layerObj) toggleLayerVisibility(layerObj);
+    if (layerObj) toggleLayerVisibility(layerObj, 'playlist');
     e.stopPropagation();
   });
 });
@@ -1481,23 +1488,23 @@ document.getElementById('locationLayerButton').addEventListener('mouseup', () =>
 });
 
 document.getElementById('radarLayerTitle').addEventListener('mouseup', () => {
-  toggleLayerVisibility(radarLayer);
+  toggleLayerVisibility(radarLayer, 'playlist');
 });
 
 document.getElementById('lightningLayerButton').addEventListener('mouseup', () => {
-  toggleAndAnnounce(lightningLayer, 'lightningLayerButton');
+  toggleAndAnnounce(lightningLayer, 'lightningLayerButton', 'button');
 });
 
 document.getElementById('lightningLayerTitle').addEventListener('mouseup', () => {
-  toggleLayerVisibility(lightningLayer);
+  toggleLayerVisibility(lightningLayer, 'playlist');
 });
 
 // Long press menus for layer buttons
 const observationMenu = createLongPressHandler(
   'observationLayerButton',
   'observationLongPressMenu',
-  () => { toggleAndAnnounce(observationLayer, 'observationLayerButton'); },
-  (id) => { updateLayer(observationLayer, id); observationMenu.hide(); },
+  () => { toggleAndAnnounce(observationLayer, 'observationLayerButton', 'button'); },
+  (id) => { updateLayer(observationLayer, id, { source: 'longpress' }); observationMenu.hide(); },
   () => observationLayer.getSource().getParams().LAYERS,
   () => observationLayer.getVisible(),
 );
@@ -1505,8 +1512,8 @@ const observationMenu = createLongPressHandler(
 const satelliteMenu = createLongPressHandler(
   'satelliteLayerButton',
   'satelliteLongPressMenu',
-  () => { toggleAndAnnounce(satelliteLayer, 'satelliteLayerButton'); },
-  (id) => { updateLayer(satelliteLayer, id); satelliteMenu.hide(); },
+  () => { toggleAndAnnounce(satelliteLayer, 'satelliteLayerButton', 'button'); },
+  (id) => { updateLayer(satelliteLayer, id, { source: 'longpress' }); satelliteMenu.hide(); },
   () => satelliteLayer.getSource().getParams().LAYERS,
   () => satelliteLayer.getVisible(),
 );
@@ -1514,8 +1521,8 @@ const satelliteMenu = createLongPressHandler(
 const radarMenu = createLongPressHandler(
   'radarLayerButton',
   'radarLongPressMenu',
-  () => { toggleAndAnnounce(radarLayer, 'radarLayerButton'); },
-  (id) => { updateLayer(radarLayer, id); radarMenu.hide(); },
+  () => { toggleAndAnnounce(radarLayer, 'radarLayerButton', 'button'); },
+  (id) => { updateLayer(radarLayer, id, { source: 'longpress' }); radarMenu.hide(); },
   () => radarLayer.getSource().getParams().LAYERS,
   () => radarLayer.getVisible(),
 );
@@ -1727,13 +1734,13 @@ document.addEventListener('keyup', (event) => {
   } else if (key === 'l' || key === 'KeyL') {
     skipNext();
   } else if (key === '1' || key === 'Digit1') {
-    toggleAndAnnounce(satelliteLayer, 'satelliteLayerButton');
+    toggleAndAnnounce(satelliteLayer, 'satelliteLayerButton', 'key');
   } else if (key === '2' || key === 'Digit2') {
-    toggleAndAnnounce(radarLayer, 'radarLayerButton');
+    toggleAndAnnounce(radarLayer, 'radarLayerButton', 'key');
   } else if (key === '3' || key === 'Digit3') {
-    toggleAndAnnounce(lightningLayer, 'lightningLayerButton');
+    toggleAndAnnounce(lightningLayer, 'lightningLayerButton', 'key');
   } else if (key === '4' || key === 'Digit4') {
-    toggleAndAnnounce(observationLayer, 'observationLayerButton');
+    toggleAndAnnounce(observationLayer, 'observationLayerButton', 'key');
   } else if (event.key === 'Escape') {
     if (overflowMenuEl.classList.contains('open')) closeOverflowMenu();
     else handled = false;
@@ -1764,9 +1771,9 @@ function updateLayerSelection(ollayer, type, filter) {
       const div = layerInfoDiv(layer);
       div.onclick = function () {
         if (ollayer.getVisible() && getActiveLayers().includes(layer)) {
-          ollayer.setVisible(false);
+          toggleLayerVisibility(ollayer, 'playlist');
         } else {
-          updateLayer(ollayer, layerInfo[layer].layer);
+          updateLayer(ollayer, layerInfo[layer].layer, { source: 'playlist' });
         }
       };
       div.classList.add(`${type}LayerSelect`);
@@ -1970,8 +1977,6 @@ const main = () => {
 
   setMapLayer(getEffectiveTheme());
 
-  trackPWAUsage();
-
   Object.values(options.wmsServerConfiguration).forEach((value) => {
     if (!value.disabled) {
       getWMSCapabilities(value);
@@ -2109,7 +2114,9 @@ const main = () => {
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (x) => {
     // Only follow OS changes while in auto mode (no explicit user choice)
     if (IS_DARK !== null) return;
-    setMapLayer(x.matches ? 'dark' : 'light');
+    const shown = x.matches ? 'dark' : 'light';
+    setMapLayer(shown);
+    track('theme-change', { pref: 'auto', shown });
   });
 
   if (IS_FOLLOWING) {
@@ -2133,15 +2140,26 @@ const main = () => {
   sync(map);
 };
 
-function trackPWAUsage() {
+function trackBoot({ capable, mode, error }) {
   const displayMode = window.matchMedia('(display-mode: standalone)').matches ? 'standalone'
     : window.matchMedia('(display-mode: fullscreen)').matches ? 'fullscreen'
       : window.matchMedia('(display-mode: minimal-ui)').matches ? 'minimal-ui'
         : 'browser';
-  const colorScheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-
-  track('app-display', { 'display-mode': displayMode, 'color-scheme': colorScheme });
-  track('version', { 'build-date': BUILD_DATE, openlayers: OL_VERSION });
+  const props = {
+    'display-mode': displayMode,
+    'theme-pref': getThemeMode(),
+    'theme-shown': getEffectiveTheme(),
+    'radar-visible': VISIBLE.has('radarLayer'),
+    'satellite-visible': VISIBLE.has('satelliteLayer'),
+    'lightning-visible': VISIBLE.has('lightningLayer'),
+    'observation-visible': VISIBLE.has('observationLayer'),
+    'interp-capable': capable,
+    'interp-mode': mode,
+    'build-date': BUILD_DATE,
+    'ol-version': OL_VERSION,
+  };
+  if (error) props['interp-error'] = true;
+  track('app-boot', props);
 }
 
 // Listen for the appinstalled event
