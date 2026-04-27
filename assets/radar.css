@@ -72,11 +72,15 @@ html, body {
   #primaryToolbar {
     position: fixed;
     top: calc(env(safe-area-inset-top, 0px) + 8px);
-    left: 50%;
-    transform: translateX(-50%);
+    /* Flex-centering instead of translateX(-50%) so a `position: fixed`
+       descendant (the menu button at wide widths) is positioned relative
+       to the viewport — a transformed ancestor would otherwise trap it. */
+    left: 0;
+    right: 0;
     z-index: 100;
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 10px;
     touch-action: none;
     pointer-events: none;
@@ -176,9 +180,20 @@ html, body {
     background: transparent;
   }
 
-  /* Floating round buttons: overflow-menu trigger + GPS FAB share a common base */
+  /* Tint the icon on a layer button whose newest data is more than 24h
+     behind real-time — the actual upstream-feed problem layer (e.g. a
+     satellite feed that hasn't updated for days). Out-of-range hiding
+     of *other* layers happens via opacity in setTime, no badge needed
+     there since the cause is on this button. */
+  .seg.stale-data .material-icons {
+    color: #ff8a80;
+  }
+
+  /* Floating round buttons: overflow-menu trigger, GPS FAB, and Mittaa FAB
+     share a common base */
   .glass-fab,
-  .location-fab {
+  .location-fab,
+  .measure-fab {
     all: unset;
     width: 44px;
     height: 44px;
@@ -200,7 +215,8 @@ html, body {
     box-sizing: border-box;
   }
   .glass-fab::before,
-  .location-fab::before {
+  .location-fab::before,
+  .measure-fab::before {
     content: '';
     position: absolute;
     inset: 0;
@@ -209,16 +225,42 @@ html, body {
     z-index: -1;
   }
   .glass-fab:hover,
-  .location-fab:hover { background-color: rgba(22, 22, 24, 0.78); }
+  .location-fab:hover,
+  .measure-fab:hover { background-color: rgba(22, 22, 24, 0.78); }
   .glass-fab:active,
   .glass-fab.pressing,
   .location-fab:active,
-  .location-fab.pressing { transform: scale(0.94); }
+  .location-fab.pressing,
+  .measure-fab:active,
+  .measure-fab.pressing { transform: scale(0.94); }
   .glass-fab:focus-visible,
-  .location-fab:focus-visible { box-shadow: 0 0 0 2px var(--dark-primary-color); }
+  .location-fab:focus-visible,
+  .measure-fab:focus-visible { box-shadow: 0 0 0 2px var(--dark-primary-color); }
   .glass-fab .material-icons { font-size: 20px; }
 
+  /* Three-dot menu button.
+     Bump from the .glass-fab base 44×44 so it visually rhymes with the
+     52×52 location/measure FABs on the right edge. */
+  #menuButton {
+    width: 52px;
+    height: 52px;
+  }
+  #menuButton .material-icons { font-size: 24px; }
   #menuButton[aria-expanded="true"] { color: var(--dark-primary-color); }
+
+  /* On wider displays, dock the menu button at the top-right corner so
+     it lines up with where the overflow menu actually opens (and the
+     measure/location FAB column below). On narrow widths the button
+     stays in the centred toolbar nav next to the pill — they need to
+     ride together so neither runs off the screen. */
+  @media (min-width: 600px) {
+    #menuButton {
+      position: fixed;
+      top: calc(env(safe-area-inset-top, 0px) + 8px);
+      right: max(16px, env(safe-area-inset-right, 0px) + 16px);
+      z-index: 100;
+    }
+  }
 
   /* Location FAB: larger, bottom-right, sits above the time-control pill */
   .location-fab {
@@ -233,6 +275,70 @@ html, body {
   .location-fab .material-icons { font-size: 24px; }
   .location-fab[aria-pressed="true"],
   .location-fab.selectedButton {
+    color: var(--dark-primary-color);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4), inset 0 0 0 1.5px var(--dark-primary-color);
+  }
+
+  /* Time chip: bottom-left mirror of the location FAB. Click to toggle
+     between local time and UTC; choice persists to localStorage. */
+  .time-chip {
+    all: unset;
+    position: fixed;
+    left: max(16px, env(safe-area-inset-left, 0px) + 16px);
+    bottom: calc(env(safe-area-inset-bottom, 0px) + var(--timecontrol-height, 84px) + 16px);
+    width: 76px;
+    height: 52px;
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0 6px;
+    background: rgba(22, 22, 24, 0.62);
+    background-color: rgba(0, 0, 0, 0.60);
+    -webkit-backdrop-filter: blur(24px) saturate(140%);
+    backdrop-filter: blur(24px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+    color: rgba(255, 255, 255, 0.92);
+    cursor: pointer;
+    font-family: 'Roboto', sans-serif;
+    font-variant-numeric: tabular-nums;
+    z-index: 100;
+    box-sizing: border-box;
+    transition: background-color 180ms ease, transform 120ms ease;
+  }
+  .time-chip:hover { background-color: rgba(22, 22, 24, 0.78); }
+  .time-chip:active { transform: scale(0.94); }
+  .time-chip:focus-visible { box-shadow: 0 0 0 2px var(--dark-primary-color); }
+
+  .time-chip .tc-time {
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: 0.02em;
+  }
+  .time-chip .tc-date {
+    font-size: 10px;
+    color: var(--dark-medium-emphasis-text-color);
+    margin-top: 3px;
+  }
+  .time-chip.utc-mode .tc-time { color: var(--dark-primary-color); }
+
+  /* Mittaa FAB: stacked above the location FAB, same shape and size.
+     Glow cyan when armed (replaces the menu-button armed glow as the
+     primary entry point for the measurement tool). */
+  .measure-fab {
+    position: fixed;
+    right: max(16px, env(safe-area-inset-right, 0px) + 16px);
+    bottom: calc(env(safe-area-inset-bottom, 0px) + var(--timecontrol-height, 84px) + 76px);
+    width: 52px;
+    height: 52px;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+    z-index: 100;
+  }
+  .measure-fab .material-icons { font-size: 24px; }
+  .measure-fab.tool-armed {
     color: var(--dark-primary-color);
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4), inset 0 0 0 1.5px var(--dark-primary-color);
   }
@@ -487,89 +593,6 @@ html, body {
                    cursor: default;
 }
 
-#currentTimeTxt {
-  color: var(--dark-medium-emphasis-text-color);
-}
-
-#infopanel {
-    position: absolute;
-    background-color: rgba(0,0,0,0.7);
-    color: #cccccc;
-    /* font-family: 'Noto Sans', sans-serif; */
-    font-size: 0.9em;
-    z-index: 50000;
-    margin: 0px;
-    padding: 0px;
-    padding-top: env(safe-area-inset-top);
-    padding-left: env(safe-area-inset-left);
-    overflow-y: auto;
-    max-height: 100vh;
-}
-
-.infoItem {
-    padding: 0px;
-    margin: 0px;
-    flex: 1;
-}
-
-.infoLabel {
-    background-color: var(--dark-primary-color-bg);
-    color: var(--dark-primary-color);
-    font-weight: bold;
-    text-align: center;
-    margin: 2px;
-    padding: 4px;
-
-}
-
-.infoValue {
-    text-align: center;
-    border: 0px solid;
-    margin: 2px;
-    padding: 5px;
-}
-
-@media screen {
-    #infopanel {
-        top: 0px;
-        left: 0px;
-        width: 140px;
-        display: block;
-    }
-}
-
-@media all and (max-width: 768px) {
-
-    #infopanel {
-        top: auto;
-        bottom: 0px;
-        left: 0px;
-        width: 100%;
-        height: 70px;
-        display: none;
-    }
-   
-     #infoItemMap, #infoItemCursor, #infoItemObservation, #infoItemLightning, #infoItemPosition, #infoItemSatellite, .infoLabel {
-        display: none;
-    }
-
-    .infoValue {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        height: 100%;
-        margin: 0px;
-    }
-    #radarDateValue, #currentDateValue, #currentUTCTimeValue {
-        display: none;
-    }
-}
-
-#infoItemMap {
-    display: none;
-}
-
 #currentMapTime {
   font-size: 1.3em;
   color: var(--dark-theme-on-surface);
@@ -580,68 +603,37 @@ html, body {
   color: var(--dark-theme-on-surface);
 }
 
+/* ETA — small countdown to the next image arrival. Shown below the
+   map time/date when at least one visible layer has a known
+   refresh resolution. Resets when a new image lands. */
+#currentMapEta {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.7em;
+  color: var(--dark-medium-emphasis-text-color);
+  font-variant-numeric: tabular-nums;
+  margin-top: 1px;
+  line-height: 1.1;
+}
+#currentMapEta[hidden] { display: none; }
+#currentMapEta .material-icons { font-size: 12px; opacity: 0.85; }
+
+/* Stale-data highlight: applied to the play-bar time when the displayed
+   frame is more than 24 hours behind the real-clock — typically an upstream
+   feed lag. */
+#currentMapTime.stale,
+#currentMapDate.stale {
+  color: #ff8a80;
+}
+
 #currentSpeed {
   display: none;
   font-size: 1.4em;
   color: var(--dark-theme-on-surface);
 }
-
-.valueTxtBig {
-    font-size: 1.5em;
-    color: var(--dark-theme-on-surface);
-}
-
-#currentLocalTimeValue {
-  font-size: 1.5em;
-  color: var(--dark-theme-on-surface);
-}
-
-.selected {
-    background-color: rgba(255,255,255,0.7);
-    color: #000000;
-}
-
 .selectedButton {
     color: var(--dark-theme-on-surface);
-}
-
-.flexColumn {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: center;
-    flex-wrap: wrap;
-}
-
-.flexCell {
-    flex: 1;
-    padding: 4px;
-    border-radius: 3px;
-   /* flex-basis: 20%;*/
-}
-
-#radarPlayTxt, #infoItemRadar, #infoItemMap, #infoItemSatellite, #infoItemObservation, #infoItemLightning, #radar, #satellite {
-    cursor: default;
-}
-
-.infoItem .tooltiptext {
-    visibility: hidden;
-    width: 120px;
-    background-color: black;
-    color: #fff;
-    text-align: center;
-    border-radius: 6px;
-    padding: 5px 0;
-    
-    /* Position the tooltip */
-    position: absolute;
-    z-index: 1;
-    top: -5px;
-    left: 105%;
-}
-
-.infoItem:hover .tooltiptext {
-    visibility: visible;
 }
 
 /* Playlist backdrop — invisible, catches taps to close panel */
@@ -1524,10 +1516,14 @@ html, body {
 }
 
 @media (max-width: 768px) {
+  /* Centred under the toolChip; capped at 280px so it doesn't span the
+     whole phone width, but shrinks below 280 on very narrow screens to
+     stay clear of the safe-area insets. */
   .measure-card {
     top: calc(env(safe-area-inset-top, 0px) + 118px);
-    left: max(8px, env(safe-area-inset-left, 0px));
-    right: max(8px, env(safe-area-inset-right, 0px));
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(280px, calc(100vw - 16px));
   }
 }
 

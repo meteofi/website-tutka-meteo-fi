@@ -114,6 +114,15 @@
     </div>
   </div>
 
+  <button id="timeChip" class="time-chip noselect" type="button" aria-label="Nykyinen aika — napauta vaihtaaksesi paikallisaika / UTC">
+    <span class="tc-time"></span>
+    <span class="tc-date"></span>
+  </button>
+
+  <button id="measureFab" class="measure-fab noselect" type="button" aria-pressed="false" aria-label="Mittaa: etäisyys ja nopeus">
+    <i class="material-icons" aria-hidden="true">straighten</i>
+  </button>
+
   <button id="locationLayerButton" class="location-fab noselect" aria-pressed="false" aria-label="Paikannus">
     <i id="gpsStatus" class="material-icons" aria-hidden="true">gps_not_fixed</i>
   </button>
@@ -167,47 +176,6 @@
   </div>
 
   <div id="map"></div>
- 
-  <div id="infopanel" class="noselect">
-    <div class="infoItem" id="infoItemMap">
-      <div class="infoLabel" id="infoLabelMap">MAPS</div>
-      <div class="infoValue flexColumn" id="selectMap"><div id="darkBase" class="selected flexCell">Dark</div><div id="lightBase" class="flexCell">Light</div></div>
-    </div>
-    <div class="infoItem" id="infoItemSatellite">
-      <div class="infoLabel" id="infoLabelSatellite">SATELLIITTI</div>
-      <div class="infoValue flexColumn" id="satelliteLayer"><div id="satelliteLayerOff" class="selected flexCell">OFF</div><div id="rgb_eview" class="flexCell">HRV</div><div id="rgb_convection" class="flexCell">CNV</div><div id="rgb_naturalenhncd" class="flexCell">Natural</div></div>
-    </div>
-    <div class="infoItem" id="infoItemRadar">
-      <div class="infoLabel" id="infoLabelRadar">SÄÄTUTKA</div>
-      <!--div class="infoValue" id="radarTxt"></div-->
-      <div class="infoValue flexColumn" id="radarLayer"><div id="radarLayerOff" class="flexCell">OFF</div><div id="fmi-radar-composite-dbz" class="flexCell selected">FI</div><div id="radar:radar_finland_rr" class="flexCell">RATE</div><div id="opera-reflectivity" class="flexCell">EU</div><div id="met-radar-composite-dbz" class="flexCell">NO</div><div id="smhi-radar-composite-dbz" class="flexCell">SE</div><div id="dmi-radar-composite-dbz" class="flexCell">DK</div><div id="dwd-radar-composite-dbz" class="flexCell">DE</div></div>
-    </div>
-    <div class="infoItem" id="infoItemLightning">
-      <div class="infoLabel" id="infoLabelLightning">SALAMAT</div>
-      <div class="infoValue flexColumn" id="lightningLayer"><div id="lightningLayerOff" class="selected flexCell">OFF</div><div id="observation:lightning" class="flexCell">FI</div><div id="observation:lightning_nordic_lightning" class="flexCell">NO</div></div>
-    </div>
-    <div class="infoItem" id="infoItemObservation">
-        <div class="infoLabel" id="infoLabelObservation">SÄÄHAVAINTO</div>
-        <div class="infoValue flexColumn" id="observationLayer"><div id="observationLayerOff" class="flexCell selected">OFF</div><div id="observation:airtemperature" class="flexCell">TMP</div><div id="observation:dew_point_temperature" class="flexCell">DPT</div><div id="observation:wind_speed" class="flexCell">WIND</div><div id="observation:wind_speed_of_gust" class="flexCell">GUST</div></div>
-      </div>
-    <div class="infoItem" id="infoItemTime">
-      <div class="infoLabel">AIKA</div>
-      <div class="infoValue" id="currentTimeTxt"><div id="currentDateValue"></div><div id="currentLocalTimeValue"></div><div id="currentUTCTimeValue"></div></div>
-      <!--span class="tooltiptext">Displays current date, localtime and UTC time.</span-->
-    </div>
-    <div class="infoItem" id="infoItemPosition">
-      <div class="infoLabel">SIJAINTI</div>
-      <div class="infoValue" id="positionTxt"><div id="positionLatValue">φ 00° 00.000′ N</div><div id="positionLonValue">λ 000° 00.000′ E</div></div>
-      <!--span class="tooltiptext">Displays location of the user if allowed.</span-->
-    </div>
-    <div class="infoItem" id="infoItemCursor">
-      <div class="infoLabel">OSOITIN</div>
-      <div class="infoValue" id="cursorTxt"></div>
-      <div class="infoValue" id="cursorDistanceTxt"><div class="valueTxtBig" id="cursorDistanceValue"></div></div>
-      <!--span class="tooltiptext">Displays coordinates of the pointer. Displays distance and bearing from user to pointer
-        location. Displays distance and bearing from selected radar to pointer location.</span-->
-    </div>
-  </div>
 
   <div id="timecontrol" class="toolbar noselect">
     <div class="playbar noselect">
@@ -219,7 +187,7 @@
       <button id="playButton" aria-label="Toista"><i id="playstopButton" class="material-icons">play_arrow</i></button>
       <!--button id="nextButton"><i class="material-icons">navigate_next</i></button-->
       <button id="skipNextButton" aria-label="Seuraava"><i class="material-icons">skip_next</i></button>
-      <div><div id="currentMapTime"></div><div id="currentMapDate"></div></div>
+      <div><div id="currentMapTime"></div><div id="currentMapDate"></div><div id="currentMapEta" hidden><i class="material-icons" aria-hidden="true">update</i><span class="eta-value"></span></div></div>
     </div>
     <div id="timeline"></div>
   </div>

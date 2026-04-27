@@ -1,5 +1,4 @@
 import { Map, View } from 'ol';
-import { MousePosition } from 'ol/control';
 import Geolocation from 'ol/Geolocation';
 import TileLayer from 'ol/layer/Tile';
 import ImageLayer from 'ol/layer/Image';
@@ -12,12 +11,10 @@ import { fromLonLat, transform, transformExtent } from 'ol/proj';
 import sync from 'ol-hashed';
 import Feature from 'ol/Feature';
 import Polygon, { circular } from 'ol/geom/Polygon';
-import { getDistance } from 'ol/sphere';
 import Point from 'ol/geom/Point';
 import {
   Circle as CircleStyle, Fill, Stroke, Style, Text,
 } from 'ol/style';
-import Dms from 'geodesy/dms';
 import LatLon from 'geodesy/latlon-spherical';
 import WMSCapabilities from 'ol/format/WMSCapabilities';
 import { VERSION as OL_VERSION } from 'ol/util';
@@ -202,7 +199,25 @@ const poolFlowStates = {
 };
 
 const VISIBLE = new Set(safeParseJSON('VISIBLE', ['radarLayer']));
-const ACTIVE = new Set(safeParseJSON('ACTIVE', [options.defaultRadarLayer]));
+// Per-layer "is the chosen time inside this layer's data range?" — updated
+// by setTime, read by renderTick. Out-of-range layers must skip both
+// pool.setWindow/showTime (in setTime) AND pool.showInterpolated (in
+// renderTick) — otherwise the FramePool keeps swapping sources for the
+// requested old time and the WMS server returns whatever it has closest,
+// painting wrong-timestep frames.
+const LAYER_IN_RANGE = {};
+
+// Per-category sublayer memory: { radarLayer: 'fmi-radar-composite-dbz', ... }
+// Saved on every updateLayer() call, restored when the matching WMS
+// GetCapabilities response confirms the stored sublayer is still
+// supported. Unknown / dropped layers are evicted automatically.
+const ACTIVE_LAYERS = (() => {
+  const raw = safeParseJSON('ACTIVE_LAYERS', null);
+  return (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {};
+})();
+function persistActiveLayers() {
+  localStorage.setItem('ACTIVE_LAYERS', JSON.stringify(ACTIVE_LAYERS));
+}
 
 function updateTimelineCell(i) {
   if (!timeline) return;
@@ -227,17 +242,15 @@ function recomputeAllTimelineCells() {
   for (let i = 0; i < 13; i++) updateTimelineCell(i);
 }
 
-// Migrate deprecated FMI openwms layer to meteocore equivalent
-if (ACTIVE.has('suomi_dbz_eureffin')) {
-  ACTIVE.delete('suomi_dbz_eureffin');
-  ACTIVE.add('fmi-radar-composite-dbz');
-  localStorage.setItem('ACTIVE', JSON.stringify([...ACTIVE]));
+// One-time migration of a deprecated FMI openwms layer name.
+if (ACTIVE_LAYERS.radarLayer === 'suomi_dbz_eureffin') {
+  ACTIVE_LAYERS.radarLayer = 'fmi-radar-composite-dbz';
+  persistActiveLayers();
 }
 // IS_DARK: null = auto (follow OS), true = user picked dark, false = user picked light
 let IS_DARK = safeParseJSON('IS_DARK', null);
 let IS_TRACKING = safeParseJSON('IS_TRACKING', false);
 let IS_FOLLOWING = safeParseJSON('IS_FOLLOWING', false);
-let IS_NAUTICAL = safeParseJSON('IS_NAUTICAL', false);
 
 function debug(str) {
   if (DEBUG) {
@@ -528,43 +541,10 @@ const layers = [
   observationLayer,
 ];
 
-function distanceToString(distance) {
-  let str;
-  if (IS_NAUTICAL) {
-    str = `${(distance / 1852).toFixed(3)} NM`;
-  } else {
-    str = distance < 1000
-      ? `${Math.round(distance)} m`
-      : `${(distance / 1000).toFixed(1)} km`;
-  }
-  return str;
-}
-
-function mouseCoordinateFormat(coordinate) {
-  if (ownPosition4326.length > 1) {
-    const distance = getDistance(coordinate, ownPosition4326);
-    const p1 = new LatLon(ownPosition4326[1], ownPosition4326[0]);
-    const p2 = new LatLon(coordinate[1], coordinate[0]);
-    const bearing = p1.initialBearingTo(p2);
-    document.getElementById('cursorDistanceValue').innerHTML = `${distanceToString(distance)}<br>${bearing.toFixed(0)}&deg;`;
-  }
-  return `${Dms.toLat(coordinate[1], 'dm', 3)} ${Dms.toLon(coordinate[0], 'dm', 3)}`;
-}
-
-const mousePositionControl = new MousePosition({
-  coordinateFormat: mouseCoordinateFormat,
-  projection: 'EPSG:4326',
-  className: 'custom-mouse-position',
-  target: document.getElementById('cursorTxt'),
-  undefinedHTML: 'Cursor not on map',
-});
-
 const map = new Map({
   target: 'map',
   layers,
-  controls: [
-    mousePositionControl,
-  ],
+  controls: [],
   view: new View({
     enableRotation: false,
     center: fromLonLat([26, 65]),
@@ -623,9 +603,6 @@ function onChangePosition(event) {
   positionFeature.setGeometry(coordinates
     ? new Point(coordinates) : null);
   document.getElementById('gpsStatus').innerHTML = 'gps_fixed';
-  document.getElementById('positionLatValue').innerHTML = `&#966; ${Dms.toLat(ownPosition4326[1], 'dm', 3)}`;
-  document.getElementById('positionLonValue').innerHTML = `&#955; ${Dms.toLon(ownPosition4326[0], 'dm', 3)}`;
-  document.getElementById('cursorDistanceTxt').style.display = 'block';
   localStorage.setItem('metLatitude', ownPosition4326[1]);
   localStorage.setItem('metLongitude', ownPosition4326[0]);
   localStorage.setItem('metPosition', JSON.stringify(ownPosition));
@@ -641,6 +618,13 @@ function updateMapTimeDisplay(time) {
     currentMapDateDiv.textContent = t.format('l');
     currentMapTimeDiv.textContent = t.format('LT');
     mapTime = time;
+    // Flag the play-bar time when the displayed frame is far behind real-clock
+    // now — typically means an upstream feed is lagging (e.g. satellite frozen
+    // for days) or the user has scrubbed deliberately into the past.
+    const ageHours = dayjs().diff(t, 'hour');
+    const stale = ageHours >= 24;
+    currentMapTimeDiv.classList.toggle('stale', stale);
+    currentMapDateDiv.classList.toggle('stale', stale);
   }
 }
 
@@ -713,6 +697,10 @@ function setTime(action = 'next') {
     case 'previous':
       startDate.setMinutes(Math.floor(startDate.getMinutes() / (resolution / 60000)) * (resolution / 60000) - resolution / 60000);
       break;
+    case 'keep':
+      // No-op on startDate; the clamp below will pull it into [start, end]
+      // if a visibility change shrunk the window.
+      break;
     case 'next':
     default:
       startDate.setMinutes(Math.floor(startDate.getMinutes() / (resolution / 60000)) * (resolution / 60000) + resolution / 60000);
@@ -744,6 +732,7 @@ function setTime(action = 'next') {
   // debug(startDateFormat);
   // debug(startDate.toISOString());
   const timeISO = startDate.toISOString();
+  const tNow = startDate.getTime();
   const timeInterval = `PT${resolution / 60000}M/${timeISO}`;
   const windowInstant = [];
   const windowInterval = [];
@@ -752,8 +741,38 @@ function setTime(action = 'next') {
     windowInstant.push(t);
     windowInterval.push(`PT${resolution / 60000}M/${t}`);
   }
+  // Two concerns handled here:
+  //   1. Mark the layer that has *stale upstream data* (newest frame older
+  //      than 24h). The cause of "everything looks weird" is this layer,
+  //      not whichever other layer happens to lose its time-overlap.
+  //   2. When the chosen time falls outside this layer's data range, hide
+  //      its image (opacity 0) so a previously-loaded frame doesn't stay
+  //      stuck on screen.
+  const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
   const routeLayer = (name, window, currentTime) => {
-    if (!VISIBLE.has(name)) return;
+    const olLayer = layerss[name];
+    const button = document.getElementById(`${name}Button`);
+
+    if (!VISIBLE.has(name)) {
+      if (button) button.classList.remove('stale-data');
+      olLayer.setOpacity(1);
+      LAYER_IN_RANGE[name] = true;
+      return;
+    }
+
+    const wmslayer = olLayer.getSource().getParams().LAYERS;
+    const info = wmslayer in layerInfo ? layerInfo[wmslayer].time : null;
+
+    const isStale = !!(info && info.end && Date.now() - info.end > STALE_THRESHOLD_MS);
+    if (button) button.classList.toggle('stale-data', isStale);
+
+    const inRange = !info || !info.start || !info.end
+      || (tNow >= info.start && tNow <= info.end);
+    olLayer.setOpacity(inRange ? 1 : 0);
+    LAYER_IN_RANGE[name] = inRange;
+
+    if (!inRange) return;
+
     const pool = framePools[name];
     pool.setWindow(window);
     pool.showTime(currentTime);
@@ -763,33 +782,6 @@ function setTime(action = 'next') {
   routeLayer('lightningLayer', windowInterval, timeInterval);
   routeLayer('observationLayer', windowInterval, timeInterval);
   updateMapTimeDisplay(timeISO);
-}
-
-const currentDateValueDiv = document.getElementById('currentDateValue');
-const currentLocalTimeValueDiv = document.getElementById('currentLocalTimeValue');
-const currentUTCTimeValueDiv = document.getElementById('currentUTCTimeValue');
-
-function updateClock() {
-  const d = dayjs();
-  const date = d.format('l');
-  const time = d.format('LTS');
-  const utc = `${d.utc().format('LTS')} UTC`;
-
-  // Batch DOM updates to minimize reflow
-  if (currentDateValueDiv.textContent !== date) {
-    currentDateValueDiv.textContent = date;
-  }
-  if (currentLocalTimeValueDiv.textContent !== time) {
-    currentLocalTimeValueDiv.textContent = time;
-  }
-  if (currentUTCTimeValueDiv.textContent !== utc) {
-    currentUTCTimeValueDiv.textContent = utc;
-  }
-
-  // Use requestAnimationFrame for better performance and sync with display refresh
-  requestAnimationFrame(() => {
-    setTimeout(updateClock, 1000);
-  });
 }
 
 //
@@ -849,6 +841,7 @@ const renderTick = function (now) {
   const t = (now - lastAdvance) / stepDuration;
   for (const name of Object.keys(framePools)) {
     if (!VISIBLE.has(name)) continue; // eslint-disable-line no-continue
+    if (LAYER_IN_RANGE[name] === false) continue; // eslint-disable-line no-continue
     const pool = framePools[name];
     if (pool) pool.showInterpolated(t);
   }
@@ -907,8 +900,6 @@ const playstop = function () {
 };
 
 // Start Animation
-// document.getElementById("infoItemPosition").style.display = "none";
-document.getElementById('cursorDistanceTxt').style.display = 'none';
 
 function getEffectiveTheme() {
   if (IS_DARK !== null) return IS_DARK ? 'dark' : 'light';
@@ -917,16 +908,12 @@ function getEffectiveTheme() {
 
 function setMapLayer(maplayer) {
   debug(`Set ${maplayer} map.`);
-  const darkBaseEl = document.getElementById('darkBase');
-  const lightBaseEl = document.getElementById('lightBase');
   switch (maplayer) {
     case 'light':
       darkGrayBaseLayer.setVisible(false);
       darkGrayReferenceLayer.setVisible(false);
       lightGrayBaseLayer.setVisible(true);
       lightGrayReferenceLayer.setVisible(true);
-      darkBaseEl.classList.remove('selected');
-      lightBaseEl.classList.add('selected');
       track('theme-light');
       break;
     case 'dark':
@@ -934,8 +921,6 @@ function setMapLayer(maplayer) {
       darkGrayReferenceLayer.setVisible(true);
       lightGrayBaseLayer.setVisible(false);
       lightGrayReferenceLayer.setVisible(false);
-      lightBaseEl.classList.remove('selected');
-      darkBaseEl.classList.add('selected');
       track('theme-dark');
       break;
     default:
@@ -969,14 +954,6 @@ function setUserTheme(mode) {
   updateThemeChipsState();
 }
 
-document.getElementById('darkBase').addEventListener('mouseup', () => {
-  setUserTheme('dark');
-});
-
-document.getElementById('lightBase').addEventListener('mouseup', () => {
-  setUserTheme('light');
-});
-
 function removeSelectedParameter(selector) {
   const els = document.querySelectorAll(selector);
   els.forEach((elem) => {
@@ -984,9 +961,12 @@ function removeSelectedParameter(selector) {
   });
 }
 
-function updateLayer(layer, wmslayer) {
+function updateLayer(layer, wmslayer, opts = {}) {
+  const { skipVisibility = false, skipTracking = false, skipPersist = false } = opts;
   debug(`Activated layer ${wmslayer}`);
-  track('layer-switch', { layer: wmslayer, category: layer.get('name') });
+  if (!skipTracking) {
+    track('layer-switch', { layer: wmslayer, category: layer.get('name') });
+  }
   debug(layerInfo[wmslayer]);
   const info = layerInfo[wmslayer];
   layer.set('info', info);
@@ -1012,27 +992,48 @@ function updateLayer(layer, wmslayer) {
   } else {
     layer.getSource().updateParams({ LAYERS: wmslayer });
   }
-  if (layer.getVisible()) {
-    updateCanonicalPage();
-  } else {
-    layer.setVisible(true);
+  if (!skipPersist) {
+    const category = layer.get('name');
+    if (category && ACTIVE_LAYERS[category] !== wmslayer) {
+      ACTIVE_LAYERS[category] = wmslayer;
+      persistActiveLayers();
+    }
+  }
+  if (!skipVisibility) {
+    if (layer.getVisible()) {
+      updateCanonicalPage();
+    } else {
+      layer.setVisible(true);
+    }
   }
   updateLayerSelectionSelected();
 }
 
-function addEventListeners(selector) {
-  const elementsArray = document.querySelectorAll(selector);
-  elementsArray.forEach((elem) => {
-    debug(`Activated event listener for ${elem.id}`);
-    elem.addEventListener('mouseup', (event) => {
-      if (event.target.id.indexOf('Off') !== -1) {
-        event.target.classList.add('selected');
-        layerss[event.target.parentElement.id].setVisible(false);
-      } else {
-        updateLayer(layerss[event.target.parentElement.id], event.target.id);
-      }
+// Restore the user's previously selected sublayer for one category (e.g.
+// 'radarLayer') after that category's WMS GetCapabilities has populated
+// layerInfo. If the stored layer is no longer advertised by the server,
+// drop it — the layer stays at its constructor-time default.
+function restoreActiveLayer(category) {
+  if (!category) return;
+  const olLayer = layerss[category];
+  if (!olLayer) return;
+  const stored = ACTIVE_LAYERS[category];
+  if (!stored) return;
+
+  if (!layerInfo[stored] || layerInfo[stored].category !== category) {
+    delete ACTIVE_LAYERS[category];
+    persistActiveLayers();
+    return;
+  }
+
+  const currentLayers = olLayer.getSource().getParams().LAYERS;
+  if (currentLayers !== stored) {
+    updateLayer(olLayer, stored, {
+      skipVisibility: true,
+      skipTracking: true,
+      skipPersist: true,
     });
-  });
+  }
 }
 
 const featureOverlay = new VectorLayer({
@@ -1283,7 +1284,6 @@ function onChangeVisible(event) {
     debug(`Deactivated ${name}`);
     VISIBLE.delete(name);
     localStorage.setItem('VISIBLE', JSON.stringify([...VISIBLE]));
-    document.getElementById(`${name}Off`).classList.add('selected');
     setButtonState(`${name}Button`, false);
     document.getElementById(`${name}Info`).classList.add('playListDisabled');
     const toggleIcon = document.querySelector(`#${name}Info .card-visibility-toggle .material-icons`);
@@ -1292,6 +1292,12 @@ function onChangeVisible(event) {
   updateCanonicalPage();
   updateLayerSelectionSelected();
   recomputeAllTimelineCells();
+  // Visibility change may invalidate the current timeline window
+  // (e.g. activating a stale satellite caps `end` to its old time.end,
+  // or hiding it releases the cap). Recompute window + per-layer
+  // in-range state immediately so the map time, stale colour and
+  // layer opacity update without waiting for a tick or manual step.
+  setTime('keep');
 }
 
 /**
@@ -1472,11 +1478,6 @@ document.getElementById('locationLayerButton').addEventListener('mouseup', () =>
     track('tracking-on');
   }
   setButtonStates();
-});
-
-document.getElementById('cursorDistanceTxt').addEventListener('mouseup', () => {
-  IS_NAUTICAL = !IS_NAUTICAL;
-  localStorage.setItem('IS_NAUTICAL', JSON.stringify(IS_NAUTICAL));
 });
 
 document.getElementById('radarLayerTitle').addEventListener('mouseup', () => {
@@ -1832,6 +1833,7 @@ function getWMSCapabilities(wms, failCountArg = 0) {
         default:
           debug('No wms.category set');
       }
+      restoreActiveLayer(wms.category);
       if (IS_FOLLOWING) {
         setTime('last');
       }
@@ -1968,8 +1970,6 @@ const main = () => {
 
   setMapLayer(getEffectiveTheme());
 
-  updateClock();
-
   trackPWAUsage();
 
   Object.values(options.wmsServerConfiguration).forEach((value) => {
@@ -2018,6 +2018,15 @@ const main = () => {
     });
   }
 
+  const measureFabBtn = document.getElementById('measureFab');
+  if (measureFabBtn) {
+    measureFabBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (tools.isArmed()) tools.disarm();
+      else tools.arm();
+    });
+  }
+
   window.__tutka = { map, framePools, tools };
 
   // GEOLOCATION
@@ -2042,11 +2051,6 @@ const main = () => {
   lightningLayer.on('propertychange', layerInfoPlaylist);
   observationLayer.on('change:visible', onChangeVisible);
   observationLayer.on('propertychange', layerInfoPlaylist);
-
-  addEventListeners('#satelliteLayer > div');
-  addEventListeners('#radarLayer > div');
-  addEventListeners('#lightningLayer > div');
-  addEventListeners('#observationLayer > div');
 
   map.on('click', (evt) => {
     const hit = map.forEachFeatureAtPixel(evt.pixel, (f) => f);
@@ -2146,5 +2150,94 @@ window.addEventListener('appinstalled', () => {
   // Track successful PWA installation
   track('pwa-installed');
 });
+
+// Map-time ETA: countdown to the next image arrival.
+// Behaviour: on first detection (page load) start at the layer's full
+// resolution (e.g. 5:00 for a 5-min layer). Decrement each second.
+// When a new image actually lands — detected by info.time.end advancing
+// — RESET the counter back to the full resolution. The first wait may
+// be inaccurate (we don't know how recent the latest frame is) but
+// subsequent cycles align with real arrival cadence.
+const ETA_STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
+const etaEl = document.getElementById('currentMapEta');
+const etaValueEl = etaEl ? etaEl.querySelector('.eta-value') : null;
+
+let etaSeenEnd = null;
+let etaResolution = null;
+let etaResetAt = Date.now();
+
+function pickEtaSourceLayer() {
+  let best = null;
+  VISIBLE.forEach((name) => {
+    const olLayer = layerss[name];
+    if (!olLayer) return;
+    const wmslayer = olLayer.getSource().getParams().LAYERS;
+    const info = layerInfo[wmslayer] && layerInfo[wmslayer].time;
+    if (!info || !info.end || !info.resolution) return;
+    if (Date.now() - info.end > ETA_STALE_THRESHOLD_MS) return;
+    if (!best || info.resolution < best.resolution) best = info;
+  });
+  return best;
+}
+
+function updateMapEta() {
+  if (!etaEl || !etaValueEl) return;
+  const info = pickEtaSourceLayer();
+  if (!info) {
+    etaEl.hidden = true;
+    etaSeenEnd = null;
+    etaResolution = null;
+    return;
+  }
+
+  // Reset whenever we first see a layer or its newest frame advances.
+  if (info.end !== etaSeenEnd || info.resolution !== etaResolution) {
+    etaSeenEnd = info.end;
+    etaResolution = info.resolution;
+    etaResetAt = Date.now();
+  }
+
+  const remaining = etaResolution - (Date.now() - etaResetAt);
+  etaEl.hidden = false;
+  if (remaining > 0) {
+    const mins = Math.floor(remaining / 60000);
+    const secs = Math.floor((remaining % 60000) / 1000);
+    etaValueEl.textContent = `${mins}:${String(secs).padStart(2, '0')}`;
+  } else {
+    etaValueEl.textContent = 'odotetaan';
+  }
+}
+
+setInterval(updateMapEta, 1000);
+updateMapEta();
+
+// Time chip — small clock in the bottom-left corner. Click to toggle local
+// time vs UTC; the choice persists across sessions.
+let timeIsUtc = safeParseJSON('timeIsUtc', false);
+const timeChipEl = document.getElementById('timeChip');
+if (timeChipEl) {
+  const tcTime = timeChipEl.querySelector('.tc-time');
+  const tcDate = timeChipEl.querySelector('.tc-date');
+
+  const renderTimeChip = () => {
+    const d = timeIsUtc ? dayjs().utc() : dayjs();
+    tcTime.textContent = d.format('HH:mm');
+    tcDate.textContent = timeIsUtc
+      ? `${d.format('dd D.M.')} UTC`
+      : d.format('dd D.M.');
+    timeChipEl.classList.toggle('utc-mode', timeIsUtc);
+  };
+
+  timeChipEl.addEventListener('click', (e) => {
+    e.stopPropagation();
+    timeIsUtc = !timeIsUtc;
+    localStorage.setItem('timeIsUtc', JSON.stringify(timeIsUtc));
+    renderTimeChip();
+    track('time-chip-toggle', { utc: timeIsUtc });
+  });
+
+  renderTimeChip();
+  setInterval(renderTimeChip, 1000);
+}
 
 main();
