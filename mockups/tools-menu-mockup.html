@@ -865,6 +865,93 @@ DESKTOP NOTES  (mockup is mobile-first, 390px phone frames)
   }
   .location-fab .material-icons { font-size: 24px; }
 
+  /* ---------- Variant A: minimal time chip ---------- */
+  /* Sits in the bottom-left, mirroring the location FAB on bottom-right —
+     keeps clear of the centred primary toolbar at the top. */
+  .time-chip {
+    position: absolute;
+    bottom: 96px;
+    left: 16px;
+    width: 76px;
+    height: 52px;
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0 6px;
+    background-color: rgba(0,0,0,0.60);
+    -webkit-backdrop-filter: blur(24px) saturate(140%);
+    backdrop-filter: blur(24px) saturate(140%);
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+    color: rgba(255,255,255,0.92);
+    z-index: 100;
+    font-variant-numeric: tabular-nums;
+  }
+  .time-chip .tc-time {
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 1;
+    letter-spacing: 0.02em;
+  }
+  .time-chip .tc-date {
+    font-size: 10px;
+    color: rgba(255,255,255,0.60);
+    margin-top: 3px;
+  }
+
+  /* ---------- Variant B: slim nav rail (nav-panel foundation) ---------- */
+  /* Starts below the centred primary toolbar so the top corner stays clear. */
+  .nav-rail {
+    position: absolute;
+    top: 124px;
+    left: 8px;
+    width: 84px;
+    background-color: rgba(0,0,0,0.60);
+    -webkit-backdrop-filter: blur(24px) saturate(140%);
+    backdrop-filter: blur(24px) saturate(140%);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+    color: rgba(255,255,255,0.92);
+    z-index: 100;
+    padding: 10px 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-variant-numeric: tabular-nums;
+  }
+  .nav-rail .nr-row {
+    text-align: center;
+  }
+  .nav-rail .nr-label {
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--dark-medium-emphasis-text-color);
+    margin-bottom: 2px;
+  }
+  .nav-rail .nr-value {
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.1;
+    color: var(--dark-theme-on-surface);
+  }
+  .nav-rail .nr-sub {
+    font-size: 10px;
+    color: var(--dark-medium-emphasis-text-color);
+    margin-top: 1px;
+  }
+  .nav-rail .nr-row.future {
+    opacity: 0.32;
+  }
+  .nav-rail .nr-row.future + .nr-row.future,
+  .nav-rail .nr-row + .nr-row.future {
+    border-top: 1px dashed rgba(255,255,255,0.16);
+    padding-top: 6px;
+  }
+
   .caption {
     margin-top: 10px;
     max-width: 390px;
@@ -1364,6 +1451,151 @@ DESKTOP NOTES  (mockup is mobile-first, 390px phone frames)
       T2-nasta on <b>magenta</b> — ei enää amber, joka sekoittuisi
       <code>timeline-loading</code>-väriin. Moodissa
       <code>more_horiz</code> hohtaa cyanina (työkalu-armed).
+    </div>
+  </div>
+
+  <!-- =============================================================== -->
+  <!-- STATE 5 · Sivupalkin korvaaminen — minne nykyinen aika?         -->
+  <!-- =============================================================== -->
+  <div>
+    <div class="state-label">Tila 5 · <b>Sivupalkin korvaaminen</b> — A: aikachippi · B: navi-rivi</div>
+
+    <div class="comparison">
+
+      <!-- ================== Variant A: minimal time chip =============== -->
+      <div>
+        <div class="variant-label">Versio A · Aikachippi <span class="vs">vain aika; ei sitoumusta navi-paneeliin</span></div>
+        <div class="device">
+          <div class="device-screen">
+            <div class="map">
+              <div class="echo a"></div>
+              <div class="echo b"></div>
+              <div class="echo c"></div>
+              <div class="echo d"></div>
+            </div>
+
+            <nav class="primaryToolbar" aria-label="Karttatasot">
+              <div class="pill">
+                <button class="seg" aria-pressed="false"><i class="material-icons">satellite_alt</i><span class="indicator"></span></button>
+                <button class="seg" aria-pressed="true"><i class="material-icons">radar</i><span class="indicator"></span></button>
+                <button class="seg" aria-pressed="false"><i class="material-icons">bolt</i><span class="indicator"></span></button>
+                <button class="seg" aria-pressed="false"><i class="material-icons">thermostat</i><span class="indicator"></span></button>
+              </div>
+              <button class="glass-fab" aria-expanded="false" aria-label="Lisää">
+                <i class="material-icons">more_horiz</i>
+              </button>
+            </nav>
+
+            <!-- The time chip in top-left, mirroring the location FAB on bottom-right -->
+            <div class="time-chip" aria-label="Nykyinen aika">
+              <span class="tc-time">15:42</span>
+              <span class="tc-date">Pe 25.4.</span>
+            </div>
+
+            <div class="timeBar">
+              <div class="timeBar-top">
+                <button class="t-btn"><i class="material-icons">skip_previous</i></button>
+                <button class="t-btn"><i class="material-icons">play_arrow</i></button>
+                <div class="t-now">14:35 <span class="t-date">· Pe 25.4.</span></div>
+                <button class="t-btn"><i class="material-icons">skip_next</i></button>
+              </div>
+              <div class="timeline">
+                <div></div><div></div><div></div><div></div><div></div>
+                <div></div><div></div><div></div><div></div><div></div>
+                <div></div><div></div><div class="current"></div>
+              </div>
+            </div>
+
+            <div class="location-fab" aria-pressed="false" aria-label="Paikannus">
+              <i class="material-icons">gps_not_fixed</i>
+            </div>
+          </div>
+        </div>
+        <div class="caption">
+          Pieni lasichippi vasemmassa yläkulmassa — peilaa
+          <code>location-fab</code>-pyörylää oikeassa alalaidassa.
+          Vain nykyinen aika (HH:MM + päivä). Sijainti pois,
+          osoitin korvautuu sijaintimerkillä. <b>Halvin chrome</b>;
+          ei rajaa tulevaa navi-paneelia.
+        </div>
+      </div>
+
+      <!-- ================== Variant B: nav rail =================== -->
+      <div>
+        <div class="variant-label">Versio B · Navi-rivi <span class="vs">tulevan paneelin runko, AIKA tänään</span></div>
+        <div class="device">
+          <div class="device-screen">
+            <div class="map">
+              <div class="echo a"></div>
+              <div class="echo b"></div>
+              <div class="echo c"></div>
+              <div class="echo d"></div>
+            </div>
+
+            <nav class="primaryToolbar" aria-label="Karttatasot">
+              <div class="pill">
+                <button class="seg" aria-pressed="false"><i class="material-icons">satellite_alt</i><span class="indicator"></span></button>
+                <button class="seg" aria-pressed="true"><i class="material-icons">radar</i><span class="indicator"></span></button>
+                <button class="seg" aria-pressed="false"><i class="material-icons">bolt</i><span class="indicator"></span></button>
+                <button class="seg" aria-pressed="false"><i class="material-icons">thermostat</i><span class="indicator"></span></button>
+              </div>
+              <button class="glass-fab" aria-expanded="false" aria-label="Lisää">
+                <i class="material-icons">more_horiz</i>
+              </button>
+            </nav>
+
+            <!-- Nav rail on the left edge — shows AIKA today, ghosts future fields -->
+            <div class="nav-rail" aria-label="Navi-paneeli">
+              <div class="nr-row">
+                <div class="nr-label">Aika</div>
+                <div class="nr-value">15:42</div>
+                <div class="nr-sub">Pe 25.4.</div>
+              </div>
+              <div class="nr-row future">
+                <div class="nr-label">Sijainti</div>
+                <div class="nr-value">—</div>
+                <div class="nr-sub">GPS pois</div>
+              </div>
+              <div class="nr-row future">
+                <div class="nr-label">Suunta</div>
+                <div class="nr-value">—</div>
+              </div>
+              <div class="nr-row future">
+                <div class="nr-label">Nopeus</div>
+                <div class="nr-value">—</div>
+              </div>
+            </div>
+
+            <div class="timeBar">
+              <div class="timeBar-top">
+                <button class="t-btn"><i class="material-icons">skip_previous</i></button>
+                <button class="t-btn"><i class="material-icons">play_arrow</i></button>
+                <div class="t-now">14:35 <span class="t-date">· Pe 25.4.</span></div>
+                <button class="t-btn"><i class="material-icons">skip_next</i></button>
+              </div>
+              <div class="timeline">
+                <div></div><div></div><div></div><div></div><div></div>
+                <div></div><div></div><div></div><div></div><div></div>
+                <div></div><div></div><div class="current"></div>
+              </div>
+            </div>
+
+            <div class="location-fab" aria-pressed="false" aria-label="Paikannus">
+              <i class="material-icons">gps_not_fixed</i>
+            </div>
+          </div>
+        </div>
+        <div class="caption">
+          Ohut pystypaneeli vasemmassa reunassa — runko tulevalle
+          merenkulku/maa-navikäyttölle. Tänään näkyy vain <b>AIKA</b>;
+          <i>Sijainti / Suunta / Nopeus</i> näytetään harmaina paikanvarauksina.
+          GPS päällä → <code>SIJAINTI</code> herää eloon (koord.),
+          liikkeessä myös <code>SUUNTA</code> ja <code>NOPEUS</code>.
+          <b>Enemmän chromea</b>, mutta ei vaadi uudelleensuunnittelua
+          kun navi-kentät tulevat.
+        </div>
+      </div>
+
     </div>
   </div>
 
