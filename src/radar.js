@@ -299,71 +299,45 @@ const style = new Style({
   }),
 });
 
-// Glass-circle marker treatment for radar sites and airfields.
-// Two stacked styles per layer: (1) circle with centred Material Icon glyph,
-// (2) code/name label below. Per-marker tint on ring + icon; label stays
-// neutral white for legibility on coloured radar echoes.
-const FEATURE_BG = new Fill({ color: 'rgba(0, 0, 0, 0.55)' });
-const FEATURE_LABEL_FG = new Fill({ color: 'rgba(255, 255, 255, 0.85)' });
-const FEATURE_LABEL_STROKE = new Stroke({ color: 'rgba(0, 0, 0, 0.85)', width: 2 });
-
-const RADAR_RING = new Stroke({ color: 'rgba(18, 188, 250, 0.55)', width: 1.5 });
-const RADAR_GLYPH_FG = new Fill({ color: 'rgba(140, 220, 255, 0.95)' });
-
-const ICAO_RING = new Stroke({ color: 'rgba(255, 200, 87, 0.55)', width: 1.5 });
-const ICAO_GLYPH_FG = new Fill({ color: 'rgba(255, 220, 140, 0.95)' });
-
-const radarStyle = [
-  new Style({
-    image: new CircleStyle({
-      radius: 13,
-      fill: FEATURE_BG,
-      stroke: RADAR_RING,
-    }),
-    text: new Text({
-      text: 'cell_tower',
-      font: '16px "Material Icons"',
-      fill: RADAR_GLYPH_FG,
-      textBaseline: 'middle',
-    }),
+const radarStyle = new Style({
+  image: new CircleStyle({
+    radius: 4,
+    fill: null,
+    stroke: new Stroke({ color: 'red', width: 2 }),
   }),
-  new Style({
-    text: new Text({
-      text: '',
-      font: 'bold 9px Roboto, sans-serif',
-      offsetY: 22,
-      fill: FEATURE_LABEL_FG,
-      stroke: FEATURE_LABEL_STROKE,
-      textBaseline: 'top',
+  text: new Text({
+    font: '12px Calibri,sans-serif',
+    fill: new Fill({
+      color: '#fff',
     }),
+    stroke: new Stroke({
+      color: '#000',
+      width: 3,
+    }),
+    offsetX: 0,
+    offsetY: -15,
   }),
-];
+});
 
-const icaoStyle = [
-  new Style({
-    image: new CircleStyle({
-      radius: 13,
-      fill: FEATURE_BG,
-      stroke: ICAO_RING,
-    }),
-    text: new Text({
-      text: 'flight',
-      font: '16px "Material Icons"',
-      fill: ICAO_GLYPH_FG,
-      textBaseline: 'middle',
-    }),
+const icaoStyle = new Style({
+  image: new CircleStyle({
+    radius: 4,
+    fill: null,
+    stroke: new Stroke({ color: 'blue', width: 2 }),
   }),
-  new Style({
-    text: new Text({
-      text: '',
-      font: 'bold 9px Roboto, sans-serif',
-      offsetY: 22,
-      fill: FEATURE_LABEL_FG,
-      stroke: FEATURE_LABEL_STROKE,
-      textBaseline: 'top',
+  text: new Text({
+    font: '12px Calibri,sans-serif',
+    fill: new Fill({
+      color: '#fff',
     }),
+    stroke: new Stroke({
+      color: '#000',
+      width: 3,
+    }),
+    offsetX: 0,
+    offsetY: -15,
   }),
-];
+});
 
 const rangeStyle = new Style({
   stroke: new Stroke({
@@ -514,7 +488,7 @@ const radarSiteLayer = new VectorLayer({
     url: 'radars-finland.json',
   }),
   style(feature) {
-    radarStyle[1].getText().setText(feature.get('name'));
+    radarStyle.getText().setText(feature.get('name'));
     return radarStyle;
   },
 });
@@ -526,7 +500,7 @@ const icaoLayer = new VectorLayer({
   }),
   visible: false,
   style(feature) {
-    icaoStyle[1].getText().setText(feature.get('icao'));
+    icaoStyle.getText().setText(feature.get('icao'));
     return icaoStyle;
   },
 });
