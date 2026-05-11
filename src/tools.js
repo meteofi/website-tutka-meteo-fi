@@ -131,7 +131,12 @@ function buildMarkerCard() {
   return card;
 }
 
-export default function initTools({ map, getOwnPosition, getFrameTimestamp }) {
+export default function initTools({
+  map, getOwnPosition, getFrameTimestamp, onPinChange,
+}) {
+  const emitPinChange = typeof onPinChange === 'function'
+    ? (lonLat) => { try { onPinChange(lonLat); } catch (_) { /* ignore */ } }
+    : () => {};
   // ---------------------------------------------------------------
   // Location marker (ambient, non-modal)
   // ---------------------------------------------------------------
@@ -212,6 +217,7 @@ export default function initTools({ map, getOwnPosition, getFrameTimestamp }) {
     markerCardVisible = true;
     updateMarkerCardVisibility();
     renderMarker();
+    emitPinChange(markerCoord4326);
   }
 
   function removeMarker() {
@@ -220,6 +226,7 @@ export default function initTools({ map, getOwnPosition, getFrameTimestamp }) {
     markerCoord4326 = null;
     markerCardVisible = false;
     updateMarkerCardVisibility();
+    emitPinChange(null);
   }
 
   function toggleMarkerCard() {
@@ -238,6 +245,10 @@ export default function initTools({ map, getOwnPosition, getFrameTimestamp }) {
     markerCoord4326 = transform(coords, map.getView().getProjection(), 'EPSG:4326');
     if (markerCardVisible) markerOverlay.setPosition(fromLonLat(markerCoord4326));
     renderMarker();
+  });
+  // Fetch the probe series once the drag settles, not on every drag pixel.
+  markerTranslate.on('translateend', () => {
+    if (markerCoord4326) emitPinChange(markerCoord4326);
   });
 
   markerCloseBtn.addEventListener('click', (e) => {

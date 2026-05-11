@@ -1,0 +1,767 @@
+<!doctype html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aikasarja-mittari — mockup</title>
+<style>
+  :root {
+    --bg: #121212;
+    --on-surface: rgba(255,255,255,0.87);
+    --medium: rgba(255,255,255,0.60);
+    --low: rgba(255,255,255,0.38);
+    --primary: #12BCFA;
+    --primary-bg: #12BCFA1F;
+    --overlay-01: rgba(255,255,255,0.05);
+    --overlay-02: rgba(255,255,255,0.07);
+    --overlay-04: rgba(255,255,255,0.09);
+    --overlay-08: rgba(255,255,255,0.12);
+    --cell-default: #3C3D3E;
+    --cell-flow-pending: #3a8a4a;
+    --cell-loading: #e0922f;
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Roboto, sans-serif;
+    background: #0a0a0a;
+    color: var(--on-surface);
+    min-height: 100vh;
+  }
+
+  .page {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 32px 24px 80px;
+  }
+
+  h1 {
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--on-surface);
+    margin: 0 0 8px;
+    letter-spacing: 0.2px;
+  }
+  .sub { color: var(--medium); font-size: 13px; margin-bottom: 28px; }
+
+  .controls {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 32px;
+    padding: 12px;
+    background: var(--overlay-02);
+    border: 1px solid var(--overlay-04);
+    border-radius: 12px;
+  }
+  .controls span { color: var(--medium); font-size: 12px; align-self: center; padding: 0 4px; }
+  .controls button {
+    background: var(--overlay-04);
+    color: var(--on-surface);
+    border: 1px solid transparent;
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 120ms;
+  }
+  .controls button:hover { background: var(--overlay-08); }
+  .controls button.active {
+    background: var(--primary-bg);
+    color: var(--primary);
+    border-color: var(--primary);
+  }
+
+  .stage {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 28px;
+    align-items: start;
+  }
+  @media (max-width: 980px) { .stage { grid-template-columns: 1fr; } }
+
+  .label {
+    font-size: 11px;
+    color: var(--medium);
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    margin: 0 0 10px;
+  }
+
+  /* ---------- Frames ---------- */
+  .frame {
+    position: relative;
+    border-radius: 18px;
+    overflow: hidden;
+    background:
+      radial-gradient(ellipse at 35% 28%, rgba(35,80,140,0.22), transparent 55%),
+      radial-gradient(ellipse at 70% 60%, rgba(180,30,40,0.15), transparent 50%),
+      linear-gradient(180deg, #1a2030 0%, #0d1218 100%);
+    box-shadow: 0 6px 32px rgba(0,0,0,0.4);
+  }
+  .frame.desktop { aspect-ratio: 16 / 10; }
+  .frame.mobile  { aspect-ratio: 9 / 19; max-width: 380px; }
+
+  /* fake map texture */
+  .frame::before {
+    content: "";
+    position: absolute; inset: 0;
+    background-image:
+      radial-gradient(circle at 28% 32%, rgba(0,200,255,0.18) 0%, transparent 6%),
+      radial-gradient(circle at 32% 36%, rgba(0,180,235,0.32) 0%, transparent 4%),
+      radial-gradient(circle at 36% 38%, rgba(60,210,255,0.4) 0%, transparent 3%),
+      radial-gradient(circle at 40% 42%, rgba(180,240,255,0.25) 0%, transparent 4%),
+      radial-gradient(circle at 65% 55%, rgba(255,210,90,0.4) 0%, transparent 3%),
+      radial-gradient(circle at 67% 56%, rgba(255,140,40,0.3) 0%, transparent 2%),
+      radial-gradient(circle at 22% 72%, rgba(120,200,255,0.2) 0%, transparent 5%);
+    filter: blur(0.4px);
+    pointer-events: none;
+  }
+  /* coastline-ish lines */
+  .frame::after {
+    content: "";
+    position: absolute; inset: 0;
+    background:
+      linear-gradient(115deg, transparent 38%, rgba(255,255,255,0.04) 38.4%, transparent 39%),
+      linear-gradient(85deg, transparent 60%, rgba(255,255,255,0.03) 60.5%, transparent 61%);
+    pointer-events: none;
+  }
+
+  /* ---------- Top toolbar ---------- */
+  .toolbar-top {
+    position: absolute;
+    top: 12px; left: 12px; right: 12px;
+    display: flex;
+    gap: 6px;
+    z-index: 4;
+  }
+  .seg {
+    background: rgba(22,22,24,0.78);
+    backdrop-filter: blur(18px) saturate(140%);
+    -webkit-backdrop-filter: blur(18px) saturate(140%);
+    border: 1px solid var(--overlay-04);
+    border-radius: 22px;
+    padding: 6px 10px;
+    color: var(--on-surface);
+    font-size: 11px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .seg.active { color: var(--primary); border-color: var(--primary); background: var(--primary-bg); }
+  .seg.icon { padding: 6px 8px; min-width: 32px; justify-content: center; }
+  .toolbar-top .spacer { flex: 1; }
+
+  /* ---------- Pin marker ---------- */
+  .pin {
+    position: absolute;
+    z-index: 5;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--primary);
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 3px rgba(18,188,250,0.25), 0 2px 8px rgba(0,0,0,0.5);
+    transform: translate(-50%, -50%);
+  }
+  .pin.pulsing::after {
+    content: "";
+    position: absolute; inset: -6px;
+    border-radius: 50%;
+    border: 2px solid var(--primary);
+    opacity: 0.6;
+    animation: pulse 1.4s ease-out infinite;
+  }
+  @keyframes pulse {
+    0%   { transform: scale(0.7); opacity: 0.7; }
+    100% { transform: scale(2.0); opacity: 0; }
+  }
+  .pin-label {
+    position: absolute;
+    z-index: 5;
+    background: rgba(22,22,24,0.85);
+    backdrop-filter: blur(14px);
+    border: 1px solid var(--overlay-04);
+    border-radius: 8px;
+    padding: 4px 8px;
+    font-size: 10px;
+    color: var(--medium);
+    white-space: nowrap;
+    transform: translate(-50%, calc(-100% - 14px));
+    pointer-events: none;
+  }
+
+  /* ---------- Time control ---------- */
+  .timecontrol {
+    position: absolute;
+    left: 0; right: 0; bottom: 2px;
+    z-index: 6;
+    background: rgba(18,18,18,0.78);
+    backdrop-filter: blur(20px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    border-top: 1px solid var(--overlay-04);
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* probe chart row — collapsible */
+  .probe-row {
+    overflow: hidden;
+    height: 0;
+    transition: height 220ms cubic-bezier(0.2, 0.7, 0.2, 1);
+    border-bottom: 1px solid var(--overlay-02);
+  }
+  .probe-row.open { height: 84px; }
+  .frame.mobile .probe-row.open { height: 72px; }
+
+  .probe-inner {
+    padding: 10px 14px 6px;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-rows: auto 1fr;
+    gap: 4px 12px;
+    height: 100%;
+  }
+  .probe-title {
+    grid-column: 1; grid-row: 1;
+    font-size: 11px;
+    color: var(--medium);
+    text-transform: none;
+    letter-spacing: 0.3px;
+  }
+  .probe-title strong { color: var(--on-surface); font-weight: 500; }
+  .probe-band {
+    grid-column: 2; grid-row: 1;
+    font-size: 11px;
+    color: var(--primary);
+    align-self: center;
+  }
+  .probe-close {
+    grid-column: 3; grid-row: 1;
+    background: transparent;
+    border: none;
+    color: var(--low);
+    cursor: pointer;
+    font-size: 16px;
+    line-height: 1;
+    padding: 0 2px;
+  }
+  .probe-close:hover { color: var(--on-surface); }
+  .probe-svg {
+    grid-column: 1 / -1; grid-row: 2;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .probe-empty {
+    grid-column: 1 / -1; grid-row: 2;
+    align-self: center;
+    text-align: center;
+    color: var(--medium);
+    font-size: 12px;
+  }
+  .probe-loading {
+    grid-column: 1 / -1; grid-row: 2;
+    align-self: center;
+    text-align: center;
+    color: var(--medium);
+    font-size: 12px;
+  }
+  .skel {
+    height: 26px;
+    background: linear-gradient(90deg,
+      var(--overlay-02) 0%,
+      var(--overlay-04) 50%,
+      var(--overlay-02) 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s linear infinite;
+    border-radius: 4px;
+    margin-top: 8px;
+  }
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* playbar */
+  .playbar {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 10px 4px;
+    color: var(--on-surface);
+  }
+  .playbar > * { flex: 0 0 auto; }
+  .pb-btn {
+    width: 36px; height: 36px;
+    border-radius: 50%;
+    background: transparent;
+    border: none;
+    color: var(--on-surface);
+    font-size: 18px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .pb-btn.play {
+    background: var(--primary-bg);
+    color: var(--primary);
+    width: 40px; height: 40px;
+    font-size: 20px;
+  }
+  .pb-readout {
+    flex: 1 1 auto;
+    text-align: center;
+    line-height: 1.15;
+  }
+  .pb-readout .v {
+    font-size: 13px; font-weight: 500;
+  }
+  .pb-readout .v.has-band { color: var(--primary); }
+  .pb-readout .t {
+    font-size: 11px;
+    color: var(--medium);
+  }
+  .pb-time {
+    text-align: right;
+    line-height: 1.15;
+    min-width: 78px;
+  }
+  .pb-time .now { font-size: 16px; font-weight: 500; }
+  .pb-time .date { font-size: 10px; color: var(--medium); }
+  .pb-speed {
+    font-size: 11px;
+    color: var(--medium);
+    border: 1px solid var(--overlay-04);
+    border-radius: 999px;
+    padding: 3px 8px;
+  }
+
+  /* timeline strip — preserved exactly */
+  .strip {
+    display: flex;
+    width: 100%;
+    height: 4px;
+    border-radius: 0 0 6px 6px;
+    overflow: hidden;
+    margin-bottom: 0;
+  }
+  .strip > div {
+    flex: 1 1 0;
+    background: var(--cell-default);
+    margin-right: 1px;
+  }
+  .strip > div:last-child { margin-right: 0; }
+  .strip > div.flow-pending { background: var(--cell-flow-pending); }
+  .strip > div.loading { background: var(--cell-loading); }
+  .strip > div.current {
+    background: var(--primary);
+    border-left: 1px solid rgba(0,84,99,0.6);
+  }
+
+  /* labels block at bottom */
+  .frame .badge {
+    position: absolute;
+    bottom: 8px; right: 12px;
+    color: var(--low);
+    font-size: 10px;
+    z-index: 7;
+  }
+
+  /* annotation */
+  .annot {
+    margin-top: 12px;
+    color: var(--medium);
+    font-size: 12px;
+    line-height: 1.55;
+  }
+  .annot code {
+    background: var(--overlay-02);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+  }
+
+  /* tooltip mock */
+  .tooltip {
+    position: absolute;
+    background: rgba(22,22,24,0.92);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--overlay-08);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 11px;
+    color: var(--on-surface);
+    transform: translate(-50%, calc(-100% - 6px));
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .tooltip .v { color: var(--primary); }
+
+  .legend {
+    display: flex;
+    gap: 14px;
+    margin-top: 22px;
+    flex-wrap: wrap;
+    color: var(--medium);
+    font-size: 11px;
+  }
+  .legend .sw {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border-radius: 3px;
+    margin-right: 6px;
+    vertical-align: -2px;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Aikasarja-mittari — mockup</h1>
+  <div class="sub">tutka.meteo.fi · point-time-series probe in the time-control area · click states to toggle</div>
+
+  <div class="controls">
+    <span>State:</span>
+    <button data-state="idle" class="active">Idle (no pin)</button>
+    <button data-state="loading">Probe loading</button>
+    <button data-state="active">Probe active</button>
+    <button data-state="empty">Probe — no data</button>
+    <button data-state="non-scalar">Non-scalar layer (lightning)</button>
+    <span style="margin-left:16px;">Animation:</span>
+    <button data-anim="paused" class="active">Paused</button>
+    <button data-anim="playing">Playing</button>
+  </div>
+
+  <div class="stage">
+    <!-- DESKTOP -->
+    <div>
+      <div class="label">Desktop · 1280×800</div>
+      <div class="frame desktop" id="desktopFrame">
+        <div class="toolbar-top">
+          <div class="seg active">Tutka</div>
+          <div class="seg">Pilvet</div>
+          <div class="seg">Salama</div>
+          <div class="seg">Lämpö</div>
+          <div class="spacer"></div>
+          <div class="seg icon">⋯</div>
+        </div>
+
+        <div class="pin pulsing" style="left: 38%; top: 42%;" id="dPin"></div>
+        <div class="pin-label" style="left: 38%; top: 42%;" id="dPinLabel">63.2400, 26.7370</div>
+
+        <div class="timecontrol">
+          <div class="probe-row" id="dProbe">
+            <div class="probe-inner" id="dProbeInner">
+              <div class="probe-title"><strong>Sateen voimakkuus</strong> · valittu piste</div>
+              <div class="probe-band" id="dBand">kohtalainen, juuri nyt</div>
+              <button class="probe-close" aria-label="Sulje" id="dClose">✕</button>
+              <svg class="probe-svg" id="dSvg" viewBox="0 0 800 60" preserveAspectRatio="none"></svg>
+            </div>
+          </div>
+          <div class="playbar">
+            <button class="pb-btn" aria-label="Tasot">≡</button>
+            <div class="pb-speed">1×</div>
+            <button class="pb-btn">⏮</button>
+            <button class="pb-btn play" id="dPlay">▶</button>
+            <button class="pb-btn">⏭</button>
+            <div class="pb-readout" id="dReadout">
+              <div class="v has-band">Sade kohtalainen</div>
+              <div class="t">−15 min</div>
+            </div>
+            <div class="pb-time">
+              <div class="now">21:45</div>
+              <div class="date">27.4.</div>
+            </div>
+          </div>
+          <div class="strip" id="dStrip"></div>
+        </div>
+
+        <div class="badge">14-frame window · 5 min cadence</div>
+      </div>
+
+      <div class="annot" id="dAnnot">
+        Pin dropped at <code>POINT(26.737 63.240)</code> · request:
+        <code>GET /edr/collections/fmi-radar-composite-dbz/position?datetime={start}/{end}&amp;coords=POINT(...)</code>
+        · 14 points, ~1.6 KB.
+      </div>
+    </div>
+
+    <!-- MOBILE -->
+    <div>
+      <div class="label">Mobile portrait · 380×800</div>
+      <div class="frame mobile" id="mobileFrame">
+        <div class="toolbar-top">
+          <div class="seg active">Tutka</div>
+          <div class="seg">Pilvet</div>
+          <div class="seg">Salama</div>
+          <div class="spacer"></div>
+          <div class="seg icon">⋯</div>
+        </div>
+
+        <div class="pin pulsing" style="left: 48%; top: 36%;" id="mPin"></div>
+        <div class="pin-label" style="left: 48%; top: 36%;" id="mPinLabel">63.2400, 26.7370</div>
+
+        <div class="timecontrol">
+          <div class="probe-row" id="mProbe">
+            <div class="probe-inner" id="mProbeInner">
+              <div class="probe-title"><strong>Sateen voimakkuus</strong></div>
+              <div class="probe-band" id="mBand">kohtalainen</div>
+              <button class="probe-close" aria-label="Sulje" id="mClose">✕</button>
+              <svg class="probe-svg" id="mSvg" viewBox="0 0 380 50" preserveAspectRatio="none"></svg>
+            </div>
+          </div>
+          <div class="playbar">
+            <button class="pb-btn">⏮</button>
+            <button class="pb-btn play" id="mPlay">▶</button>
+            <button class="pb-btn">⏭</button>
+            <div class="pb-readout" id="mReadout">
+              <div class="v has-band">Sade kohtalainen</div>
+              <div class="t">21:45 · −15 min</div>
+            </div>
+            <div class="pb-speed">1×</div>
+          </div>
+          <div class="strip" id="mStrip"></div>
+        </div>
+      </div>
+
+      <div class="annot">Same time-window axis as desktop. Probe row collapses to <code>height: 0</code> when no pin.</div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span><span class="sw" style="background: var(--cell-default);"></span>Loaded · flow ready</span>
+    <span><span class="sw" style="background: var(--cell-flow-pending);"></span>Flow pending</span>
+    <span><span class="sw" style="background: var(--cell-loading);"></span>Loading</span>
+    <span><span class="sw" style="background: var(--primary);"></span>Current frame</span>
+  </div>
+
+  <div class="annot" style="margin-top: 24px; max-width: 760px;">
+    <strong style="color: var(--on-surface);">Notes</strong> · The 4-px load-state strip is preserved <em>as-is</em> — it stays the canonical scrub surface and keeps PR #70's flow-pending diagnostic. The chart row above it is read-only (tap shows tooltip; no drag-to-scrub gesture conflict). Y-axis is unitless and labeled qualitatively in plain Finnish — "dBZ" is internal. Hand-rolled SVG, no charting library.
+  </div>
+</div>
+
+<script>
+  // 14-frame window matching the timeline strip (12 visible + 1 pad either side)
+  const FRAMES = 14;
+  const CURRENT_INDEX = 11; // cyan cursor cell
+
+  // Realistic-looking dBZ trace: clear → cell builds → peaks → tail
+  // Mapped to qualitative bands. -32 = clear floor.
+  const SAMPLE_DBZ = [-32, -32, -10, 5, 12, 18, 22, 28, 31, 27, 24, 22, 18, 14];
+
+  function dbzToBand(v) {
+    if (v < 0)  return { label: "ei sadetta",        normY: 0.92 };
+    if (v < 12) return { label: "hyvin heikko",      normY: 0.78 };
+    if (v < 22) return { label: "heikko",            normY: 0.60 };
+    if (v < 35) return { label: "kohtalainen",       normY: 0.40 };
+    if (v < 50) return { label: "voimakas",          normY: 0.18 };
+    return                { label: "erittäin voimakas", normY: 0.05 };
+  }
+
+  function buildStrip(el, animPlaying) {
+    el.innerHTML = "";
+    const states = ["loaded","loaded","loaded","loaded","loaded","loaded","loaded","loaded","loaded","loaded","loaded","current","flow-pending","loading"];
+    states.forEach(s => {
+      const d = document.createElement("div");
+      if (s === "current") d.classList.add("current");
+      else if (s === "loading") d.classList.add("loading");
+      else if (s === "flow-pending") d.classList.add("flow-pending");
+      el.appendChild(d);
+    });
+  }
+
+  function buildSvg(svg, values, viewW, viewH) {
+    svg.innerHTML = "";
+    const pad = 4;
+    const w = viewW - pad * 2;
+    const h = viewH - pad * 2;
+    const stepX = w / (values.length - 1);
+
+    // gridlines
+    for (let i = 0; i < 4; i++) {
+      const y = pad + (h * i) / 3;
+      const ln = document.createElementNS("http://www.w3.org/2000/svg","line");
+      ln.setAttribute("x1", pad); ln.setAttribute("x2", pad + w);
+      ln.setAttribute("y1", y);   ln.setAttribute("y2", y);
+      ln.setAttribute("stroke", "rgba(255,255,255,0.05)");
+      ln.setAttribute("stroke-width", "1");
+      svg.appendChild(ln);
+    }
+
+    // area fill
+    const pts = values.map((v, i) => {
+      const x = pad + i * stepX;
+      const y = pad + h * dbzToBand(v).normY;
+      return [x, y];
+    });
+    const areaD = `M ${pts[0][0]},${pad + h} ` +
+                  pts.map(p => `L ${p[0]},${p[1]}`).join(" ") +
+                  ` L ${pts[pts.length-1][0]},${pad + h} Z`;
+    const area = document.createElementNS("http://www.w3.org/2000/svg","path");
+    area.setAttribute("d", areaD);
+    area.setAttribute("fill", "rgba(18,188,250,0.14)");
+    svg.appendChild(area);
+
+    // line
+    const lineD = `M ${pts[0][0]},${pts[0][1]} ` +
+                  pts.slice(1).map(p => `L ${p[0]},${p[1]}`).join(" ");
+    const line = document.createElementNS("http://www.w3.org/2000/svg","path");
+    line.setAttribute("d", lineD);
+    line.setAttribute("fill", "none");
+    line.setAttribute("stroke", "var(--primary)");
+    line.setAttribute("stroke-width", "1.6");
+    line.setAttribute("stroke-linejoin", "round");
+    line.setAttribute("stroke-linecap", "round");
+    svg.appendChild(line);
+
+    // current-frame cursor
+    const cx = pad + CURRENT_INDEX * stepX;
+    const cursor = document.createElementNS("http://www.w3.org/2000/svg","line");
+    cursor.setAttribute("x1", cx); cursor.setAttribute("x2", cx);
+    cursor.setAttribute("y1", pad - 2); cursor.setAttribute("y2", pad + h + 2);
+    cursor.setAttribute("stroke", "var(--primary)");
+    cursor.setAttribute("stroke-width", "1");
+    cursor.setAttribute("stroke-dasharray", "2 2");
+    svg.appendChild(cursor);
+
+    // current value chip
+    const cv = pts[CURRENT_INDEX];
+    const dot = document.createElementNS("http://www.w3.org/2000/svg","circle");
+    dot.setAttribute("cx", cv[0]); dot.setAttribute("cy", cv[1]);
+    dot.setAttribute("r", "3");
+    dot.setAttribute("fill", "var(--primary)");
+    dot.setAttribute("stroke", "#fff");
+    dot.setAttribute("stroke-width", "1");
+    svg.appendChild(dot);
+  }
+
+  function setEmpty(svg, msg) {
+    svg.innerHTML = "";
+    const t = document.createElementNS("http://www.w3.org/2000/svg","text");
+    t.setAttribute("x", "50%");
+    t.setAttribute("y", "55%");
+    t.setAttribute("text-anchor", "middle");
+    t.setAttribute("fill", "rgba(255,255,255,0.5)");
+    t.setAttribute("font-size", "12");
+    t.textContent = msg;
+    svg.appendChild(t);
+  }
+
+  function setLoading(svg) {
+    svg.innerHTML = "";
+    const r = document.createElementNS("http://www.w3.org/2000/svg","rect");
+    r.setAttribute("x", "4");
+    r.setAttribute("y", "20");
+    r.setAttribute("width", "calc(100% - 8px)");
+    r.setAttribute("height", "20");
+    r.setAttribute("fill", "rgba(255,255,255,0.07)");
+    r.setAttribute("rx", "3");
+    svg.appendChild(r);
+    const t = document.createElementNS("http://www.w3.org/2000/svg","text");
+    t.setAttribute("x", "50%");
+    t.setAttribute("y", "60%");
+    t.setAttribute("text-anchor", "middle");
+    t.setAttribute("fill", "rgba(255,255,255,0.5)");
+    t.setAttribute("font-size", "11");
+    t.textContent = "Ladataan…";
+    svg.appendChild(t);
+  }
+
+  function applyState(state, anim) {
+    const d = {
+      probe: document.getElementById("dProbe"),
+      svg: document.getElementById("dSvg"),
+      band: document.getElementById("dBand"),
+      pin: document.getElementById("dPin"),
+      pinLabel: document.getElementById("dPinLabel"),
+      readout: document.getElementById("dReadout"),
+      strip: document.getElementById("dStrip"),
+      annot: document.getElementById("dAnnot"),
+      play: document.getElementById("dPlay"),
+    };
+    const m = {
+      probe: document.getElementById("mProbe"),
+      svg: document.getElementById("mSvg"),
+      band: document.getElementById("mBand"),
+      pin: document.getElementById("mPin"),
+      pinLabel: document.getElementById("mPinLabel"),
+      readout: document.getElementById("mReadout"),
+      strip: document.getElementById("mStrip"),
+      play: document.getElementById("mPlay"),
+    };
+
+    [d.strip, m.strip].forEach(s => buildStrip(s));
+
+    [d.play, m.play].forEach(b => b.textContent = anim === "playing" ? "⏸" : "▶");
+
+    const showPin = state !== "idle";
+    [d.pin, m.pin, d.pinLabel, m.pinLabel].forEach(el => el.style.display = showPin ? "" : "none");
+
+    if (state === "idle") {
+      [d.probe, m.probe].forEach(p => p.classList.remove("open"));
+      d.readout.innerHTML = `<div class="v">Sateen voimakkuus —</div><div class="t">napauta karttaa</div>`;
+      m.readout.innerHTML = `<div class="v">Sateen voimakkuus —</div><div class="t">napauta karttaa</div>`;
+      d.annot.innerHTML = `Idle state · zero pixels different from today's UI. Probe row is collapsed (<code>height: 0</code>). Tap an empty point on the map → pin drops + row opens.`;
+    } else if (state === "loading") {
+      [d.probe, m.probe].forEach(p => p.classList.add("open"));
+      [d.pin, m.pin].forEach(el => el.classList.add("pulsing"));
+      setLoading(d.svg); setLoading(m.svg);
+      d.band.textContent = "ladataan…";
+      m.band.textContent = "ladataan…";
+      d.readout.innerHTML = `<div class="v">Sateen voimakkuus —</div><div class="t">ladataan…</div>`;
+      m.readout.innerHTML = `<div class="v">Sateen voimakkuus —</div><div class="t">ladataan…</div>`;
+      d.annot.innerHTML = `Fetching <code>fmi-radar-composite-dbz</code> at the pin · pulsing pin ring shows network in flight · row drops down at 220 ms.`;
+    } else if (state === "active") {
+      [d.probe, m.probe].forEach(p => p.classList.add("open"));
+      [d.pin, m.pin].forEach(el => el.classList.remove("pulsing"));
+      buildSvg(d.svg, SAMPLE_DBZ, 800, 60);
+      buildSvg(m.svg, SAMPLE_DBZ, 380, 50);
+      const cur = SAMPLE_DBZ[CURRENT_INDEX];
+      const band = dbzToBand(cur);
+      d.band.textContent = `${band.label}, juuri nyt`;
+      m.band.textContent = `${band.label}`;
+      d.readout.innerHTML = `<div class="v has-band">Sade ${band.label}</div><div class="t">−15 min</div>`;
+      m.readout.innerHTML = `<div class="v has-band">Sade ${band.label}</div><div class="t">21:45 · −15 min</div>`;
+      d.annot.innerHTML = `14-point line · current value <strong style="color: var(--primary);">${band.label}</strong> at 21:45. Cursor (cyan dotted line) tracks the timeline-strip current cell. Tap any chart x-position → tooltip; <em>scrub</em> still happens on the strip below.`;
+    } else if (state === "empty") {
+      [d.probe, m.probe].forEach(p => p.classList.add("open"));
+      [d.pin, m.pin].forEach(el => el.classList.remove("pulsing"));
+      setEmpty(d.svg, "Ei dataa tällä alueella");
+      setEmpty(m.svg, "Ei dataa");
+      d.band.textContent = "tutka-alueen ulkopuolella";
+      m.band.textContent = "ei kattavuutta";
+      d.readout.innerHTML = `<div class="v">Ei dataa</div><div class="t">tutka-alueen ulkopuolella</div>`;
+      m.readout.innerHTML = `<div class="v">Ei dataa</div><div class="t">ei kattavuutta</div>`;
+      d.annot.innerHTML = `EDR returned HTTP 200 with all-null array (off-bbox). We branch on data, not status. Pin stays — user can drag it onto coverage.`;
+    } else if (state === "non-scalar") {
+      [d.probe, m.probe].forEach(p => p.classList.remove("open"));
+      d.readout.innerHTML = `<div class="v">Salamat</div><div class="t">aikasarja ei käytössä</div>`;
+      m.readout.innerHTML = `<div class="v">Salamat</div><div class="t">ei aikasarjaa</div>`;
+      d.annot.innerHTML = `Lightning / satellite RGB layers have no scalar EDR collection · probe row stays collapsed · readout names the active layer instead. No apology copy.`;
+    }
+  }
+
+  // wire controls
+  let curState = "idle", curAnim = "paused";
+  document.querySelectorAll('.controls button[data-state]').forEach(b => {
+    b.addEventListener("click", () => {
+      document.querySelectorAll('.controls button[data-state]').forEach(x => x.classList.remove("active"));
+      b.classList.add("active");
+      curState = b.dataset.state;
+      applyState(curState, curAnim);
+    });
+  });
+  document.querySelectorAll('.controls button[data-anim]').forEach(b => {
+    b.addEventListener("click", () => {
+      document.querySelectorAll('.controls button[data-anim]').forEach(x => x.classList.remove("active"));
+      b.classList.add("active");
+      curAnim = b.dataset.anim;
+      applyState(curState, curAnim);
+    });
+  });
+
+  applyState("idle", "paused");
+</script>
+</body>
+</html>
