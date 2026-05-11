@@ -639,6 +639,12 @@ html, body {
     pointer-events: none;
   }
   .probe-message[hidden] { display: none; }
+  .probe-readout {
+    font-size: 11px;
+    fill: var(--dark-primary-color);
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+  }
 
 .noselect {
     -webkit-touch-callout: none; /* iOS Safari */
@@ -1395,6 +1401,7 @@ html, body {
 
 .marker-item { min-width: 0; }
 .marker-item[hidden] { display: none; }
+.marker-item-probe { grid-column: 1 / -1; }
 
 .marker-label {
   display: block;

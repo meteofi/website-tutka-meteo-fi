@@ -93,12 +93,16 @@ function normalizeDbz(v) {
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
-export default function initProbe({ container }) {
+export default function initProbe({ container, onValueChange }) {
   if (!container) {
     return {
       setPin() {}, setActiveLayer() {}, setCursor() {},
     };
   }
+
+  const emitValue = typeof onValueChange === 'function'
+    ? (v) => { try { onValueChange(v); } catch (_) { /* ignore */ } }
+    : () => {};
 
   // Remove the initial `hidden` attribute so the element is always in the
   // layout — the height: 0 / .open transition handles the show/hide.
@@ -109,6 +113,11 @@ export default function initProbe({ container }) {
   svg.setAttribute('preserveAspectRatio', 'none');
   svg.setAttribute('class', 'probe-svg');
   container.appendChild(svg);
+
+  const readout = document.createElementNS(SVG_NS, 'text');
+  readout.setAttribute('class', 'probe-readout');
+  readout.setAttribute('text-anchor', 'end');
+  readout.setAttribute('y', '14');
 
   const message = document.createElement('div');
   message.className = 'probe-message';
@@ -122,6 +131,15 @@ export default function initProbe({ container }) {
   let cursorMs = null; // current animation frame ms
   let inFlight = null; // AbortController for active fetch
   let state = 'idle'; // 'idle' | 'loading' | 'ready' | 'empty' | 'error'
+
+  // Per-cell peak value, set in render(). Each slot is { dbz, norm } where
+  // dbz is the raw peak reflectivity (used for the readout, may exceed
+  // Y_MAX_DBZ) and norm is the clamped 0..1 value used for bar height.
+  let peakByCell = [];
+  // Sentinel value distinct from null/number so the very first transition
+  // (idle → null) doesn't get short-circuited by the de-dupe check.
+  const NO_EMIT = Symbol('no-emit');
+  let lastEmittedDbz = NO_EMIT;
 
   // The load-state strip below has 13 equal-flex cells. To keep the chart's
   // bends and the vertical cursor visually centered on each cell, we anchor
@@ -144,6 +162,14 @@ export default function initProbe({ container }) {
     else if (state === 'empty') showMessage('Ei dataa tällä alueella');
     else if (state === 'error') showMessage('Tietojen haku epäonnistui');
     else showMessage('');
+    if (state !== 'ready') {
+      peakByCell = [];
+      readout.textContent = '';
+      if (lastEmittedDbz !== null) {
+        lastEmittedDbz = null;
+        emitValue(null);
+      }
+    }
   }
 
   function clearSvg() {
@@ -194,21 +220,22 @@ export default function initProbe({ container }) {
     // cadence, multiple samples land in one cell. Take the peak dBZ —
     // that's the meaningful answer for "did precipitation hit this point
     // during this slot" and gives exactly one bar per cell.
-    const peakByCell = new Array(STRIP_CELLS).fill(null);
+    peakByCell = new Array(STRIP_CELLS).fill(null);
     for (const p of visible) {
-      const norm = normalizeDbz(p.v);
-      if (norm == null) continue; // eslint-disable-line no-continue
+      if (p.v == null || p.v < Y_MIN_DBZ) continue; // eslint-disable-line no-continue
       const idx = frameIndex(p.t, startMs);
       if (idx == null || idx < 0 || idx >= STRIP_CELLS) continue; // eslint-disable-line no-continue
       const prev = peakByCell[idx];
-      if (prev == null || norm > prev) peakByCell[idx] = norm;
+      if (prev == null || p.v > prev.dbz) {
+        peakByCell[idx] = { dbz: p.v, norm: normalizeDbz(p.v) };
+      }
     }
 
     for (let idx = 0; idx < STRIP_CELLS; idx += 1) {
-      const norm = peakByCell[idx];
-      if (norm == null) continue; // eslint-disable-line no-continue
+      const cell = peakByCell[idx];
+      if (cell == null) continue; // eslint-disable-line no-continue
       const cx = (idx + 0.5) * cellW;
-      const h = Math.max(1.5, norm * innerH);
+      const h = Math.max(1.5, cell.norm * innerH);
       const rect = document.createElementNS(SVG_NS, 'rect');
       rect.setAttribute('class', 'probe-bar');
       rect.setAttribute('data-frame', String(idx));
@@ -219,11 +246,15 @@ export default function initProbe({ container }) {
       svg.appendChild(rect);
     }
 
+    readout.setAttribute('x', (W - 6).toFixed(1));
+    svg.appendChild(readout);
+
     setState('ready');
     updateCurrentFrame();
   }
 
-  // Highlight the bar matching the current animation frame.
+  // Highlight the bar matching the current animation frame and update the
+  // top-right readout + onValueChange callback to reflect that cell.
   function updateCurrentFrame() {
     if (state !== 'ready' || cursorMs == null || !windowMs || !resolutionMs) return;
     const idx = frameIndex(cursorMs, windowMs[0]);
@@ -232,6 +263,13 @@ export default function initProbe({ container }) {
       const isCurrent = Number(b.getAttribute('data-frame')) === idx;
       b.classList.toggle('current', isCurrent);
     });
+    const cell = (idx >= 0 && idx < peakByCell.length) ? peakByCell[idx] : null;
+    const dbz = cell ? cell.dbz : null;
+    readout.textContent = dbz == null ? '' : `${Math.round(dbz)} dBZ`;
+    if (dbz !== lastEmittedDbz) {
+      lastEmittedDbz = dbz;
+      emitValue(dbz == null ? null : { dbz });
+    }
   }
 
   async function refetch() {
