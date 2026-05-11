@@ -27,6 +27,13 @@
   --timecontrol-height: 84px;
 }
 
+/* When the probe chart row is open, grow the time-control area so the
+   floating action buttons (which anchor off --timecontrol-height) move
+   up with it. */
+:root:has(#probeChart.open) {
+  --timecontrol-height: 148px;
+}
+
 html, body {
     width: 100vw;
     height: 100vh;
@@ -271,6 +278,7 @@ html, body {
     height: 52px;
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
     z-index: 100;
+    transition: bottom 220ms cubic-bezier(0.2, 0.7, 0.2, 1);
   }
   .location-fab .material-icons { font-size: 24px; }
   .location-fab[aria-pressed="true"],
@@ -306,7 +314,8 @@ html, body {
     font-variant-numeric: tabular-nums;
     z-index: 100;
     box-sizing: border-box;
-    transition: background-color 180ms ease, transform 120ms ease;
+    transition: background-color 180ms ease, transform 120ms ease,
+                bottom 220ms cubic-bezier(0.2, 0.7, 0.2, 1);
   }
   .time-chip:hover { background-color: rgba(22, 22, 24, 0.78); }
   .time-chip:active { transform: scale(0.94); }
@@ -335,6 +344,7 @@ html, body {
     width: 52px;
     height: 52px;
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+    transition: bottom 220ms cubic-bezier(0.2, 0.7, 0.2, 1);
     z-index: 100;
   }
   .measure-fab .material-icons { font-size: 24px; }
@@ -584,6 +594,51 @@ html, body {
     background-color: var(--dark-primary-color);
     border-left: 1px solid rgb(0, 84, 99);
   }
+
+  /* Probe chart row — collapses to height 0 when no pin / unsupported layer.
+     Lives between the playbar and the load-state strip so its x-axis aligns
+     with the strip below it. */
+  #probeChart {
+    width: 100%;
+    height: 0;
+    overflow: hidden;
+    position: relative;
+    transition: height 220ms cubic-bezier(0.2, 0.7, 0.2, 1);
+    z-index: 100;
+  }
+  #probeChart.open { height: 64px; }
+  @media (max-width: 480px) {
+    :root:has(#probeChart.open) { --timecontrol-height: 138px; }
+    #probeChart.open { height: 54px; }
+  }
+  .probe-svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .probe-bar {
+    fill: var(--dark-primary-color);
+    fill-opacity: 0.55;
+  }
+  .probe-bar.current {
+    fill-opacity: 1;
+  }
+  .probe-grid {
+    stroke: rgba(255, 255, 255, 0.05);
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+  }
+  .probe-message {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    color: var(--dark-medium-emphasis-text-color);
+    pointer-events: none;
+  }
+  .probe-message[hidden] { display: none; }
 
 .noselect {
     -webkit-touch-callout: none; /* iOS Safari */

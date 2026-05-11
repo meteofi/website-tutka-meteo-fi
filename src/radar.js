@@ -27,6 +27,7 @@ import Timeline from './timeline';
 import wmsServerConfiguration from './config';
 import createLongPressHandler from './longpress';
 import initTools from './tools';
+import initProbe from './probe';
 import FramePool from './animation/framePool';
 import { canInterpolate, RadarInterpolator } from './animation/interpolation';
 import { track } from './analytics';
@@ -60,6 +61,7 @@ let ownPosition = [];
 let ownPosition4326 = [];
 let geolocation;
 let tools = null;
+let probe = null;
 let startDate = new Date(Math.floor(Date.now() / 300000) * 300000 - 300000 * 12);
 // Handle of the currently-running playback loop (now a requestAnimationFrame
 // id — was a setInterval handle before the RAF refactor). Null when paused.
@@ -731,6 +733,7 @@ function setTime(action = 'next') {
 
   // updateTimeLine((startDate.getTime()-start)/resolution);
   timeline.update((startDate.getTime() - start) / resolution);
+  if (probe) probe.setCursor(startDate.getTime(), start, resolution);
 
   // var startDateFormat = moment(startDate.toISOString()).utc().format()
   // debug("---");
@@ -1013,6 +1016,9 @@ function updateLayer(layer, wmslayer, opts = {}) {
     }
   }
   updateLayerSelectionSelected();
+  if (probe && layer === radarLayer) {
+    probe.setActiveLayer(layer.getVisible() ? wmslayer : null);
+  }
 }
 
 // Restore the user's previously selected sublayer for one category (e.g.
@@ -1297,6 +1303,9 @@ function onChangeVisible(event) {
   updateCanonicalPage();
   updateLayerSelectionSelected();
   recomputeAllTimelineCells();
+  if (probe && layer === radarLayer) {
+    probe.setActiveLayer(isVisible ? wmslayer : null);
+  }
   // Visibility change may invalidate the current timeline window
   // (e.g. activating a stale satellite caps `end` to its old time.end,
   // or hiding it releases the cap). Recompute window + per-layer
@@ -2009,10 +2018,16 @@ const main = () => {
   attachInterpolators();
   recomputeAllTimelineCells();
 
+  probe = initProbe({ container: document.getElementById('probeChart') });
+  if (radarLayer.getVisible()) {
+    probe.setActiveLayer(radarLayer.getSource().getParams().LAYERS);
+  }
+
   tools = initTools({
     map,
     getOwnPosition: () => ownPosition4326,
     getFrameTimestamp: () => (startDate ? startDate.getTime() : Date.now()),
+    onPinChange: (lonLat) => probe && probe.setPin(lonLat),
   });
 
   const measureToolBtn = document.getElementById('measureTool');
