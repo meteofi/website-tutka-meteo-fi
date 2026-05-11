@@ -2018,7 +2018,10 @@ const main = () => {
   attachInterpolators();
   recomputeAllTimelineCells();
 
-  probe = initProbe({ container: document.getElementById('probeChart') });
+  probe = initProbe({
+    container: document.getElementById('probeChart'),
+    onValueChange: (v) => { if (tools) tools.setProbeValue(v); },
+  });
   if (radarLayer.getVisible()) {
     probe.setActiveLayer(radarLayer.getSource().getParams().LAYERS);
   }

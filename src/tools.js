@@ -94,6 +94,20 @@ function formatHHMM(ms) {
   return new Date(ms).toLocaleTimeString('fi', { hour: '2-digit', minute: '2-digit' });
 }
 
+// Marshall-Palmer Z–R conversion for the marker-card sub line: turns dBZ into
+// a rainfall rate so readers who don't know dBZ get a "how hard is it raining"
+// answer alongside the meteorological value.
+function dbzToRainRateMmH(dbz) {
+  const z = 10 ** (dbz / 10);
+  return (z / 200) ** (1 / 1.6);
+}
+
+function formatRainRate(mmh) {
+  if (mmh < 0.1) return '<0.1 mm/h';
+  if (mmh < 10) return `${mmh.toFixed(1)} mm/h`;
+  return `${Math.round(mmh)} mm/h`;
+}
+
 function buildMarkerCard() {
   const card = document.createElement('div');
   card.id = 'markerCard';
@@ -123,6 +137,11 @@ function buildMarkerCard() {
       </div>
       <div class="marker-item marker-item-bearing">
         <span class="marker-label">Suunta</span>
+        <span class="marker-value"></span>
+        <span class="marker-sub"></span>
+      </div>
+      <div class="marker-item marker-item-probe" hidden>
+        <span class="marker-label">Heijastavuus</span>
         <span class="marker-value"></span>
         <span class="marker-sub"></span>
       </div>
@@ -166,10 +185,20 @@ export default function initTools({
   const copyBtn = markerCard.querySelector('.marker-coord');
   const distRow = markerCard.querySelector('.marker-item-distance');
   const bearRow = markerCard.querySelector('.marker-item-bearing');
+  const probeRow = markerCard.querySelector('.marker-item-probe');
   const distValue = distRow.querySelector('.marker-value');
   const bearValue = bearRow.querySelector('.marker-value');
   const bearSub = bearRow.querySelector('.marker-sub');
+  const probeValue = probeRow.querySelector('.marker-value');
+  const probeSub = probeRow.querySelector('.marker-sub');
   const markerCloseBtn = markerCard.querySelector('.marker-card-close');
+
+  function setProbeValue(v) {
+    if (!v || v.dbz == null) { probeRow.hidden = true; return; }
+    probeValue.textContent = `${Math.round(v.dbz)} dBZ`;
+    probeSub.textContent = formatRainRate(dbzToRainRateMmH(v.dbz));
+    probeRow.hidden = false;
+  }
 
   let markerCoord4326 = null;
   let markerFeature = null;
@@ -225,6 +254,7 @@ export default function initTools({
     markerFeature = null;
     markerCoord4326 = null;
     markerCardVisible = false;
+    setProbeValue(null);
     updateMarkerCardVisibility();
     emitPinChange(null);
   }
@@ -513,6 +543,7 @@ export default function initTools({
     toggleCard: toggleMarkerCard,
     refresh: renderMarker,
     getPinFeature: () => markerFeature,
+    setProbeValue,
     // measurement
     arm: armMeasure,
     disarm: disarmMeasure,
