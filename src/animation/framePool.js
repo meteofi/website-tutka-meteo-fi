@@ -253,7 +253,10 @@ export default class FramePool {
   _getViewContext() {
     const view = this.map.getView();
     const size = this.map.getSize();
-    if (!size) return null;
+    // Match OL's own renderer guard (hasArea). Without the zero check
+    // calculateExtent collapses to [cx, cy, cx, cy] and triggerLoad fires
+    // WMS GETs with WIDTH=0/HEIGHT=0 and a point BBOX.
+    if (!size || size[0] <= 0 || size[1] <= 0) return null;
     return {
       extent: view.calculateExtent(size),
       resolution: view.getResolution(),
@@ -723,7 +726,7 @@ export default class FramePool {
   // include the 1.5× fetch buffer) contains this 1× view.
   _viewExtent() {
     const size = this.map.getSize();
-    if (!size) return null;
+    if (!size || size[0] <= 0 || size[1] <= 0) return null;
     return this.map.getView().calculateExtent(size);
   }
 
