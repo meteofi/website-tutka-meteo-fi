@@ -376,6 +376,33 @@ const municipalityStyleDark = new Style({
   }),
 });
 
+// Controlled airspace (Ilmatila) — VFR-chart colour conventions adapted
+// for a radar overlay. FIR is the outermost national boundary so it gets
+// the heaviest stroke; TMAs (around airports) are in magenta as on most
+// charts, everything else (ACC sectors, CTAs, FIZs) shares a blue stroke
+// at a thinner weight. Two variants per theme so the lines lift off the
+// dark basemap without overwhelming the light one.
+function makeAirspaceStyles(palette) {
+  const stroke = (color, width) => new Style({ stroke: new Stroke({ color, width }) });
+  return {
+    FIR: stroke(palette.boundary, 1.5),
+    TMA: stroke(palette.tma, 1),
+    default: stroke(palette.boundary, 0.8),
+  };
+}
+const airspaceStylesLight = makeAirspaceStyles({
+  boundary: [40, 60, 180, 0.55],
+  tma: [170, 40, 140, 0.55],
+});
+const airspaceStylesDark = makeAirspaceStyles({
+  boundary: [120, 180, 255, 0.85],
+  tma: [255, 140, 220, 0.85],
+});
+let airspaceStyleSet = airspaceStylesLight;
+function airspaceStyleFn(feature) {
+  return airspaceStyleSet[feature.get('type')] || airspaceStyleSet.default;
+}
+
 const rangeStyle = new Style({
   stroke: new Stroke({
     color: [128, 128, 128, 0.7],
@@ -542,6 +569,16 @@ const icaoLayer = new VectorLayer({
   },
 });
 
+const airspaceLayer = new VectorLayer({
+  source: new Vector({
+    format: new GeoJSON(),
+    url: 'airspace-finland.json',
+    attributions: 'Traficom / ANS Finland (eAIP)',
+  }),
+  visible: false,
+  style: airspaceStyleFn,
+});
+
 const municipalityLayer = new VectorTileLayer({
   visible: false,
   // Re-render features per frame instead of rasterising them once per
@@ -592,6 +629,7 @@ const layers = [
   lightGrayReferenceLayer,
   darkGrayReferenceLayer,
   municipalityLayer,
+  airspaceLayer,
   radarSiteLayer,
   icaoLayer,
   ownPositionLayer,
@@ -970,6 +1008,8 @@ function setMapLayer(maplayer) {
       lightGrayBaseLayer.setVisible(true);
       lightGrayReferenceLayer.setVisible(true);
       municipalityLayer.setStyle(municipalityStyleLight);
+      airspaceStyleSet = airspaceStylesLight;
+      airspaceLayer.changed();
       break;
     case 'dark':
       darkGrayBaseLayer.setVisible(true);
@@ -977,6 +1017,8 @@ function setMapLayer(maplayer) {
       lightGrayBaseLayer.setVisible(false);
       lightGrayReferenceLayer.setVisible(false);
       municipalityLayer.setStyle(municipalityStyleDark);
+      airspaceStyleSet = airspaceStylesDark;
+      airspaceLayer.changed();
       break;
     default:
       break;
@@ -1670,6 +1712,13 @@ const poiRegistry = [
     icon: 'location_city',
     defaultOn: false,
     layerRef: () => municipalityLayer,
+  },
+  {
+    id: 'airspace',
+    label: 'Ilmatila',
+    icon: 'airplanemode_active',
+    defaultOn: false,
+    layerRef: () => airspaceLayer,
   },
 ];
 
