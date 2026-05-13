@@ -2057,16 +2057,17 @@ const main = () => {
   // Entries with `narrowByLayer: true` (e.g. GeoMet's Canadian radar) opt
   // out of dedup: the server returns a different document per `&layer=`,
   // so each filtered request must run on its own.
-  const seenEndpoints = new Map();
+  //
+  // Plain object (not a Map) because `Map` is imported from 'ol' at the
+  // top of this file — `new Map()` here would build an OpenLayers Map.
+  const seenEndpoints = Object.create(null);
   Object.values(options.wmsServerConfiguration).forEach((value) => {
     if (value.disabled) return;
     const layerKey = value.narrowByLayer ? (value.layer || '') : '';
     const key = `${value.url}|${value.namespace || ''}|${layerKey}`;
-    if (!seenEndpoints.has(key)) seenEndpoints.set(key, value);
+    if (!(key in seenEndpoints)) seenEndpoints[key] = value;
   });
-  for (const wms of seenEndpoints.values()) {
-    getWMSCapabilities(wms);
-  }
+  Object.values(seenEndpoints).forEach((wms) => getWMSCapabilities(wms));
 
   setButtonStates();
 
