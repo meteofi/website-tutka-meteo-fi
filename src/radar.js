@@ -371,7 +371,7 @@ const municipalityStyleLight = new Style({
 });
 const municipalityStyleDark = new Style({
   stroke: new Stroke({
-    color: [200, 170, 230, 0.85],
+    color: [130, 110, 220, 0.95],
     width: 1.5,
   }),
 });
