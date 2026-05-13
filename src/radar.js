@@ -353,31 +353,15 @@ const icaoStyle = new Style({
 });
 
 // Municipality polygons (Kunnat) — boundary-only stroke that reads in both
-// light and dark themes. Labels turn on only at city-level resolutions so
-// the country-overview view stays uncluttered.
-const municipalityStroke = new Style({
+// light and dark themes. No labels: every municipality is a multipolygon
+// (islands, exclaves) so the per-polygon interior-point placement scatters
+// the name across the map, often well away from the population centre.
+const municipalityStyle = new Style({
   stroke: new Stroke({
-    color: [128, 128, 128, 0.7],
-    width: 0.7,
+    color: [60, 60, 60, 0.9],
+    width: 1.5,
   }),
 });
-const municipalityLabel = new Text({
-  font: '12px Calibri,sans-serif',
-  overflow: true,
-  placement: 'point',
-  fill: new Fill({ color: '#fff' }),
-  stroke: new Stroke({ color: '#000', width: 3 }),
-});
-const municipalityStyleWithLabel = new Style({
-  stroke: municipalityStroke.getStroke(),
-  text: municipalityLabel,
-});
-const MUNICIPALITY_LABEL_MAX_RESOLUTION = 150;
-function municipalityStyleFn(feature, resolution) {
-  if (resolution > MUNICIPALITY_LABEL_MAX_RESOLUTION) return municipalityStroke;
-  municipalityLabel.setText(feature.get('nimi') || feature.get('name') || '');
-  return municipalityStyleWithLabel;
-}
 
 const rangeStyle = new Style({
   stroke: new Stroke({
@@ -547,14 +531,13 @@ const icaoLayer = new VectorLayer({
 
 const municipalityLayer = new VectorTileLayer({
   visible: false,
-  declutter: true,
   source: new VectorTileSource({
     format: new MVT(),
     url: 'https://meteocore.app.meteo.fi/tiles/collections/fi-municipalities/tiles/WebMercatorQuad/{z}/{y}/{x}?f=mvt',
     attributions: 'Statistics Finland / Tilastokeskus',
     maxZoom: 14,
   }),
-  style: municipalityStyleFn,
+  style: municipalityStyle,
 });
 
 const guideLayer = new VectorLayer({
