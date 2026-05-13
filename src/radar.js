@@ -352,13 +352,26 @@ const icaoStyle = new Style({
   }),
 });
 
-// Municipality polygons (Kunnat) — boundary-only stroke that reads in both
-// light and dark themes. No labels: every municipality is a multipolygon
-// (islands, exclaves) so the per-polygon interior-point placement scatters
-// the name across the map, often well away from the population centre.
-const municipalityStyle = new Style({
+// Municipality polygons (Kunnat) — boundary-only stroke. No labels: every
+// municipality is a multipolygon (islands, exclaves) so the per-polygon
+// interior-point placement scatters the name across the map, often well
+// away from the population centre.
+//
+// Two style variants because a single neutral gray reads poorly at both
+// extremes: the previous near-black stroke dominated the light basemap
+// and vanished into the dark one. Light theme gets a soft dark gray at
+// low alpha so it sits behind the radar without competing; dark theme
+// gets a lavender tint that lifts the borders off the near-black map and
+// stays legible on small mobile screens.
+const municipalityStyleLight = new Style({
   stroke: new Stroke({
-    color: [60, 60, 60, 0.9],
+    color: [80, 80, 80, 0.45],
+    width: 1,
+  }),
+});
+const municipalityStyleDark = new Style({
+  stroke: new Stroke({
+    color: [130, 110, 220, 0.95],
     width: 1.5,
   }),
 });
@@ -542,7 +555,10 @@ const municipalityLayer = new VectorTileLayer({
     attributions: 'Statistics Finland / Tilastokeskus',
     maxZoom: 14,
   }),
-  style: municipalityStyle,
+  // Initial style is set below by setMapLayer once the effective theme
+  // is known. Default to the light variant so the layer is renderable
+  // even if a future code path skips the theme bootstrap.
+  style: municipalityStyleLight,
 });
 
 const guideLayer = new VectorLayer({
@@ -953,12 +969,14 @@ function setMapLayer(maplayer) {
       darkGrayReferenceLayer.setVisible(false);
       lightGrayBaseLayer.setVisible(true);
       lightGrayReferenceLayer.setVisible(true);
+      municipalityLayer.setStyle(municipalityStyleLight);
       break;
     case 'dark':
       darkGrayBaseLayer.setVisible(true);
       darkGrayReferenceLayer.setVisible(true);
       lightGrayBaseLayer.setVisible(false);
       lightGrayReferenceLayer.setVisible(false);
+      municipalityLayer.setStyle(municipalityStyleDark);
       break;
     default:
       break;
