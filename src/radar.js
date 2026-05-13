@@ -3,9 +3,12 @@ import Geolocation from 'ol/Geolocation';
 import TileLayer from 'ol/layer/Tile';
 import ImageLayer from 'ol/layer/Image';
 import VectorLayer from 'ol/layer/Vector';
+import VectorTileLayer from 'ol/layer/VectorTile';
 import XYZ from 'ol/source/XYZ';
 import ImageWMS from 'ol/source/ImageWMS';
+import VectorTileSource from 'ol/source/VectorTile';
 import GeoJSON from 'ol/format/GeoJSON';
+import MVT from 'ol/format/MVT';
 import Vector from 'ol/source/Vector';
 import { fromLonLat, transform, transformExtent } from 'ol/proj';
 import sync from 'ol-hashed';
@@ -349,6 +352,17 @@ const icaoStyle = new Style({
   }),
 });
 
+// Municipality polygons (Kunnat) — boundary-only stroke that reads in both
+// light and dark themes. No labels: every municipality is a multipolygon
+// (islands, exclaves) so the per-polygon interior-point placement scatters
+// the name across the map, often well away from the population centre.
+const municipalityStyle = new Style({
+  stroke: new Stroke({
+    color: [60, 60, 60, 0.9],
+    width: 1.5,
+  }),
+});
+
 const rangeStyle = new Style({
   stroke: new Stroke({
     color: [128, 128, 128, 0.7],
@@ -515,6 +529,22 @@ const icaoLayer = new VectorLayer({
   },
 });
 
+const municipalityLayer = new VectorTileLayer({
+  visible: false,
+  // Re-render features per frame instead of rasterising them once per
+  // tile. Hybrid mode (the default) makes the strokes scale like raster
+  // pixels between integer zoom levels — visible as "thick then snaps
+  // thin" while zooming. Vector mode keeps the 1.5 px stroke crisp.
+  renderMode: 'vector',
+  source: new VectorTileSource({
+    format: new MVT(),
+    url: 'https://meteocore.app.meteo.fi/tiles/collections/fi-municipalities/tiles/WebMercatorQuad/{z}/{y}/{x}?f=mvt',
+    attributions: 'Statistics Finland / Tilastokeskus',
+    maxZoom: 14,
+  }),
+  style: municipalityStyle,
+});
+
 const guideLayer = new VectorLayer({
   source: new Vector(),
   style: rangeStyle,
@@ -545,6 +575,7 @@ const layers = [
   lightningLayer,
   lightGrayReferenceLayer,
   darkGrayReferenceLayer,
+  municipalityLayer,
   radarSiteLayer,
   icaoLayer,
   ownPositionLayer,
@@ -1614,6 +1645,13 @@ const poiRegistry = [
     icon: 'flight',
     defaultOn: false,
     layerRef: () => icaoLayer,
+  },
+  {
+    id: 'municipalities',
+    label: 'Kunnat',
+    icon: 'location_city',
+    defaultOn: false,
+    layerRef: () => municipalityLayer,
   },
 ];
 
