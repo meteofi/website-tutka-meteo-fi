@@ -531,6 +531,11 @@ const icaoLayer = new VectorLayer({
 
 const municipalityLayer = new VectorTileLayer({
   visible: false,
+  // Re-render features per frame instead of rasterising them once per
+  // tile. Hybrid mode (the default) makes the strokes scale like raster
+  // pixels between integer zoom levels — visible as "thick then snaps
+  // thin" while zooming. Vector mode keeps the 1.5 px stroke crisp.
+  renderMode: 'vector',
   source: new VectorTileSource({
     format: new MVT(),
     url: 'https://meteocore.app.meteo.fi/tiles/collections/fi-municipalities/tiles/WebMercatorQuad/{z}/{y}/{x}?f=mvt',
