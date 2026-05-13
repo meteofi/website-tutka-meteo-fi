@@ -3,9 +3,12 @@ import Geolocation from 'ol/Geolocation';
 import TileLayer from 'ol/layer/Tile';
 import ImageLayer from 'ol/layer/Image';
 import VectorLayer from 'ol/layer/Vector';
+import VectorTileLayer from 'ol/layer/VectorTile';
 import XYZ from 'ol/source/XYZ';
 import ImageWMS from 'ol/source/ImageWMS';
+import VectorTileSource from 'ol/source/VectorTile';
 import GeoJSON from 'ol/format/GeoJSON';
+import MVT from 'ol/format/MVT';
 import Vector from 'ol/source/Vector';
 import { fromLonLat, transform, transformExtent } from 'ol/proj';
 import sync from 'ol-hashed';
@@ -349,6 +352,33 @@ const icaoStyle = new Style({
   }),
 });
 
+// Municipality polygons (Kunnat) — boundary-only stroke that reads in both
+// light and dark themes. Labels turn on only at city-level resolutions so
+// the country-overview view stays uncluttered.
+const municipalityStroke = new Style({
+  stroke: new Stroke({
+    color: [128, 128, 128, 0.7],
+    width: 0.7,
+  }),
+});
+const municipalityLabel = new Text({
+  font: '12px Calibri,sans-serif',
+  overflow: true,
+  placement: 'point',
+  fill: new Fill({ color: '#fff' }),
+  stroke: new Stroke({ color: '#000', width: 3 }),
+});
+const municipalityStyleWithLabel = new Style({
+  stroke: municipalityStroke.getStroke(),
+  text: municipalityLabel,
+});
+const MUNICIPALITY_LABEL_MAX_RESOLUTION = 150;
+function municipalityStyleFn(feature, resolution) {
+  if (resolution > MUNICIPALITY_LABEL_MAX_RESOLUTION) return municipalityStroke;
+  municipalityLabel.setText(feature.get('nimi') || feature.get('name') || '');
+  return municipalityStyleWithLabel;
+}
+
 const rangeStyle = new Style({
   stroke: new Stroke({
     color: [128, 128, 128, 0.7],
@@ -515,6 +545,18 @@ const icaoLayer = new VectorLayer({
   },
 });
 
+const municipalityLayer = new VectorTileLayer({
+  visible: false,
+  declutter: true,
+  source: new VectorTileSource({
+    format: new MVT(),
+    url: 'https://meteocore.app.meteo.fi/tiles/collections/fi-municipalities/tiles/WebMercatorQuad/{z}/{y}/{x}?f=mvt',
+    attributions: 'Statistics Finland / Tilastokeskus',
+    maxZoom: 14,
+  }),
+  style: municipalityStyleFn,
+});
+
 const guideLayer = new VectorLayer({
   source: new Vector(),
   style: rangeStyle,
@@ -545,6 +587,7 @@ const layers = [
   lightningLayer,
   lightGrayReferenceLayer,
   darkGrayReferenceLayer,
+  municipalityLayer,
   radarSiteLayer,
   icaoLayer,
   ownPositionLayer,
@@ -1614,6 +1657,13 @@ const poiRegistry = [
     icon: 'flight',
     defaultOn: false,
     layerRef: () => icaoLayer,
+  },
+  {
+    id: 'municipalities',
+    label: 'Kunnat',
+    icon: 'location_city',
+    defaultOn: false,
+    layerRef: () => municipalityLayer,
   },
 ];
 
