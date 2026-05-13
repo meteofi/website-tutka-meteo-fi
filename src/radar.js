@@ -1852,12 +1852,16 @@ function getWMSCapabilities(wms, failCountArg = 0) {
   let failCount = failCountArg;
   const parser = new WMSCapabilities();
   const namespace = wms.namespace ? `&namespace=${wms.namespace}` : '';
-  const layer = wms.layer ? `&layer=${wms.layer}` : '';
   const controller = new AbortController();
   const timeoutId = setTimeout(() => { controller.abort(); }, 30000);
   debug(`Request WMS Capabilities ${wms.url}`);
 
-  fetch(`${wms.url}?SERVICE=WMS&version=1.3.0&request=GetCapabilities${namespace}${layer}`, {
+  // `&layer=` was historically appended per wms entry but is non-standard;
+  // meteocore (and GeoServer in general) ignores it and returns the full
+  // server capabilities, so multiple entries that share url+namespace —
+  // de/fi/eu/no/se/dk on meteocore.app.meteo.fi — were re-fetching and
+  // re-parsing the same XML. Dedup happens at the caller (see `main`).
+  fetch(`${wms.url}?SERVICE=WMS&version=1.3.0&request=GetCapabilities${namespace}`, {
     signal: controller.signal,
   }).then((response) => response.text()).then((text) => {
     clearTimeout(timeoutId);
@@ -1909,6 +1913,19 @@ function getWMSCapabilities(wms, failCountArg = 0) {
     });
 }
 
+// Per-layer override map: any wms entry that declares a specific `layer`
+// (e.g. de/fi/eu/no/se/dk on the meteocore endpoint) provides the
+// attribution/license/title fallback for THAT layer specifically. Lets a
+// single GetCapabilities fetch serve a multi-source group correctly.
+const wmsByLayerName = (() => {
+  const byLayer = {};
+  Object.values(wmsServerConfiguration).forEach((value) => {
+    if (value.disabled || !value.layer) return;
+    byLayer[value.layer] = value;
+  });
+  return byLayer;
+})();
+
 function getLayers(parentlayer, wms) {
   const products = {};
   parentlayer.forEach((layer) => {
@@ -1921,7 +1938,12 @@ function getLayers(parentlayer, wms) {
       if (wms.namespace && name.indexOf(`${wms.namespace}:`) !== 0) {
         name = `${wms.namespace}:${name}`;
       }
-      layerInfo[name] = getLayerInfo(layer, wms);
+      const candidate = wmsByLayerName[name] || wmsByLayerName[layer.Name];
+      const sameEndpoint = candidate
+        && candidate.url === wms.url
+        && (candidate.namespace || '') === (wms.namespace || '');
+      const ownerWms = sameEndpoint ? candidate : wms;
+      layerInfo[name] = getLayerInfo(layer, ownerWms);
       layerInfo[name].layer = name;
     }
   });
@@ -2024,11 +2046,20 @@ const main = () => {
 
   setMapLayer(getEffectiveTheme());
 
+  // Multiple wms entries can share a (url, namespace) endpoint — e.g. all
+  // six radar nations served from meteocore.app.meteo.fi/wms point at the
+  // same GetCapabilities document. Fetch each unique endpoint exactly once;
+  // getLayers populates layerInfo for every layer the server advertises,
+  // so the remaining entries' product names resolve naturally.
+  const seenEndpoints = new Map();
   Object.values(options.wmsServerConfiguration).forEach((value) => {
-    if (!value.disabled) {
-      getWMSCapabilities(value);
-    }
+    if (value.disabled) return;
+    const key = `${value.url}|${value.namespace || ''}`;
+    if (!seenEndpoints.has(key)) seenEndpoints.set(key, value);
   });
+  for (const wms of seenEndpoints.values()) {
+    getWMSCapabilities(wms);
+  }
 
   setButtonStates();
 
