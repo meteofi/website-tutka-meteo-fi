@@ -1852,16 +1852,18 @@ function getWMSCapabilities(wms, failCountArg = 0) {
   let failCount = failCountArg;
   const parser = new WMSCapabilities();
   const namespace = wms.namespace ? `&namespace=${wms.namespace}` : '';
+  // `&layer=` is a non-standard GeoServer/MapServer extension. Only servers
+  // that explicitly need it set `narrowByLayer: true` in their config —
+  // e.g. GeoMet (Canada), which advertises thousands of layers and would
+  // otherwise return a huge document. Everywhere else we drop the param
+  // and let the (url, namespace) dedup at the caller collapse identical
+  // requests (see `main`).
+  const layerParam = (wms.narrowByLayer && wms.layer) ? `&layer=${wms.layer}` : '';
   const controller = new AbortController();
   const timeoutId = setTimeout(() => { controller.abort(); }, 30000);
   debug(`Request WMS Capabilities ${wms.url}`);
 
-  // `&layer=` was historically appended per wms entry but is non-standard;
-  // meteocore (and GeoServer in general) ignores it and returns the full
-  // server capabilities, so multiple entries that share url+namespace —
-  // de/fi/eu/no/se/dk on meteocore.app.meteo.fi — were re-fetching and
-  // re-parsing the same XML. Dedup happens at the caller (see `main`).
-  fetch(`${wms.url}?SERVICE=WMS&version=1.3.0&request=GetCapabilities${namespace}`, {
+  fetch(`${wms.url}?SERVICE=WMS&version=1.3.0&request=GetCapabilities${namespace}${layerParam}`, {
     signal: controller.signal,
   }).then((response) => response.text()).then((text) => {
     clearTimeout(timeoutId);
@@ -2051,10 +2053,15 @@ const main = () => {
   // same GetCapabilities document. Fetch each unique endpoint exactly once;
   // getLayers populates layerInfo for every layer the server advertises,
   // so the remaining entries' product names resolve naturally.
+  //
+  // Entries with `narrowByLayer: true` (e.g. GeoMet's Canadian radar) opt
+  // out of dedup: the server returns a different document per `&layer=`,
+  // so each filtered request must run on its own.
   const seenEndpoints = new Map();
   Object.values(options.wmsServerConfiguration).forEach((value) => {
     if (value.disabled) return;
-    const key = `${value.url}|${value.namespace || ''}`;
+    const layerKey = value.narrowByLayer ? (value.layer || '') : '';
+    const key = `${value.url}|${value.namespace || ''}|${layerKey}`;
     if (!seenEndpoints.has(key)) seenEndpoints.set(key, value);
   });
   for (const wms of seenEndpoints.values()) {
