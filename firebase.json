@@ -10,6 +10,15 @@
     ],
     "headers": [
       {
+        "source": "/@(sw.js|sw-register.js)",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, max-age=0, must-revalidate"
+          }
+        ]
+      },
+      {
         "source": "**/*.@(js|css|jpg|jpeg|gif|png|svg|ico|woff2|woff|ttf|eot)",
         "headers": [
           {
