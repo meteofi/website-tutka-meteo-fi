@@ -2,22 +2,25 @@
 //
 //   1. Register the worker and check for updates on a 10-minute heartbeat.
 //   2. When a new worker reaches `installed`, show a one-shot "Päivitä"
-//      banner. Tapping it posts SKIP_WAITING (handled by sw-skip-waiting.js
-//      in the SW). Once the new worker becomes the controller we reload
-//      exactly once.
+//      banner. Tapping it does a plain `location.reload()` — the SW is
+//      configured with `skipWaiting: true` so by the time the banner is
+//      visible the new worker has already auto-activated. Reloading the
+//      page creates a new client which picks up the new active worker.
 //   3. Catch chunk-load 404s from a stale precached index.html that
 //      references hashed bundle URLs no longer hosted; recover by
 //      unregistering all SWs and reloading.
 //
-// The previous bootstrap had a race (listener attached inside the
-// register().then) and trusted skipWaiting+clientsClaim to flip the
-// controller mid-session — both wrong, both fixed here.
+// The previous bootstrap had a real bug — the `updatefound` listener was
+// attached only inside `register().then(...)`, so an update that had
+// already moved past `installing` by the time the promise resolved was
+// invisible to the page. This rewrite fixes that by also inspecting
+// `registration.waiting` / `.installing` synchronously after register.
 
 if ('serviceWorker' in navigator && window.location.hostname !== 'localhost') {
-  // Self-heal must attach as early as possible — the chunk failure can
-  // fire before the load event if a deferred bundle script 404s. Even so,
-  // this catches everything that happens after sw-register.js runs, which
-  // covers the dominant case (lazy chunks, late assets).
+  // Self-heal must attach as early as possible — a deferred bundle 404
+  // can fire its error event before window.load. We still miss anything
+  // that errors before sw-register.js executes, but this catches lazy
+  // fetches and late assets, which is the common failure shape.
   window.addEventListener('error', (event) => {
     const { target } = event;
     if (!target || target.tagName !== 'SCRIPT') return;
@@ -31,23 +34,22 @@ if ('serviceWorker' in navigator && window.location.hostname !== 'localhost') {
   }, true);
 
   window.addEventListener('load', () => {
-    // updateViaCache: 'none' is belt and suspenders. The default 'imports'
-    // already bypasses HTTP cache for the main SW script during update
-    // checks, but 'none' also covers any future importScripts() bundles.
+    // updateViaCache: 'none' is belt-and-suspenders. The default 'imports'
+    // already bypasses HTTP cache for the main SW script; 'none' also
+    // covers any future importScripts() bundles.
     navigator.serviceWorker
       .register('/sw.js', { updateViaCache: 'none' })
       .then((registration) => {
         console.log('ServiceWorker registered with scope:', registration.scope);
 
-        let reloading = false;
         let bannerShown = false;
 
         function track(event, data) {
           if (typeof umami !== 'undefined') umami.track(event, data);
         }
 
-        function showUpdateBanner(worker) {
-          if (bannerShown || !worker) return;
+        function showUpdateBanner() {
+          if (bannerShown) return;
           bannerShown = true;
           track('sw-update-shown');
           const banner = document.createElement('div');
@@ -58,9 +60,10 @@ if ('serviceWorker' in navigator && window.location.hostname !== 'localhost') {
           btn.style.cssText = 'margin-left:12px;padding:6px 16px;background:#fff;color:#333;border:none;border-radius:4px;cursor:pointer';
           btn.onclick = function () {
             track('sw-update-clicked');
-            // The worker may have moved from 'installing' to 'waiting' by
-            // the time the user clicks; postMessage works in either state.
-            worker.postMessage({ type: 'SKIP_WAITING' });
+            // SW config has skipWaiting:true so the new worker is already
+            // activated. A plain reload creates a new client which picks
+            // up the new active worker and the fresh precache.
+            window.location.reload();
           };
           banner.appendChild(btn);
           document.body.appendChild(banner);
@@ -71,38 +74,28 @@ if ('serviceWorker' in navigator && window.location.hostname !== 'localhost') {
         function watchWorker(worker) {
           if (!worker) return;
           if (worker.state === 'installed' && navigator.serviceWorker.controller) {
-            showUpdateBanner(worker);
+            showUpdateBanner();
             return;
           }
           worker.addEventListener('statechange', () => {
             if (worker.state === 'installed' && navigator.serviceWorker.controller) {
-              showUpdateBanner(worker);
+              showUpdateBanner();
             }
           });
         }
 
-        // Race-safe: check the registration's existing state first. If an
-        // update was already detected before we registered our listeners
-        // (browser auto-update before window.load), we still see it.
+        // Race-safe: check the registration's existing state first. If
+        // the browser auto-detected an update before window.load
+        // resolved, .installing / .waiting will already be populated
+        // and `updatefound` will never fire again for that worker.
         if (registration.waiting) watchWorker(registration.waiting);
         if (registration.installing) watchWorker(registration.installing);
         registration.addEventListener('updatefound', () => {
           watchWorker(registration.installing);
         });
 
-        // controllerchange fires when the new SW claims the page. With
-        // clientsClaim off the trigger is our SKIP_WAITING -> skipWaiting
-        // round-trip; reload once so the page renders against the new
-        // precache cleanly.
-        navigator.serviceWorker.addEventListener('controllerchange', () => {
-          if (reloading) return;
-          reloading = true;
-          window.location.reload();
-        });
-
-        // 10-minute update poll while the tab stays open. registration.update()
-        // returns a Promise; swallow rejections so a transient offline blip
-        // doesn't surface in the console.
+        // 10-minute update poll while the tab stays open. Swallow rejections
+        // so a transient offline blip doesn't surface in the console.
         setInterval(() => {
           registration.update().catch(() => {});
         }, 600000);

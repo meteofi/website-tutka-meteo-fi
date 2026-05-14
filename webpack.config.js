@@ -60,19 +60,34 @@ module.exports = (env, argv) => {
       ...(isProduction ? [
         new GenerateSW({
           swDest: 'sw.js',
-          // clientsClaim / skipWaiting intentionally OFF. The new SW
-          // installs into 'waiting' and stays there until the page
-          // (sw-register.js) posts SKIP_WAITING in response to the user
-          // tapping Päivitä. Auto-skipping was flipping the active SW
-          // mid-session and orphaning the precache entries the still-
-          // rendered page was about to fetch — that's how users wound
-          // up stuck on old chunk URLs the new SW had already wiped.
-          importScripts: ['sw-skip-waiting.js'],
+          // skipWaiting ON, clientsClaim OFF.
+          //
+          // The fully message-driven activation flow (skipWaiting: false +
+          // SKIP_WAITING postMessage) is correct in principle but unsafe to
+          // ship in a single PR: every client currently installed is running
+          // the OLD `sw-register.js` — which only knows `location.reload()`,
+          // not the message handshake. With auto-skipWaiting off, those
+          // old reloads do nothing (new SW stays in `waiting` forever),
+          // and the user is stranded on the previous build with no path
+          // forward. Telemetry post-deploy showed exactly that: zero
+          // `sw-*` events recorded because no client ever made it to the
+          // new code.
+          //
+          // `skipWaiting` alone is fine; the mid-session controller flip
+          // that motivated the audit was driven by `clientsClaim`, not
+          // `skipWaiting`. With clientsClaim off the new SW becomes the
+          // registration's active worker on install but does NOT claim
+          // existing tabs — they keep running on the old SW until the
+          // user explicitly reloads (via the banner or otherwise).
           maximumFileSizeToCacheInBytes: 5000000, // 5MB
-          // Activate-time cleanup of previous Workbox precache caches.
-          // Safe with the message-driven activation flow above because
-          // the page reloads on `controllerchange` before the new SW
-          // serves a single request to it.
+          skipWaiting: true,
+          // Activate-time cleanup of stale Workbox precache caches.
+          // Safe in this app because nothing is lazily code-split — all
+          // JS is loaded at startup, so the running tab doesn't need
+          // SW-A's precache after that point. Non-JS assets that ARE
+          // fetched lazily (radars-finland.json, airfields-finland.json,
+          // airspace-finland.json) are plain non-hashed filenames; if a
+          // cache miss falls through to network it succeeds.
           cleanupOutdatedCaches: true,
           // Don't precache everything - be more selective
           exclude: [/\.map$/, /manifest$/, /LICENSE/],
