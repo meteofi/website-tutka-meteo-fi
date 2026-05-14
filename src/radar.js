@@ -336,16 +336,16 @@ const icaoStyle = new Style({
   image: new CircleStyle({
     radius: 4,
     fill: null,
-    stroke: new Stroke({ color: 'blue', width: 2 }),
+    stroke: new Stroke({ color: '#a040c0', width: 2 }),
   }),
   text: new Text({
     font: '12px Calibri,sans-serif',
     fill: new Fill({
-      color: '#fff',
+      color: '#cccccc',
     }),
     stroke: new Stroke({
       color: '#000',
-      width: 3,
+      width: 2.5,
     }),
     offsetX: 0,
     offsetY: -15,
