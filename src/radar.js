@@ -380,6 +380,33 @@ const municipalityStyleDark = new Style({
   }),
 });
 
+// Waterways / fairways (Vesiväylät). Stroke weight follows the fairway
+// class — VL1 (commercial main route) reads heaviest, minor routes
+// tail off. Cyan/teal hue keeps the layer from colliding with the blue
+// of the airspace layer when both are on.
+function makeVesivaylatStyles(palette) {
+  const stroke = (color, width) => new Style({ stroke: new Stroke({ color, width }) });
+  return {
+    1: stroke(palette.main, 1.8),
+    2: stroke(palette.main, 1.4),
+    3: stroke(palette.secondary, 1.1),
+    default: stroke(palette.secondary, 0.8),
+  };
+}
+const vesivaylatStylesLight = makeVesivaylatStyles({
+  main: [0, 110, 160, 0.7],
+  secondary: [0, 130, 180, 0.5],
+});
+const vesivaylatStylesDark = makeVesivaylatStyles({
+  main: [100, 220, 240, 0.9],
+  secondary: [80, 190, 220, 0.7],
+});
+let vesivaylatStyleSet = vesivaylatStylesLight;
+function vesivaylatStyleFn(feature) {
+  const cls = feature.get('vaylaluokkakoodi');
+  return vesivaylatStyleSet[cls] || vesivaylatStyleSet.default;
+}
+
 const rangeStyle = new Style({
   stroke: new Stroke({
     color: [128, 128, 128, 0.7],
@@ -565,6 +592,21 @@ const municipalityLayer = new VectorTileLayer({
   style: municipalityStyleLight,
 });
 
+// Fairways (Vesiväylät) — OGC API Features from Väylävirasto. The
+// dataset is ~770 KB gzipped (1901 LineString features as of 2026-05),
+// small enough to fetch once on first toggle-on using OL's default
+// "all" loading strategy. Limit=10000 leaves headroom; if the dataset
+// ever exceeds it, switch to bbox strategy with a tilegrid snap.
+const vesivaylatLayer = new VectorLayer({
+  visible: false,
+  source: new Vector({
+    format: new GeoJSON(),
+    url: 'https://avoinapi.vaylapilvi.fi/vaylatiedot/ogc/features/v1/collections/vesivaylatiedot:vaylat_uusi/items?f=application/geo%2Bjson&limit=10000',
+    attributions: 'Väylävirasto',
+  }),
+  style: vesivaylatStyleFn,
+});
+
 const guideLayer = new VectorLayer({
   source: new Vector(),
   style: rangeStyle,
@@ -596,6 +638,7 @@ const layers = [
   lightGrayReferenceLayer,
   darkGrayReferenceLayer,
   municipalityLayer,
+  vesivaylatLayer,
   radarSiteLayer,
   icaoLayer,
   ownPositionLayer,
@@ -982,6 +1025,8 @@ function setMapLayer(maplayer) {
       lightGrayReferenceLayer.setVisible(true);
       municipalityLayer.setStyle(municipalityStyleLight);
       applyIcaoTheme('light');
+      vesivaylatStyleSet = vesivaylatStylesLight;
+      vesivaylatLayer.changed();
       break;
     case 'dark':
       darkGrayBaseLayer.setVisible(true);
@@ -990,6 +1035,8 @@ function setMapLayer(maplayer) {
       lightGrayReferenceLayer.setVisible(false);
       municipalityLayer.setStyle(municipalityStyleDark);
       applyIcaoTheme('dark');
+      vesivaylatStyleSet = vesivaylatStylesDark;
+      vesivaylatLayer.changed();
       break;
     default:
       break;
@@ -1683,6 +1730,13 @@ const poiRegistry = [
     icon: 'location_city',
     defaultOn: false,
     layerRef: () => municipalityLayer,
+  },
+  {
+    id: 'vesivaylat',
+    label: 'Vesiväylät',
+    icon: 'directions_boat',
+    defaultOn: false,
+    layerRef: () => vesivaylatLayer,
   },
 ];
 
