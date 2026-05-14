@@ -332,21 +332,25 @@ const radarStyle = new Style({
   }),
 });
 
+// Light + dark label colours swap from setMapLayer. A single colour set
+// can't satisfy both: a black halo on the light basemap reads as thick
+// and dominates the dim-white fill; a white halo on the dark basemap
+// glows around the dim-grey fill. Invert per theme so the halo always
+// sinks into the background rather than ringing the text.
+const icaoTextColors = {
+  light: { fill: '#222', halo: '#ffffff' },
+  dark: { fill: '#cccccc', halo: '#000000' },
+};
 const icaoStyle = new Style({
   image: new CircleStyle({
     radius: 4,
     fill: null,
-    stroke: new Stroke({ color: 'blue', width: 2 }),
+    stroke: new Stroke({ color: '#a040c0', width: 2 }),
   }),
   text: new Text({
     font: '12px Calibri,sans-serif',
-    fill: new Fill({
-      color: '#fff',
-    }),
-    stroke: new Stroke({
-      color: '#000',
-      width: 3,
-    }),
+    fill: new Fill({ color: icaoTextColors.dark.fill }),
+    stroke: new Stroke({ color: icaoTextColors.dark.halo, width: 2.5 }),
     offsetX: 0,
     offsetY: -15,
   }),
@@ -961,6 +965,13 @@ function getEffectiveTheme() {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
+function applyIcaoTheme(theme) {
+  const t = icaoTextColors[theme] || icaoTextColors.dark;
+  icaoStyle.getText().getFill().setColor(t.fill);
+  icaoStyle.getText().getStroke().setColor(t.halo);
+  icaoLayer.changed();
+}
+
 function setMapLayer(maplayer) {
   debug(`Set ${maplayer} map.`);
   switch (maplayer) {
@@ -970,6 +981,7 @@ function setMapLayer(maplayer) {
       lightGrayBaseLayer.setVisible(true);
       lightGrayReferenceLayer.setVisible(true);
       municipalityLayer.setStyle(municipalityStyleLight);
+      applyIcaoTheme('light');
       break;
     case 'dark':
       darkGrayBaseLayer.setVisible(true);
@@ -977,6 +989,7 @@ function setMapLayer(maplayer) {
       lightGrayBaseLayer.setVisible(false);
       lightGrayReferenceLayer.setVisible(false);
       municipalityLayer.setStyle(municipalityStyleDark);
+      applyIcaoTheme('dark');
       break;
     default:
       break;
