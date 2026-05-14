@@ -380,6 +380,71 @@ const municipalityStyleDark = new Style({
   }),
 });
 
+// Waterways / fairways (Vesiväylät). Stroke weight follows the fairway
+// class — VL1 (commercial main route) reads heaviest, minor routes
+// tail off. Cyan/teal hue keeps the layer from colliding with the blue
+// of the airspace layer when both are on.
+function makeVesivaylatStyles(palette) {
+  const stroke = (color, width) => new Style({ stroke: new Stroke({ color, width }) });
+  return {
+    1: stroke(palette.main, 1.8),
+    2: stroke(palette.main, 1.4),
+    3: stroke(palette.secondary, 1.1),
+    default: stroke(palette.secondary, 0.8),
+  };
+}
+const vesivaylatStylesLight = makeVesivaylatStyles({
+  main: [0, 110, 160, 0.7],
+  secondary: [0, 130, 180, 0.5],
+});
+const vesivaylatStylesDark = makeVesivaylatStyles({
+  main: [100, 220, 240, 0.9],
+  secondary: [80, 190, 220, 0.7],
+});
+let vesivaylatStyleSet = vesivaylatStylesLight;
+
+// Fairway navigation areas (vaylaalueet_uusi) — MultiPolygons of the
+// channel footprint, rendered as a subtle dark wash behind the line
+// geometry so the user sees "this whole zone is the fairway, not just
+// the centreline". Theme-aware alpha: dark basemap needs more opacity
+// to register, light basemap needs less so the wash doesn't dominate.
+const vesivaylaAreaFills = {
+  light: 'rgba(0, 0, 0, 0.13)',
+  dark: 'rgba(0, 0, 0, 0.35)',
+};
+const vesivaylaAreaStyle = new Style({
+  fill: new Fill({ color: vesivaylaAreaFills.light }),
+});
+
+// Label nimifi along each fairway when zoomed in enough to actually read
+// it. Resolution is m/pixel; ≤ 200 m/px lands around zoom 10-11, which is
+// roughly "looking at a single bay or harbour". Above that threshold the
+// labels would just be a smear of unreadable text across the country.
+const VESIVAYLAT_LABEL_MAX_RES = 200;
+const vesivaylatLabelColors = {
+  light: { fill: '#003e58', halo: '#ffffff' },
+  dark: { fill: '#e0f6ff', halo: '#000000' },
+};
+const vesivaylatLabelStyle = new Style({
+  text: new Text({
+    font: '11px Calibri,sans-serif',
+    placement: 'line',
+    overflow: false,
+    fill: new Fill({ color: vesivaylatLabelColors.light.fill }),
+    stroke: new Stroke({ color: vesivaylatLabelColors.light.halo, width: 2.5 }),
+  }),
+});
+
+function vesivaylatStyleFn(feature, resolution) {
+  const cls = feature.get('vaylaluokkakoodi');
+  const base = vesivaylatStyleSet[cls] || vesivaylatStyleSet.default;
+  if (resolution > VESIVAYLAT_LABEL_MAX_RES) return base;
+  const name = feature.get('nimifi');
+  if (!name) return base;
+  vesivaylatLabelStyle.getText().setText(name);
+  return [base, vesivaylatLabelStyle];
+}
+
 const rangeStyle = new Style({
   stroke: new Stroke({
     color: [128, 128, 128, 0.7],
@@ -565,6 +630,35 @@ const municipalityLayer = new VectorTileLayer({
   style: municipalityStyleLight,
 });
 
+// Fairways (Vesiväylät) — OGC API Features from Väylävirasto. The
+// dataset is ~770 KB gzipped (1901 LineString features as of 2026-05),
+// small enough to fetch once on first toggle-on using OL's default
+// "all" loading strategy. Limit=10000 leaves headroom; if the dataset
+// ever exceeds it, switch to bbox strategy with a tilegrid snap.
+const vesivaylaAreaLayer = new VectorLayer({
+  visible: false,
+  source: new Vector({
+    format: new GeoJSON(),
+    url: 'https://avoinapi.vaylapilvi.fi/vaylatiedot/ogc/features/v1/collections/vesivaylatiedot:vaylaalueet_uusi/items?f=application/geo%2Bjson&limit=10000',
+    attributions: 'Väylävirasto',
+  }),
+  style: vesivaylaAreaStyle,
+});
+
+const vesivaylatLayer = new VectorLayer({
+  visible: false,
+  // Declutter so overlapping nimifi labels along parallel fairway segments
+  // don't pile up at harbours. Stroke geometry still renders fully — only
+  // text participates in the decluttering.
+  declutter: true,
+  source: new Vector({
+    format: new GeoJSON(),
+    url: 'https://avoinapi.vaylapilvi.fi/vaylatiedot/ogc/features/v1/collections/vesivaylatiedot:vaylat_uusi/items?f=application/geo%2Bjson&limit=10000',
+    attributions: 'Väylävirasto',
+  }),
+  style: vesivaylatStyleFn,
+});
+
 const guideLayer = new VectorLayer({
   source: new Vector(),
   style: rangeStyle,
@@ -596,6 +690,8 @@ const layers = [
   lightGrayReferenceLayer,
   darkGrayReferenceLayer,
   municipalityLayer,
+  vesivaylaAreaLayer,
+  vesivaylatLayer,
   radarSiteLayer,
   icaoLayer,
   ownPositionLayer,
@@ -972,6 +1068,16 @@ function applyIcaoTheme(theme) {
   icaoLayer.changed();
 }
 
+function applyVesivaylatTheme(theme) {
+  vesivaylatStyleSet = theme === 'light' ? vesivaylatStylesLight : vesivaylatStylesDark;
+  const t = vesivaylatLabelColors[theme] || vesivaylatLabelColors.dark;
+  vesivaylatLabelStyle.getText().getFill().setColor(t.fill);
+  vesivaylatLabelStyle.getText().getStroke().setColor(t.halo);
+  vesivaylatLayer.changed();
+  vesivaylaAreaStyle.getFill().setColor(vesivaylaAreaFills[theme] || vesivaylaAreaFills.light);
+  vesivaylaAreaLayer.changed();
+}
+
 function setMapLayer(maplayer) {
   debug(`Set ${maplayer} map.`);
   switch (maplayer) {
@@ -982,6 +1088,7 @@ function setMapLayer(maplayer) {
       lightGrayReferenceLayer.setVisible(true);
       municipalityLayer.setStyle(municipalityStyleLight);
       applyIcaoTheme('light');
+      applyVesivaylatTheme('light');
       break;
     case 'dark':
       darkGrayBaseLayer.setVisible(true);
@@ -990,6 +1097,7 @@ function setMapLayer(maplayer) {
       lightGrayReferenceLayer.setVisible(false);
       municipalityLayer.setStyle(municipalityStyleDark);
       applyIcaoTheme('dark');
+      applyVesivaylatTheme('dark');
       break;
     default:
       break;
@@ -1684,6 +1792,16 @@ const poiRegistry = [
     defaultOn: false,
     layerRef: () => municipalityLayer,
   },
+  {
+    id: 'vesivaylat',
+    label: 'Vesiväylät',
+    icon: 'directions_boat',
+    defaultOn: false,
+    // Area fill renders behind the line geometry — both flip together
+    // off the same toggle. Order here doesn't drive z-order; the layers
+    // array does (vesivaylaAreaLayer sits before vesivaylatLayer there).
+    layerRef: () => [vesivaylaAreaLayer, vesivaylatLayer],
+  },
 ];
 
 // POI_STATE is reconciled against the current registry on every load: unknown
@@ -1705,7 +1823,9 @@ function persistPoiState() {
 
 function applyPoiVisibility() {
   poiRegistry.forEach((entry) => {
-    entry.layerRef().setVisible(!!POI_STATE[entry.id]);
+    const ref = entry.layerRef();
+    const visible = !!POI_STATE[entry.id];
+    (Array.isArray(ref) ? ref : [ref]).forEach((l) => l.setVisible(visible));
   });
 }
 
