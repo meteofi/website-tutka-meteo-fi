@@ -402,9 +402,34 @@ const vesivaylatStylesDark = makeVesivaylatStyles({
   secondary: [80, 190, 220, 0.7],
 });
 let vesivaylatStyleSet = vesivaylatStylesLight;
-function vesivaylatStyleFn(feature) {
+
+// Label nimifi along each fairway when zoomed in enough to actually read
+// it. Resolution is m/pixel; ≤ 200 m/px lands around zoom 10-11, which is
+// roughly "looking at a single bay or harbour". Above that threshold the
+// labels would just be a smear of unreadable text across the country.
+const VESIVAYLAT_LABEL_MAX_RES = 200;
+const vesivaylatLabelColors = {
+  light: { fill: '#003e58', halo: '#ffffff' },
+  dark: { fill: '#e0f6ff', halo: '#000000' },
+};
+const vesivaylatLabelStyle = new Style({
+  text: new Text({
+    font: '11px Calibri,sans-serif',
+    placement: 'line',
+    overflow: false,
+    fill: new Fill({ color: vesivaylatLabelColors.light.fill }),
+    stroke: new Stroke({ color: vesivaylatLabelColors.light.halo, width: 2.5 }),
+  }),
+});
+
+function vesivaylatStyleFn(feature, resolution) {
   const cls = feature.get('vaylaluokkakoodi');
-  return vesivaylatStyleSet[cls] || vesivaylatStyleSet.default;
+  const base = vesivaylatStyleSet[cls] || vesivaylatStyleSet.default;
+  if (resolution > VESIVAYLAT_LABEL_MAX_RES) return base;
+  const name = feature.get('nimifi');
+  if (!name) return base;
+  vesivaylatLabelStyle.getText().setText(name);
+  return [base, vesivaylatLabelStyle];
 }
 
 const rangeStyle = new Style({
@@ -599,6 +624,10 @@ const municipalityLayer = new VectorTileLayer({
 // ever exceeds it, switch to bbox strategy with a tilegrid snap.
 const vesivaylatLayer = new VectorLayer({
   visible: false,
+  // Declutter so overlapping nimifi labels along parallel fairway segments
+  // don't pile up at harbours. Stroke geometry still renders fully — only
+  // text participates in the decluttering.
+  declutter: true,
   source: new Vector({
     format: new GeoJSON(),
     url: 'https://avoinapi.vaylapilvi.fi/vaylatiedot/ogc/features/v1/collections/vesivaylatiedot:vaylat_uusi/items?f=application/geo%2Bjson&limit=10000',
@@ -1015,6 +1044,14 @@ function applyIcaoTheme(theme) {
   icaoLayer.changed();
 }
 
+function applyVesivaylatTheme(theme) {
+  vesivaylatStyleSet = theme === 'light' ? vesivaylatStylesLight : vesivaylatStylesDark;
+  const t = vesivaylatLabelColors[theme] || vesivaylatLabelColors.dark;
+  vesivaylatLabelStyle.getText().getFill().setColor(t.fill);
+  vesivaylatLabelStyle.getText().getStroke().setColor(t.halo);
+  vesivaylatLayer.changed();
+}
+
 function setMapLayer(maplayer) {
   debug(`Set ${maplayer} map.`);
   switch (maplayer) {
@@ -1025,8 +1062,7 @@ function setMapLayer(maplayer) {
       lightGrayReferenceLayer.setVisible(true);
       municipalityLayer.setStyle(municipalityStyleLight);
       applyIcaoTheme('light');
-      vesivaylatStyleSet = vesivaylatStylesLight;
-      vesivaylatLayer.changed();
+      applyVesivaylatTheme('light');
       break;
     case 'dark':
       darkGrayBaseLayer.setVisible(true);
@@ -1035,8 +1071,7 @@ function setMapLayer(maplayer) {
       lightGrayReferenceLayer.setVisible(false);
       municipalityLayer.setStyle(municipalityStyleDark);
       applyIcaoTheme('dark');
-      vesivaylatStyleSet = vesivaylatStylesDark;
-      vesivaylatLayer.changed();
+      applyVesivaylatTheme('dark');
       break;
     default:
       break;
