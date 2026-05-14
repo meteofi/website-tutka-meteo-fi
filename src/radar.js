@@ -1,3 +1,6 @@
+// deploy-marker: sw-update-flow-test — bump on PR #87 to force a fresh
+// radar.[contenthash].js so the deployed test build differs from the
+// previous one and the new banner flow can be exercised end-to-end.
 import { Map, View } from 'ol';
 import Geolocation from 'ol/Geolocation';
 import TileLayer from 'ol/layer/Tile';
