@@ -60,27 +60,38 @@ module.exports = (env, argv) => {
       ...(isProduction ? [
         new GenerateSW({
           swDest: 'sw.js',
-          // skipWaiting ON, clientsClaim OFF.
+          // skipWaiting + clientsClaim, both ON. This is the pre-audit
+          // configuration, restored after a real-world failure mode
+          // surfaced in iOS Safari standalone PWAs and prod Mac Safari:
           //
-          // The fully message-driven activation flow (skipWaiting: false +
-          // SKIP_WAITING postMessage) is correct in principle but unsafe to
-          // ship in a single PR: every client currently installed is running
-          // the OLD `sw-register.js` — which only knows `location.reload()`,
-          // not the message handshake. With auto-skipWaiting off, those
-          // old reloads do nothing (new SW stays in `waiting` forever),
-          // and the user is stranded on the previous build with no path
-          // forward. Telemetry post-deploy showed exactly that: zero
-          // `sw-*` events recorded because no client ever made it to the
-          // new code.
+          // With `clientsClaim: false` the new SW activates but does NOT
+          // claim the open tabs. The previous active SW transitions to
+          // `redundant`, and WebKit (per its current implementation)
+          // returns `null` from `navigator.serviceWorker.controller`
+          // when the controlling SW is redundant and no successor has
+          // claimed the client. Both the OLD and NEW `sw-register.js`
+          // gate the update banner on `controller` being truthy
+          // (to distinguish "first install" from "update available"),
+          // so the banner was never shown to anyone running with the
+          // previous deploy still in their precache.
           //
-          // `skipWaiting` alone is fine; the mid-session controller flip
-          // that motivated the audit was driven by `clientsClaim`, not
-          // `skipWaiting`. With clientsClaim off the new SW becomes the
-          // registration's active worker on install but does NOT claim
-          // existing tabs — they keep running on the old SW until the
-          // user explicitly reloads (via the banner or otherwise).
+          // With `clientsClaim: true` the new SW immediately controls
+          // the open tabs, `controller` flips from old → new (both
+          // truthy), the gated banner check passes, and we additionally
+          // get a `controllerchange` event the page can use to reload
+          // itself (see sw-register.js).
+          //
+          // The chunk-404 risk that originally motivated dropping
+          // `clientsClaim` doesn't apply to this app: we have zero
+          // dynamic imports (verified by `grep -rn 'import(' src/`),
+          // so the in-memory page never refetches its JS bundles
+          // after the controller flips. Lazy non-JS fetches
+          // (radars-finland.json, airfields-finland.json,
+          // airspace-finland.json) are plain non-hashed filenames and
+          // exist under the same URL in the new precache.
           maximumFileSizeToCacheInBytes: 5000000, // 5MB
           skipWaiting: true,
+          clientsClaim: true,
           // Activate-time cleanup of stale Workbox precache caches.
           // Safe in this app because nothing is lazily code-split — all
           // JS is loaded at startup, so the running tab doesn't need

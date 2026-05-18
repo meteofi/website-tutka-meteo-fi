@@ -43,6 +43,24 @@ if ('serviceWorker' in navigator && window.location.hostname !== 'localhost') {
         console.log('ServiceWorker registered with scope:', registration.scope);
 
         let bannerShown = false;
+        let reloading = false;
+
+        // The SW config has clientsClaim: true, so when the new worker
+        // activates it immediately takes control of this tab and fires
+        // `controllerchange`. Reload exactly once at that point — gives
+        // a fresh navigation served by the new precache. Belt-and-
+        // suspenders against statechange timing quirks: even if the
+        // statechange handler below misses 'installed' (e.g. WebKit
+        // dispatching events fast enough that state already moved on),
+        // the controllerchange firing on activate is unambiguous.
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (reloading) return;
+          reloading = true;
+          if (typeof umami !== 'undefined') {
+            umami.track('sw-controllerchange-reload');
+          }
+          window.location.reload();
+        });
 
         function track(event, data) {
           if (typeof umami !== 'undefined') umami.track(event, data);
