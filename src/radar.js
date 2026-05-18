@@ -2075,13 +2075,13 @@ function getWMSCapabilities(wms, failCountArg = 0) {
           // so refresh the lightning menu too — otherwise the order in which
           // GetCapabilities responses arrive decides whether the FMI entry
           // ends up listed alongside the EUMETSAT MTG one.
-          updateLayerSelection(lightningLayer, 'lightning', ['lightning', 'li_afa']);
+          updateLayerSelection(lightningLayer, 'lightning', ['lightning', 'li_afa', 'rdt']);
           break;
         case 'radarLayer':
           updateLayerSelection(radarLayer, 'radar', 'suomi_');
           break;
         case 'lightningLayer':
-          updateLayerSelection(lightningLayer, 'lightning', ['lightning', 'li_afa']);
+          updateLayerSelection(lightningLayer, 'lightning', ['lightning', 'li_afa', 'rdt']);
           break;
         default:
           debug('No wms.category set');

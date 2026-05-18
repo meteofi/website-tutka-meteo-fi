@@ -88,13 +88,15 @@ const wmsServerConfiguration = {
     url: 'https://view.eumetsat.int/geoserver/msg_fes/rdt/ows',
     layer: 'rdt',
     refresh: 300000,
-    category: 'satelliteLayer',
+    // Categorised as lightning even though the source is satellite — the
+    // map's z-order puts satellite under the radar layer, so an RDT
+    // satellite-category overlay was hidden whenever the radar mosaic
+    // was visible. Lightning sits above radar; semantically it's also
+    // closer (RDT marks convective cells, i.e. where lightning happens).
+    category: 'lightningLayer',
     title: 'MSG Ukkossolut (RDT)',
     abstract: 'Meteosat Second Generation Rapidly Developing Thunderstorms. Konvektiivisten ukkossolujen tunnistus ja seuranta polygoneilla ja liikevektoreilla 15 minuutin välein.',
     attribution: 'EUMETSAT',
-    // Sparse vector-overlay product — JPEG (the satellite-layer default)
-    // can't be transparent, so the empty disc would otherwise cover the
-    // basemap. PNG + TRANSPARENT yields a true overlay.
     format: 'image/png',
     transparent: true,
     disabled: false,
