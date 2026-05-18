@@ -99,6 +99,18 @@ const wmsServerConfiguration = {
     transparent: true,
     disabled: false,
   },
+  'msg-h60b': {
+    url: 'https://view.eumetsat.int/geoserver/msg_fes/h60b/ows',
+    layer: 'h60b',
+    refresh: 300000,
+    category: 'radarLayer',
+    title: 'MSG sadeintensiteetti (H60B)',
+    abstract: 'Blended SEVIRI / LEO MW -sadetuote. Geostationaarisen IR-kuvauksen ja matalan kiertoradan mikroaaltomittausten yhdistelmänä lasketut sadeintensiteettiarviot 15 minuutin välein. Käyttökelpoinen tutka-aineiston täydennys Suomen ulkopuolella.',
+    attribution: 'EUMETSAT',
+    format: 'image/png',
+    transparent: true,
+    disabled: false,
+  },
   eumetsat4: {
     url: 'https://eumetview.eumetsat.int/geoserv/meteosat/msg_airmass/wms',
     refresh: 300000,
