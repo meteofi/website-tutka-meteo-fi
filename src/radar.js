@@ -1599,6 +1599,7 @@ window.addEventListener('mouseup', (e) => {
     { menuId: 'observationLongPressMenu', buttonId: 'observationLayerButton' },
     { menuId: 'satelliteLongPressMenu', buttonId: 'satelliteLayerButton' },
     { menuId: 'radarLongPressMenu', buttonId: 'radarLayerButton' },
+    { menuId: 'lightningLongPressMenu', buttonId: 'lightningLayerButton' },
   ];
   longPressMenus.forEach((cfg) => {
     if (!document.getElementById(cfg.menuId).contains(e.target)) {
@@ -1613,6 +1614,7 @@ window.addEventListener('touchend', (e) => {
     { menuId: 'observationLongPressMenu', buttonId: 'observationLayerButton' },
     { menuId: 'satelliteLongPressMenu', buttonId: 'satelliteLayerButton' },
     { menuId: 'radarLongPressMenu', buttonId: 'radarLayerButton' },
+    { menuId: 'lightningLongPressMenu', buttonId: 'lightningLayerButton' },
   ];
   longPressMenus.forEach((cfg) => {
     if (!document.getElementById(cfg.menuId).contains(e.target)) {
@@ -1673,10 +1675,6 @@ document.getElementById('radarLayerTitle').addEventListener('mouseup', () => {
   toggleLayerVisibility(radarLayer, 'playlist');
 });
 
-document.getElementById('lightningLayerButton').addEventListener('mouseup', () => {
-  toggleAndAnnounce(lightningLayer, 'lightningLayerButton', 'button');
-});
-
 document.getElementById('lightningLayerTitle').addEventListener('mouseup', () => {
   toggleLayerVisibility(lightningLayer, 'playlist');
 });
@@ -1707,6 +1705,15 @@ const radarMenu = createLongPressHandler(
   (id) => { updateLayer(radarLayer, id, { source: 'longpress' }); radarMenu.hide(); },
   () => radarLayer.getSource().getParams().LAYERS,
   () => radarLayer.getVisible(),
+);
+
+const lightningMenu = createLongPressHandler(
+  'lightningLayerButton',
+  'lightningLongPressMenu',
+  () => { toggleAndAnnounce(lightningLayer, 'lightningLayerButton', 'button'); },
+  (id) => { updateLayer(lightningLayer, id, { source: 'longpress' }); lightningMenu.hide(); },
+  () => lightningLayer.getSource().getParams().LAYERS,
+  () => lightningLayer.getVisible(),
 );
 
 // Overflow menu (three-dots) — open/close + theme chip wiring
