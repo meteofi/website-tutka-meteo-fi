@@ -1961,14 +1961,18 @@ document.addEventListener('keyup', (event) => {
 });
 
 function updateLayerSelection(ollayer, type, filter) {
-  // debug(type)
-  // debug(ollayer)
+  // `filter` may be a single substring (original API) or an array of
+  // substrings — the lightning menu uses an array so it can collect
+  // both the FMI lightning-network layer (`observation:lightning`) and
+  // the EUMETSAT MTG Lightning Imager layer (`li_afa`) under the same
+  // category card.
+  const filters = Array.isArray(filter) ? filter : [filter];
   const parent = document.getElementById('layers');
   document.querySelectorAll(`.${type}LayerSelect`).forEach((child) => {
     parent.removeChild(child);
   });
   Object.keys(layerInfo).sort().forEach((layer) => {
-    if (layerInfo[layer].layer.includes(filter)) {
+    if (filters.some((f) => layerInfo[layer].layer.includes(f))) {
       const div = layerInfoDiv(layer);
       div.onclick = function () {
         if (ollayer.getVisible() && getActiveLayers().includes(layer)) {
@@ -2037,12 +2041,17 @@ function getWMSCapabilities(wms, failCountArg = 0) {
           break;
         case 'observationLayer':
           updateLayerSelection(observationLayer, 'observation', 'observation:');
+          // The FMI observation server is what publishes `observation:lightning`,
+          // so refresh the lightning menu too — otherwise the order in which
+          // GetCapabilities responses arrive decides whether the FMI entry
+          // ends up listed alongside the EUMETSAT MTG one.
+          updateLayerSelection(lightningLayer, 'lightning', ['lightning', 'li_afa']);
           break;
         case 'radarLayer':
           updateLayerSelection(radarLayer, 'radar', 'suomi_');
           break;
         case 'lightningLayer':
-          updateLayerSelection(lightningLayer, 'lightning', 'lightning');
+          updateLayerSelection(lightningLayer, 'lightning', ['lightning', 'li_afa']);
           break;
         default:
           debug('No wms.category set');

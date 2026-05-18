@@ -64,6 +64,16 @@ const wmsServerConfiguration = {
     attribution: 'EUMETSAT',
     disabled: false,
   },
+  'mtg-li-afa': {
+    url: 'https://view.eumetsat.int/geoserver/mtg_fd/li_afa/ows',
+    layer: 'li_afa',
+    refresh: 300000,
+    category: 'lightningLayer',
+    title: 'MTG salamakuvantaja',
+    abstract: 'Meteosat Third Generation Lightning Imager – salamapurkaukset 5 minuutin tarkkuudella Euroopan ja Afrikan kattavalla geostationäärisellä alueella.',
+    attribution: 'EUMETSAT',
+    disabled: false,
+  },
   eumetsat4: {
     url: 'https://eumetview.eumetsat.int/geoserv/meteosat/msg_airmass/wms',
     refresh: 300000,
