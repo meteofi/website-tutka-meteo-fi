@@ -549,6 +549,12 @@ const satelliteLayer = new ImageLayer({
     serverType: 'geoserver',
   }),
 });
+// Default wire format / transparency — restored by updateLayer when the
+// user picks a layer that doesn't carry per-layer overrides. Without
+// this, switching from a transparent overlay back to a full-disc RGB
+// would inherit `TRANSPARENT=TRUE` and waste bandwidth on a PNG.
+satelliteLayer.set('defaultFormat', 'image/jpeg');
+satelliteLayer.set('defaultTransparent', false);
 
 // Radar Layer
 const radarLayer = new ImageLayer({
@@ -1161,18 +1167,35 @@ function updateLayer(layer, wmslayer, opts = {}) {
   }
   // Reset style if the new layer doesn't support the currently active style
   const currentStyle = layer.getSource().getParams().STYLES || '';
+  const baseUpdate = { LAYERS: wmslayer };
+  // Apply per-layer wire-format / transparency overrides, falling back to
+  // the layer's category default so a switch FROM a transparent overlay
+  // back to a full-disc image resets the params correctly.
+  const defaultFormat = layer.get('defaultFormat');
+  const defaultTransparent = layer.get('defaultTransparent');
+  if (info && info.format) {
+    baseUpdate.FORMAT = info.format;
+  } else if (defaultFormat) {
+    baseUpdate.FORMAT = defaultFormat;
+  }
+  const wantTransparent = info && info.transparent !== undefined
+    ? info.transparent
+    : defaultTransparent;
+  if (wantTransparent !== undefined) {
+    baseUpdate.TRANSPARENT = wantTransparent ? 'TRUE' : 'FALSE';
+  }
   if (currentStyle && info && info.style) {
     const validStyles = info.style.map((s) => s.Name);
     if (!validStyles.includes(currentStyle)) {
-      layer.getSource().updateParams({ LAYERS: wmslayer, STYLES: '' });
+      layer.getSource().updateParams({ ...baseUpdate, STYLES: '' });
     } else {
-      layer.getSource().updateParams({ LAYERS: wmslayer });
+      layer.getSource().updateParams(baseUpdate);
     }
   } else if (currentStyle) {
     // No style info available for new layer, reset to default
-    layer.getSource().updateParams({ LAYERS: wmslayer, STYLES: '' });
+    layer.getSource().updateParams({ ...baseUpdate, STYLES: '' });
   } else {
-    layer.getSource().updateParams({ LAYERS: wmslayer });
+    layer.getSource().updateParams(baseUpdate);
   }
   if (!skipPersist) {
     const category = layer.get('name');
@@ -2155,6 +2178,16 @@ function getLayerInfo(layer, wms) {
 
   if (typeof wms.license !== 'undefined') {
     product.license = wms.license;
+  }
+
+  // Per-layer wire-format overrides — used by sparse overlay products
+  // (e.g. MSG RDT) that need PNG + transparency on a category whose
+  // default is opaque JPEG.
+  if (typeof wms.format !== 'undefined') {
+    product.format = wms.format;
+  }
+  if (typeof wms.transparent !== 'undefined') {
+    product.transparent = wms.transparent;
   }
 
   if (typeof layer.Dimension !== 'undefined') {

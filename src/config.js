@@ -92,6 +92,11 @@ const wmsServerConfiguration = {
     title: 'MSG Ukkossolut (RDT)',
     abstract: 'Meteosat Second Generation Rapidly Developing Thunderstorms. Konvektiivisten ukkossolujen tunnistus ja seuranta polygoneilla ja liikevektoreilla 15 minuutin välein.',
     attribution: 'EUMETSAT',
+    // Sparse vector-overlay product — JPEG (the satellite-layer default)
+    // can't be transparent, so the empty disc would otherwise cover the
+    // basemap. PNG + TRANSPARENT yields a true overlay.
+    format: 'image/png',
+    transparent: true,
     disabled: false,
   },
   eumetsat4: {
