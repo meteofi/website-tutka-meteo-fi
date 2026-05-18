@@ -21,13 +21,30 @@ if ('serviceWorker' in navigator && window.location.hostname !== 'localhost') {
   // can fire its error event before window.load. We still miss anything
   // that errors before sw-register.js executes, but this catches lazy
   // fetches and late assets, which is the common failure shape.
+  // Telemetry helper — loud about its own failures so we can see in
+  // DevTools whether the event actually reached umami. The previous
+  // silent guard hid the fact that none of the sw-* events were
+  // surfacing even when the banner WAS shown.
+  const swTrack = (event, data) => {
+    if (typeof umami === 'undefined' || !umami || typeof umami.track !== 'function') {
+      console.warn('[sw-register] umami not available for event:', event, data);
+      return;
+    }
+    try {
+      umami.track(event, data);
+      console.log('[sw-register] telemetry sent:', event, data);
+    } catch (err) {
+      console.warn('[sw-register] umami.track threw for', event, err);
+    }
+  };
+
   window.addEventListener('error', (event) => {
     const { target } = event;
     if (!target || target.tagName !== 'SCRIPT') return;
     const src = target.src || '';
     if (!/\/(radar|openlayers|vendors|runtime)[.-][^/]*\.js$/.test(src)) return;
     console.warn('Chunk load failed, unregistering SWs and reloading:', src);
-    if (typeof umami !== 'undefined') umami.track('sw-chunk-load-error', { src });
+    swTrack('sw-chunk-load-error', { src });
     navigator.serviceWorker.getRegistrations()
       .then((regs) => Promise.all(regs.map((r) => r.unregister())))
       .finally(() => { window.location.reload(); });
@@ -56,20 +73,14 @@ if ('serviceWorker' in navigator && window.location.hostname !== 'localhost') {
         navigator.serviceWorker.addEventListener('controllerchange', () => {
           if (reloading) return;
           reloading = true;
-          if (typeof umami !== 'undefined') {
-            umami.track('sw-controllerchange-reload');
-          }
+          swTrack('sw-controllerchange-reload');
           window.location.reload();
         });
-
-        function track(event, data) {
-          if (typeof umami !== 'undefined') umami.track(event, data);
-        }
 
         function showUpdateBanner() {
           if (bannerShown) return;
           bannerShown = true;
-          track('sw-update-shown');
+          swTrack('sw-update-shown');
           const banner = document.createElement('div');
           banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:#333;color:#fff;padding:12px;text-align:center;z-index:10000;font-family:sans-serif';
           banner.textContent = 'Uusi versio saatavilla. ';
@@ -77,7 +88,7 @@ if ('serviceWorker' in navigator && window.location.hostname !== 'localhost') {
           btn.textContent = 'Päivitä';
           btn.style.cssText = 'margin-left:12px;padding:6px 16px;background:#fff;color:#333;border:none;border-radius:4px;cursor:pointer';
           btn.onclick = function () {
-            track('sw-update-clicked');
+            swTrack('sw-update-clicked');
             // SW config has skipWaiting:true so the new worker is already
             // activated. A plain reload creates a new client which picks
             // up the new active worker and the fresh precache.
