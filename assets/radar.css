@@ -1129,8 +1129,15 @@ html, body {
   white-space: nowrap;
 }
 
-/* Long press observation parameter menu */
-#observationLongPressMenu {
+/* Long-press parameter menus (observation / satellite / radar / lightning).
+   Consolidated to one rule per concern — adding a new menu means adding
+   one ID to the comma-list (and a `<div>` in index.html + JS handler).
+   The observation menu's hover/selected variant differs slightly from
+   the others; kept as targeted overrides. */
+#observationLongPressMenu,
+#satelliteLongPressMenu,
+#radarLongPressMenu,
+#lightningLongPressMenu {
   display: none;
   position: absolute;
   background-color: rgba(0,0,0,0.9);
@@ -1145,7 +1152,10 @@ html, body {
   box-sizing: border-box;
 }
 
-#observationLongPressMenu .menu-item {
+#observationLongPressMenu .menu-item,
+#satelliteLongPressMenu .menu-item,
+#radarLongPressMenu .menu-item,
+#lightningLongPressMenu .menu-item {
   display: flex;
   align-items: center;
   padding: 12px 16px;
@@ -1164,6 +1174,29 @@ html, body {
   -webkit-tap-highlight-color: transparent;
 }
 
+#satelliteLongPressMenu .menu-item:hover,
+#radarLongPressMenu .menu-item:hover,
+#lightningLongPressMenu .menu-item:hover {
+  background-color: var(--dark-theme-overlay-08dp);
+  border-color: var(--dark-theme-overlay-16dp);
+}
+
+#satelliteLongPressMenu .menu-item.selected,
+#radarLongPressMenu .menu-item.selected,
+#lightningLongPressMenu .menu-item.selected {
+  background-color: var(--dark-primary-color-bg);
+  border-color: var(--dark-primary-color);
+  color: var(--dark-primary-color);
+}
+
+#satelliteLongPressMenu .menu-label,
+#radarLongPressMenu .menu-label,
+#lightningLongPressMenu .menu-label {
+  font-weight: 500;
+}
+
+/* Observation menu kept its original hover/selected look — softer
+   background and the label takes the row width. */
 #observationLongPressMenu .menu-item:hover {
   background-color: var(--dark-theme-overlay-04dp);
 }
@@ -1177,106 +1210,6 @@ html, body {
 
 #observationLongPressMenu .menu-item .menu-label {
   flex: 1;
-  font-weight: 500;
-}
-
-/* Long press satellite parameter menu */
-#satelliteLongPressMenu {
-  display: none;
-  position: absolute;
-  background-color: rgba(0,0,0,0.9);
-  color: var(--dark-theme-on-surface);
-  border-radius: 10px;
-  padding: 8px;
-  box-shadow: var(--dark-theme-shadow-24dp);
-  z-index: 1000;
-  border: 1px solid var(--dark-theme-overlay-08dp);
-  min-width: 200px;
-  max-width: calc(100vw - 20px); /* Ensure menu doesn't exceed viewport width */
-  box-sizing: border-box;
-}
-
-#satelliteLongPressMenu .menu-item {
-  display: flex;
-  align-items: center;
-  padding: 12px 16px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  margin: 2px 0;
-  font-size: 0.9em;
-  border: 2px solid transparent;
-  /* Touch-friendly properties */
-  -webkit-touch-callout: none;
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  user-select: none;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-}
-
-#satelliteLongPressMenu .menu-item:hover {
-  background-color: var(--dark-theme-overlay-08dp);
-  border-color: var(--dark-theme-overlay-16dp);
-}
-
-#satelliteLongPressMenu .menu-item.selected {
-  background-color: var(--dark-primary-color-bg);
-  border-color: var(--dark-primary-color);
-  color: var(--dark-primary-color);
-}
-
-#satelliteLongPressMenu .menu-label {
-  font-weight: 500;
-}
-
-/* Long press radar parameter menu */
-#radarLongPressMenu {
-  display: none;
-  position: absolute;
-  background-color: rgba(0,0,0,0.9);
-  color: var(--dark-theme-on-surface);
-  border-radius: 10px;
-  padding: 8px;
-  box-shadow: var(--dark-theme-shadow-24dp);
-  z-index: 1000;
-  border: 1px solid var(--dark-theme-overlay-08dp);
-  min-width: 200px;
-  max-width: calc(100vw - 20px); /* Ensure menu doesn't exceed viewport width */
-  box-sizing: border-box;
-}
-
-#radarLongPressMenu .menu-item {
-  display: flex;
-  align-items: center;
-  padding: 12px 16px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  margin: 2px 0;
-  font-size: 0.9em;
-  border: 2px solid transparent;
-  /* Touch-friendly properties */
-  -webkit-touch-callout: none;
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  user-select: none;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
-}
-
-#radarLongPressMenu .menu-item:hover {
-  background-color: var(--dark-theme-overlay-08dp);
-  border-color: var(--dark-theme-overlay-16dp);
-}
-
-#radarLongPressMenu .menu-item.selected {
-  background-color: var(--dark-primary-color-bg);
-  border-color: var(--dark-primary-color);
-  color: var(--dark-primary-color);
-}
-
-#radarLongPressMenu .menu-label {
   font-weight: 500;
 }
 

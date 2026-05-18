@@ -549,6 +549,12 @@ const satelliteLayer = new ImageLayer({
     serverType: 'geoserver',
   }),
 });
+// Default wire format / transparency — restored by updateLayer when the
+// user picks a layer that doesn't carry per-layer overrides. Without
+// this, switching from a transparent overlay back to a full-disc RGB
+// would inherit `TRANSPARENT=TRUE` and waste bandwidth on a PNG.
+satelliteLayer.set('defaultFormat', 'image/jpeg');
+satelliteLayer.set('defaultTransparent', false);
 
 // Radar Layer
 const radarLayer = new ImageLayer({
@@ -1161,18 +1167,35 @@ function updateLayer(layer, wmslayer, opts = {}) {
   }
   // Reset style if the new layer doesn't support the currently active style
   const currentStyle = layer.getSource().getParams().STYLES || '';
+  const baseUpdate = { LAYERS: wmslayer };
+  // Apply per-layer wire-format / transparency overrides, falling back to
+  // the layer's category default so a switch FROM a transparent overlay
+  // back to a full-disc image resets the params correctly.
+  const defaultFormat = layer.get('defaultFormat');
+  const defaultTransparent = layer.get('defaultTransparent');
+  if (info && info.format) {
+    baseUpdate.FORMAT = info.format;
+  } else if (defaultFormat) {
+    baseUpdate.FORMAT = defaultFormat;
+  }
+  const wantTransparent = info && info.transparent !== undefined
+    ? info.transparent
+    : defaultTransparent;
+  if (wantTransparent !== undefined) {
+    baseUpdate.TRANSPARENT = wantTransparent ? 'TRUE' : 'FALSE';
+  }
   if (currentStyle && info && info.style) {
     const validStyles = info.style.map((s) => s.Name);
     if (!validStyles.includes(currentStyle)) {
-      layer.getSource().updateParams({ LAYERS: wmslayer, STYLES: '' });
+      layer.getSource().updateParams({ ...baseUpdate, STYLES: '' });
     } else {
-      layer.getSource().updateParams({ LAYERS: wmslayer });
+      layer.getSource().updateParams(baseUpdate);
     }
   } else if (currentStyle) {
     // No style info available for new layer, reset to default
-    layer.getSource().updateParams({ LAYERS: wmslayer, STYLES: '' });
+    layer.getSource().updateParams({ ...baseUpdate, STYLES: '' });
   } else {
-    layer.getSource().updateParams({ LAYERS: wmslayer });
+    layer.getSource().updateParams(baseUpdate);
   }
   if (!skipPersist) {
     const category = layer.get('name');
@@ -1599,6 +1622,7 @@ window.addEventListener('mouseup', (e) => {
     { menuId: 'observationLongPressMenu', buttonId: 'observationLayerButton' },
     { menuId: 'satelliteLongPressMenu', buttonId: 'satelliteLayerButton' },
     { menuId: 'radarLongPressMenu', buttonId: 'radarLayerButton' },
+    { menuId: 'lightningLongPressMenu', buttonId: 'lightningLayerButton' },
   ];
   longPressMenus.forEach((cfg) => {
     if (!document.getElementById(cfg.menuId).contains(e.target)) {
@@ -1613,6 +1637,7 @@ window.addEventListener('touchend', (e) => {
     { menuId: 'observationLongPressMenu', buttonId: 'observationLayerButton' },
     { menuId: 'satelliteLongPressMenu', buttonId: 'satelliteLayerButton' },
     { menuId: 'radarLongPressMenu', buttonId: 'radarLayerButton' },
+    { menuId: 'lightningLongPressMenu', buttonId: 'lightningLayerButton' },
   ];
   longPressMenus.forEach((cfg) => {
     if (!document.getElementById(cfg.menuId).contains(e.target)) {
@@ -1673,10 +1698,6 @@ document.getElementById('radarLayerTitle').addEventListener('mouseup', () => {
   toggleLayerVisibility(radarLayer, 'playlist');
 });
 
-document.getElementById('lightningLayerButton').addEventListener('mouseup', () => {
-  toggleAndAnnounce(lightningLayer, 'lightningLayerButton', 'button');
-});
-
 document.getElementById('lightningLayerTitle').addEventListener('mouseup', () => {
   toggleLayerVisibility(lightningLayer, 'playlist');
 });
@@ -1707,6 +1728,15 @@ const radarMenu = createLongPressHandler(
   (id) => { updateLayer(radarLayer, id, { source: 'longpress' }); radarMenu.hide(); },
   () => radarLayer.getSource().getParams().LAYERS,
   () => radarLayer.getVisible(),
+);
+
+const lightningMenu = createLongPressHandler(
+  'lightningLayerButton',
+  'lightningLongPressMenu',
+  () => { toggleAndAnnounce(lightningLayer, 'lightningLayerButton', 'button'); },
+  (id) => { updateLayer(lightningLayer, id, { source: 'longpress' }); lightningMenu.hide(); },
+  () => lightningLayer.getSource().getParams().LAYERS,
+  () => lightningLayer.getVisible(),
 );
 
 // Overflow menu (three-dots) — open/close + theme chip wiring
@@ -1961,14 +1991,18 @@ document.addEventListener('keyup', (event) => {
 });
 
 function updateLayerSelection(ollayer, type, filter) {
-  // debug(type)
-  // debug(ollayer)
+  // `filter` may be a single substring (original API) or an array of
+  // substrings — the lightning menu uses an array so it can collect
+  // both the FMI lightning-network layer (`observation:lightning`) and
+  // the EUMETSAT MTG Lightning Imager layer (`li_afa`) under the same
+  // category card.
+  const filters = Array.isArray(filter) ? filter : [filter];
   const parent = document.getElementById('layers');
   document.querySelectorAll(`.${type}LayerSelect`).forEach((child) => {
     parent.removeChild(child);
   });
   Object.keys(layerInfo).sort().forEach((layer) => {
-    if (layerInfo[layer].layer.includes(filter)) {
+    if (filters.some((f) => layerInfo[layer].layer.includes(f))) {
       const div = layerInfoDiv(layer);
       div.onclick = function () {
         if (ollayer.getVisible() && getActiveLayers().includes(layer)) {
@@ -2037,12 +2071,17 @@ function getWMSCapabilities(wms, failCountArg = 0) {
           break;
         case 'observationLayer':
           updateLayerSelection(observationLayer, 'observation', 'observation:');
+          // The FMI observation server is what publishes `observation:lightning`,
+          // so refresh the lightning menu too — otherwise the order in which
+          // GetCapabilities responses arrive decides whether the FMI entry
+          // ends up listed alongside the EUMETSAT MTG one.
+          updateLayerSelection(lightningLayer, 'lightning', ['lightning', 'li_afa', 'rdt']);
           break;
         case 'radarLayer':
           updateLayerSelection(radarLayer, 'radar', 'suomi_');
           break;
         case 'lightningLayer':
-          updateLayerSelection(lightningLayer, 'lightning', 'lightning');
+          updateLayerSelection(lightningLayer, 'lightning', ['lightning', 'li_afa', 'rdt']);
           break;
         default:
           debug('No wms.category set');
@@ -2139,6 +2178,16 @@ function getLayerInfo(layer, wms) {
 
   if (typeof wms.license !== 'undefined') {
     product.license = wms.license;
+  }
+
+  // Per-layer wire-format overrides — used by sparse overlay products
+  // (e.g. MSG RDT) that need PNG + transparency on a category whose
+  // default is opaque JPEG.
+  if (typeof wms.format !== 'undefined') {
+    product.format = wms.format;
+  }
+  if (typeof wms.transparent !== 'undefined') {
+    product.transparent = wms.transparent;
   }
 
   if (typeof layer.Dimension !== 'undefined') {

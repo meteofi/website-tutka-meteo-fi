@@ -64,6 +64,55 @@ const wmsServerConfiguration = {
     attribution: 'EUMETSAT',
     disabled: false,
   },
+  'mtg-li-afa': {
+    url: 'https://view.eumetsat.int/geoserver/mtg_fd/li_afa/ows',
+    layer: 'li_afa',
+    refresh: 300000,
+    category: 'lightningLayer',
+    title: 'MTG salamakuvantaja',
+    abstract: 'Meteosat Third Generation Lightning Imager – salamapurkaukset 5 minuutin tarkkuudella Euroopan ja Afrikan kattavalla geostationäärisellä alueella.',
+    attribution: 'EUMETSAT',
+    disabled: false,
+  },
+  'mtg-rgb-geocolour': {
+    url: 'https://view.eumetsat.int/geoserver/mtg_fd/rgb_geocolour/ows',
+    layer: 'rgb_geocolour',
+    refresh: 300000,
+    category: 'satelliteLayer',
+    title: 'MTG Geo Colour',
+    abstract: 'Meteosat Third Generation Geo Colour RGB. Korkearesoluutioinen luonnonväreissä esitetty satelliittikuva, joka päivittyy 10 minuutin välein. Selkeä erottelu pilville, lumelle ja maanpinnalle.',
+    attribution: 'EUMETSAT',
+    disabled: false,
+  },
+  'msg-rdt': {
+    url: 'https://view.eumetsat.int/geoserver/msg_fes/rdt/ows',
+    layer: 'rdt',
+    refresh: 300000,
+    // Categorised as lightning even though the source is satellite — the
+    // map's z-order puts satellite under the radar layer, so an RDT
+    // satellite-category overlay was hidden whenever the radar mosaic
+    // was visible. Lightning sits above radar; semantically it's also
+    // closer (RDT marks convective cells, i.e. where lightning happens).
+    category: 'lightningLayer',
+    title: 'MSG Ukkossolut (RDT)',
+    abstract: 'Meteosat Second Generation Rapidly Developing Thunderstorms. Konvektiivisten ukkossolujen tunnistus ja seuranta polygoneilla ja liikevektoreilla 15 minuutin välein.',
+    attribution: 'EUMETSAT',
+    format: 'image/png',
+    transparent: true,
+    disabled: false,
+  },
+  'msg-h60b': {
+    url: 'https://view.eumetsat.int/geoserver/msg_fes/h60b/ows',
+    layer: 'h60b',
+    refresh: 300000,
+    category: 'radarLayer',
+    title: 'MSG sadeintensiteetti (H60B)',
+    abstract: 'Blended SEVIRI / LEO MW -sadetuote. Geostationaarisen IR-kuvauksen ja matalan kiertoradan mikroaaltomittausten yhdistelmänä lasketut sadeintensiteettiarviot 15 minuutin välein. Käyttökelpoinen tutka-aineiston täydennys Suomen ulkopuolella.',
+    attribution: 'EUMETSAT',
+    format: 'image/png',
+    transparent: true,
+    disabled: false,
+  },
   eumetsat4: {
     url: 'https://eumetview.eumetsat.int/geoserv/meteosat/msg_airmass/wms',
     refresh: 300000,
