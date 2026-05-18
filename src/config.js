@@ -74,6 +74,16 @@ const wmsServerConfiguration = {
     attribution: 'EUMETSAT',
     disabled: false,
   },
+  'mtg-rgb-geocolour': {
+    url: 'https://view.eumetsat.int/geoserver/mtg_fd/rgb_geocolour/ows',
+    layer: 'rgb_geocolour',
+    refresh: 300000,
+    category: 'satelliteLayer',
+    title: 'MTG Geo Colour',
+    abstract: 'Meteosat Third Generation Geo Colour RGB. Korkearesoluutioinen luonnonväreissä esitetty satelliittikuva, joka päivittyy 10 minuutin välein. Selkeä erottelu pilville, lumelle ja maanpinnalle.',
+    attribution: 'EUMETSAT',
+    disabled: false,
+  },
   eumetsat4: {
     url: 'https://eumetview.eumetsat.int/geoserv/meteosat/msg_airmass/wms',
     refresh: 300000,
