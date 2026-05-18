@@ -84,6 +84,16 @@ const wmsServerConfiguration = {
     attribution: 'EUMETSAT',
     disabled: false,
   },
+  'msg-rdt': {
+    url: 'https://view.eumetsat.int/geoserver/msg_fes/rdt/ows',
+    layer: 'rdt',
+    refresh: 300000,
+    category: 'satelliteLayer',
+    title: 'MSG Ukkossolut (RDT)',
+    abstract: 'Meteosat Second Generation Rapidly Developing Thunderstorms. Konvektiivisten ukkossolujen tunnistus ja seuranta polygoneilla ja liikevektoreilla 15 minuutin välein.',
+    attribution: 'EUMETSAT',
+    disabled: false,
+  },
   eumetsat4: {
     url: 'https://eumetview.eumetsat.int/geoserv/meteosat/msg_airmass/wms',
     refresh: 300000,
