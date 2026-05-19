@@ -2053,7 +2053,16 @@ function getWMSCapabilities(wms, failCountArg = 0) {
 
   fetch(`${wms.url}?SERVICE=WMS&version=1.3.0&request=GetCapabilities${namespace}${layerParam}`, {
     signal: controller.signal,
-  }).then((response) => response.text()).then((text) => {
+  }).then((response) => {
+    // An HTTP error (typically 5xx from an overloaded WMS server)
+    // still resolves the fetch — without this check the error body
+    // flows on to .text()/parser.read, fails the structure check
+    // silently, and .finally reschedules at the flat full rate. The
+    // exponential backoff below only ever engages via .catch, so
+    // throwing here is what routes 4xx/5xx into the backoff.
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return response.text();
+  }).then((text) => {
     clearTimeout(timeoutId);
     debug(`Received WMS Capabilities ${wms.url}`);
     failCount = 0;
