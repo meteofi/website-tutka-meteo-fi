@@ -570,6 +570,10 @@ const radarLayer = new ImageLayer({
     serverType: 'geoserver',
   }),
 });
+// Category default wire format. updateLayer / applyWireFormat substitute
+// image/webp when the serving WMS advertises it in GetCapabilities (see
+// resolveFormat) — this is the fallback for servers that don't.
+radarLayer.set('defaultFormat', 'image/png');
 
 // Lightning Layer
 const lightningLayer = new ImageLayer({
@@ -583,6 +587,7 @@ const lightningLayer = new ImageLayer({
     serverType: 'geoserver',
   }),
 });
+lightningLayer.set('defaultFormat', 'image/png8');
 
 // Observation Layer
 const observationLayer = new ImageLayer({
@@ -596,6 +601,7 @@ const observationLayer = new ImageLayer({
     serverType: 'geoserver',
   }),
 });
+observationLayer.set('defaultFormat', 'image/png8');
 
 const radarSiteLayer = new VectorLayer({
   source: new Vector({
@@ -1147,6 +1153,32 @@ function removeSelectedParameter(selector) {
   });
 }
 
+// Resolve the GetMap wire format for a sublayer. Precedence: an explicit
+// per-layer config override (`info.format`) wins; otherwise image/webp
+// when the serving WMS advertised it in GetCapabilities (smaller payload,
+// also supports transparency); otherwise the category default. Always
+// returns a concrete format, so switching FROM a webp-capable server back
+// to one that lacks it resets FORMAT instead of leaving a stale webp.
+function resolveFormat(layer, info) {
+  if (info && info.format) return info.format;
+  if (info && info.webp) return 'image/webp';
+  return layer.get('defaultFormat') || 'image/png';
+}
+
+// Re-apply the wire format to a category's source for whatever sublayer
+// it currently shows. Called after each GetCapabilities response so a
+// server that advertises image/webp is adopted even when the sublayer
+// itself didn't change (e.g. the boot-default layer, which updateLayer
+// never re-runs for). FramePool mirrors the FORMAT change to its slots
+// via its primary-source `change` listener.
+function applyWireFormat(layer) {
+  const wmslayer = layer.getSource().getParams().LAYERS;
+  const fmt = resolveFormat(layer, layerInfo[wmslayer]);
+  if (layer.getSource().getParams().FORMAT !== fmt) {
+    layer.getSource().updateParams({ FORMAT: fmt });
+  }
+}
+
 function updateLayer(layer, wmslayer, opts = {}) {
   const {
     skipVisibility = false, skipTracking = false, skipPersist = false, source,
@@ -1168,16 +1200,12 @@ function updateLayer(layer, wmslayer, opts = {}) {
   // Reset style if the new layer doesn't support the currently active style
   const currentStyle = layer.getSource().getParams().STYLES || '';
   const baseUpdate = { LAYERS: wmslayer };
-  // Apply per-layer wire-format / transparency overrides, falling back to
-  // the layer's category default so a switch FROM a transparent overlay
-  // back to a full-disc image resets the params correctly.
-  const defaultFormat = layer.get('defaultFormat');
+  // Apply the resolved wire format (webp / per-layer override / category
+  // default) and transparency, falling back to the layer's category
+  // default so a switch FROM a transparent overlay back to a full-disc
+  // image resets the params correctly.
   const defaultTransparent = layer.get('defaultTransparent');
-  if (info && info.format) {
-    baseUpdate.FORMAT = info.format;
-  } else if (defaultFormat) {
-    baseUpdate.FORMAT = defaultFormat;
-  }
+  baseUpdate.FORMAT = resolveFormat(layer, info);
   const wantTransparent = info && info.transparent !== undefined
     ? info.transparent
     : defaultTransparent;
@@ -2068,12 +2096,25 @@ function getWMSCapabilities(wms, failCountArg = 0) {
     failCount = 0;
     const result = parser.read(text);
     if (result && result.Capability && result.Capability.Layer && result.Capability.Layer.Layer) {
-      getLayers(result.Capability.Layer.Layer, wms);
+      // A server "supports webp" when its GetCapabilities advertises
+      // image/webp as a GetMap output format (e.g. meteocore). Prefer it
+      // there to shrink GetMap payloads — and let servers that don't
+      // advertise it (the GeoServer endpoints) keep png/jpeg.
+      const getMap = result.Capability.Request && result.Capability.Request.GetMap;
+      const supportsWebp = !!(getMap && Array.isArray(getMap.Format)
+        && getMap.Format.includes('image/webp'));
+      getLayers(result.Capability.Layer.Layer, wms, supportsWebp);
       debug(layerInfo);
       satelliteLayer.set('info', layerInfo[satelliteLayer.getSource().getParams().LAYERS]);
       radarLayer.set('info', layerInfo[radarLayer.getSource().getParams().LAYERS]);
       lightningLayer.set('info', layerInfo[lightningLayer.getSource().getParams().LAYERS]);
       observationLayer.set('info', layerInfo[observationLayer.getSource().getParams().LAYERS]);
+      // Adopt webp for any category already showing a layer from a
+      // webp-capable server, including the boot defaults.
+      applyWireFormat(satelliteLayer);
+      applyWireFormat(radarLayer);
+      applyWireFormat(lightningLayer);
+      applyWireFormat(observationLayer);
       switch (wms.category) {
         case 'satelliteLayer':
           updateLayerSelection(satelliteLayer, 'satellite', 'msg_');
@@ -2130,11 +2171,11 @@ const wmsByLayerName = (() => {
   return byLayer;
 })();
 
-function getLayers(parentlayer, wms) {
+function getLayers(parentlayer, wms, supportsWebp = false) {
   const products = {};
   parentlayer.forEach((layer) => {
     if (Array.isArray(layer.Layer)) {
-      getLayers(layer.Layer, wms);
+      getLayers(layer.Layer, wms, supportsWebp);
     } else {
       let name = layer.Name;
       // FMI GeoServer returns unprefixed names; meteo.fi returns prefixed.
@@ -2147,18 +2188,21 @@ function getLayers(parentlayer, wms) {
         && candidate.url === wms.url
         && (candidate.namespace || '') === (wms.namespace || '');
       const ownerWms = sameEndpoint ? candidate : wms;
-      layerInfo[name] = getLayerInfo(layer, ownerWms);
+      layerInfo[name] = getLayerInfo(layer, ownerWms, supportsWebp);
       layerInfo[name].layer = name;
     }
   });
   return products;
 }
 
-function getLayerInfo(layer, wms) {
+function getLayerInfo(layer, wms, supportsWebp = false) {
   const product = {
     category: wms.category,
     url: wms.url,
     layer: layer.Name,
+    // Whether the serving WMS advertised image/webp in its
+    // GetCapabilities — resolveFormat prefers it over the default.
+    webp: supportsWebp,
   };
 
   if (typeof layer.CRS !== 'undefined') {
