@@ -1173,7 +1173,14 @@ function resolveFormat(layer, info) {
 // via its primary-source `change` listener.
 function applyWireFormat(layer) {
   const wmslayer = layer.getSource().getParams().LAYERS;
-  const fmt = resolveFormat(layer, layerInfo[wmslayer]);
+  const info = layerInfo[wmslayer];
+  // Until this sublayer's own GetCapabilities has populated layerInfo we
+  // don't yet know whether its server advertises webp. Leave FORMAT at
+  // the constructor default rather than churning it to png now and to
+  // webp later — the intermediate updateParams triggers a needless
+  // FramePool resync and an extra round of slot re-requests at startup.
+  if (!info) return;
+  const fmt = resolveFormat(layer, info);
   if (layer.getSource().getParams().FORMAT !== fmt) {
     layer.getSource().updateParams({ FORMAT: fmt });
   }
