@@ -17,6 +17,14 @@
 // `registration.waiting` / `.installing` synchronously after register.
 
 if ('serviceWorker' in navigator && window.location.hostname !== 'localhost') {
+  // Whether THIS page navigation started under SW control. Captured
+  // synchronously now: false on a first-ever visit (the page loaded
+  // uncontrolled), true on a return visit. `navigator.serviceWorker
+  // .controller` never changes until a `controllerchange` event fires,
+  // so this is a race-free first-install vs. genuine-update
+  // discriminator for the controllerchange handler. See issue #96.
+  const hadController = !!navigator.serviceWorker.controller;
+
   // Self-heal must attach as early as possible — a deferred bundle 404
   // can fire its error event before window.load. We still miss anything
   // that errors before sw-register.js executes, but this catches lazy
@@ -62,16 +70,28 @@ if ('serviceWorker' in navigator && window.location.hostname !== 'localhost') {
         let bannerShown = false;
         let reloading = false;
 
-        // The SW config has clientsClaim: true, so when the new worker
+        // The SW config has clientsClaim: true, so when a new worker
         // activates it immediately takes control of this tab and fires
-        // `controllerchange`. Reload exactly once at that point — gives
-        // a fresh navigation served by the new precache. Belt-and-
-        // suspenders against statechange timing quirks: even if the
-        // statechange handler below misses 'installed' (e.g. WebKit
-        // dispatching events fast enough that state already moved on),
-        // the controllerchange firing on activate is unambiguous.
+        // `controllerchange`. Reload once at that point — but ONLY for a
+        // genuine update (hadController), never the first-ever install,
+        // where controllerchange just means clientsClaim() took control
+        // of an already-current page. Belt-and-suspenders against
+        // statechange timing quirks: even if the statechange handler
+        // below misses 'installed' (e.g. WebKit dispatching events fast
+        // enough that state already moved on), controllerchange on
+        // activate is an unambiguous update signal.
         navigator.serviceWorker.addEventListener('controllerchange', () => {
           if (reloading) return;
+          // First-ever visit: the page loaded uncontrolled and is
+          // already running current code straight from the network.
+          // Reloading here is pure waste — a full re-parse + re-boot
+          // (OpenLayers, the OL Map, all FramePools) and re-issued
+          // GetCapabilities fetches. Skip it; the precache is in place
+          // for the NEXT navigation anyway.
+          if (!hadController) {
+            swTrack('sw-controllerchange-firstinstall');
+            return;
+          }
           reloading = true;
           swTrack('sw-controllerchange-reload');
           window.location.reload();
