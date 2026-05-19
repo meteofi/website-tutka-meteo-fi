@@ -632,26 +632,38 @@ export default class FramePool {
     this.warpLayer.getSource().changed();
   }
 
-  // Run once per debounced moveend. Drops OL's cached image wrapper
-  // on every slot source (so OL re-creates a fresh wrapper at the
-  // current view), checks each slot's loaded state against the new
-  // view, invalidates interpolator frames whose stickies no longer
-  // cover, then triggers prefetch around the current frame.
+  // Run once per debounced moveend. When an interpolator is attached,
+  // drops OL's cached image wrapper on every slot source (so OL
+  // re-creates a fresh wrapper at the current view). Then checks each
+  // slot's loaded state against the new view, invalidates interpolator
+  // frames whose stickies no longer cover, then triggers prefetch
+  // around the current frame.
   _handleMoveend() {
     const ctx = this._getViewContext();
     if (ctx) {
-      // First, drop each source's cached ImageWMS wrapper. OL's own
-      // render pipeline calls getImage on the primary layer's source
-      // during a pan, and the cache locks in a wrapper whose extent
-      // reflects the intermediate view. Without this reset, loads
-      // completing on those wrappers would store mid-pan extents
-      // that fail extentApproxEqual against neighbouring slots
-      // (which didn't get render-hit during the pan), and the
-      // interpolator would skip computeFlow for any pair involving
-      // the current slot — visible as two permanently-green cells
-      // on the timeline.
-      for (const slot of this.slots) {
-        slot.source.resetImageCache();
+      // First, drop each source's cached ImageWMS wrapper — but ONLY
+      // when an interpolator is attached. OL's own render pipeline
+      // calls getImage on the primary layer's source during a pan,
+      // and the cache locks in a wrapper whose extent reflects the
+      // intermediate view. Without this reset, loads completing on
+      // those wrappers would store mid-pan extents that fail
+      // extentApproxEqual against neighbouring slots (which didn't
+      // get render-hit during the pan), and the interpolator would
+      // skip computeFlow for any pair involving the current slot —
+      // visible as two permanently-green cells on the timeline.
+      //
+      // With no interpolator (interpMode 'off', the default) that
+      // failure mode cannot occur, and resetting here is pure loss:
+      // it nulls OL's containsExtent image-reuse, so the very next
+      // hasLoadedImageForView call below is a guaranteed cache miss
+      // and the whole window refetches — even for a pan that stayed
+      // well inside the 1.5x fetch buffer. Keeping the cache lets a
+      // within-buffer pan reuse the already-loaded image with no
+      // new GetMap request. See issue #92.
+      if (this.interpolator) {
+        for (const slot of this.slots) {
+          slot.source.resetImageCache();
+        }
       }
       for (const slot of this.slots) {
         if (!slot.time) continue; // eslint-disable-line no-continue
