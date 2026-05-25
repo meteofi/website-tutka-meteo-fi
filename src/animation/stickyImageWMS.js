@@ -77,17 +77,31 @@ export default class StickyImageWMS extends ImageWMS {
   }
 
   // Coerce the requested resolution to the data's native resolution if
-  // the request would be finer. Same projection guarantee — for our
-  // EPSG:3857 view the resolution argument is metres/pixel at the
-  // equator; the `~cos(lat)` distortion at Finnish latitudes (~0.5×)
-  // means we're already requesting roughly 2× more pixels than the
-  // ground-truth metric resolution implies, so the clamp is naturally
-  // generous. If we ever serve from a projection where the resolution
-  // unit differs (e.g. degrees), this needs to be made projection-aware.
+  // the request would be finer. Two units to be careful of:
+  //
+  //   1. The `resolution` argument is in metres per LOGICAL pixel — OL
+  //      passes view-resolution; `hidpi: false` on our sources skips the
+  //      ×devicePixelRatio multiplication. So one request pixel already
+  //      maps to DPR² device pixels (4 on a 2× retina display).
+  //
+  //   2. EPSG:3857 distortion: the value is "m at the equator". At
+  //      Finnish latitudes the ground-truth metres are ~0.5× that. So
+  //      a numeric resolution of 250 in EPSG:3857 is already only ~125
+  //      ground-metres per logical pixel at 60°N.
+  //
+  // Multiplying the cap by devicePixelRatio matches the cap to
+  // *device-pixel* density rather than logical-pixel density. On a
+  // 2× retina the effective cap doubles → request dimensions halve per
+  // axis → payload ~4× smaller, with no visible quality loss on
+  // continuous-tone radar (the data has no detail below native, and
+  // browser upscaling at DPR factor is invisible at retina density).
   clampResolution(resolution) {
     const cap = this._nativeResolutionMeters;
-    if (!cap || resolution >= cap) return resolution;
-    return cap;
+    if (!cap) return resolution;
+    const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
+    const effectiveCap = cap * dpr;
+    if (resolution >= effectiveCap) return resolution;
+    return effectiveCap;
   }
 
   setNativeResolution(meters) {
