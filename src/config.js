@@ -141,12 +141,14 @@ const wmsServerConfiguration = {
     category: 'radarLayer',
     attribution: 'DWD',
     license: 'CC-BY-4.0',
-    // Source data's native pixel resolution in metres. The
-    // StickyImageWMS clamp uses this to stop the client from asking
-    // the WMS server to upsample its own grid (no extra information,
-    // bigger payload, slower encoding). Tune per source — verify with
-    // `gdalinfo <source>` if unsure.
-    nativeResolutionMeters: 1000,
+    // Source data's native pixel resolution in metres, used by the
+    // StickyImageWMS clamp to avoid asking the WMS server to upsample
+    // its own grid (no extra information, larger payload, slower
+    // encoding). Tune per source via `gdalinfo <source>` — pixel
+    // size in degrees × 111000 for geographic CRS, raw metres for
+    // projected.
+    // gdalinfo: 0.002798761°/px WGS84 → 311 m.
+    nativeResolutionMeters: 310,
     disabled: false,
   },
   nl: {
@@ -185,6 +187,7 @@ const wmsServerConfiguration = {
     category: 'radarLayer',
     attribution: 'MET Norway',
     license: 'CC-BY-4.0',
+    // gdalinfo: 1000 m/px in a projected CRS.
     nativeResolutionMeters: 1000,
     disabled: false,
   },
@@ -195,7 +198,8 @@ const wmsServerConfiguration = {
     category: 'radarLayer',
     attribution: 'SMHI',
     license: 'CC-BY-4.0',
-    nativeResolutionMeters: 2000,
+    // gdalinfo: 0.024373°/px WGS84 → 2705 m.
+    nativeResolutionMeters: 2700,
     disabled: false,
   },
   dk: {
@@ -205,7 +209,8 @@ const wmsServerConfiguration = {
     category: 'radarLayer',
     attribution: 'DMI',
     license: 'CC-BY-4.0',
-    nativeResolutionMeters: 2000,
+    // gdalinfo: 0.006736°/px WGS84 → 748 m.
+    nativeResolutionMeters: 750,
     disabled: false,
   },
   vn: {
