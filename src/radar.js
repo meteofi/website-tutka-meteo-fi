@@ -574,6 +574,13 @@ const radarLayer = new ImageLayer({
 // image/webp when the serving WMS advertises it in GetCapabilities (see
 // resolveFormat) — this is the fallback for servers that don't.
 radarLayer.set('defaultFormat', 'image/png');
+// Opt out of the webp wire format for radar specifically. Lossless webp
+// encoding on the meteocore server side is currently too slow to keep up
+// with retina-fullscreen request sizes; image/png is cached and served
+// more cheaply on that path. Revisit once requests are clamped to the
+// radar's native resolution (then payload size is bounded and the
+// encoding-time cost of lossless webp becomes worth the smaller bytes).
+radarLayer.set('disableWebp', true);
 
 // Lightning Layer
 const lightningLayer = new ImageLayer({
@@ -1161,7 +1168,7 @@ function removeSelectedParameter(selector) {
 // to one that lacks it resets FORMAT instead of leaving a stale webp.
 function resolveFormat(layer, info) {
   if (info && info.format) return info.format;
-  if (info && info.webp) return 'image/webp';
+  if (info && info.webp && !layer.get('disableWebp')) return 'image/webp';
   return layer.get('defaultFormat') || 'image/png';
 }
 
