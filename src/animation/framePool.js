@@ -218,6 +218,18 @@ export default class FramePool {
     this._psListener = { target: p, fn };
   }
 
+  // Fan out the native-resolution clamp to every slot source. The
+  // primary's `change` listener doesn't carry this because it's not a
+  // WMS param — it's a per-instance field on the StickyImageWMS object.
+  // Called from radar.js whenever the active sublayer's `info` is set
+  // or refreshed (i.e. after updateLayer and after GetCapabilities
+  // completes for the bootstrapped default sublayer).
+  setNativeResolution(meters) {
+    for (const slot of this.slots) {
+      slot.source.setNativeResolution(meters);
+    }
+  }
+
   _resyncAllParams(prev, now) {
     const p = this.primary.getSource();
     const pParams = pickSyncParams(p.getParams());

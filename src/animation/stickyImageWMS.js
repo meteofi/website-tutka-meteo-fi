@@ -67,11 +67,41 @@ export default class StickyImageWMS extends ImageWMS {
     super(options);
     this._sticky = null;
     this._currentAbortController = null;
+    // Optional clamp — when set, requests never go out finer than this
+    // many metres per pixel. The data behind a radar composite (typically
+    // 500 m – 2 km native) gains no information from a finer request;
+    // we'd just waste server time encoding upsampled pixels and shovel
+    // a larger payload over the wire. See `clampResolution` below.
+    this._nativeResolutionMeters = null;
     this.setImageLoadFunction(createAbortableImageLoader(this));
   }
 
+  // Coerce the requested resolution to the data's native resolution if
+  // the request would be finer. Same projection guarantee — for our
+  // EPSG:3857 view the resolution argument is metres/pixel at the
+  // equator; the `~cos(lat)` distortion at Finnish latitudes (~0.5×)
+  // means we're already requesting roughly 2× more pixels than the
+  // ground-truth metric resolution implies, so the clamp is naturally
+  // generous. If we ever serve from a projection where the resolution
+  // unit differs (e.g. degrees), this needs to be made projection-aware.
+  clampResolution(resolution) {
+    const cap = this._nativeResolutionMeters;
+    if (!cap || resolution >= cap) return resolution;
+    return cap;
+  }
+
+  setNativeResolution(meters) {
+    const next = typeof meters === 'number' && meters > 0 ? meters : null;
+    if (next === this._nativeResolutionMeters) return;
+    this._nativeResolutionMeters = next;
+    // Drop the cached wrapper so a stale higher-res image isn't reused
+    // when the clamp tightens.
+    this.resetImageCache();
+  }
+
   getImage(extent, resolution, pixelRatio, projection) {
-    const image = super.getImage(extent, resolution, pixelRatio, projection);
+    const effective = this.clampResolution(resolution);
+    const image = super.getImage(extent, effective, pixelRatio, projection);
     if (!image) return this._sticky || image;
     const state = image.getState();
     if (state === ImageState.LOADED) {
@@ -88,7 +118,8 @@ export default class StickyImageWMS extends ImageWMS {
   // on moveend only — NOT from getImage, which would fire once per RAF
   // during a drag/zoom gesture and create dozens of requests per pan.
   triggerLoad(extent, resolution, pixelRatio, projection) {
-    const image = super.getImage(extent, resolution, pixelRatio, projection);
+    const effective = this.clampResolution(resolution);
+    const image = super.getImage(extent, effective, pixelRatio, projection);
     if (image && image.getState() === ImageState.IDLE) image.load();
   }
 
@@ -143,7 +174,8 @@ export default class StickyImageWMS extends ImageWMS {
   // on cache miss (that's OL's normal getImage behavior; fan-out will
   // load it later).
   hasLoadedImageForView(extent, resolution, pixelRatio, projection) {
-    const image = super.getImage(extent, resolution, pixelRatio, projection);
+    const effective = this.clampResolution(resolution);
+    const image = super.getImage(extent, effective, pixelRatio, projection);
     return !!(image && image.getState() === ImageState.LOADED);
   }
 }

@@ -141,6 +141,12 @@ const wmsServerConfiguration = {
     category: 'radarLayer',
     attribution: 'DWD',
     license: 'CC-BY-4.0',
+    // Source data's native pixel resolution in metres. The
+    // StickyImageWMS clamp uses this to stop the client from asking
+    // the WMS server to upsample its own grid (no extra information,
+    // bigger payload, slower encoding). Tune per source — verify with
+    // `gdalinfo <source>` if unsure.
+    nativeResolutionMeters: 1000,
     disabled: false,
   },
   nl: {
@@ -157,6 +163,10 @@ const wmsServerConfiguration = {
     category: 'radarLayer',
     attribution: 'FMI',
     license: 'CC-BY-4.0',
+    // TODO: set from `gdalinfo` on the source. The Finnish national
+    // composite is widely-reported 1 km but the bundle that meteocore
+    // actually serves may be coarser or finer — verify before pinning.
+    // nativeResolutionMeters: 1000,
     disabled: false,
   },
   eu: {
@@ -166,6 +176,7 @@ const wmsServerConfiguration = {
     category: 'radarLayer',
     attribution: 'EUMETNET OPERA',
     license: 'CC-BY-4.0',
+    nativeResolutionMeters: 2000,
     disabled: false,
   },
   no: {
@@ -175,6 +186,7 @@ const wmsServerConfiguration = {
     category: 'radarLayer',
     attribution: 'MET Norway',
     license: 'CC-BY-4.0',
+    nativeResolutionMeters: 1000,
     disabled: false,
   },
   se: {
@@ -184,6 +196,7 @@ const wmsServerConfiguration = {
     category: 'radarLayer',
     attribution: 'SMHI',
     license: 'CC-BY-4.0',
+    nativeResolutionMeters: 2000,
     disabled: false,
   },
   dk: {
@@ -193,6 +206,7 @@ const wmsServerConfiguration = {
     category: 'radarLayer',
     attribution: 'DMI',
     license: 'CC-BY-4.0',
+    nativeResolutionMeters: 2000,
     disabled: false,
   },
   vn: {

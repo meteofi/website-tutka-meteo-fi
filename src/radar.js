@@ -1193,6 +1193,24 @@ function applyWireFormat(layer) {
   }
 }
 
+// Fan out the per-layer native resolution clamp to the FramePool's slot
+// sources. Called from updateLayer (on every sublayer switch) and from
+// the boot path after GetCapabilities lands for the default sublayer.
+// Safe to call repeatedly — StickyImageWMS.setNativeResolution is a
+// no-op when the value didn't change.
+function applyNativeResolution(layer) {
+  const wmslayer = layer.getSource().getParams().LAYERS;
+  const info = layerInfo[wmslayer];
+  const meters = (info && typeof info.nativeResolutionMeters === 'number')
+    ? info.nativeResolutionMeters : null;
+  // Primary slot's source IS layer.getSource() — covered by the pool's
+  // setNativeResolution below. But the primary may also be talking
+  // directly to OL for renders that bypass FramePool (rare; defensive).
+  layer.getSource().setNativeResolution(meters);
+  const pool = framePools[layer.get('name')];
+  if (pool) pool.setNativeResolution(meters);
+}
+
 function updateLayer(layer, wmslayer, opts = {}) {
   const {
     skipVisibility = false, skipTracking = false, skipPersist = false, source,
@@ -1246,6 +1264,7 @@ function updateLayer(layer, wmslayer, opts = {}) {
       persistActiveLayers();
     }
   }
+  applyNativeResolution(layer);
   if (!skipVisibility) {
     if (layer.getVisible()) {
       updateCanonicalPage();
@@ -2129,6 +2148,12 @@ function getWMSCapabilities(wms, failCountArg = 0) {
       applyWireFormat(radarLayer);
       applyWireFormat(lightningLayer);
       applyWireFormat(observationLayer);
+      // Same idea for the per-layer native-resolution clamp: the boot
+      // default sublayer never re-enters updateLayer, so apply here too.
+      applyNativeResolution(satelliteLayer);
+      applyNativeResolution(radarLayer);
+      applyNativeResolution(lightningLayer);
+      applyNativeResolution(observationLayer);
       switch (wms.category) {
         case 'satelliteLayer':
           updateLayerSelection(satelliteLayer, 'satellite', 'msg_');
@@ -2255,6 +2280,14 @@ function getLayerInfo(layer, wms, supportsWebp = false) {
   }
   if (typeof wms.transparent !== 'undefined') {
     product.transparent = wms.transparent;
+  }
+
+  // Native pixel resolution of the source data, in metres per pixel.
+  // Used by StickyImageWMS.clampResolution to avoid asking the server
+  // to upsample its own grid (radar composites are typically 500 m –
+  // 2 km; satellite RGBs are 1 km – 3 km). When absent, no clamp.
+  if (typeof wms.nativeResolutionMeters === 'number') {
+    product.nativeResolutionMeters = wms.nativeResolutionMeters;
   }
 
   if (typeof layer.Dimension !== 'undefined') {
