@@ -8,7 +8,6 @@ import ImageLayer from 'ol/layer/Image';
 import VectorLayer from 'ol/layer/Vector';
 import VectorTileLayer from 'ol/layer/VectorTile';
 import XYZ from 'ol/source/XYZ';
-import ImageWMS from 'ol/source/ImageWMS';
 import VectorTileSource from 'ol/source/VectorTile';
 import GeoJSON from 'ol/format/GeoJSON';
 import MVT from 'ol/format/MVT';
@@ -35,6 +34,7 @@ import createLongPressHandler from './longpress';
 import initTools from './tools';
 import initProbe from './probe';
 import FramePool from './animation/framePool';
+import StickyImageWMS from './animation/stickyImageWMS';
 import { canInterpolate, RadarInterpolator } from './animation/interpolation';
 import { track } from './analytics';
 
@@ -540,7 +540,7 @@ const satelliteLayer = new ImageLayer({
   name: 'satelliteLayer',
   visible: VISIBLE.has('satelliteLayer'),
   opacity: 0.7,
-  source: new ImageWMS({
+  source: new StickyImageWMS({
     url: options.wmsServerConfiguration.eumetsat1.url,
     params: { FORMAT: 'image/jpeg', LAYERS: 'rgb_eview' },
     hidpi: false,
@@ -561,7 +561,7 @@ const radarLayer = new ImageLayer({
   name: 'radarLayer',
   visible: VISIBLE.has('radarLayer'),
   opacity: 0.7,
-  source: new ImageWMS({
+  source: new StickyImageWMS({
     url: options.wmsServerConfiguration.fi.url,
     params: { LAYERS: options.defaultRadarLayer },
     attributions: 'FMI (CC-BY-4.0)',
@@ -586,7 +586,7 @@ radarLayer.set('disableWebp', true);
 const lightningLayer = new ImageLayer({
   name: 'lightningLayer',
   visible: VISIBLE.has('lightningLayer'),
-  source: new ImageWMS({
+  source: new StickyImageWMS({
     url: options.wmsServerConfiguration['meteo-obs-new'].url,
     params: { FORMAT: 'image/png8', LAYERS: options.defaultLightningLayer },
     ratio: options.imageRatio,
@@ -600,7 +600,7 @@ lightningLayer.set('defaultFormat', 'image/png8');
 const observationLayer = new ImageLayer({
   name: 'observationLayer',
   visible: VISIBLE.has('observationLayer'),
-  source: new ImageWMS({
+  source: new StickyImageWMS({
     url: options.wmsServerConfiguration['meteo-obs-new'].url,
     params: { FORMAT: 'image/png8', LAYERS: options.defaultObservationLayer },
     ratio: options.imageRatio,
