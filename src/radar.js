@@ -1203,10 +1203,21 @@ function applyNativeResolution(layer) {
   const info = layerInfo[wmslayer];
   const meters = (info && typeof info.nativeResolutionMeters === 'number')
     ? info.nativeResolutionMeters : null;
-  // Primary slot's source IS layer.getSource() — covered by the pool's
-  // setNativeResolution below. But the primary may also be talking
-  // directly to OL for renders that bypass FramePool (rare; defensive).
-  layer.getSource().setNativeResolution(meters);
+  // The category layers are constructed with a plain ImageWMS source at
+  // boot. FramePool swaps it to one of its StickyImageWMS slot sources
+  // on the first showTime, and from then on the layer's source has the
+  // setNativeResolution method. Until then it doesn't — guard so the
+  // first applyNativeResolution call (which fires from the GetCaps
+  // success path BEFORE the first showTime) doesn't throw on the
+  // satellite layer and short-circuit the rest of the apply chain.
+  const src = layer.getSource();
+  if (typeof src.setNativeResolution === 'function') {
+    src.setNativeResolution(meters);
+  }
+  // The pool propagates to all 13 slot sources, which ARE
+  // StickyImageWMS — that's the load-bearing call. After showTime the
+  // primary's source becomes one of those slots and inherits the clamp
+  // transitively.
   const pool = framePools[layer.get('name')];
   if (pool) pool.setNativeResolution(meters);
 }
