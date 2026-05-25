@@ -163,10 +163,9 @@ const wmsServerConfiguration = {
     category: 'radarLayer',
     attribution: 'FMI',
     license: 'CC-BY-4.0',
-    // TODO: set from `gdalinfo` on the source. The Finnish national
-    // composite is widely-reported 1 km but the bundle that meteocore
-    // actually serves may be coarser or finer — verify before pinning.
-    // nativeResolutionMeters: 1000,
+    // Verified via `gdalinfo` on the source GeoTIFF: 250 m/pixel in
+    // EPSG:3067 (TM35FIN), ~5000×7300 native grid covering Finland.
+    nativeResolutionMeters: 250,
     disabled: false,
   },
   eu: {
