@@ -224,10 +224,22 @@ export default class FramePool {
   // Called from radar.js whenever the active sublayer's `info` is set
   // or refreshed (i.e. after updateLayer and after GetCapabilities
   // completes for the bootstrapped default sublayer).
+  //
+  // Setting the cap alone doesn't trigger anything user-visible —
+  // StickyImageWMS.setNativeResolution drops the source's cached wrapper
+  // so the NEXT request goes out at the clamped resolution, but OL
+  // doesn't issue a new request until something else moves the view.
+  // Fire a prefetch ourselves whenever the cap actually changed so the
+  // user sees the smaller GetMap requests immediately on the next caps
+  // response, not only after they pan or playback ticks.
   setNativeResolution(meters) {
+    let changed = false;
     for (const slot of this.slots) {
+      const before = slot.source._nativeResolutionMeters;
       slot.source.setNativeResolution(meters);
+      if (slot.source._nativeResolutionMeters !== before) changed = true;
     }
+    if (changed) this._prefetchAroundCurrent();
   }
 
   _resyncAllParams(prev, now) {
