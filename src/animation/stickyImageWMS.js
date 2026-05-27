@@ -1,6 +1,15 @@
 import ImageWMS from 'ol/source/ImageWMS';
 import ImageState from 'ol/ImageState';
 
+// Maximum WIDTH or HEIGHT we'll ever ask the server to render, in
+// pixels. Server-side telemetry showed individual GetMap requests
+// hitting 12642 px on retina ultrawides — those are >150 MP raster
+// renders for a viewport that resolves at most ~16 MP of detail.
+// 4000 is "well past retina-perceptible for continuous-tone radar"
+// (16 MP cap), keeps server p95 sane, and is invisible on every
+// current display.
+const MAX_REQUEST_DIM = 4000;
+
 // fetch() + AbortController based image loader. Each source tracks the
 // in-flight request; a new call aborts the previous one. This prevents
 // superseded requests (after rapid pan/zoom) from wasting server cycles
@@ -76,32 +85,32 @@ export default class StickyImageWMS extends ImageWMS {
     this.setImageLoadFunction(createAbortableImageLoader(this));
   }
 
-  // Coerce the requested resolution to the data's native resolution if
-  // the request would be finer. Two units to be careful of:
+  // Coerce the requested resolution to whichever cap binds:
+  //   * native cap: never request finer than the data's own pixel size
+  //     (scaled by devicePixelRatio so the cap is in device-pixel terms,
+  //     not logical-pixel terms — `hidpi: false` on our sources means
+  //     each request pixel already covers DPR² device pixels);
+  //   * dimension cap: never ask for an image larger than
+  //     MAX_REQUEST_DIM × MAX_REQUEST_DIM, regardless of viewport. The
+  //     loader inflates the view extent by `this.ratio_` before
+  //     computing WIDTH/HEIGHT = (inflated_extent / resolution), so the
+  //     dimension cap implies resolution ≥ extent × ratio / MAX_DIM.
   //
-  //   1. The `resolution` argument is in metres per LOGICAL pixel — OL
-  //      passes view-resolution; `hidpi: false` on our sources skips the
-  //      ×devicePixelRatio multiplication. So one request pixel already
-  //      maps to DPR² device pixels (4 on a 2× retina display).
-  //
-  //   2. EPSG:3857 distortion: the value is "m at the equator". At
-  //      Finnish latitudes the ground-truth metres are ~0.5× that. So
-  //      a numeric resolution of 250 in EPSG:3857 is already only ~125
-  //      ground-metres per logical pixel at 60°N.
-  //
-  // Multiplying the cap by devicePixelRatio matches the cap to
-  // *device-pixel* density rather than logical-pixel density. On a
-  // 2× retina the effective cap doubles → request dimensions halve per
-  // axis → payload ~4× smaller, with no visible quality loss on
-  // continuous-tone radar (the data has no detail below native, and
-  // browser upscaling at DPR factor is invisible at retina density).
-  clampResolution(resolution) {
-    const cap = this._nativeResolutionMeters;
-    if (!cap) return resolution;
+  // Whichever cap is stricter (= larger resolution number) wins.
+  clampResolution(extent, resolution) {
     const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
-    const effectiveCap = cap * dpr;
-    if (resolution >= effectiveCap) return resolution;
-    return effectiveCap;
+    let effective = resolution;
+    const nativeCap = this._nativeResolutionMeters;
+    if (nativeCap) {
+      const native = nativeCap * dpr;
+      if (effective < native) effective = native;
+    }
+    if (extent && this.ratio_) {
+      const extentMax = Math.max(extent[2] - extent[0], extent[3] - extent[1]);
+      const dimCap = (extentMax * this.ratio_) / MAX_REQUEST_DIM;
+      if (effective < dimCap) effective = dimCap;
+    }
+    return effective;
   }
 
   setNativeResolution(meters) {
@@ -114,7 +123,7 @@ export default class StickyImageWMS extends ImageWMS {
   }
 
   getImage(extent, resolution, pixelRatio, projection) {
-    const effective = this.clampResolution(resolution);
+    const effective = this.clampResolution(extent, resolution);
     const image = super.getImage(extent, effective, pixelRatio, projection);
     if (!image) return this._sticky || image;
     const state = image.getState();
@@ -132,7 +141,7 @@ export default class StickyImageWMS extends ImageWMS {
   // on moveend only — NOT from getImage, which would fire once per RAF
   // during a drag/zoom gesture and create dozens of requests per pan.
   triggerLoad(extent, resolution, pixelRatio, projection) {
-    const effective = this.clampResolution(resolution);
+    const effective = this.clampResolution(extent, resolution);
     const image = super.getImage(extent, effective, pixelRatio, projection);
     if (image && image.getState() === ImageState.IDLE) image.load();
   }
@@ -188,7 +197,7 @@ export default class StickyImageWMS extends ImageWMS {
   // on cache miss (that's OL's normal getImage behavior; fan-out will
   // load it later).
   hasLoadedImageForView(extent, resolution, pixelRatio, projection) {
-    const effective = this.clampResolution(resolution);
+    const effective = this.clampResolution(extent, resolution);
     const image = super.getImage(extent, effective, pixelRatio, projection);
     return !!(image && image.getState() === ImageState.LOADED);
   }
