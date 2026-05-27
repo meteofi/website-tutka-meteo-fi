@@ -1,14 +1,15 @@
 import ImageWMS from 'ol/source/ImageWMS';
 import ImageState from 'ol/ImageState';
 
-// Maximum WIDTH or HEIGHT we'll ever ask the server to render, in
-// pixels. Server-side telemetry showed individual GetMap requests
-// hitting 12642 px on retina ultrawides — those are >150 MP raster
-// renders for a viewport that resolves at most ~16 MP of detail.
-// 4000 is "well past retina-perceptible for continuous-tone radar"
-// (16 MP cap), keeps server p95 sane, and is invisible on every
-// current display.
-const MAX_REQUEST_DIM = 4000;
+// Match the meteocore WMS server's explicit limits exactly: each
+// GetMap request must be ≤ 8000 px on either axis AND ≤ 64 megapixels
+// total area. The server rejects requests that exceed either bound.
+// Clamping client-side guarantees no rejection trip, and on typical
+// 16:9 viewports the per-axis cap binds first (8000 × 4500 = 36 MP,
+// well under 64 MP); the area cap only kicks in for square-ish
+// requests. Both checks together preserve the server's contract.
+const MAX_REQUEST_DIM = 8000;
+const MAX_REQUEST_PIXELS = 64 * 1000 * 1000;
 
 // fetch() + AbortController based image loader. Each source tracks the
 // in-flight request; a new call aborts the previous one. This prevents
@@ -91,12 +92,17 @@ export default class StickyImageWMS extends ImageWMS {
   //     not logical-pixel terms — `hidpi: false` on our sources means
   //     each request pixel already covers DPR² device pixels);
   //   * dimension cap: never ask for an image larger than
-  //     MAX_REQUEST_DIM × MAX_REQUEST_DIM, regardless of viewport. The
-  //     loader inflates the view extent by `this.ratio_` before
-  //     computing WIDTH/HEIGHT = (inflated_extent / resolution), so the
-  //     dimension cap implies resolution ≥ extent × ratio / MAX_DIM.
+  //     MAX_REQUEST_DIM on either axis AND total area ≤
+  //     MAX_REQUEST_PIXELS. The loader inflates the view extent by
+  //     `this.ratio_` before computing WIDTH = inflated_extent_w /
+  //     resolution (same for HEIGHT). So:
+  //       per-axis: resolution ≥ extent_max × ratio / MAX_DIM
+  //       area:     resolution ≥ ratio × sqrt(extent_w × extent_h / MAX_PIXELS)
+  //     Whichever produces the larger resolution wins; on typical 16:9
+  //     viewports the per-axis cap binds first (the area cap only
+  //     matters when the request is close to square).
   //
-  // Whichever cap is stricter (= larger resolution number) wins.
+  // Whichever cap is stricter (= larger resolution number) wins overall.
   clampResolution(extent, resolution) {
     const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
     let effective = resolution;
@@ -106,9 +112,12 @@ export default class StickyImageWMS extends ImageWMS {
       if (effective < native) effective = native;
     }
     if (extent && this.ratio_) {
-      const extentMax = Math.max(extent[2] - extent[0], extent[3] - extent[1]);
-      const dimCap = (extentMax * this.ratio_) / MAX_REQUEST_DIM;
+      const extW = (extent[2] - extent[0]) * this.ratio_;
+      const extH = (extent[3] - extent[1]) * this.ratio_;
+      const dimCap = Math.max(extW, extH) / MAX_REQUEST_DIM;
       if (effective < dimCap) effective = dimCap;
+      const areaCap = Math.sqrt((extW * extH) / MAX_REQUEST_PIXELS);
+      if (effective < areaCap) effective = areaCap;
     }
     return effective;
   }
