@@ -25,6 +25,16 @@ const EDR_COLLECTIONS = new Set([
 const Y_MIN_DBZ = 0;
 const Y_MAX_DBZ = 50;
 
+// OpenLayers hands back longitudes outside [-180, 180] when the map is panned
+// across world copies (e.g. lon 360.0017 for a point that is really near 0°).
+// The EDR server rejects those with HTTP 400, so wrap longitude into [-180, 180)
+// and clamp latitude into [-90, 90] before any coordinate reaches a query.
+function normalizeLonLat(lon, lat) {
+  const wrappedLon = ((((lon + 180) % 360) + 360) % 360) - 180;
+  const clampedLat = Math.max(-90, Math.min(90, lat));
+  return [wrappedLon, clampedLat];
+}
+
 const CACHE_TTL_MS = 60000;
 const CACHE_MAX = 20;
 const cache = new Map(); // insertion-ordered: oldest entry is first
@@ -330,7 +340,8 @@ export default function initProbe({ container, onValueChange }) {
 
   return {
     setPin(lonLat) {
-      pin = (lonLat && lonLat.length === 2) ? [lonLat[0], lonLat[1]] : null;
+      pin = (lonLat && lonLat.length === 2)
+        ? normalizeLonLat(lonLat[0], lonLat[1]) : null;
       recompute();
     },
     setActiveLayer(wmslayer) {
