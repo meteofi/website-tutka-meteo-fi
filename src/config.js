@@ -195,6 +195,15 @@ const wmsServerConfiguration = {
     license: 'CC-BY-4.0',
     disabled: false,
   },
+  cz: {
+    url: 'https://meteocore.app.meteo.fi/wms',
+    layer: 'chmi-radar-composite-dbz',
+    refresh: 60000,
+    category: 'radarLayer',
+    attribution: 'CHMI',
+    license: 'CC-BY-4.0',
+    disabled: false,
+  },
   vn: {
     url: 'https://vietnam.smartmet.fi/wms',
     namespace: 'vnmha:radar',

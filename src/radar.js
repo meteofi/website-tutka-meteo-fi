@@ -1259,6 +1259,29 @@ function updateLayer(layer, wmslayer, opts = {}) {
   }
 }
 
+// Pan/zoom the map to a layer's advertised coverage. Used by the radar
+// long-press menu so picking e.g. "Ruotsi" recentres on Sweden's radar
+// footprint. No-op until the layer's GetCapabilities has populated a
+// geographic bounding box, or if the transform yields a degenerate extent
+// (e.g. a full-disc box clipped at the Web Mercator poles).
+function fitToLayerExtent(wmslayer) {
+  const info = layerInfo[wmslayer];
+  if (!info || !Array.isArray(info.bbox)) return;
+  const view = map.getView();
+  const extent = transformExtent(info.bbox, 'EPSG:4326', view.getProjection());
+  if (!extent || !extent.every(Number.isFinite)) return;
+  view.fit(extent, {
+    size: map.getSize(),
+    // Leave room for the top toolbar and bottom timeline so the footprint
+    // isn't tucked under the chrome.
+    padding: [60, 30, 90, 30],
+    // Guard against zooming to street level on a tiny footprint; country-
+    // and continent-scale boxes land well below this and are unaffected.
+    maxZoom: 12,
+    duration: 500,
+  });
+}
+
 // Restore the user's previously selected sublayer for one category (e.g.
 // 'radarLayer') after that category's WMS GetCapabilities has populated
 // layerInfo. If the stored layer is no longer advertised by the server,
@@ -1780,7 +1803,11 @@ const radarMenu = createLongPressHandler(
   'radarLayerButton',
   'radarLongPressMenu',
   () => { toggleAndAnnounce(radarLayer, 'radarLayerButton', 'button'); },
-  (id) => { updateLayer(radarLayer, id, { source: 'longpress' }); radarMenu.hide(); },
+  (id) => {
+    updateLayer(radarLayer, id, { source: 'longpress' });
+    fitToLayerExtent(id);
+    radarMenu.hide();
+  },
   () => radarLayer.getSource().getParams().LAYERS,
   () => radarLayer.getVisible(),
   onLongPressDiscovered,
@@ -2260,6 +2287,14 @@ function getLayerInfo(layer, wms, supportsWebp = false) {
     [product.crs] = layer.CRS;
   } else {
     product.crs = 'EPSG:4326';
+  }
+
+  // Geographic coverage advertised in GetCapabilities, as
+  // [minLon, minLat, maxLon, maxLat] in EPSG:4326. Used to pan/zoom the
+  // map to a radar source's footprint when it's picked from the radar
+  // long-press menu (see fitToLayerExtent).
+  if (Array.isArray(layer.EX_GeographicBoundingBox)) {
+    product.bbox = layer.EX_GeographicBoundingBox;
   }
 
   if (typeof wms.title !== 'undefined') {

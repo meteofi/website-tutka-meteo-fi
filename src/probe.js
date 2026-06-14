@@ -17,6 +17,7 @@ const EDR_COLLECTIONS = new Set([
   'smhi-radar-composite-dbz',
   'dmi-radar-composite-dbz',
   'dwd-radar-composite-dbz',
+  'chmi-radar-composite-dbz',
 ]);
 
 // Fixed visible dBZ range for the chart Y axis. Anything below 0 dBZ
