@@ -499,6 +499,10 @@ html, body {
     left: 50%;
     transform: translateX(-50%);
     z-index: 130;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
     padding: 6px 12px;
     background: rgba(0, 0, 0, 0.85);
     color: var(--dark-high-emphasis-text-color);
@@ -516,6 +520,12 @@ html, body {
   }
   #coachmark.show { opacity: 1; }
   #coachmark[hidden] { display: none; }
+  #coachmark .coach-hint {
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--dark-medium-emphasis-text-color);
+  }
+  #coachmark .coach-hint[hidden] { display: none; }
 
 
   #timecontrol {

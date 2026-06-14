@@ -8,9 +8,10 @@
  * @param {Function} onSelect - called with the selected menu item's data-layer value
  * @param {Function} getActiveLayer - returns the current active WMS layer name for highlighting
  * @param {Function} isLayerVisible - returns whether the layer is currently visible
+ * @param {Function} [onMenuShown] - called whenever the long-press menu opens
  * @returns {{ show: Function, hide: Function }}
  */
-function createLongPressHandler(buttonId, menuId, onTap, onSelect, getActiveLayer, isLayerVisible) {
+function createLongPressHandler(buttonId, menuId, onTap, onSelect, getActiveLayer, isLayerVisible, onMenuShown) {
   let timer = null;
   let triggered = false;
   let startTime = 0;
@@ -39,6 +40,7 @@ function createLongPressHandler(buttonId, menuId, onTap, onSelect, getActiveLaye
     menu.style.left = `${left}px`;
     menu.style.top = `${top}px`;
     menu.style.visibility = 'visible';
+    if (onMenuShown) onMenuShown();
   }
 
   function hideMenu() {

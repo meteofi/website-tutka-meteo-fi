@@ -1565,6 +1565,10 @@ function toggleLayerVisibility(layer, source) {
   }
 }
 
+// Whether the user has already opened a long-press menu (persisted), so the
+// discovery hint in the coachmark stops appearing once the gesture is learned.
+let longPressDiscovered = safeParseJSON('LP_HINT_SEEN', false);
+
 // Toggle wrapper for segment-originated actions (button taps + keyboard
 // shortcuts). Announces the Finnish layer name via coachmark only when the
 // toggle turned the layer on. Deliberately not used by the playlist eye icon
@@ -1574,7 +1578,11 @@ function toggleAndAnnounce(layer, segId, source) {
   if (layer.getVisible()) {
     const seg = document.getElementById(segId);
     if (seg && typeof showCoachmark === 'function') {
-      showCoachmark(seg.getAttribute('data-name'));
+      // Teach the long-press menu on real button taps, until the user discovers
+      // it. Keyboard shortcuts (source: 'key') skip the "hold the button" hint.
+      showCoachmark(seg.getAttribute('data-name'), {
+        longPressHint: source === 'button' && !longPressDiscovered,
+      });
     }
   }
 }
@@ -1744,7 +1752,10 @@ document.getElementById('lightningLayerTitle').addEventListener('mouseup', () =>
   toggleLayerVisibility(lightningLayer, 'playlist');
 });
 
-// Long press menus for layer buttons
+// Long press menus for layer buttons. Opening any menu dismisses a lingering
+// discovery hint and records that the gesture has been learned.
+const onLongPressDiscovered = () => { hideCoachmarkNow(); markLongPressDiscovered(); };
+
 const observationMenu = createLongPressHandler(
   'observationLayerButton',
   'observationLongPressMenu',
@@ -1752,6 +1763,7 @@ const observationMenu = createLongPressHandler(
   (id) => { updateLayer(observationLayer, id, { source: 'longpress' }); observationMenu.hide(); },
   () => observationLayer.getSource().getParams().LAYERS,
   () => observationLayer.getVisible(),
+  onLongPressDiscovered,
 );
 
 const satelliteMenu = createLongPressHandler(
@@ -1761,6 +1773,7 @@ const satelliteMenu = createLongPressHandler(
   (id) => { updateLayer(satelliteLayer, id, { source: 'longpress' }); satelliteMenu.hide(); },
   () => satelliteLayer.getSource().getParams().LAYERS,
   () => satelliteLayer.getVisible(),
+  onLongPressDiscovered,
 );
 
 const radarMenu = createLongPressHandler(
@@ -1770,6 +1783,7 @@ const radarMenu = createLongPressHandler(
   (id) => { updateLayer(radarLayer, id, { source: 'longpress' }); radarMenu.hide(); },
   () => radarLayer.getSource().getParams().LAYERS,
   () => radarLayer.getVisible(),
+  onLongPressDiscovered,
 );
 
 const lightningMenu = createLongPressHandler(
@@ -1779,6 +1793,7 @@ const lightningMenu = createLongPressHandler(
   (id) => { updateLayer(lightningLayer, id, { source: 'longpress' }); lightningMenu.hide(); },
   () => lightningLayer.getSource().getParams().LAYERS,
   () => lightningLayer.getVisible(),
+  onLongPressDiscovered,
 );
 
 // Overflow menu (three-dots) — open/close + theme chip wiring
@@ -1969,12 +1984,26 @@ persistPoiState();
 buildPoiMenuRows();
 
 // Coachmark: briefly surfaces the Finnish layer name after it becomes visible,
-// so icon-only segments stay learnable.
+// so icon-only segments stay learnable. When the long-press menu hasn't been
+// discovered yet, the toast also teaches the hold gesture for ~3 s; the hint
+// stops appearing once any long-press menu has been opened (see LP_HINT_SEEN).
 const coachmarkEl = document.getElementById('coachmark');
+const coachmarkTitleEl = coachmarkEl.querySelector('.coach-title');
+const coachmarkHintEl = coachmarkEl.querySelector('.coach-hint');
+const LONG_PRESS_HINT_TEXT = 'Pidä pohjassa → lisää vaihtoehtoja';
 let coachmarkTimer = null;
-function showCoachmark(text) {
+
+function markLongPressDiscovered() {
+  if (longPressDiscovered) return;
+  longPressDiscovered = true;
+  localStorage.setItem('LP_HINT_SEEN', JSON.stringify(true));
+}
+
+function showCoachmark(text, { longPressHint = false } = {}) {
   if (!text) return;
-  coachmarkEl.textContent = text;
+  coachmarkTitleEl.textContent = text;
+  coachmarkHintEl.textContent = longPressHint ? LONG_PRESS_HINT_TEXT : '';
+  coachmarkHintEl.hidden = !longPressHint;
   coachmarkEl.hidden = false;
   coachmarkEl.getBoundingClientRect();
   coachmarkEl.classList.add('show');
@@ -1984,7 +2013,15 @@ function showCoachmark(text) {
     setTimeout(() => {
       if (!coachmarkEl.classList.contains('show')) coachmarkEl.hidden = true;
     }, 220);
-  }, 1400);
+  }, longPressHint ? 3000 : 1400);
+}
+
+// Immediately tear down the coachmark — used when a long-press succeeds so the
+// "hold the button" hint doesn't linger after the gesture has been performed.
+function hideCoachmarkNow() {
+  if (coachmarkTimer) clearTimeout(coachmarkTimer);
+  coachmarkEl.classList.remove('show');
+  coachmarkEl.hidden = true;
 }
 
 document.addEventListener('keyup', (event) => {
