@@ -610,11 +610,50 @@ const observationLayer = new ImageLayer({
 });
 observationLayer.set('defaultFormat', 'image/png8');
 
+// Radar-site markers track the live radar network rather than a hand-edited
+// file: two meteocore OGC API Features collections are fetched and merged —
+// Finland (fi-radar-pvol) and Estonia (ee-radar-volume). Each feature's
+// `name` is the official station name used for the label. If both live
+// fetches fail (offline PWA, meteocore unreachable), fall back to the bundled
+// snapshot so markers still render. Default 'all' loading strategy → the
+// loader runs once for the world extent.
+const RADAR_SITE_COLLECTIONS = [
+  'https://meteocore.app.meteo.fi/features/collections/fi-radar-pvol/items?f=application/geo%2Bjson&limit=1000',
+  'https://meteocore.app.meteo.fi/features/collections/ee-radar-volume/items?f=application/geo%2Bjson&limit=1000',
+];
+const RADAR_SITE_FALLBACK_URL = 'radars-finland.json';
+
+const radarSiteSource = new Vector({
+  format: new GeoJSON(),
+  attributions: 'FMI / Estonian Environment Agency (CC BY 4.0)',
+  loader: (extent, resolution, projection, success, failure) => {
+    const readInto = (geojson) => {
+      const features = radarSiteSource.getFormat()
+        .readFeatures(geojson, { featureProjection: projection });
+      radarSiteSource.addFeatures(features);
+      return features;
+    };
+    const fetchJson = (url) => fetch(url).then((res) => {
+      if (!res.ok) throw new Error(`${url}: HTTP ${res.status}`);
+      return res.json();
+    });
+
+    Promise.all(RADAR_SITE_COLLECTIONS.map(fetchJson))
+      .then((collections) => success(collections.flatMap(readInto)))
+      .catch((err) => {
+        debug(`Live radar sites unavailable (${err}); using bundled fallback.`);
+        fetchJson(RADAR_SITE_FALLBACK_URL)
+          .then((geojson) => success(readInto(geojson)))
+          .catch(() => {
+            radarSiteSource.removeLoadedExtent(extent);
+            failure();
+          });
+      });
+  },
+});
+
 const radarSiteLayer = new VectorLayer({
-  source: new Vector({
-    format: new GeoJSON(),
-    url: 'radars-finland.json',
-  }),
+  source: radarSiteSource,
   style(feature) {
     radarStyle.getText().setText(feature.get('name'));
     return radarStyle;
