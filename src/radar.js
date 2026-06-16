@@ -2692,10 +2692,11 @@ const main = () => {
       return;
     }
 
-    // Tap on a radar-site marker → open its drill-in card (single-site WMS
-    // toggle). The layer-aware lookup distinguishes radar sites from airfield
-    // markers (icaoLayer) regardless of z-order, and we intercept before
-    // displayFeatureInfo so a site tap doesn't draw range rings + zoom.
+    // Tap on a radar-site marker → keep the existing coverage range-ring +
+    // highlight behaviour (displayFeatureInfo draws the rings and fits the
+    // view), then also open the drill-in card (single-site WMS toggle). The
+    // layer-aware lookup distinguishes radar sites from airfield markers
+    // (icaoLayer) regardless of z-order.
     if (radarSite && radarSiteLayer.getVisible()) {
       let radarSiteHit = null;
       map.forEachFeatureAtPixel(evt.pixel, (f, layer) => {
@@ -2703,11 +2704,7 @@ const main = () => {
         return false;
       });
       if (radarSiteHit) {
-        if (highlight) {
-          featureOverlay.getSource().removeFeature(highlight);
-          guideLayer.getSource().clear(true);
-          highlight = null;
-        }
+        displayFeatureInfo(evt.pixel);
         radarSite.openCardForFeature(radarSiteHit);
         return;
       }
