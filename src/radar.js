@@ -1911,18 +1911,39 @@ function syncToolGroup() {
 }
 
 if (toolFabBtn && toolFlyoutEl) {
-  toolFabBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (tools && tools.getActiveTool()) {
-      // FAB is active (a tool is armed) → tapping it disarms, mirroring how
-      // tapping the inactive FAB arms.
-      tools.setActiveTool(null);
-      closeToolFlyout();
-    } else {
-      // Nothing armed → arm the last-used tool and open the flyout to switch.
-      if (tools) tools.setActiveTool(lastTool);
+  // Tap toggles the active/last tool so it's usable immediately (no flyout to
+  // dismiss first). Press-and-hold opens the flyout to switch tools — same
+  // gesture as the app's long-press layer menus. Pointer events unify
+  // mouse/touch and avoid the touch "ghost click" double-firing.
+  const toggleActiveTool = () => {
+    if (!tools) return;
+    if (tools.getActiveTool()) tools.setActiveTool(null);
+    else tools.setActiveTool(lastTool);
+  };
+  let pressTimer = null;
+  const cancelPress = () => {
+    if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+  };
+  toolFabBtn.addEventListener('pointerdown', () => {
+    cancelPress();
+    pressTimer = setTimeout(() => {
+      pressTimer = null; // mark the long-press as consumed
       openToolFlyout();
-    }
+    }, 500);
+  });
+  toolFabBtn.addEventListener('pointerup', () => {
+    // A pending timer means this was a short press (tap) → toggle. A null
+    // timer means the long-press already fired and opened the flyout.
+    if (!pressTimer) return;
+    cancelPress();
+    toggleActiveTool();
+  });
+  toolFabBtn.addEventListener('pointerleave', cancelPress);
+  toolFabBtn.addEventListener('pointercancel', cancelPress);
+  // Keyboard activation (Enter/Space) fires a click with detail 0 and no
+  // pointer sequence; pointer-driven clicks (detail >= 1) are already handled.
+  toolFabBtn.addEventListener('click', (e) => {
+    if (e.detail === 0) toggleActiveTool();
   });
 
   toolFlyoutEl.querySelectorAll('.tool-flyout-item').forEach((item) => {
