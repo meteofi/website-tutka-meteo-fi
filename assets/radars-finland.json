@@ -3,24 +3,24 @@
     "crs": {
         "type": "name",
         "properties": {
-          "name": "EPSG:4326"
+            "name": "EPSG:4326"
         }
-      },
+    },
     "features": [
         {
             "type": "Feature",
             "geometry": {
                 "type": "Point",
                 "coordinates": [
-                    27.108057,
-                    60.903871,
-                    139
+                    27.10806,
+                    60.90387
                 ]
             },
             "properties": {
-                "name": "Kouvola",
-                "acronym": "ANJ",
-                "country": "fi"
+                "name": "Anjalankoski",
+                "nod": "fianj",
+                "country": "fi",
+                "coverage_radius_m": 250000
             }
         },
         {
@@ -28,14 +28,15 @@
             "geometry": {
                 "type": "Point",
                 "coordinates": [
-                    23.0768,
-                    61.7675
+                    22.50203,
+                    61.81081
                 ]
             },
             "properties": {
                 "name": "Kankaanpää",
-                "acronym": "KAN",
-                "country": "fi"
+                "nod": "fikan",
+                "country": "fi",
+                "coverage_radius_m": 250000
             }
         },
         {
@@ -43,14 +44,15 @@
             "geometry": {
                 "type": "Point",
                 "coordinates": [
-                    27.4439,
-                    68.4344
+                    27.44399,
+                    68.43443
                 ]
             },
             "properties": {
                 "name": "Kaunispää",
-                "acronym": "KAU",
-                "country": "fi"
+                "nod": "fikau",
+                "country": "fi",
+                "coverage_radius_m": 250000
             }
         },
         {
@@ -58,14 +60,15 @@
             "geometry": {
                 "type": "Point",
                 "coordinates": [
-                    29.7977,
-                    61.9070
+                    29.79772,
+                    61.906992
                 ]
             },
             "properties": {
                 "name": "Kesälahti",
-                "acronym": "KES",
-                "country": "fi"
+                "nod": "fikes",
+                "country": "fi",
+                "coverage_radius_m": 250000
             }
         },
         {
@@ -73,14 +76,15 @@
             "geometry": {
                 "type": "Point",
                 "coordinates": [
-                    21.6434,
-                    60.1285
+                    21.64338,
+                    60.12847
                 ]
             },
             "properties": {
-                "name": "Parainen",
-                "acronym": "KOR",
-                "country": "fi"
+                "name": "Korpo",
+                "nod": "fikor",
+                "country": "fi",
+                "coverage_radius_m": 250000
             }
         },
         {
@@ -88,14 +92,15 @@
             "geometry": {
                 "type": "Point",
                 "coordinates": [
-                    27.3815,
+                    27.38147,
                     62.8626
                 ]
             },
             "properties": {
                 "name": "Kuopio",
-                "acronym": "KUO",
-                "country": "fi"
+                "nod": "fikuo",
+                "country": "fi",
+                "coverage_radius_m": 250000
             }
         },
         {
@@ -103,14 +108,15 @@
             "geometry": {
                 "type": "Point",
                 "coordinates": [
-                    26.8969,
+                    26.896916,
                     67.1391
                 ]
             },
             "properties": {
                 "name": "Luosto",
-                "acronym": "LUO",
-                "country": "fi"
+                "nod": "filuo",
+                "country": "fi",
+                "coverage_radius_m": 250000
             }
         },
         {
@@ -118,15 +124,15 @@
             "geometry": {
                 "type": "Point",
                 "coordinates": [
-                    29.44892,
-                    63.83786,
-                    323
+                    29.44893,
+                    63.83786
                 ]
             },
             "properties": {
                 "name": "Nurmes",
-                "acronym": "NUR",
-                "country": "fi"
+                "nod": "finur",
+                "country": "fi",
+                "coverage_radius_m": 250000
             }
         },
         {
@@ -134,14 +140,15 @@
             "geometry": {
                 "type": "Point",
                 "coordinates": [
-                    25.4401,
-                    62.3045
+                    25.44009,
+                    62.30452
                 ]
             },
             "properties": {
                 "name": "Petäjävesi",
-                "acronym": "PET",
-                "country": "fi"
+                "nod": "fipet",
+                "country": "fi",
+                "coverage_radius_m": 250000
             }
         },
         {
@@ -149,14 +156,15 @@
             "geometry": {
                 "type": "Point",
                 "coordinates": [
-                    26.3189,
-                    64.7749
+                    26.31888,
+                    64.77493
                 ]
             },
             "properties": {
                 "name": "Utajärvi",
-                "acronym": "UTA",
-                "country": "fi"
+                "nod": "fiuta",
+                "country": "fi",
+                "coverage_radius_m": 250000
             }
         },
         {
@@ -164,14 +172,15 @@
             "geometry": {
                 "type": "Point",
                 "coordinates": [
-                    24.4956,
-                    60.5562
+                    24.495592,
+                    60.55619
                 ]
             },
             "properties": {
                 "name": "Vihti",
-                "acronym": "VIH",
-                "country": "fi"
+                "nod": "fivih",
+                "country": "fi",
+                "coverage_radius_m": 250000
             }
         },
         {
@@ -179,14 +188,47 @@
             "geometry": {
                 "type": "Point",
                 "coordinates": [
-                    23.8209,
-                    63.1048
+                    23.82086,
+                    63.10484
                 ]
             },
             "properties": {
                 "name": "Vimpeli",
-                "acronym": "VIM",
-                "country": "fi"
+                "nod": "fivim",
+                "country": "fi",
+                "coverage_radius_m": 250000
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    24.60213,
+                    59.397076
+                ]
+            },
+            "properties": {
+                "name": "Harku",
+                "nod": "eehar",
+                "country": "ee",
+                "coverage_radius_m": 249900
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    25.51866,
+                    58.48231
+                ]
+            },
+            "properties": {
+                "name": "Sürgavere",
+                "nod": "eesur",
+                "country": "ee",
+                "coverage_radius_m": 249900
             }
         }
     ]
