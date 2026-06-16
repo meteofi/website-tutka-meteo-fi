@@ -117,9 +117,24 @@
     <span class="tc-date"></span>
   </button>
 
-  <button id="measureFab" class="measure-fab noselect" type="button" aria-pressed="false" aria-label="Mittaa: etäisyys ja nopeus">
-    <i class="material-icons" aria-hidden="true">straighten</i>
-  </button>
+  <div id="toolGroup" class="tool-group noselect">
+    <button id="measureFab" class="measure-fab tool-group-main" type="button" aria-pressed="false"
+            aria-haspopup="menu" aria-expanded="false" aria-controls="toolFlyout" aria-label="Työkalut">
+      <i class="material-icons tool-group-icon" aria-hidden="true">colorize</i>
+    </button>
+    <span class="tool-group-caret" aria-hidden="true"></span>
+    <div id="toolFlyout" class="tool-flyout" role="menu" aria-label="Työkalut" hidden>
+      <button class="tool-flyout-item" type="button" role="menuitem" data-tool="measure"
+              aria-pressed="false" aria-label="Mittaa: etäisyys ja nopeus">
+        <i class="material-icons" aria-hidden="true">straighten</i>
+      </button>
+      <button class="tool-flyout-item" type="button" role="menuitem" data-tool="pistemittaus"
+              aria-pressed="false" aria-label="Pistemittaus: heijastavuus">
+        <i class="material-icons" aria-hidden="true">colorize</i>
+      </button>
+    </div>
+  </div>
+  <div id="toolFlyoutBackdrop"></div>
 
   <button id="locationLayerButton" class="location-fab noselect" aria-pressed="false" aria-label="Paikannus">
     <i id="gpsStatus" class="material-icons" aria-hidden="true">gps_not_fixed</i>
@@ -132,7 +147,7 @@
 
   <div id="toolChip" class="tool-chip" role="status" hidden>
     <i class="material-icons chip-icon" aria-hidden="true">straighten</i>
-    <span class="chip-label">MITTAA</span>
+    <span class="chip-label"></span>
     <span class="chip-hint"></span>
     <button type="button" class="chip-close" aria-label="Sulje työkalu">
       <i class="material-icons" aria-hidden="true">close</i>
