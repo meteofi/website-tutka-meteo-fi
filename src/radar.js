@@ -34,6 +34,7 @@ import wmsServerConfiguration from './config';
 import createLongPressHandler from './longpress';
 import initTools from './tools';
 import initProbe from './probe';
+import initRadarSite from './radarSite';
 import FramePool from './animation/framePool';
 import { canInterpolate, RadarInterpolator } from './animation/interpolation';
 import { track } from './analytics';
@@ -68,6 +69,7 @@ let ownPosition4326 = [];
 let geolocation;
 let tools = null;
 let probe = null;
+let radarSite = null;
 let startDate = new Date(Math.floor(Date.now() / 300000) * 300000 - 300000 * 12);
 // Handle of the currently-running playback loop (now a requestAnimationFrame
 // id — was a setInterval handle before the RAF refactor). Null when paused.
@@ -1327,6 +1329,11 @@ function fitToLayerExtent(wmslayer) {
 // drop it — the layer stays at its constructor-time default.
 function restoreActiveLayer(category) {
   if (!category) return;
+  // While drilled into a single radar site, the radar layer intentionally runs
+  // a transient `<collection>/DBZH` product that is NOT in ACTIVE_LAYERS. Skip
+  // the restore so the periodic (60 s) capabilities refresh doesn't revert it
+  // back to the stored composite mid-session.
+  if (category === 'radarLayer' && radarSite && radarSite.isSingleSiteActive()) return;
   const olLayer = layerss[category];
   if (!olLayer) return;
   const stored = ACTIVE_LAYERS[category];
@@ -1612,6 +1619,11 @@ function onChangeVisible(event) {
   // in-range state immediately so the map time, stale colour and
   // layer opacity update without waiting for a tick or manual step.
   setTime('keep');
+  // Turning the radar layer off exits single-site mode, restoring the composite
+  // product (while hidden) so re-enabling the layer shows the composite again.
+  if (layer === radarLayer && !isVisible && radarSite) {
+    radarSite.exitSingleSite({ restore: true });
+  }
 }
 
 /**
@@ -1843,6 +1855,10 @@ const radarMenu = createLongPressHandler(
   'radarLongPressMenu',
   () => { toggleAndAnnounce(radarLayer, 'radarLayerButton', 'button'); },
   (id) => {
+    // Picking a composite from the menu exits single-site mode first (clears
+    // the ELEVATION param + card toggle) without restoring, since the line
+    // below sets the new composite itself.
+    if (radarSite) radarSite.exitSingleSite({ restore: false });
     updateLayer(radarLayer, id, { source: 'longpress' });
     fitToLayerExtent(id);
     radarMenu.hide();
@@ -2599,6 +2615,10 @@ const main = () => {
   });
   syncToolGroup();
 
+  radarSite = initRadarSite({
+    map, radarLayer, updateLayer, setTime,
+  });
+
   // Overflow "Mittaa" row still arms the measure tool; remember it as the
   // last-used tool so the FAB reflects it. (The FAB itself is wired above as a
   // tool-group flyout.)
@@ -2670,6 +2690,27 @@ const main = () => {
     if (pin && hit === pin) {
       tools.toggleCard();
       return;
+    }
+
+    // Tap on a radar-site marker → open its drill-in card (single-site WMS
+    // toggle). The layer-aware lookup distinguishes radar sites from airfield
+    // markers (icaoLayer) regardless of z-order, and we intercept before
+    // displayFeatureInfo so a site tap doesn't draw range rings + zoom.
+    if (radarSite && radarSiteLayer.getVisible()) {
+      let radarSiteHit = null;
+      map.forEachFeatureAtPixel(evt.pixel, (f, layer) => {
+        if (layer === radarSiteLayer) { radarSiteHit = f; return true; }
+        return false;
+      });
+      if (radarSiteHit) {
+        if (highlight) {
+          featureOverlay.getSource().removeFeature(highlight);
+          guideLayer.getSource().clear(true);
+          highlight = null;
+        }
+        radarSite.openCardForFeature(radarSiteHit);
+        return;
+      }
     }
     displayFeatureInfo(evt.pixel);
   });

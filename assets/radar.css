@@ -1387,6 +1387,55 @@ html, body {
   color: rgba(255, 255, 255, 0.82);
 }
 
+/* Radar-site drill-in card — reuses the .marker-card shell + head/close. */
+.radar-site-card { width: 200px; }
+
+.radar-site-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.radar-site-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--dark-high-emphasis-text-color);
+}
+
+.radar-site-sub {
+  font-size: 12px;
+  color: var(--dark-medium-emphasis-text-color);
+  font-variant-numeric: tabular-nums;
+}
+
+.radar-site-toggle {
+  all: unset;
+  display: block;
+  box-sizing: border-box;
+  margin-top: 4px;
+  padding: 8px 10px;
+  text-align: center;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--dark-high-emphasis-text-color);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.radar-site-toggle:hover { background: rgba(18, 188, 250, 0.14); }
+
+.radar-site-toggle.active {
+  background: var(--dark-primary-color);
+  color: #00131c;
+}
+
+.radar-site-toggle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .marker-card-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

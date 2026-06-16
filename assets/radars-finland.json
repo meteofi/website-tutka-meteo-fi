@@ -20,7 +20,39 @@
                 "name": "Anjalankoski",
                 "nod": "fianj",
                 "country": "fi",
-                "coverage_radius_m": 250000
+                "collection": "fi-radar-pvol-fianj",
+                "coverage_radius_m": 250000,
+                "elevation_angles": [
+                    0.3,
+                    0.7,
+                    1.5,
+                    3.0,
+                    4.0,
+                    5.0,
+                    6.5,
+                    8.0,
+                    11.0,
+                    16.0,
+                    25.0
+                ],
+                "quantities": [
+                    "CSP",
+                    "DBZH",
+                    "DBZV",
+                    "HCLASS",
+                    "KDP",
+                    "LOG",
+                    "PHIDP",
+                    "PMI",
+                    "RHOHV",
+                    "SNR",
+                    "SQIH",
+                    "TH",
+                    "TV",
+                    "VRADH",
+                    "WRADH",
+                    "ZDR"
+                ]
             }
         },
         {
@@ -36,7 +68,39 @@
                 "name": "Kankaanpää",
                 "nod": "fikan",
                 "country": "fi",
-                "coverage_radius_m": 250000
+                "collection": "fi-radar-pvol-fikan",
+                "coverage_radius_m": 250000,
+                "elevation_angles": [
+                    0.3,
+                    0.7,
+                    1.5,
+                    3.0,
+                    4.0,
+                    5.0,
+                    6.5,
+                    8.0,
+                    11.0,
+                    16.0,
+                    25.0
+                ],
+                "quantities": [
+                    "CSP",
+                    "DBZH",
+                    "DBZV",
+                    "HCLASS",
+                    "KDP",
+                    "LOG",
+                    "PHIDP",
+                    "PMI",
+                    "RHOHV",
+                    "SNR",
+                    "SQIH",
+                    "TH",
+                    "TV",
+                    "VRADH",
+                    "WRADH",
+                    "ZDR"
+                ]
             }
         },
         {
@@ -52,7 +116,40 @@
                 "name": "Kaunispää",
                 "nod": "fikau",
                 "country": "fi",
-                "coverage_radius_m": 250000
+                "collection": "fi-radar-pvol-fikau",
+                "coverage_radius_m": 250000,
+                "elevation_angles": [
+                    0.3,
+                    0.7,
+                    1.5,
+                    2.0,
+                    3.0,
+                    4.0,
+                    5.0,
+                    6.5,
+                    8.0,
+                    11.0,
+                    16.0,
+                    25.0
+                ],
+                "quantities": [
+                    "CSP",
+                    "DBZH",
+                    "DBZV",
+                    "HCLASS",
+                    "KDP",
+                    "LOG",
+                    "PHIDP",
+                    "PMI",
+                    "RHOHV",
+                    "SNR",
+                    "SQIH",
+                    "TH",
+                    "TV",
+                    "VRADH",
+                    "WRADH",
+                    "ZDR"
+                ]
             }
         },
         {
@@ -68,7 +165,39 @@
                 "name": "Kesälahti",
                 "nod": "fikes",
                 "country": "fi",
-                "coverage_radius_m": 250000
+                "collection": "fi-radar-pvol-fikes",
+                "coverage_radius_m": 250000,
+                "elevation_angles": [
+                    0.3,
+                    0.7,
+                    1.5,
+                    3.0,
+                    4.0,
+                    5.0,
+                    6.5,
+                    8.0,
+                    11.0,
+                    16.0,
+                    25.0
+                ],
+                "quantities": [
+                    "CSP",
+                    "DBZH",
+                    "DBZV",
+                    "HCLASS",
+                    "KDP",
+                    "LOG",
+                    "PHIDP",
+                    "PMI",
+                    "RHOHV",
+                    "SNR",
+                    "SQIH",
+                    "TH",
+                    "TV",
+                    "VRADH",
+                    "WRADH",
+                    "ZDR"
+                ]
             }
         },
         {
@@ -84,7 +213,37 @@
                 "name": "Korpo",
                 "nod": "fikor",
                 "country": "fi",
-                "coverage_radius_m": 250000
+                "collection": "fi-radar-pvol-fikor",
+                "coverage_radius_m": 250000,
+                "elevation_angles": [
+                    0.4,
+                    0.5,
+                    0.7,
+                    1.5,
+                    2.0,
+                    3.0,
+                    4.0,
+                    5.0,
+                    9.0
+                ],
+                "quantities": [
+                    "CSP",
+                    "DBZH",
+                    "DBZV",
+                    "HCLASS",
+                    "KDP",
+                    "LOG",
+                    "PHIDP",
+                    "PMI",
+                    "RHOHV",
+                    "SNR",
+                    "SQIH",
+                    "TH",
+                    "TV",
+                    "VRADH",
+                    "WRADH",
+                    "ZDR"
+                ]
             }
         },
         {
@@ -100,7 +259,40 @@
                 "name": "Kuopio",
                 "nod": "fikuo",
                 "country": "fi",
-                "coverage_radius_m": 250000
+                "collection": "fi-radar-pvol-fikuo",
+                "coverage_radius_m": 250000,
+                "elevation_angles": [
+                    0.3,
+                    0.7,
+                    1.5,
+                    2.0,
+                    3.0,
+                    4.0,
+                    5.0,
+                    6.5,
+                    8.0,
+                    11.0,
+                    16.0,
+                    25.0
+                ],
+                "quantities": [
+                    "CSP",
+                    "DBZH",
+                    "DBZV",
+                    "HCLASS",
+                    "KDP",
+                    "LOG",
+                    "PHIDP",
+                    "PMI",
+                    "RHOHV",
+                    "SNR",
+                    "SQIH",
+                    "TH",
+                    "TV",
+                    "VRADH",
+                    "WRADH",
+                    "ZDR"
+                ]
             }
         },
         {
@@ -116,7 +308,40 @@
                 "name": "Luosto",
                 "nod": "filuo",
                 "country": "fi",
-                "coverage_radius_m": 250000
+                "collection": "fi-radar-pvol-filuo",
+                "coverage_radius_m": 250000,
+                "elevation_angles": [
+                    0.1,
+                    0.7,
+                    1.5,
+                    2.0,
+                    3.0,
+                    4.0,
+                    5.0,
+                    6.5,
+                    8.0,
+                    11.0,
+                    16.0,
+                    25.0
+                ],
+                "quantities": [
+                    "CSP",
+                    "DBZH",
+                    "DBZV",
+                    "HCLASS",
+                    "KDP",
+                    "LOG",
+                    "PHIDP",
+                    "PMI",
+                    "RHOHV",
+                    "SNR",
+                    "SQIH",
+                    "TH",
+                    "TV",
+                    "VRADH",
+                    "WRADH",
+                    "ZDR"
+                ]
             }
         },
         {
@@ -132,7 +357,40 @@
                 "name": "Nurmes",
                 "nod": "finur",
                 "country": "fi",
-                "coverage_radius_m": 250000
+                "collection": "fi-radar-pvol-finur",
+                "coverage_radius_m": 250000,
+                "elevation_angles": [
+                    0.3,
+                    0.7,
+                    1.5,
+                    2.0,
+                    3.0,
+                    4.0,
+                    5.0,
+                    6.5,
+                    8.0,
+                    11.0,
+                    16.0,
+                    25.0
+                ],
+                "quantities": [
+                    "CSP",
+                    "DBZH",
+                    "DBZV",
+                    "HCLASS",
+                    "KDP",
+                    "LOG",
+                    "PHIDP",
+                    "PMI",
+                    "RHOHV",
+                    "SNR",
+                    "SQIH",
+                    "TH",
+                    "TV",
+                    "VRADH",
+                    "WRADH",
+                    "ZDR"
+                ]
             }
         },
         {
@@ -148,7 +406,40 @@
                 "name": "Petäjävesi",
                 "nod": "fipet",
                 "country": "fi",
-                "coverage_radius_m": 250000
+                "collection": "fi-radar-pvol-fipet",
+                "coverage_radius_m": 250000,
+                "elevation_angles": [
+                    0.3,
+                    0.7,
+                    1.5,
+                    2.0,
+                    3.0,
+                    4.0,
+                    5.0,
+                    6.5,
+                    8.0,
+                    11.0,
+                    16.0,
+                    25.0
+                ],
+                "quantities": [
+                    "CSP",
+                    "DBZH",
+                    "DBZV",
+                    "HCLASS",
+                    "KDP",
+                    "LOG",
+                    "PHIDP",
+                    "PMI",
+                    "RHOHV",
+                    "SNR",
+                    "SQIH",
+                    "TH",
+                    "TV",
+                    "VRADH",
+                    "WRADH",
+                    "ZDR"
+                ]
             }
         },
         {
@@ -164,7 +455,40 @@
                 "name": "Utajärvi",
                 "nod": "fiuta",
                 "country": "fi",
-                "coverage_radius_m": 250000
+                "collection": "fi-radar-pvol-fiuta",
+                "coverage_radius_m": 250000,
+                "elevation_angles": [
+                    0.3,
+                    0.7,
+                    1.5,
+                    2.0,
+                    3.0,
+                    4.0,
+                    5.0,
+                    6.5,
+                    8.0,
+                    11.0,
+                    16.0,
+                    25.0
+                ],
+                "quantities": [
+                    "CSP",
+                    "DBZH",
+                    "DBZV",
+                    "HCLASS",
+                    "KDP",
+                    "LOG",
+                    "PHIDP",
+                    "PMI",
+                    "RHOHV",
+                    "SNR",
+                    "SQIH",
+                    "TH",
+                    "TV",
+                    "VRADH",
+                    "WRADH",
+                    "ZDR"
+                ]
             }
         },
         {
@@ -180,7 +504,39 @@
                 "name": "Vihti",
                 "nod": "fivih",
                 "country": "fi",
-                "coverage_radius_m": 250000
+                "collection": "fi-radar-pvol-fivih",
+                "coverage_radius_m": 250000,
+                "elevation_angles": [
+                    0.3,
+                    0.7,
+                    1.5,
+                    3.0,
+                    4.0,
+                    5.0,
+                    6.5,
+                    8.0,
+                    11.0,
+                    16.0,
+                    25.0
+                ],
+                "quantities": [
+                    "CSP",
+                    "DBZH",
+                    "DBZV",
+                    "HCLASS",
+                    "KDP",
+                    "LOG",
+                    "PHIDP",
+                    "PMI",
+                    "RHOHV",
+                    "SNR",
+                    "SQIH",
+                    "TH",
+                    "TV",
+                    "VRADH",
+                    "WRADH",
+                    "ZDR"
+                ]
             }
         },
         {
@@ -196,7 +552,40 @@
                 "name": "Vimpeli",
                 "nod": "fivim",
                 "country": "fi",
-                "coverage_radius_m": 250000
+                "collection": "fi-radar-pvol-fivim",
+                "coverage_radius_m": 250000,
+                "elevation_angles": [
+                    0.3,
+                    0.7,
+                    1.5,
+                    2.0,
+                    3.0,
+                    4.0,
+                    5.0,
+                    6.5,
+                    8.0,
+                    11.0,
+                    16.0,
+                    25.0
+                ],
+                "quantities": [
+                    "CSP",
+                    "DBZH",
+                    "DBZV",
+                    "HCLASS",
+                    "KDP",
+                    "LOG",
+                    "PHIDP",
+                    "PMI",
+                    "RHOHV",
+                    "SNR",
+                    "SQIH",
+                    "TH",
+                    "TV",
+                    "VRADH",
+                    "WRADH",
+                    "ZDR"
+                ]
             }
         },
         {
@@ -212,7 +601,35 @@
                 "name": "Harku",
                 "nod": "eehar",
                 "country": "ee",
-                "coverage_radius_m": 249900
+                "collection": "ee-radar-volume-eehar",
+                "coverage_radius_m": 249900,
+                "elevation_angles": [
+                    0.5,
+                    1.3,
+                    2.0,
+                    3.0,
+                    4.5,
+                    5.0,
+                    6.5,
+                    9.0
+                ],
+                "quantities": [
+                    "CSP",
+                    "DBZH",
+                    "DBZV",
+                    "HCLASS",
+                    "KDP",
+                    "PHIDP",
+                    "PMI",
+                    "RHOHV",
+                    "SNR",
+                    "SQIH",
+                    "TH",
+                    "TV",
+                    "VRADH",
+                    "WRADH",
+                    "ZDR"
+                ]
             }
         },
         {
@@ -228,7 +645,33 @@
                 "name": "Sürgavere",
                 "nod": "eesur",
                 "country": "ee",
-                "coverage_radius_m": 249900
+                "collection": "ee-radar-volume-eesur",
+                "coverage_radius_m": 249900,
+                "elevation_angles": [
+                    0.5,
+                    1.3,
+                    2.0,
+                    3.0,
+                    4.5,
+                    5.0,
+                    6.5,
+                    9.0
+                ],
+                "quantities": [
+                    "CSP",
+                    "DBZH",
+                    "HCLASS",
+                    "KDP",
+                    "PHIDP",
+                    "PMI",
+                    "RHOHV",
+                    "SNR",
+                    "SQIH",
+                    "TH",
+                    "VRADH",
+                    "WRADH",
+                    "ZDR"
+                ]
             }
         }
     ]
