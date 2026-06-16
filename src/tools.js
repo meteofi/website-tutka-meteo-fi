@@ -329,6 +329,7 @@ export default function initTools({
   const toolChipClose = toolChip ? toolChip.querySelector('.chip-close') : null;
   const menuButtonEl = document.getElementById('menuButton');
   const measureFabEl = document.getElementById('measureFab');
+  const mapEl = document.getElementById('map');
 
   let measureState = 'idle'; // 'idle' | 'awaiting-t1' | 'awaiting-t2' | 'showing-result'
   let t1Feature = null;
@@ -451,9 +452,10 @@ export default function initTools({
       markerTranslate.setActive(false);
     }
 
-    // Shared chip + FAB visuals.
+    // Shared chip + FAB + map-cursor visuals.
     const armed = tool !== null;
     if (toolChip) toolChip.hidden = !armed;
+    if (mapEl) mapEl.classList.toggle('tool-armed', armed);
     if (menuButtonEl) menuButtonEl.classList.toggle('tool-armed', armed);
     if (measureFabEl) {
       measureFabEl.classList.toggle('tool-armed', armed);

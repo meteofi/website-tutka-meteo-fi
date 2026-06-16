@@ -47,6 +47,10 @@ html, body {
     width: 100vw;
     height: 100vh;
     background-color: var(--dark-background-color);
+    cursor: default;
+}
+/* Crosshair only while a map-tap tool (Mittaa / Pistemittaus) is armed. */
+#map.tool-armed {
     cursor: crosshair;
 }
 
