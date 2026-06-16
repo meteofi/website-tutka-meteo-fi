@@ -151,10 +151,13 @@ function buildMarkerCard() {
 }
 
 export default function initTools({
-  map, getOwnPosition, getFrameTimestamp, onPinChange,
+  map, getOwnPosition, getFrameTimestamp, onPinChange, onToolChange,
 }) {
   const emitPinChange = typeof onPinChange === 'function'
     ? (lonLat) => { try { onPinChange(lonLat); } catch (_) { /* ignore */ } }
+    : () => {};
+  const emitToolChange = typeof onToolChange === 'function'
+    ? () => { try { onToolChange(); } catch (_) { /* ignore */ } }
     : () => {};
   // ---------------------------------------------------------------
   // Location marker (ambient, non-modal)
@@ -203,6 +206,9 @@ export default function initTools({
   let markerCoord4326 = null;
   let markerFeature = null;
   let markerCardVisible = false;
+  // Which map-tap tool is armed: null | 'measure' | 'pistemittaus'. Declared
+  // here (before dropOrMoveMarker) because the marker drop is gated on it.
+  let activeTool = null;
 
   function updateMarkerCardVisibility() {
     if (markerFeature && markerCoord4326 && markerCardVisible) {
@@ -236,6 +242,7 @@ export default function initTools({
   }
 
   function dropOrMoveMarker(mapCoord) {
+    if (activeTool !== 'pistemittaus') return;
     markerCoord4326 = transform(mapCoord, map.getView().getProjection(), 'EPSG:4326');
     if (markerFeature) {
       markerFeature.getGeometry().setCoordinates(mapCoord);
@@ -269,6 +276,9 @@ export default function initTools({
   // useful for finding a place at a specific distance from the user.
   const markerTranslate = new Translate({ layers: [markerLayer] });
   map.addInteraction(markerTranslate);
+  // The marker pin only exists while the Pistemittaus tool is armed, so the
+  // drag interaction stays inactive until setActiveTool('pistemittaus').
+  markerTranslate.setActive(false);
   markerTranslate.on('translating', () => {
     if (!markerFeature) return;
     const coords = markerFeature.getGeometry().getCoordinates();
@@ -313,12 +323,13 @@ export default function initTools({
 
   const measureCard = document.getElementById('measureCard');
   const toolChip = document.getElementById('toolChip');
+  const toolChipIcon = toolChip ? toolChip.querySelector('.chip-icon') : null;
+  const toolChipLabel = toolChip ? toolChip.querySelector('.chip-label') : null;
   const toolChipHint = toolChip ? toolChip.querySelector('.chip-hint') : null;
   const toolChipClose = toolChip ? toolChip.querySelector('.chip-close') : null;
   const menuButtonEl = document.getElementById('menuButton');
   const measureFabEl = document.getElementById('measureFab');
 
-  let measureArmed = false;
   let measureState = 'idle'; // 'idle' | 'awaiting-t1' | 'awaiting-t2' | 'showing-result'
   let t1Feature = null;
   let t2Feature = null;
@@ -343,6 +354,13 @@ export default function initTools({
 
   function setChipHint(txt) {
     if (toolChipHint) toolChipHint.textContent = txt ? `· ${txt}` : '';
+  }
+
+  // The tool chip is shared between Mittaa and Pistemittaus, so its icon and
+  // label are set per armed tool rather than hardcoded in the markup.
+  function setChipIdentity(iconName, labelText) {
+    if (toolChipIcon) toolChipIcon.textContent = iconName;
+    if (toolChipLabel) toolChipLabel.textContent = labelText;
   }
 
   function clearMeasureFeatures() {
@@ -399,40 +417,55 @@ export default function initTools({
     if (lineFeature) lineFeature.setStyle(lineLabelStyle(formatDistance(meters)));
   }
 
-  function armMeasure() {
-    if (measureArmed) return;
-    measureArmed = true;
-    measureState = 'awaiting-t1';
-    clearMeasureFeatures();
-    // Hide marker card while measuring (keep the pin; restore card on disarm)
-    if (markerCardVisible) markerOverlay.setPosition(undefined);
-    if (toolChip) toolChip.hidden = false;
-    setChipHint('napauta karttaa');
-    if (menuButtonEl) menuButtonEl.classList.add('tool-armed');
-    if (measureFabEl) {
-      measureFabEl.classList.add('tool-armed');
-      measureFabEl.setAttribute('aria-pressed', 'true');
+  // Single source of truth for which map-tap tool is armed. Mittaa and
+  // Pistemittaus are mutually exclusive, so switching tears down the one we're
+  // leaving (measure features, or the probe pin + card + chart) and sets up the
+  // one we're entering. Passing null (or anything else) disarms.
+  function setActiveTool(next) {
+    const tool = (next === 'measure' || next === 'pistemittaus') ? next : null;
+    if (tool === activeTool) return;
+
+    // Tear down the tool we're leaving.
+    if (activeTool === 'measure') {
+      clearMeasureFeatures();
+      measureState = 'idle';
+    } else if (activeTool === 'pistemittaus') {
+      // removeMarker also clears the probe value and emits a null pin, which
+      // collapses the EDR chart.
+      removeMarker();
     }
-    markerTranslate.setActive(false);
+
+    activeTool = tool;
+
+    // Set up the tool we're entering.
+    if (tool === 'measure') {
+      measureState = 'awaiting-t1';
+      markerTranslate.setActive(false);
+      setChipIdentity('straighten', 'MITTAA');
+      setChipHint('napauta karttaa');
+    } else if (tool === 'pistemittaus') {
+      markerTranslate.setActive(true);
+      setChipIdentity('colorize', 'PISTEMITTAUS');
+      setChipHint('napauta karttaa');
+    } else {
+      markerTranslate.setActive(false);
+    }
+
+    // Shared chip + FAB visuals.
+    const armed = tool !== null;
+    if (toolChip) toolChip.hidden = !armed;
+    if (menuButtonEl) menuButtonEl.classList.toggle('tool-armed', armed);
+    if (measureFabEl) {
+      measureFabEl.classList.toggle('tool-armed', armed);
+      measureFabEl.setAttribute('aria-pressed', armed ? 'true' : 'false');
+    }
+
+    emitToolChange();
   }
 
-  function disarmMeasure() {
-    if (!measureArmed) return;
-    measureArmed = false;
-    measureState = 'idle';
-    clearMeasureFeatures();
-    if (toolChip) toolChip.hidden = true;
-    if (menuButtonEl) menuButtonEl.classList.remove('tool-armed');
-    if (measureFabEl) {
-      measureFabEl.classList.remove('tool-armed');
-      measureFabEl.setAttribute('aria-pressed', 'false');
-    }
-    markerTranslate.setActive(true);
-    // Restore marker card if the pin is still there and it was visible before
-    if (markerFeature && markerCoord4326 && markerCardVisible) {
-      markerOverlay.setPosition(fromLonLat(markerCoord4326));
-    }
-  }
+  // Back-compat aliases: the overflow "Mittaa" row still calls arm().
+  function armMeasure() { setActiveTool('measure'); }
+  function disarmMeasure() { setActiveTool(null); }
 
   function handleMeasureTap(mapCoord) {
     const src = measureLayer.getSource();
@@ -470,11 +503,11 @@ export default function initTools({
     }
   }
 
-  // Measurement action wires
+  // Tool chip close (×) disarms whichever tool is armed.
   if (toolChipClose) {
     toolChipClose.addEventListener('click', (e) => {
       e.stopPropagation();
-      disarmMeasure();
+      setActiveTool(null);
     });
   }
 
@@ -529,10 +562,10 @@ export default function initTools({
     });
   }
 
-  // Esc disarms measurement
+  // Esc disarms whichever tool is armed
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && measureArmed) {
-      disarmMeasure();
+    if (e.key === 'Escape' && activeTool) {
+      setActiveTool(null);
     }
   });
 
@@ -544,10 +577,13 @@ export default function initTools({
     refresh: renderMarker,
     getPinFeature: () => markerFeature,
     setProbeValue,
-    // measurement
+    // tools (mutually exclusive map-tap tools)
+    setActiveTool,
+    getActiveTool: () => activeTool,
     arm: armMeasure,
     disarm: disarmMeasure,
-    isArmed: () => measureArmed,
+    isArmed: () => activeTool === 'measure',
+    isProbeArmed: () => activeTool === 'pistemittaus',
     handleMeasureTap,
   };
 }

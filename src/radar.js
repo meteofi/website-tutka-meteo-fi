@@ -1866,6 +1866,91 @@ window.addEventListener('mouseup', closeOverflowIfOutside);
 // can swallow the synthesized mouseup (same pattern the long-press menus use).
 window.addEventListener('touchend', closeOverflowIfOutside);
 
+// Tool group (Mittaa + Pistemittaus) — the FAB doubles as a Photoshop-style
+// tool group. Tapping it opens a sideways flyout AND re-arms the last-used
+// tool; picking a tool in the flyout arms it (auto-disarming the other), and
+// picking the active tool disarms it. Mirrors the overflow menu's
+// open/close + outside-click pattern.
+const toolGroupEl = document.getElementById('toolGroup');
+const toolFabBtn = document.getElementById('measureFab');
+const toolFlyoutEl = document.getElementById('toolFlyout');
+const toolFlyoutBackdropEl = document.getElementById('toolFlyoutBackdrop');
+const toolGroupIconEl = toolFabBtn ? toolFabBtn.querySelector('.tool-group-icon') : null;
+const TOOL_ICONS = { measure: 'straighten', pistemittaus: 'colorize' };
+let lastTool = 'pistemittaus';
+
+function openToolFlyout() {
+  toolFlyoutEl.hidden = false;
+  toolFlyoutEl.getBoundingClientRect(); // force reflow so the transition runs
+  toolFlyoutEl.classList.add('open');
+  toolFlyoutBackdropEl.classList.add('open');
+  toolFabBtn.setAttribute('aria-expanded', 'true');
+}
+
+function closeToolFlyout() {
+  toolFlyoutEl.classList.remove('open');
+  toolFlyoutBackdropEl.classList.remove('open');
+  toolFabBtn.setAttribute('aria-expanded', 'false');
+  setTimeout(() => {
+    if (!toolFlyoutEl.classList.contains('open')) toolFlyoutEl.hidden = true;
+  }, 200);
+}
+
+// Reflect the active tool (or the last-used tool when nothing is armed) in the
+// FAB icon and the flyout items' pressed state. Passed to initTools as
+// onToolChange so Esc / chip-× / mutual exclusion all keep the FAB in sync.
+// (tools.js owns the FAB's tool-armed ring + aria-pressed.)
+function syncToolGroup() {
+  const active = tools ? tools.getActiveTool() : null;
+  if (toolGroupIconEl) toolGroupIconEl.textContent = TOOL_ICONS[active || lastTool];
+  if (toolFlyoutEl) {
+    toolFlyoutEl.querySelectorAll('.tool-flyout-item').forEach((item) => {
+      item.setAttribute('aria-pressed', item.dataset.tool === active ? 'true' : 'false');
+    });
+  }
+}
+
+if (toolFabBtn && toolFlyoutEl) {
+  toolFabBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (tools && tools.getActiveTool()) {
+      // FAB is active (a tool is armed) → tapping it disarms, mirroring how
+      // tapping the inactive FAB arms.
+      tools.setActiveTool(null);
+      closeToolFlyout();
+    } else {
+      // Nothing armed → arm the last-used tool and open the flyout to switch.
+      if (tools) tools.setActiveTool(lastTool);
+      openToolFlyout();
+    }
+  });
+
+  toolFlyoutEl.querySelectorAll('.tool-flyout-item').forEach((item) => {
+    item.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!tools) return;
+      const { tool } = item.dataset;
+      if (tools.getActiveTool() === tool) {
+        tools.setActiveTool(null);
+      } else {
+        tools.setActiveTool(tool);
+        lastTool = tool;
+      }
+      closeToolFlyout();
+    });
+  });
+
+  if (toolFlyoutBackdropEl) toolFlyoutBackdropEl.addEventListener('click', closeToolFlyout);
+
+  const closeToolFlyoutIfOutside = (e) => {
+    if (!toolFlyoutEl.classList.contains('open')) return;
+    if (toolGroupEl.contains(e.target)) return;
+    closeToolFlyout();
+  };
+  window.addEventListener('mouseup', closeToolFlyoutIfOutside);
+  window.addEventListener('touchend', closeToolFlyoutIfOutside);
+}
+
 document.querySelectorAll('#overflowMenu .chip[data-theme]').forEach((chip) => {
   chip.addEventListener('mouseup', () => {
     setUserTheme(chip.getAttribute('data-theme'));
@@ -2450,22 +2535,19 @@ const main = () => {
     getOwnPosition: () => ownPosition4326,
     getFrameTimestamp: () => (startDate ? startDate.getTime() : Date.now()),
     onPinChange: (lonLat) => probe && probe.setPin(lonLat),
+    onToolChange: syncToolGroup,
   });
+  syncToolGroup();
 
+  // Overflow "Mittaa" row still arms the measure tool; remember it as the
+  // last-used tool so the FAB reflects it. (The FAB itself is wired above as a
+  // tool-group flyout.)
   const measureToolBtn = document.getElementById('measureTool');
   if (measureToolBtn) {
     measureToolBtn.addEventListener('click', () => {
       closeOverflowMenu();
-      tools.arm();
-    });
-  }
-
-  const measureFabBtn = document.getElementById('measureFab');
-  if (measureFabBtn) {
-    measureFabBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (tools.isArmed()) tools.disarm();
-      else tools.arm();
+      lastTool = 'measure';
+      tools.setActiveTool('measure');
     });
   }
 
@@ -2510,21 +2592,26 @@ const main = () => {
       return;
     }
 
+    // Pistemittaus mode: tapping our own pin toggles its card; otherwise
+    // drop/move the probe pin (which opens the dBZ chart).
+    if (tools && tools.isProbeArmed()) {
+      if (pin && hit === pin) {
+        tools.toggleCard();
+        return;
+      }
+      displayFeatureInfo(evt.pixel);
+      tools.dropOrMove(evt.coordinate);
+      return;
+    }
+
+    // No tool armed: tap on our own pin (if one lingers) toggles its card;
+    // otherwise just feature info for stations. Empty-map taps are inert —
+    // no pin is dropped (this is the touch-annoyance fix).
     if (pin && hit === pin) {
-      // Tap on our own marker pin — toggle its readout card.
       tools.toggleCard();
       return;
     }
-
-    if (hit) {
-      // Airfield / radar site etc. — keep existing feature-info behaviour.
-      displayFeatureInfo(evt.pixel);
-      return;
-    }
-
-    // Empty map — clear any highlighted feature, then drop/move the marker.
     displayFeatureInfo(evt.pixel);
-    if (tools) tools.dropOrMove(evt.coordinate);
   });
 
   map.on('pointerdrag', () => { isInteracting = true; });

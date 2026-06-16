@@ -354,6 +354,99 @@ html, body {
   }
 
   /* ========================================================================
+     Tool group: the Mittaa FAB doubles as a Photoshop-style tool group that
+     opens a sideways flyout (Mittaa + Pistemittaus). The group takes over the
+     FAB's fixed anchor; the button becomes a relative child so the flyout and
+     corner caret can position against the group without the button's
+     overflow:hidden clipping them.
+     ======================================================================== */
+  #toolGroup {
+    position: fixed;
+    right: max(16px, env(safe-area-inset-right, 0px) + 16px);
+    bottom: calc(env(safe-area-inset-bottom, 0px) + var(--timecontrol-height, 84px) + 76px);
+    width: 52px;
+    height: 52px;
+    z-index: 100;
+    transition: bottom 220ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  }
+  #toolGroup .measure-fab {
+    position: relative;
+    right: auto;
+    bottom: auto;
+  }
+
+  /* Small corner triangle marking this as a multi-tool group (Photoshop cue). */
+  .tool-group-caret {
+    position: absolute;
+    right: 5px;
+    bottom: 5px;
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-bottom: 5px solid rgba(255, 255, 255, 0.75);
+    pointer-events: none;
+  }
+
+  /* Sideways flyout, opening leftward from the FAB, centred on it. Mirrors the
+     overflow menu's open animation along the X axis. */
+  .tool-flyout {
+    position: absolute;
+    right: calc(100% + 10px);
+    top: 50%;
+    transform: translateY(-50%) scaleX(0.9);
+    transform-origin: right center;
+    display: flex;
+    gap: 8px;
+    padding: 6px;
+    background: rgba(22, 22, 24, 0.82);
+    -webkit-backdrop-filter: blur(24px) saturate(140%);
+    backdrop-filter: blur(24px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 30px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 180ms ease, transform 180ms ease;
+  }
+  .tool-flyout.open {
+    transform: translateY(-50%) scaleX(1);
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .tool-flyout[hidden] { display: none; }
+
+  .tool-flyout-item {
+    all: unset;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.82);
+    background-color: rgba(0, 0, 0, 0.28);
+    box-sizing: border-box;
+    transition: color 180ms ease, background-color 180ms ease, transform 120ms ease;
+  }
+  .tool-flyout-item .material-icons { font-size: 24px; }
+  .tool-flyout-item:hover { background-color: rgba(255, 255, 255, 0.10); }
+  .tool-flyout-item:active { transform: scale(0.94); }
+  .tool-flyout-item[aria-pressed="true"] {
+    color: var(--dark-primary-color);
+    box-shadow: inset 0 0 0 1.5px var(--dark-primary-color);
+  }
+  .tool-flyout-item:focus-visible { box-shadow: 0 0 0 2px var(--dark-primary-color); }
+
+  #toolFlyoutBackdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 99;
+    display: none;
+  }
+  #toolFlyoutBackdrop.open { display: block; }
+
+  /* ========================================================================
      Overflow menu (three-dots) — drops below top bar, anchored to menu button
      ======================================================================== */
   #overflowMenuBackdrop {
