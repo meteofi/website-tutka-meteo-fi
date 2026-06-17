@@ -420,6 +420,7 @@ html, body {
   body.app-fullscreen #locationLayerButton,
   body.app-fullscreen #fullscreenEnterButton,
   body.app-fullscreen #toolChip,
+  body.app-fullscreen #measureCard,
   body.app-fullscreen #coachmark,
   body.app-fullscreen #overflowMenu,
   body.app-fullscreen #overflowMenuBackdrop,

@@ -2287,7 +2287,9 @@ document.addEventListener('keyup', (event) => {
     toggleAndAnnounce(lightningLayer, 'lightningLayerButton', 'key');
   } else if (key === '4' || key === 'Digit4') {
     toggleAndAnnounce(observationLayer, 'observationLayerButton', 'key');
-  } else if (key === 'f' || key === 'KeyF') {
+  } else if ((key === 'f' || key === 'KeyF')
+    && !event.ctrlKey && !event.metaKey && !event.altKey) {
+    // Bare `f` only — don't hijack Cmd/Ctrl+F (find-in-page) etc.
     setAppFullscreen(!appFullscreen);
   } else if (event.key === 'Escape') {
     if (overflowMenuEl.classList.contains('open')) closeOverflowMenu();
