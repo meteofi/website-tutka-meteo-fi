@@ -1,8 +1,14 @@
-// Single-pin time-series probe for radar mosaic layers.
+// Single-pin time-series probe for radar layers.
 // Backed by meteocore EDR (CoverageJSON).
 //
-// Activates only when a pin is dropped AND the active radar layer's WMS name
-// matches an EDR collection. Otherwise the chart row stays collapsed (height 0).
+// Activates only when a pin is dropped AND the active radar layer maps to an
+// EDR collection. Two cases:
+//   - Composite mosaics (fmi-radar-composite-dbz, …) → identity-mapped EDR
+//     collection, `reflectivity` parameter, no vertical axis.
+//   - Single radar sites, WMS layer "<collection>/<quantity>" (e.g.
+//     fi-radar-pvol-fianj/DBZH) → EDR collection is the prefix, parameter is
+//     the quantity, queried at the displayed elevation angle (z).
+// Otherwise the chart row stays collapsed (height 0).
 
 const ENDPOINT = 'https://meteocore.app.meteo.fi/edr/collections';
 const PARAMETER_NAME = 'reflectivity';
@@ -40,8 +46,8 @@ const CACHE_TTL_MS = 60000;
 const CACHE_MAX = 20;
 const cache = new Map(); // insertion-ordered: oldest entry is first
 
-function cacheKey(collection, lon, lat) {
-  return `${collection}|${lon.toFixed(4)}|${lat.toFixed(4)}`;
+function cacheKey(collection, param, z, lon, lat) {
+  return `${collection}|${param}|${z == null ? '' : z}|${lon.toFixed(4)}|${lat.toFixed(4)}`;
 }
 
 function cacheGet(key) {
@@ -64,11 +70,11 @@ function cacheSet(key, data) {
   }
 }
 
-function parseCoverage(cov) {
+function parseCoverage(cov, param) {
   const ts = cov && cov.domain && cov.domain.axes && cov.domain.axes.t
     ? cov.domain.axes.t.values : null;
-  const vs = cov && cov.ranges && cov.ranges[PARAMETER_NAME]
-    ? cov.ranges[PARAMETER_NAME].values : null;
+  const vs = cov && cov.ranges && cov.ranges[param]
+    ? cov.ranges[param].values : null;
   if (!Array.isArray(ts) || !Array.isArray(vs) || ts.length !== vs.length) {
     return [];
   }
@@ -81,17 +87,20 @@ function parseCoverage(cov) {
   });
 }
 
-async function fetchSeries(collection, lon, lat, startISO, endISO, signal) {
-  const key = cacheKey(collection, lon, lat);
+async function fetchSeries(collection, param, lon, lat, startISO, endISO, z, signal) {
+  const key = cacheKey(collection, param, z, lon, lat);
   const cached = cacheGet(key);
   if (cached) return cached;
-  const url = `${ENDPOINT}/${collection}/position`
-    + `?f=CoverageJSON&parameter-name=${PARAMETER_NAME}`
+  let url = `${ENDPOINT}/${collection}/position`
+    + `?f=CoverageJSON&parameter-name=${param}`
     + `&coords=POINT(${lon.toFixed(4)} ${lat.toFixed(4)})`
     + `&datetime=${encodeURIComponent(`${startISO}/${endISO}`)}`;
+  // Single-site polar volumes have a vertical (elevation-angle) axis; pin it
+  // to the displayed sweep so the position query collapses to one time series.
+  if (z != null) url += `&z=${encodeURIComponent(z)}`;
   const r = await fetch(url, { signal });
   if (!r.ok) throw new Error(`EDR ${r.status}`);
-  const series = parseCoverage(await r.json());
+  const series = parseCoverage(await r.json(), param);
   cacheSet(key, series);
   return series;
 }
@@ -136,6 +145,8 @@ export default function initProbe({ container, onValueChange }) {
 
   let pin = null; // [lon, lat] in EPSG:4326, or null
   let collection = null; // EDR collection name, or null when unsupported
+  let parameter = PARAMETER_NAME; // EDR parameter-name for the active collection
+  let z = null; // elevation angle (deg) for single-site volumes, or null
   let series = null; // [{t, v}] from last fetch
   let windowMs = null; // [startMs, endMs] currently displayed
   let resolutionMs = null; // animation step in ms (one strip cell)
@@ -292,7 +303,7 @@ export default function initProbe({ container, onValueChange }) {
     try {
       const startISO = new Date(windowMs[0]).toISOString();
       const endISO = new Date(windowMs[1]).toISOString();
-      const data = await fetchSeries(collection, pin[0], pin[1], startISO, endISO, myAbort.signal);
+      const data = await fetchSeries(collection, parameter, pin[0], pin[1], startISO, endISO, z, myAbort.signal);
       if (myAbort.signal.aborted) return;
       series = data;
       if (!series || series.length === 0 || series.every((p) => p.v == null)) {
@@ -345,10 +356,24 @@ export default function initProbe({ container, onValueChange }) {
         ? normalizeLonLat(lonLat[0], lonLat[1]) : null;
       recompute();
     },
-    setActiveLayer(wmslayer) {
-      const next = wmslayer && EDR_COLLECTIONS.has(wmslayer) ? wmslayer : null;
-      if (next === collection) return;
-      collection = next;
+    setActiveLayer(wmslayer, opts = {}) {
+      let nextCollection = null;
+      let nextParam = PARAMETER_NAME;
+      if (wmslayer) {
+        const slash = wmslayer.indexOf('/');
+        if (slash > 0) {
+          // Single radar-site layer "<collection>/<quantity>".
+          nextCollection = wmslayer.slice(0, slash);
+          nextParam = wmslayer.slice(slash + 1);
+        } else if (EDR_COLLECTIONS.has(wmslayer)) {
+          nextCollection = wmslayer;
+        }
+      }
+      const nextZ = (opts.z === undefined || opts.z === null || opts.z === '') ? null : opts.z;
+      if (nextCollection === collection && nextParam === parameter && nextZ === z) return;
+      collection = nextCollection;
+      parameter = nextParam;
+      z = nextZ;
       recompute();
     },
     setCursor(cursorTimeMs, windowStartMs, stepMs) {

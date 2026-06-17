@@ -1296,7 +1296,11 @@ function updateLayer(layer, wmslayer, opts = {}) {
   }
   updateLayerSelectionSelected();
   if (probe && layer === radarLayer) {
-    probe.setActiveLayer(layer.getVisible() ? wmslayer : null);
+    // Pass the elevation (set in single-site mode) so the EDR probe queries the
+    // displayed sweep; composites carry no ELEVATION param (z stays null).
+    probe.setActiveLayer(layer.getVisible() ? wmslayer : null, {
+      z: layer.getSource().getParams().ELEVATION,
+    });
   }
 }
 
@@ -1611,7 +1615,9 @@ function onChangeVisible(event) {
   updateLayerSelectionSelected();
   recomputeAllTimelineCells();
   if (probe && layer === radarLayer) {
-    probe.setActiveLayer(isVisible ? wmslayer : null);
+    probe.setActiveLayer(isVisible ? wmslayer : null, {
+      z: layer.getSource().getParams().ELEVATION,
+    });
   }
   // Visibility change may invalidate the current timeline window
   // (e.g. activating a stale satellite caps `end` to its old time.end,
