@@ -1968,7 +1968,9 @@ const toolFlyoutEl = document.getElementById('toolFlyout');
 const toolFlyoutBackdropEl = document.getElementById('toolFlyoutBackdrop');
 const toolGroupIconEl = toolFabBtn ? toolFabBtn.querySelector('.tool-group-icon') : null;
 const TOOL_ICONS = { measure: 'straighten', pistemittaus: 'colorize', crosshair: 'center_focus_weak' };
-let lastTool = 'pistemittaus';
+// Default tool the FAB arms on a plain tap (and shows in its icon) until the
+// user picks another from the flyout — the centre-crosshair reticle.
+let lastTool = 'crosshair';
 
 function openToolFlyout() {
   toolFlyoutEl.hidden = false;
