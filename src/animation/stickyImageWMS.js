@@ -1,55 +1,87 @@
 import ImageWMS from 'ol/source/ImageWMS';
 import ImageState from 'ol/ImageState';
 
-// fetch() + AbortController based image loader. Each source tracks the
-// in-flight request; a new call aborts the previous one. This prevents
-// superseded requests (after rapid pan/zoom) from wasting server cycles
-// and bandwidth after the user has moved on.
+// Shared frame-blob cache across ALL sources — and therefore all split panes.
+// The GetMap URL (`src`) is deterministic from the layer params plus the
+// requested extent/resolution, so two panes showing the same layer over the
+// same area (equal-size panes sharing one View) build byte-identical URLs.
+// Keying by `src` means that frame is fetched ONCE and every pane reuses the
+// blob: no duplicate network traffic, and same-layer panes' slots load in
+// lockstep (so they stay time-synced without any playback barrier).
 //
-// OL's default loader sets `img.src = url`, which the browser can't
-// reliably cancel. fetch() supports AbortSignal and has consistent
-// cancellation behavior.
-//
-// Flow: fetch response → Blob → object URL → img.src. The image element
-// fires 'load' which resolves OL's internal decode()/load() path the
-// same as a direct src assignment.
-function createAbortableImageLoader(source) {
+// Entry: { blob: Blob|null, promise: Promise<Blob>|null }. Map insertion order
+// gives us a cheap LRU.
+const frameBlobCache = new Map();
+const FRAME_BLOB_CACHE_MAX = 400;
+
+function evictFrameCache() {
+  // Drop oldest COMPLETED entries until under the cap; never evict an in-flight
+  // fetch (a consumer is still awaiting it).
+  for (const [key, entry] of frameBlobCache) {
+    if (frameBlobCache.size <= FRAME_BLOB_CACHE_MAX) break;
+    if (entry.promise) continue; // eslint-disable-line no-continue
+    frameBlobCache.delete(key);
+  }
+}
+
+// Fetch a frame blob, deduping completed AND in-flight requests by `src`. The
+// shared fetch is not tied to any one consumer's lifecycle, so a pane that pans
+// away doesn't cancel a fetch another pane still needs. (We trade the old
+// per-source abort-on-supersession for cross-pane dedup; FramePool already
+// suppresses fetches during active pan/zoom gestures, so superseded in-flight
+// requests are rare.)
+function sharedFetchBlob(src) {
+  let entry = frameBlobCache.get(src);
+  if (entry) {
+    frameBlobCache.delete(src); // LRU bump
+    frameBlobCache.set(src, entry);
+    if (entry.blob) return Promise.resolve(entry.blob);
+    if (entry.promise) return entry.promise;
+  } else {
+    entry = {};
+    frameBlobCache.set(src, entry);
+  }
+  entry.promise = fetch(src)
+    .then((res) => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.blob();
+    })
+    .then((blob) => {
+      entry.blob = blob;
+      entry.promise = null;
+      evictFrameCache();
+      return blob;
+    })
+    .catch((err) => {
+      frameBlobCache.delete(src);
+      throw err;
+    });
+  return entry.promise;
+}
+
+// Image loader: pull the blob from the shared cache, then point the image
+// element at a per-image object URL. `source._wantedSrc` guards against a
+// superseded request (the source moved to a new extent before the old fetch
+// resolved) so a stale completion is ignored instead of clobbering the wrapper.
+function createSharedImageLoader(source) {
   return (imageWrapper, src) => {
-    if (source._currentAbortController) {
-      source._currentAbortController.abort();
-    }
-    const controller = new AbortController();
-    source._currentAbortController = controller;
-
+    source._wantedSrc = src;
     const htmlImage = imageWrapper.getImage();
-
-    fetch(src, { signal: controller.signal })
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return res.blob();
-      })
-      .then((blob) => {
-        if (controller.signal.aborted) return;
-        if (source._currentAbortController === controller) {
-          source._currentAbortController = null;
-        }
-        const blobUrl = URL.createObjectURL(blob);
-        const revoke = () => URL.revokeObjectURL(blobUrl);
-        htmlImage.addEventListener('load', revoke, { once: true });
-        htmlImage.addEventListener('error', revoke, { once: true });
-        htmlImage.src = blobUrl;
-      })
+    const assign = (blob) => {
+      if (source._wantedSrc !== src) return; // superseded by a newer extent
+      const blobUrl = URL.createObjectURL(blob);
+      const revoke = () => URL.revokeObjectURL(blobUrl);
+      htmlImage.addEventListener('load', revoke, { once: true });
+      htmlImage.addEventListener('error', revoke, { once: true });
+      htmlImage.src = blobUrl;
+    };
+    sharedFetchBlob(src)
+      .then(assign)
       .catch(() => {
-        // On abort or network error, dispatch an error event on the
-        // image so OL's internal load promise rejects and the wrapper
-        // transitions to ERROR state. Superseded request events are
-        // filtered by event.image !== source.image in FramePool.
-        //
-        // Note: OL's ImageWrapper logs an `Image load error` to the
-        // console for every rejected load, including aborts. That's
-        // accepted noise; the alternative (leaving the wrapper in
-        // LOADING state forever) leaks state and is worse.
-        htmlImage.dispatchEvent(new Event('error'));
+        // Dispatch an error so OL's load promise rejects and the wrapper hits
+        // ERROR state. Superseded events are filtered in FramePool by
+        // event.image !== source.image.
+        if (source._wantedSrc === src) htmlImage.dispatchEvent(new Event('error'));
       });
   };
 }
@@ -66,8 +98,8 @@ export default class StickyImageWMS extends ImageWMS {
   constructor(options) {
     super(options);
     this._sticky = null;
-    this._currentAbortController = null;
-    this.setImageLoadFunction(createAbortableImageLoader(this));
+    this._wantedSrc = null;
+    this.setImageLoadFunction(createSharedImageLoader(this));
   }
 
   getImage(extent, resolution, pixelRatio, projection) {
@@ -116,12 +148,10 @@ export default class StickyImageWMS extends ImageWMS {
   // can't match either via the wanted hint or the cached wrapper.
   //
   // Sticky is preserved so the layer keeps drawing the old-extent
-  // image while the new wrapper loads.
+  // image while the new wrapper loads. A still-in-flight shared fetch is
+  // left running (other panes may need it); its result is ignored here
+  // because the next loader call updates `_wantedSrc`.
   resetImageCache() {
-    if (this._currentAbortController) {
-      this._currentAbortController.abort();
-      this._currentAbortController = null;
-    }
     this.image = null;
     this.wantedExtent_ = null;
     this.wantedResolution_ = null;

@@ -995,27 +995,6 @@ function anyPoolZooming() {
   return false;
 }
 
-// Is timeline position `posIndex` loaded across EVERY active pane's visible,
-// in-range pools? Drives the atomic advance barrier in renderTick. Out-of-range
-// and hidden layers never block (they show nothing at this time anyway).
-function isPositionReadyAllPanes(posIndex) {
-  for (const pane of activePanes()) {
-    for (const name of Object.keys(pane.framePools)) {
-      const pool = pane.framePools[name];
-      if (!pool || !pane.VISIBLE.has(name)) continue; // eslint-disable-line no-continue
-      if (pane.LAYER_IN_RANGE[name] === false) continue; // eslint-disable-line no-continue
-      const load = poolLoadStates[`${pane.index}:${name}`];
-      if (!load || !load[posIndex]) return false;
-    }
-  }
-  return true;
-}
-
-// Advance-barrier bookkeeping: when we start holding for a not-yet-loaded next
-// frame, and the cap on how long we'll wait before stepping anyway.
-let advanceHoldStart = 0;
-const MAX_ADVANCE_HOLD_MS = 2000;
-
 // Playback loop. Split into two cadences so interpolation can layer on
 // top cleanly in later phases:
 //   - Advance (slow): bump the discrete timestep by a full frame when
@@ -1044,20 +1023,6 @@ const renderTick = function (now) {
 
   const stepDuration = 1000 / options.frameRate;
   if (now - lastAdvance >= stepDuration) {
-    // Atomic advance barrier (split mode only): hold the step until EVERY
-    // active pane has the next frame loaded, so all panes show the exact same
-    // timestamp at the same instant instead of a heavier pane briefly lagging
-    // a frame behind on its stale-while-loading image. Give up after
-    // MAX_ADVANCE_HOLD_MS so a slow/failing pane can't freeze playback. 1-up is
-    // untouched (no other pane to stay in sync with).
-    if (activeCount > 1 && timeline) {
-      const nextPos = (Math.round(timeline.position) + 1) % 13;
-      if (!isPositionReadyAllPanes(nextPos)) {
-        if (advanceHoldStart === 0) advanceHoldStart = now;
-        if (now - advanceHoldStart < MAX_ADVANCE_HOLD_MS) return;
-      }
-      advanceHoldStart = 0;
-    }
     lastAdvance = now;
     setTime();
     return;
