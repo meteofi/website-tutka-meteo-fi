@@ -599,9 +599,6 @@ const {
   observationLayer,
   radarSiteLayer,
   guideLayer,
-  ownPositionLayer,
-  positionFeature,
-  accuracyFeature,
 } = pane0;
 
 //
@@ -672,6 +669,13 @@ function initNewPane(pane) {
   applyPoiVisibility();
   attachInterpolators();
   wirePaneClockGating(pane);
+  // Mirror the GPS marker into the new pane if tracking is on.
+  if (IS_TRACKING) {
+    pane.ownPositionLayer.setVisible(true);
+    if (ownPosition && ownPosition.length > 1) {
+      pane.positionFeature.setGeometry(new Point(ownPosition));
+    }
+  }
 }
 
 // Create any panes up to `count` that don't exist yet (targets #map-1..#map-3),
@@ -747,7 +751,11 @@ function bearingLine(layer, coordinates, range, direction) {
 
 function onChangeAccuracyGeometry(event) {
   debug('Accuracy geometry changed.');
-  accuracyFeature.setGeometry(event.target.getAccuracyGeometry());
+  // One device position, shown in every pane (each pane owns its own feature).
+  const geom = event.target.getAccuracyGeometry();
+  for (const pane of panes) {
+    pane.accuracyFeature.setGeometry(geom ? geom.clone() : null);
+  }
 }
 
 function onChangeSpeed(event) {
@@ -766,13 +774,19 @@ function onChangePosition(event) {
   const coordinates = event.target.getPosition();
   ownPosition = coordinates;
   ownPosition4326 = transform(coordinates, map.getView().getProjection(), 'EPSG:4326');
-  positionFeature.setGeometry(coordinates
-    ? new Point(coordinates) : null);
+  for (const pane of panes) {
+    pane.positionFeature.setGeometry(coordinates ? new Point(coordinates) : null);
+  }
   document.getElementById('gpsStatus').innerHTML = 'gps_fixed';
   localStorage.setItem('metLatitude', ownPosition4326[1]);
   localStorage.setItem('metLongitude', ownPosition4326[0]);
   localStorage.setItem('metPosition', JSON.stringify(ownPosition));
   if (tools) tools.refresh();
+}
+
+// Show/hide the GPS marker layer in every pane.
+function setOwnPositionVisible(visible) {
+  for (const pane of panes) pane.ownPositionLayer.setVisible(visible);
 }
 
 // WMS
@@ -1912,13 +1926,13 @@ document.getElementById('locationLayerButton').addEventListener('mouseup', () =>
     IS_TRACKING = false;
     localStorage.setItem('IS_TRACKING', JSON.stringify(false));
     geolocation.setTracking(false);
-    ownPositionLayer.setVisible(false);
+    setOwnPositionVisible(false);
     track('tracking-off');
   } else {
     IS_TRACKING = true;
     localStorage.setItem('IS_TRACKING', JSON.stringify(true));
     geolocation.setTracking(true);
-    ownPositionLayer.setVisible(true);
+    setOwnPositionVisible(true);
     if (ownPosition.length > 1) {
       map.getView().setCenter(ownPosition);
     }
@@ -2920,7 +2934,7 @@ const main = () => {
 
   if (IS_TRACKING) {
     geolocation.setTracking(true);
-    ownPositionLayer.setVisible(true);
+    setOwnPositionVisible(true);
   }
 
   // Position map
