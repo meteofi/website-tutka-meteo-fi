@@ -35,6 +35,7 @@ import createLongPressHandler from './longpress';
 import initTools from './tools';
 import initProbe from './probe';
 import initRadarSite from './radarSite';
+import initCrosshair from './crosshair';
 import FramePool from './animation/framePool';
 import { canInterpolate, RadarInterpolator } from './animation/interpolation';
 import { track } from './analytics';
@@ -70,6 +71,7 @@ let geolocation;
 let tools = null;
 let probe = null;
 let radarSite = null;
+let crosshair = null;
 let startDate = new Date(Math.floor(Date.now() / 300000) * 300000 - 300000 * 12);
 // Handle of the currently-running playback loop (now a requestAnimationFrame
 // id — was a setInterval handle before the RAF refactor). Null when paused.
@@ -570,6 +572,13 @@ const radarLayer = new ImageLayer({
     ratio: options.imageRatio,
     hidpi: false,
     serverType: 'geoserver',
+    // Lets the center-crosshair tool read the rendered radar pixel colour off
+    // the canvas (getData) without tainting it. During animation the displayed
+    // frames come from StickyImageWMS slot sources, which fetch via CORS and
+    // assign blob: URLs (already canvas-safe); this only covers the original
+    // source's direct-load path before the FramePool takes over. The meteocore
+    // WMS returns Access-Control-Allow-Origin: *, so it's safe.
+    crossOrigin: 'anonymous',
   }),
 });
 // Category default wire format. updateLayer / applyWireFormat substitute
@@ -944,6 +953,7 @@ function setTime(action = 'next') {
   // updateTimeLine((startDate.getTime()-start)/resolution);
   timeline.update((startDate.getTime() - start) / resolution);
   if (probe) probe.setCursor(startDate.getTime(), start, resolution);
+  if (crosshair) crosshair.setCursor(startDate.getTime(), start, resolution);
 
   // var startDateFormat = moment(startDate.toISOString()).utc().format()
   // debug("---");
@@ -1301,6 +1311,11 @@ function updateLayer(layer, wmslayer, opts = {}) {
     probe.setActiveLayer(layer.getVisible() ? wmslayer : null, {
       z: layer.getSource().getParams().ELEVATION,
     });
+    if (crosshair) {
+      crosshair.setActiveLayer(layer.getVisible() ? wmslayer : null, {
+        z: layer.getSource().getParams().ELEVATION,
+      });
+    }
   }
 }
 
@@ -1628,6 +1643,11 @@ function onChangeVisible(event) {
     probe.setActiveLayer(isVisible ? wmslayer : null, {
       z: layer.getSource().getParams().ELEVATION,
     });
+    if (crosshair) {
+      crosshair.setActiveLayer(isVisible ? wmslayer : null, {
+        z: layer.getSource().getParams().ELEVATION,
+      });
+    }
   }
   // Visibility change may invalidate the current timeline window
   // (e.g. activating a stale satellite caps `end` to its old time.end,
@@ -1947,7 +1967,7 @@ const toolFabBtn = document.getElementById('measureFab');
 const toolFlyoutEl = document.getElementById('toolFlyout');
 const toolFlyoutBackdropEl = document.getElementById('toolFlyoutBackdrop');
 const toolGroupIconEl = toolFabBtn ? toolFabBtn.querySelector('.tool-group-icon') : null;
-const TOOL_ICONS = { measure: 'straighten', pistemittaus: 'colorize' };
+const TOOL_ICONS = { measure: 'straighten', pistemittaus: 'colorize', crosshair: 'center_focus_weak' };
 let lastTool = 'pistemittaus';
 
 function openToolFlyout() {
@@ -1978,6 +1998,12 @@ function syncToolGroup() {
     toolFlyoutEl.querySelectorAll('.tool-flyout-item').forEach((item) => {
       item.setAttribute('aria-pressed', item.dataset.tool === active ? 'true' : 'false');
     });
+  }
+  // The crosshair is a passive screen-centre overlay rather than a map-tap
+  // tool, so its visibility is driven here from the single-select tool state.
+  if (crosshair) {
+    if (active === 'crosshair') crosshair.show();
+    else crosshair.hide();
   }
 }
 
@@ -2639,6 +2665,18 @@ const main = () => {
     drawCoverage: drawRadarCoverage,
     clearCoverage: clearRadarCoverage,
   });
+
+  crosshair = initCrosshair({
+    map,
+    radarLayer,
+    radarSiteSource,
+    getActiveSiteLonLat: radarSite.getActiveSiteLonLat,
+  });
+  if (radarLayer.getVisible()) {
+    crosshair.setActiveLayer(radarLayer.getSource().getParams().LAYERS, {
+      z: radarLayer.getSource().getParams().ELEVATION,
+    });
+  }
 
   // Overflow "Mittaa" row still arms the measure tool; remember it as the
   // last-used tool so the FAB reflects it. (The FAB itself is wired above as a

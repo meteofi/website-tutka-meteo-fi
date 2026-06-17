@@ -36,7 +36,7 @@ const Y_MAX_DBZ = 50;
 // across world copies (e.g. lon 360.0017 for a point that is really near 0°).
 // The EDR server rejects those with HTTP 400, so wrap longitude into [-180, 180)
 // and clamp latitude into [-90, 90] before any coordinate reaches a query.
-function normalizeLonLat(lon, lat) {
+export function normalizeLonLat(lon, lat) {
   const wrappedLon = ((((lon + 180) % 360) + 360) % 360) - 180;
   const clampedLat = Math.max(-90, Math.min(90, lat));
   return [wrappedLon, clampedLat];
@@ -87,7 +87,28 @@ function parseCoverage(cov, param) {
   });
 }
 
-async function fetchSeries(collection, param, lon, lat, startISO, endISO, z, signal) {
+// Resolve a radar WMS layer name to its EDR query target. Shared with the
+// center-crosshair tool so the two readouts can't drift apart.
+//   - "<collection>/<quantity>"  → single radar site (e.g. fi-radar-pvol-fianj/DBZH)
+//   - a known composite mosaic   → identity-mapped collection, `reflectivity`
+//   - anything else              → collection:null (no EDR equivalent)
+export function resolveEdrTarget(wmslayer, { z } = {}) {
+  let collection = null;
+  let parameter = PARAMETER_NAME;
+  if (wmslayer) {
+    const slash = wmslayer.indexOf('/');
+    if (slash > 0) {
+      collection = wmslayer.slice(0, slash);
+      parameter = wmslayer.slice(slash + 1);
+    } else if (EDR_COLLECTIONS.has(wmslayer)) {
+      collection = wmslayer;
+    }
+  }
+  const nz = (z === undefined || z === null || z === '') ? null : z;
+  return { collection, parameter, z: nz };
+}
+
+export async function fetchSeries(collection, param, lon, lat, startISO, endISO, z, signal) {
   const key = cacheKey(collection, param, z, lon, lat);
   const cached = cacheGet(key);
   if (cached) return cached;
@@ -357,23 +378,11 @@ export default function initProbe({ container, onValueChange }) {
       recompute();
     },
     setActiveLayer(wmslayer, opts = {}) {
-      let nextCollection = null;
-      let nextParam = PARAMETER_NAME;
-      if (wmslayer) {
-        const slash = wmslayer.indexOf('/');
-        if (slash > 0) {
-          // Single radar-site layer "<collection>/<quantity>".
-          nextCollection = wmslayer.slice(0, slash);
-          nextParam = wmslayer.slice(slash + 1);
-        } else if (EDR_COLLECTIONS.has(wmslayer)) {
-          nextCollection = wmslayer;
-        }
-      }
-      const nextZ = (opts.z === undefined || opts.z === null || opts.z === '') ? null : opts.z;
-      if (nextCollection === collection && nextParam === parameter && nextZ === z) return;
-      collection = nextCollection;
-      parameter = nextParam;
-      z = nextZ;
+      const t = resolveEdrTarget(wmslayer, { z: opts.z });
+      if (t.collection === collection && t.parameter === parameter && t.z === z) return;
+      collection = t.collection;
+      parameter = t.parameter;
+      z = t.z;
       recompute();
     },
     setCursor(cursorTimeMs, windowStartMs, stepMs) {

@@ -423,7 +423,7 @@ export default function initTools({
   // leaving (measure features, or the probe pin + card + chart) and sets up the
   // one we're entering. Passing null (or anything else) disarms.
   function setActiveTool(next) {
-    const tool = (next === 'measure' || next === 'pistemittaus') ? next : null;
+    const tool = (next === 'measure' || next === 'pistemittaus' || next === 'crosshair') ? next : null;
     if (tool === activeTool) return;
 
     // Tear down the tool we're leaving.
@@ -448,6 +448,12 @@ export default function initTools({
       markerTranslate.setActive(true);
       setChipIdentity('colorize', 'PISTEMITTAUS');
       setChipHint('napauta karttaa');
+    } else if (tool === 'crosshair') {
+      // Passive screen-centre reticle — no map-tap, no pin. The overlay itself
+      // is shown/hidden by radar.js's onToolChange (syncToolGroup).
+      markerTranslate.setActive(false);
+      setChipIdentity('center_focus_weak', 'TÄHTÄIN');
+      setChipHint('siirrä karttaa');
     } else {
       markerTranslate.setActive(false);
     }
@@ -586,6 +592,7 @@ export default function initTools({
     disarm: disarmMeasure,
     isArmed: () => activeTool === 'measure',
     isProbeArmed: () => activeTool === 'pistemittaus',
+    isCrosshairArmed: () => activeTool === 'crosshair',
     handleMeasureTap,
   };
 }

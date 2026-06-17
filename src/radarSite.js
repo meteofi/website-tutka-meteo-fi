@@ -1,4 +1,5 @@
 import Overlay from 'ol/Overlay';
+import { transform } from 'ol/proj';
 
 // Radar-site drill-in: tap a radar-site marker → a small card anchored to the
 // marker lets the user swap the main radar layer to that single site's WMS
@@ -106,6 +107,16 @@ export default function initRadarSite({
 
   const isSingleSiteActive = () => singleSite !== null;
   const getActiveWmsLayer = () => (singleSite ? singleSite.wmsLayer : null);
+  // [lon, lat] (EPSG:4326) of the active single-site marker, or null in
+  // composite mode. Used by the center-crosshair tool to aim its radar line.
+  const getActiveSiteLonLat = () => {
+    if (!singleSite || !singleSite.feature) return null;
+    return transform(
+      singleSite.feature.getGeometry().getCoordinates(),
+      map.getView().getProjection(),
+      'EPSG:4326',
+    );
+  };
 
   function getRadarParams() {
     return radarLayer.getSource().getParams();
@@ -241,5 +252,6 @@ export default function initRadarSite({
     exitSingleSite,
     isSingleSiteActive,
     getActiveWmsLayer,
+    getActiveSiteLonLat,
   };
 }
