@@ -102,7 +102,13 @@ export default function initCrosshair({
   readout.hidden = true;
   overlay.appendChild(readout);
 
-  map.getViewport().appendChild(overlay);
+  // Insert below OL's overlay containers (the radar-site / marker cards) so
+  // those still render on top of the reticle, but above the map canvas — DOM
+  // order handles the stacking. Fall back to append if the container is absent.
+  const viewport = map.getViewport();
+  const olOverlays = viewport.querySelector('.ol-overlaycontainer-stopevent');
+  if (olOverlays) viewport.insertBefore(overlay, olOverlays);
+  else viewport.appendChild(overlay);
 
   // --- state ---------------------------------------------------------------
   let visible = false;
@@ -110,6 +116,7 @@ export default function initCrosshair({
   let parameter = null;
   let z = null;
   let center4326 = null; // normalized [lon, lat]
+  let nearestLonLat = null; // cached nearest radar site [lon, lat] (see recomputeNearest)
   let windowMs = null; // [startMs, endMs]
   let cursorMs = null;
   let stepMs = null;
@@ -144,6 +151,14 @@ export default function initCrosshair({
     return best;
   }
 
+  // Recompute (and cache) the nearest radar site. Run on moveend / arm — NOT
+  // per frame — since the scan over all sites is wasted work during a pan and
+  // the nearest rarely changes mid-pan. updateDirection still re-aims the arrow
+  // at this cached target every frame, so it tracks smoothly while panning.
+  function recomputeNearest() {
+    nearestLonLat = center4326 ? nearestSiteLonLat(center4326) : null;
+  }
+
   function sampleColor() {
     const view = map.getView();
     const center = view.getCenter();
@@ -167,7 +182,7 @@ export default function initCrosshair({
   // at a capped length when the radar is far off-screen — never overshooting.
   function updateDirection() {
     const target = center4326
-      ? (getActiveSiteLonLat() || nearestSiteLonLat(center4326))
+      ? (getActiveSiteLonLat() || nearestLonLat)
       : null;
     const centerPx = map.getPixelFromCoordinate(map.getView().getCenter());
     const targetPx = target
@@ -275,6 +290,10 @@ export default function initCrosshair({
     // continuous pan keeps resetting the 200 ms timer, so the network query
     // only fires once the user pauses/stops.
     const moved = refreshCenter4326();
+    // One-time catch-up: if the radar-site features only finished loading after
+    // the tool was armed, pick up the nearest now. Steady-state recompute is on
+    // moveend, so this is a cheap no-op once a target exists.
+    if (nearestLonLat == null && !getActiveSiteLonLat()) recomputeNearest();
     render();
     if (moved) scheduleRefetch();
   });
@@ -286,6 +305,7 @@ export default function initCrosshair({
     // during the pan, so by moveend the delta is gone and a gate would never
     // trip. fetchSeries is cached, so a no-op move is cheap.
     refreshCenter4326();
+    recomputeNearest();
     scheduleRefetch();
   });
 
@@ -295,6 +315,7 @@ export default function initCrosshair({
       visible = true;
       overlay.style.display = '';
       refreshCenter4326();
+      recomputeNearest();
       render();
       refetch();
       // Force a fresh postrender so the centre colour samples a current frame
