@@ -34,6 +34,7 @@ import wmsServerConfiguration from './config';
 import createLongPressHandler from './longpress';
 import initTools from './tools';
 import initProbe from './probe';
+import initRadarSite from './radarSite';
 import FramePool from './animation/framePool';
 import { canInterpolate, RadarInterpolator } from './animation/interpolation';
 import { track } from './analytics';
@@ -68,6 +69,7 @@ let ownPosition4326 = [];
 let geolocation;
 let tools = null;
 let probe = null;
+let radarSite = null;
 let startDate = new Date(Math.floor(Date.now() / 300000) * 300000 - 300000 * 12);
 // Handle of the currently-running playback loop (now a requestAnimationFrame
 // id — was a setInterval handle before the RAF refactor). Null when paused.
@@ -1294,7 +1296,11 @@ function updateLayer(layer, wmslayer, opts = {}) {
   }
   updateLayerSelectionSelected();
   if (probe && layer === radarLayer) {
-    probe.setActiveLayer(layer.getVisible() ? wmslayer : null);
+    // Pass the elevation (set in single-site mode) so the EDR probe queries the
+    // displayed sweep; composites carry no ELEVATION param (z stays null).
+    probe.setActiveLayer(layer.getVisible() ? wmslayer : null, {
+      z: layer.getSource().getParams().ELEVATION,
+    });
   }
 }
 
@@ -1327,6 +1333,11 @@ function fitToLayerExtent(wmslayer) {
 // drop it — the layer stays at its constructor-time default.
 function restoreActiveLayer(category) {
   if (!category) return;
+  // While drilled into a single radar site, the radar layer intentionally runs
+  // a transient `<collection>/DBZH` product that is NOT in ACTIVE_LAYERS. Skip
+  // the restore so the periodic (60 s) capabilities refresh doesn't revert it
+  // back to the stored composite mid-session.
+  if (category === 'radarLayer' && radarSite && radarSite.isSingleSiteActive()) return;
   const olLayer = layerss[category];
   if (!olLayer) return;
   const stored = ACTIVE_LAYERS[category];
@@ -1363,19 +1374,29 @@ const displayFeatureInfo = function (pixel) {
   if (feature !== highlight) {
     if (highlight) {
       featureOverlay.getSource().removeFeature(highlight);
-      guideLayer.getSource().clear(true);
     }
     if (feature && feature.getGeometry().getType() === 'Point') {
       featureOverlay.getSource().addFeature(feature);
-      const coords = transform(feature.getGeometry().getCoordinates(), map.getView().getProjection(), 'EPSG:4326');
-      [50000, 100000, 150000, 200000, 250000].forEach((range) => rangeRings(guideLayer, coords, range));
-      Array.from({ length: 360 / options.radialSpacing }, (_, index) => index * options.radialSpacing)
-        .forEach((bearing) => bearingLine(guideLayer, coords, 250, bearing));
-      map.getView().fit(guideLayer.getSource().getExtent(), map.getSize());
     }
     highlight = feature;
   }
 };
+
+// Radar coverage overlay (range rings + radial bearings) for the radar shown in
+// single-site mode. Owned by radarSite's enter/exit so the rings appear and
+// clear together with the single-radar display — not on a bare marker tap.
+function drawRadarCoverage(feature) {
+  guideLayer.getSource().clear(true);
+  if (!feature) return;
+  const coords = transform(feature.getGeometry().getCoordinates(), map.getView().getProjection(), 'EPSG:4326');
+  [50000, 100000, 150000, 200000, 250000].forEach((range) => rangeRings(guideLayer, coords, range));
+  Array.from({ length: 360 / options.radialSpacing }, (_, index) => index * options.radialSpacing)
+    .forEach((bearing) => bearingLine(guideLayer, coords, 250, bearing));
+}
+
+function clearRadarCoverage() {
+  guideLayer.getSource().clear(true);
+}
 
 function createLayerInfoElement(content, className, isHTML) {
   const div = document.createElement('div');
@@ -1604,7 +1625,9 @@ function onChangeVisible(event) {
   updateLayerSelectionSelected();
   recomputeAllTimelineCells();
   if (probe && layer === radarLayer) {
-    probe.setActiveLayer(isVisible ? wmslayer : null);
+    probe.setActiveLayer(isVisible ? wmslayer : null, {
+      z: layer.getSource().getParams().ELEVATION,
+    });
   }
   // Visibility change may invalidate the current timeline window
   // (e.g. activating a stale satellite caps `end` to its old time.end,
@@ -1612,6 +1635,11 @@ function onChangeVisible(event) {
   // in-range state immediately so the map time, stale colour and
   // layer opacity update without waiting for a tick or manual step.
   setTime('keep');
+  // Turning the radar layer off exits single-site mode, restoring the composite
+  // product (while hidden) so re-enabling the layer shows the composite again.
+  if (layer === radarLayer && !isVisible && radarSite) {
+    radarSite.exitSingleSite({ restore: true });
+  }
 }
 
 /**
@@ -1843,6 +1871,10 @@ const radarMenu = createLongPressHandler(
   'radarLongPressMenu',
   () => { toggleAndAnnounce(radarLayer, 'radarLayerButton', 'button'); },
   (id) => {
+    // Picking a composite from the menu exits single-site mode first (clears
+    // the ELEVATION param + card toggle) without restoring, since the line
+    // below sets the new composite itself.
+    if (radarSite) radarSite.exitSingleSite({ restore: false });
     updateLayer(radarLayer, id, { source: 'longpress' });
     fitToLayerExtent(id);
     radarMenu.hide();
@@ -2599,6 +2631,15 @@ const main = () => {
   });
   syncToolGroup();
 
+  radarSite = initRadarSite({
+    map,
+    radarLayer,
+    updateLayer,
+    setTime,
+    drawCoverage: drawRadarCoverage,
+    clearCoverage: clearRadarCoverage,
+  });
+
   // Overflow "Mittaa" row still arms the measure tool; remember it as the
   // last-used tool so the FAB reflects it. (The FAB itself is wired above as a
   // tool-group flyout.)
@@ -2670,6 +2711,32 @@ const main = () => {
     if (pin && hit === pin) {
       tools.toggleCard();
       return;
+    }
+
+    // Tap on a radar-site marker → open its drill-in card (single-site WMS
+    // toggle). Coverage rings are coupled to the single-site display (drawn on
+    // toggle-on, cleared on toggle-off), not to the tap. The layer-aware lookup
+    // distinguishes radar sites from airfield markers (icaoLayer) regardless of
+    // z-order.
+    if (radarSite && radarSiteLayer.getVisible()) {
+      let radarSiteHit = null;
+      // hitTolerance enlarges the tap target around the small radar symbol
+      // (touch-friendly) without changing how the marker is drawn.
+      map.forEachFeatureAtPixel(evt.pixel, (f, layer) => {
+        if (layer === radarSiteLayer) { radarSiteHit = f; return true; }
+        return false;
+      }, { hitTolerance: 12 });
+      if (radarSiteHit) {
+        // Just open the card — coverage rings are coupled to the single-site
+        // display (drawn on toggle-on, cleared on toggle-off), not to the tap.
+        // Drop any leftover station highlight from a previous plain-feature tap.
+        if (highlight) {
+          featureOverlay.getSource().removeFeature(highlight);
+          highlight = null;
+        }
+        radarSite.openCardForFeature(radarSiteHit);
+        return;
+      }
     }
     displayFeatureInfo(evt.pixel);
   });
