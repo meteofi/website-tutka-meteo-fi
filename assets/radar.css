@@ -1436,6 +1436,38 @@ html, body {
   cursor: not-allowed;
 }
 
+/* Breathing ring marking the active single-site radar. Anchored center-center
+   on the marker by an OL Overlay; the outer element only sizes/positions, the
+   inner ring runs the animation so it doesn't clash with OL's transform. */
+.radar-site-pulse {
+  width: 26px;
+  height: 26px;
+  pointer-events: none;
+}
+
+.radar-site-pulse-ring {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 2px solid var(--dark-primary-color);
+  box-shadow: 0 0 6px rgba(18, 188, 250, 0.6);
+  animation: radar-site-breathe 1.8s ease-in-out infinite;
+}
+
+@keyframes radar-site-breathe {
+  0%, 100% { transform: scale(0.7); opacity: 0.95; }
+  50% { transform: scale(1.25); opacity: 0.3; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .radar-site-pulse-ring {
+    animation: none;
+    transform: scale(1);
+    opacity: 0.9;
+  }
+}
+
 .marker-card-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;

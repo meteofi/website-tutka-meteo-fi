@@ -1368,8 +1368,8 @@ const featureOverlay = new VectorLayer({
 });
 let highlight;
 
-const displayFeatureInfo = function (pixel) {
-  const feature = map.forEachFeatureAtPixel(pixel, (f) => f);
+const displayFeatureInfo = function (pixel, presetFeature) {
+  const feature = presetFeature || map.forEachFeatureAtPixel(pixel, (f) => f);
 
   if (feature !== highlight) {
     if (highlight) {
@@ -2705,12 +2705,16 @@ const main = () => {
     // (icaoLayer) regardless of z-order.
     if (radarSite && radarSiteLayer.getVisible()) {
       let radarSiteHit = null;
+      // hitTolerance enlarges the tap target around the small radar symbol
+      // (touch-friendly) without changing how the marker is drawn.
       map.forEachFeatureAtPixel(evt.pixel, (f, layer) => {
         if (layer === radarSiteLayer) { radarSiteHit = f; return true; }
         return false;
-      });
+      }, { hitTolerance: 12 });
       if (radarSiteHit) {
-        displayFeatureInfo(evt.pixel);
+        // Pass the matched feature so the coverage rings draw for it even when
+        // the tap landed just outside the symbol (within hitTolerance).
+        displayFeatureInfo(evt.pixel, radarSiteHit);
         radarSite.openCardForFeature(radarSiteHit);
         return;
       }

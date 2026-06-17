@@ -77,6 +77,23 @@ export default function initRadarSite({
   });
   map.addOverlay(overlay);
 
+  // Breathing ring over the currently-active single-site marker. The animation
+  // is pure CSS (see .radar-site-pulse); JS only positions/clears the overlay.
+  // pointer-events:none + stopEvent:false let taps pass through to the marker.
+  const pulse = document.createElement('div');
+  pulse.className = 'radar-site-pulse';
+  pulse.setAttribute('aria-hidden', 'true');
+  // Inner ring carries the CSS animation. OpenLayers writes `transform` on the
+  // overlay element itself for positioning, so animating the outer element's
+  // transform would fight OL — the inner span keeps the two independent.
+  pulse.innerHTML = '<span class="radar-site-pulse-ring"></span>';
+  const pulseOverlay = new Overlay({
+    element: pulse,
+    positioning: 'center-center',
+    stopEvent: false,
+  });
+  map.addOverlay(pulseOverlay);
+
   const nameEl = card.querySelector('.radar-site-name');
   const subEl = card.querySelector('.radar-site-sub');
   const toggleBtn = card.querySelector('.radar-site-toggle');
@@ -92,6 +109,15 @@ export default function initRadarSite({
 
   function getRadarParams() {
     return radarLayer.getSource().getParams();
+  }
+
+  // Anchor the breathing ring on the active site's marker (or hide it).
+  function updateActiveIndicator() {
+    if (singleSite && singleSite.feature) {
+      pulseOverlay.setPosition(singleSite.feature.getGeometry().getCoordinates());
+    } else {
+      pulseOverlay.setPosition(undefined);
+    }
   }
 
   function enterSingleSite(feature) {
@@ -117,6 +143,7 @@ export default function initRadarSite({
       savedComposite,
       feature,
     };
+    updateActiveIndicator();
   }
 
   // restore=true swaps back to the saved composite; restore=false only clears
@@ -141,6 +168,7 @@ export default function initRadarSite({
       }
     }
     singleSite = null;
+    updateActiveIndicator();
     renderToggle();
   }
 
