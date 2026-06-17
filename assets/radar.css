@@ -451,6 +451,90 @@ html, body {
   #toolFlyoutBackdrop.open { display: block; }
 
   /* ========================================================================
+     Center-crosshair reticle ("Tähtäin") — pinned to the map viewport centre.
+     Appended inside .ol-viewport (position:relative); pointer-events:none so
+     it never blocks map interaction. The user pans the map under it.
+     ======================================================================== */
+  .crosshair-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  /* Full-viewport crosshair lines. A faint dark edge keeps them legible over
+     both light basemaps and dark radar echoes. */
+  .crosshair-line {
+    position: absolute;
+    background: rgba(255, 255, 255, 0.5);
+    box-shadow: 0 0 0 0.5px rgba(0, 0, 0, 0.45);
+  }
+  .crosshair-line-h {
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: 1px;
+    transform: translateY(-0.5px);
+  }
+  .crosshair-line-v {
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 1px;
+    transform: translateX(-0.5px);
+  }
+
+  /* Bounded reticle (rings + radar-direction line), centred on the viewport.
+     drop-shadow gives every stroke a dark halo for contrast. */
+  .crosshair-svg {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    overflow: visible;
+    filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.6));
+  }
+
+  .crosshair-ring {
+    fill: none;
+    stroke: rgba(255, 255, 255, 0.6);
+    stroke-width: 1.5;
+  }
+
+  /* Centre ring: the colour swatch. `fill` is set live from the sampled radar
+     pixel; the `.empty` variant (no echo / layer hidden) shows a hollow dashed
+     ring instead. */
+  .crosshair-center {
+    stroke: #ffffff;
+    stroke-width: 2;
+  }
+  .crosshair-center.empty {
+    stroke: rgba(255, 255, 255, 0.75);
+    stroke-dasharray: 3 3;
+  }
+
+  .crosshair-dir-line {
+    stroke: var(--dark-primary-color);
+    stroke-width: 2;
+  }
+  .crosshair-dir-arrow {
+    fill: var(--dark-primary-color);
+  }
+
+  .crosshair-readout {
+    position: absolute;
+    top: calc(50% + 104px);
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 2px 10px;
+    border-radius: 12px;
+    background: rgba(22, 22, 24, 0.82);
+    color: #ffffff;
+    font: 600 14px/1.4 Roboto, sans-serif;
+    white-space: nowrap;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  }
+
+  /* ========================================================================
      Overflow menu (three-dots) — drops below top bar, anchored to menu button
      ======================================================================== */
   #overflowMenuBackdrop {
