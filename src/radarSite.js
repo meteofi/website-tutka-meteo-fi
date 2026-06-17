@@ -63,7 +63,7 @@ function buildCard() {
 }
 
 export default function initRadarSite({
-  map, radarLayer, updateLayer, setTime,
+  map, radarLayer, updateLayer, setTime, drawCoverage = () => {}, clearCoverage = () => {},
 }) {
   const card = buildCard();
   document.body.appendChild(card);
@@ -144,6 +144,9 @@ export default function initRadarSite({
       feature,
     };
     updateActiveIndicator();
+    // Coverage rings are part of "showing this radar": redraw for the active
+    // site (this also handles a site→site switch).
+    drawCoverage(feature);
   }
 
   // restore=true swaps back to the saved composite; restore=false only clears
@@ -169,6 +172,7 @@ export default function initRadarSite({
     }
     singleSite = null;
     updateActiveIndicator();
+    clearCoverage();
     renderToggle();
   }
 

@@ -1368,25 +1368,35 @@ const featureOverlay = new VectorLayer({
 });
 let highlight;
 
-const displayFeatureInfo = function (pixel, presetFeature) {
-  const feature = presetFeature || map.forEachFeatureAtPixel(pixel, (f) => f);
+const displayFeatureInfo = function (pixel) {
+  const feature = map.forEachFeatureAtPixel(pixel, (f) => f);
 
   if (feature !== highlight) {
     if (highlight) {
       featureOverlay.getSource().removeFeature(highlight);
-      guideLayer.getSource().clear(true);
     }
     if (feature && feature.getGeometry().getType() === 'Point') {
       featureOverlay.getSource().addFeature(feature);
-      const coords = transform(feature.getGeometry().getCoordinates(), map.getView().getProjection(), 'EPSG:4326');
-      [50000, 100000, 150000, 200000, 250000].forEach((range) => rangeRings(guideLayer, coords, range));
-      Array.from({ length: 360 / options.radialSpacing }, (_, index) => index * options.radialSpacing)
-        .forEach((bearing) => bearingLine(guideLayer, coords, 250, bearing));
-      map.getView().fit(guideLayer.getSource().getExtent(), map.getSize());
     }
     highlight = feature;
   }
 };
+
+// Radar coverage overlay (range rings + radial bearings) for the radar shown in
+// single-site mode. Owned by radarSite's enter/exit so the rings appear and
+// clear together with the single-radar display — not on a bare marker tap.
+function drawRadarCoverage(feature) {
+  guideLayer.getSource().clear(true);
+  if (!feature) return;
+  const coords = transform(feature.getGeometry().getCoordinates(), map.getView().getProjection(), 'EPSG:4326');
+  [50000, 100000, 150000, 200000, 250000].forEach((range) => rangeRings(guideLayer, coords, range));
+  Array.from({ length: 360 / options.radialSpacing }, (_, index) => index * options.radialSpacing)
+    .forEach((bearing) => bearingLine(guideLayer, coords, 250, bearing));
+}
+
+function clearRadarCoverage() {
+  guideLayer.getSource().clear(true);
+}
 
 function createLayerInfoElement(content, className, isHTML) {
   const div = document.createElement('div');
@@ -2622,7 +2632,12 @@ const main = () => {
   syncToolGroup();
 
   radarSite = initRadarSite({
-    map, radarLayer, updateLayer, setTime,
+    map,
+    radarLayer,
+    updateLayer,
+    setTime,
+    drawCoverage: drawRadarCoverage,
+    clearCoverage: clearRadarCoverage,
   });
 
   // Overflow "Mittaa" row still arms the measure tool; remember it as the
@@ -2712,9 +2727,13 @@ const main = () => {
         return false;
       }, { hitTolerance: 12 });
       if (radarSiteHit) {
-        // Pass the matched feature so the coverage rings draw for it even when
-        // the tap landed just outside the symbol (within hitTolerance).
-        displayFeatureInfo(evt.pixel, radarSiteHit);
+        // Just open the card — coverage rings are coupled to the single-site
+        // display (drawn on toggle-on, cleared on toggle-off), not to the tap.
+        // Drop any leftover station highlight from a previous plain-feature tap.
+        if (highlight) {
+          featureOverlay.getSource().removeFeature(highlight);
+          highlight = null;
+        }
         radarSite.openCardForFeature(radarSiteHit);
         return;
       }
