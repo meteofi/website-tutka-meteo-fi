@@ -26,7 +26,7 @@ import durationPlugin from 'dayjs/plugin/duration';
 import Timeline from './timeline';
 import createPane from './pane';
 import wmsServerConfiguration from './config';
-import createLongPressHandler from './longpress';
+import createLongPressHandler, { longPressMenuOpener } from './longpress';
 import initTools from './tools';
 import initProbe from './probe';
 import initRadarSite from './radarSite';
@@ -157,18 +157,22 @@ function attachInterpolators() {
   }
 }
 
+// Tear down one pane's interpolators, releasing their GL resources. Used both
+// when interp is switched off and when a pane drops out of the active set.
+function detachPaneInterpolators(pane) {
+  for (const name of ['radarLayer', 'satelliteLayer']) {
+    const pool = pane.framePools[name];
+    if (pool && pool.interpolator) {
+      pool.setInterpActive(false);
+      pool.setInterpolator(null);
+    }
+  }
+}
+
 function detachInterpolators() {
   // Detach from ALL panes (including inactive ones) so toggling interp off
   // fully releases GPU resources regardless of the current layout.
-  for (const pane of panes) {
-    for (const name of ['radarLayer', 'satelliteLayer']) {
-      const pool = pane.framePools[name];
-      if (pool && pool.interpolator) {
-        pool.setInterpActive(false);
-        pool.setInterpolator(null);
-      }
-    }
-  }
+  for (const pane of panes) detachPaneInterpolators(pane);
 }
 
 function setInterpMode(mode) {
@@ -710,6 +714,11 @@ function setLayout(mode) {
   layoutMode = mode;
   activeCount = LAYOUT_ACTIVE_COUNT[mode];
   ensurePanes(activeCount);
+  // Release interpolator GL resources on panes that just dropped out of the
+  // active set (e.g. 4-up → 2-up). They re-attach via attachInterpolators()
+  // below when they come back. Without this, up to 8 idle GL interpolators
+  // would linger in 4-up after shrinking the layout.
+  for (let i = activeCount; i < panes.length; i++) detachPaneInterpolators(panes[i]);
   document.body.classList.toggle('split-2', mode === '2-up');
   document.body.classList.toggle('split-4', mode === '4-up');
   // Let the grid reflow before measuring; then size every map (inactive panes
@@ -1827,9 +1836,9 @@ document.querySelectorAll('.card-visibility-toggle').forEach((toggle) => {
 });
 
 // The four shared sublayer menus, opened from the global toolbar (1-up) OR any
-// pane's mini pill (split). Each menu remembers its opener (menu._lpOpener, set
-// in createLongPressHandler) so the outside-click closer below doesn't dismiss
-// it when that very button is released after a long press.
+// pane's mini pill (split). longPressMenuOpener() reports which button owns each
+// open menu, so the outside-click closer below doesn't dismiss it when that very
+// button is released after a long press.
 const LP_MENU_IDS = [
   'observationLongPressMenu',
   'satelliteLongPressMenu',
@@ -1842,7 +1851,8 @@ function closeLongPressMenusOutside(e) {
     const menu = document.getElementById(menuId);
     if (!menu || menu.style.display === 'none') return;
     if (menu.contains(e.target)) return;
-    if (menu._lpOpener && menu._lpOpener.contains(e.target)) return;
+    const opener = longPressMenuOpener(menu);
+    if (opener && opener.contains(e.target)) return;
     menu.style.display = 'none';
   });
 }

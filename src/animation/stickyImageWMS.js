@@ -3,11 +3,20 @@ import ImageState from 'ol/ImageState';
 
 // Shared frame-blob cache across ALL sources — and therefore all split panes.
 // The GetMap URL (`src`) is deterministic from the layer params plus the
-// requested extent/resolution, so two panes showing the same layer over the
-// same area (equal-size panes sharing one View) build byte-identical URLs.
-// Keying by `src` means that frame is fetched ONCE and every pane reuses the
-// blob: no duplicate network traffic, and same-layer panes' slots load in
-// lockstep (so they stay time-synced without any playback barrier).
+// requested WIDTH/HEIGHT/BBOX, so two panes showing the same layer over the
+// same area build byte-identical URLs. Keying by `src` means that frame is
+// fetched ONCE and every pane reuses the blob: no duplicate network traffic,
+// and same-layer panes' slots load in lockstep (so they stay time-synced
+// without any playback barrier).
+//
+// IMPORTANT — dedup only engages when the panes are PIXEL-IDENTICAL. Each pane
+// requests WIDTH/HEIGHT/BBOX derived from its own viewport size; a CSS grid
+// `1fr 1fr` on an odd-width screen yields e.g. 360 vs 361 px, so the two panes
+// ask for different-sized images of different extents → different `src` →
+// separate fetches. That's correct: the images genuinely differ, so we must
+// NOT normalize the key (rounding BBOX / sizes to force a hit would hand a pane
+// a wrong-sized image for its extent). Off-by-one panes simply fall back to
+// independent (correct) fetches — the optimization is best-effort.
 //
 // Entry: { blob: Blob|null, promise: Promise<Blob>|null }. Map insertion order
 // gives us a cheap LRU.

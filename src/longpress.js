@@ -17,6 +17,20 @@
  * @param {Function} [onMenuShown] - called whenever the long-press menu opens
  * @returns {{ show: Function, hide: Function }}
  */
+// Per-menu state, kept off the DOM. A shared sublayer menu may be driven by
+// several handlers (the global toolbar in 1-up, every pane pill in split); only
+// one is open at a time, so we track its current select callback + opener here.
+const menuState = new WeakMap(); // menuEl -> { onSelect, opener }
+const wiredMenus = new WeakSet(); // menus whose items are already wired
+
+// Which button currently owns a menu (set on open). The outside-click closer in
+// radar.js uses this so releasing the opener after a long press doesn't dismiss
+// the menu it just opened.
+export function longPressMenuOpener(menuEl) {
+  const state = menuEl && menuState.get(menuEl);
+  return (state && state.opener) || null;
+}
+
 function createLongPressHandler(button, menuId, onTap, onSelect, getActiveLayer, isLayerVisible, onMenuShown) {
   let timer = null;
   let triggered = false;
@@ -25,12 +39,11 @@ function createLongPressHandler(button, menuId, onTap, onSelect, getActiveLayer,
 
   function showMenu() {
     const menu = document.getElementById(menuId);
-    // Install this handler's select callback as the menu's current one, so a
-    // pick routes back to the button/pane that opened it. Record the opener so
-    // the outside-click closer doesn't dismiss the menu when this very button
-    // is released after the long press.
-    menu._lpOnSelect = onSelect;
-    menu._lpOpener = buttonEl;
+    // Install this handler's select callback + opener as the menu's current
+    // state, so a pick routes back to the button/pane that opened it and the
+    // outside-click closer doesn't dismiss the menu when this very button is
+    // released after the long press.
+    menuState.set(menu, { onSelect, opener: buttonEl });
     const menuItems = menu.querySelectorAll('.menu-item');
     const currentLayer = getActiveLayer();
     const visible = isLayerVisible();
@@ -89,14 +102,15 @@ function createLongPressHandler(button, menuId, onTap, onSelect, getActiveLayer,
   buttonEl.addEventListener('touchcancel', (e) => { e.preventDefault(); cancel(); });
 
   // Wire the menu items exactly once per menu — subsequent handlers reuse the
-  // same wiring via the menu's current `_lpOnSelect`.
+  // same wiring via the menu's current state.
   const menu = document.getElementById(menuId);
-  if (menu && !menu._lpWired) {
-    menu._lpWired = true;
+  if (menu && !wiredMenus.has(menu)) {
+    wiredMenus.add(menu);
     menu.querySelectorAll('.menu-item').forEach((item) => {
       const pick = (e) => {
         if (e) { e.preventDefault(); e.stopPropagation(); }
-        if (menu._lpOnSelect) menu._lpOnSelect(item.getAttribute('data-layer'));
+        const state = menuState.get(menu);
+        if (state && state.onSelect) state.onSelect(item.getAttribute('data-layer'));
       };
       item.addEventListener('click', pick);
       item.addEventListener('touchend', pick);
