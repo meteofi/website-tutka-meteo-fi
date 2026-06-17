@@ -1,17 +1,11 @@
 // deploy-marker: sw-update-flow-test — bump on PR #87 to force a fresh
 // radar.[contenthash].js so the deployed test build differs from the
 // previous one and the new banner flow can be exercised end-to-end.
-import { Map, View } from 'ol';
+import { View } from 'ol';
 import Geolocation from 'ol/Geolocation';
-import TileLayer from 'ol/layer/Tile';
 import ImageLayer from 'ol/layer/Image';
 import VectorLayer from 'ol/layer/Vector';
-import VectorTileLayer from 'ol/layer/VectorTile';
-import XYZ from 'ol/source/XYZ';
-import ImageWMS from 'ol/source/ImageWMS';
-import VectorTileSource from 'ol/source/VectorTile';
 import GeoJSON from 'ol/format/GeoJSON';
-import MVT from 'ol/format/MVT';
 import Vector from 'ol/source/Vector';
 import { fromLonLat, transform, transformExtent } from 'ol/proj';
 import sync from 'ol-hashed';
@@ -30,6 +24,7 @@ import utcPlugin from 'dayjs/plugin/utc';
 import localizedFormat from 'dayjs/plugin/localizedFormat';
 import durationPlugin from 'dayjs/plugin/duration';
 import Timeline from './timeline';
+import createPane from './pane';
 import wmsServerConfiguration from './config';
 import createLongPressHandler from './longpress';
 import initTools from './tools';
@@ -78,6 +73,10 @@ let startDate = new Date(Math.floor(Date.now() / 300000) * 300000 - 300000 * 12)
 let animationId = null;
 let lastAdvance = 0;
 let lastWarpTick = 0;
+// True while the user is mid pan/zoom on any pane — gates clock advance and
+// warp renders. Declared up here (used by the pane clock-gating helpers and
+// renderTick) so it precedes its first reference.
+let isInteracting = false;
 const layerInfo = {};
 let timeline;
 let mapTime = '';
@@ -88,6 +87,10 @@ const framePools = {
   lightningLayer: null,
   observationLayer: null,
 };
+// All created panes (index 0..3), cached across layout switches. Declared early
+// so the interpolator/timeline helpers above the pane bootstrap can reference
+// it. pane 0 is pushed in the bootstrap below; setLayout() adds the rest.
+const panes = [];
 
 // Three interpolation modes:
 //   - 'off'       : no warp layer; animation shows discrete frames only.
@@ -131,22 +134,28 @@ function attachInterpolators() {
   if (interpMode === 'off') return;
   const playing = animationId !== null;
   const useFlow = interpMode === 'flow';
-  for (const name of ['radarLayer', 'satelliteLayer']) {
-    const pool = framePools[name];
-    if (pool && !pool.interpolator) {
-      pool.setInterpolator(new RadarInterpolator({ useFlow }));
-      pool.refreshFlows();
-      if (playing) pool.setInterpActive(true);
+  for (const pane of activePanes()) {
+    for (const name of ['radarLayer', 'satelliteLayer']) {
+      const pool = pane.framePools[name];
+      if (pool && !pool.interpolator) {
+        pool.setInterpolator(new RadarInterpolator({ useFlow }));
+        pool.refreshFlows();
+        if (playing) pool.setInterpActive(true);
+      }
     }
   }
 }
 
 function detachInterpolators() {
-  for (const name of ['radarLayer', 'satelliteLayer']) {
-    const pool = framePools[name];
-    if (pool && pool.interpolator) {
-      pool.setInterpActive(false);
-      pool.setInterpolator(null);
+  // Detach from ALL panes (including inactive ones) so toggling interp off
+  // fully releases GPU resources regardless of the current layout.
+  for (const pane of panes) {
+    for (const name of ['radarLayer', 'satelliteLayer']) {
+      const pool = pane.framePools[name];
+      if (pool && pool.interpolator) {
+        pool.setInterpActive(false);
+        pool.setInterpolator(null);
+      }
     }
   }
 }
@@ -166,11 +175,13 @@ function setInterpMode(mode) {
     // Swap between crossfade and flow on existing interpolators —
     // cheaper than rebuilding the whole pipeline.
     const useFlow = mode === 'flow';
-    for (const name of ['radarLayer', 'satelliteLayer']) {
-      const pool = framePools[name];
-      if (pool && pool.interpolator) {
-        pool.interpolator.setUseFlow(useFlow);
-        pool.refreshFlows();
+    for (const pane of activePanes()) {
+      for (const name of ['radarLayer', 'satelliteLayer']) {
+        const pool = pane.framePools[name];
+        if (pool && pool.interpolator) {
+          pool.interpolator.setUseFlow(useFlow);
+          pool.refreshFlows();
+        }
       }
     }
   }
@@ -189,24 +200,18 @@ function updateInterpChipsState() {
     }
   });
 }
-const poolLoadStates = {
-  satelliteLayer: new Array(13).fill(false),
-  radarLayer: new Array(13).fill(false),
-  lightningLayer: new Array(13).fill(false),
-  observationLayer: new Array(13).fill(false),
-};
-// Per-cell "flow ready" state. Only populated for pools that have an
-// interpolator attached (radar, satellite when interp is enabled).
-// True means both endpoints of the pair starting at this index are
-// loaded AND the interpolator has a computed flow field — playback
-// through this timestep will show a motion-compensated warp instead
-// of a jump to the next discrete frame.
-const poolFlowStates = {
-  satelliteLayer: new Array(13).fill(false),
-  radarLayer: new Array(13).fill(false),
-  lightningLayer: new Array(13).fill(false),
-  observationLayer: new Array(13).fill(false),
-};
+// Per-(pane, category) timeline state, keyed `${paneIndex}:${name}`. A timeline
+// cell is "loaded" only when every visible (pane, layer) pool has that index
+// loaded; "flow pending" if any interpolator-bearing pool isn't flow-ready.
+// buildPanePools() seeds the keys for each pane as it's created.
+//
+// poolFlowStates is only populated for pools that have an interpolator attached
+// (radar, satellite when interp is enabled). True means both endpoints of the
+// pair starting at this index are loaded AND the interpolator has a computed
+// flow field — playback through this timestep shows a motion-compensated warp
+// instead of a jump to the next discrete frame.
+const poolLoadStates = {};
+const poolFlowStates = {};
 
 const VISIBLE = new Set(safeParseJSON('VISIBLE', ['radarLayer']));
 // Per-layer "is the chosen time inside this layer's data range?" — updated
@@ -233,14 +238,21 @@ function updateTimelineCell(i) {
   if (!timeline) return;
   let allLoaded = true;
   let flowPending = false;
-  for (const name of Object.keys(framePools)) {
-    const pool = framePools[name];
-    if (!pool || !VISIBLE.has(name)) continue; // eslint-disable-line no-continue
-    if (!poolLoadStates[name][i]) allLoaded = false;
-    // A pool only marks flow-pending if it actually has an
-    // interpolator attached. Lightning/observation (no interp) and
-    // radar/satellite with mode=off never flag this cell.
-    if (pool.interpolator && !poolFlowStates[name][i]) flowPending = true;
+  // Aggregate across every active pane's visible pools — the shared timeline
+  // reflects the whole split: a cell is ready only when all panes have it.
+  for (const pane of activePanes()) {
+    for (const name of Object.keys(pane.framePools)) {
+      const pool = pane.framePools[name];
+      if (!pool || !pane.VISIBLE.has(name)) continue; // eslint-disable-line no-continue
+      const key = `${pane.index}:${name}`;
+      const load = poolLoadStates[key];
+      if (!load || !load[i]) allLoaded = false;
+      // A pool only marks flow-pending if it actually has an interpolator
+      // attached. Lightning/observation (no interp) and radar/satellite with
+      // mode=off never flag this cell.
+      const flow = poolFlowStates[key];
+      if (pool.interpolator && (!flow || !flow[i])) flowPending = true;
+    }
   }
   timeline.setLoadState(i, allLoaded);
   // Flow-pending only meaningful when the cell is loaded — a not-
@@ -474,153 +486,13 @@ const rangeStyle = new Style({
 });
 
 //
-// FEATURES
+// LAYERS + MAP
 //
-const positionFeature = new Feature();
-positionFeature.setStyle(new Style({
-  image: new CircleStyle({
-    radius: 6,
-    fill: new Fill({
-      color: '#3399CC',
-    }),
-    stroke: new Stroke({
-      color: '#fff',
-      width: 2,
-    }),
-  }),
-}));
-
-const accuracyFeature = new Feature();
-accuracyFeature.setStyle(new Style({
-  fill: new Fill({
-    color: [128, 128, 128, 0.3],
-  }),
-}));
-
-//
-// LAYERS
-//
-const imageryBaseLayer = new TileLayer({
-  visible: false,
-  source: new XYZ({
-    attributions: 'Tiles © <a href="https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer">ArcGIS</a>',
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-  }),
-});
-
-const lightGrayBaseLayer = new TileLayer({
-  visible: false,
-  preload: Infinity,
-  source: new XYZ({
-    attributions: 'Tiles © <a href="https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer">ArcGIS</a>',
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
-  }),
-});
-
-const lightGrayReferenceLayer = new TileLayer({
-  visible: false,
-  source: new XYZ({
-    attributions: 'Tiles © <a href="https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer">ArcGIS</a>',
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
-  }),
-});
-
-const darkGrayBaseLayer = new TileLayer({
-  preload: Infinity,
-  source: new XYZ({
-    attributions: 'Tiles © <a href="https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer">ArcGIS</a>',
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
-  }),
-});
-
-const darkGrayReferenceLayer = new TileLayer({
-  source: new XYZ({
-    attributions: 'Tiles © <a href="https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer">ArcGIS</a>',
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
-  }),
-});
-
-// Satellite Layer
-const satelliteLayer = new ImageLayer({
-  name: 'satelliteLayer',
-  visible: VISIBLE.has('satelliteLayer'),
-  opacity: 0.7,
-  source: new ImageWMS({
-    url: options.wmsServerConfiguration.eumetsat1.url,
-    params: { FORMAT: 'image/jpeg', LAYERS: 'rgb_eview' },
-    hidpi: false,
-    attributions: 'EUMETSAT',
-    ratio: options.imageRatio,
-    serverType: 'geoserver',
-  }),
-});
-// Default wire format / transparency — restored by updateLayer when the
-// user picks a layer that doesn't carry per-layer overrides. Without
-// this, switching from a transparent overlay back to a full-disc RGB
-// would inherit `TRANSPARENT=TRUE` and waste bandwidth on a PNG.
-satelliteLayer.set('defaultFormat', 'image/jpeg');
-satelliteLayer.set('defaultTransparent', false);
-
-// Radar Layer
-const radarLayer = new ImageLayer({
-  name: 'radarLayer',
-  visible: VISIBLE.has('radarLayer'),
-  opacity: 0.7,
-  source: new ImageWMS({
-    url: options.wmsServerConfiguration.fi.url,
-    params: { LAYERS: options.defaultRadarLayer },
-    attributions: 'FMI (CC-BY-4.0)',
-    ratio: options.imageRatio,
-    hidpi: false,
-    serverType: 'geoserver',
-    // Lets the center-crosshair tool read the rendered radar pixel colour off
-    // the canvas (getData) without tainting it. During animation the displayed
-    // frames come from StickyImageWMS slot sources, which fetch via CORS and
-    // assign blob: URLs (already canvas-safe); this only covers the original
-    // source's direct-load path before the FramePool takes over. The meteocore
-    // WMS returns Access-Control-Allow-Origin: *, so it's safe.
-    crossOrigin: 'anonymous',
-  }),
-});
-// Category default wire format. updateLayer / applyWireFormat substitute
-// image/webp when the serving WMS advertises it in GetCapabilities (see
-// resolveFormat) — this is the fallback for servers that don't.
-radarLayer.set('defaultFormat', 'image/png');
-// Opt out of the webp wire format for radar specifically. Lossless webp
-// encoding on the meteocore server side is currently too slow to keep up
-// with retina-fullscreen request sizes; image/png is cached and served
-// more cheaply on that path. Revisit once requests are clamped to the
-// radar's native resolution (then payload size is bounded and the
-// encoding-time cost of lossless webp becomes worth the smaller bytes).
-radarLayer.set('disableWebp', true);
-
-// Lightning Layer
-const lightningLayer = new ImageLayer({
-  name: 'lightningLayer',
-  visible: VISIBLE.has('lightningLayer'),
-  source: new ImageWMS({
-    url: options.wmsServerConfiguration['meteo-obs-new'].url,
-    params: { FORMAT: 'image/png8', LAYERS: options.defaultLightningLayer },
-    ratio: options.imageRatio,
-    hidpi: false,
-    serverType: 'geoserver',
-  }),
-});
-lightningLayer.set('defaultFormat', 'image/png8');
-
-// Observation Layer
-const observationLayer = new ImageLayer({
-  name: 'observationLayer',
-  visible: VISIBLE.has('observationLayer'),
-  source: new ImageWMS({
-    url: options.wmsServerConfiguration['meteo-obs-new'].url,
-    params: { FORMAT: 'image/png8', LAYERS: options.defaultObservationLayer },
-    ratio: options.imageRatio,
-    hidpi: false,
-    serverType: 'geoserver',
-  }),
-});
-observationLayer.set('defaultFormat', 'image/png8');
+// The basemaps, content layers, vector overlays and the OpenLayers Map are now
+// built per pane by createPane() in src/pane.js — OL layers cannot be shared
+// across maps, so each split pane needs its own instances. The single shared
+// `radarSiteSource` below feeds every pane's radar-site layer. The pane
+// bootstrap (createPane + pane-0 aliases) runs just below the source.
 
 // Radar-site markers track the live radar network rather than a hand-edited
 // file: two meteocore OGC API Features collections are fetched and merged —
@@ -664,125 +536,171 @@ const radarSiteSource = new Vector({
   },
 });
 
-const radarSiteLayer = new VectorLayer({
-  source: radarSiteSource,
-  style(feature) {
-    radarStyle.getText().setText(feature.get('name'));
-    return radarStyle;
-  },
+//
+// PANES — one OpenLayers Map per split pane, all sharing ONE View so they
+// pan/zoom in lockstep (the canonical OL "shared view" pattern). Pane 0 is the
+// original single map; its layer/state objects are aliased to the module
+// globals below so the rest of this file is unchanged. setLayout() adds further
+// panes on the same shared view.
+//
+const sharedView = new View({
+  enableRotation: false,
+  center: fromLonLat([26, 65]),
+  maxZoom: 16,
+  zoom: 5,
 });
 
-const icaoLayer = new VectorLayer({
-  source: new Vector({
-    format: new GeoJSON(),
-    url: 'airfields-finland.json',
-  }),
-  visible: false,
-  style(feature) {
-    icaoStyle.getText().setText(feature.get('icao'));
-    return icaoStyle;
-  },
-});
-
-const municipalityLayer = new VectorTileLayer({
-  visible: false,
-  // Re-render features per frame instead of rasterising them once per
-  // tile. Hybrid mode (the default) makes the strokes scale like raster
-  // pixels between integer zoom levels — visible as "thick then snaps
-  // thin" while zooming. Vector mode keeps the 1.5 px stroke crisp.
-  renderMode: 'vector',
-  source: new VectorTileSource({
-    format: new MVT(),
-    url: 'https://meteocore.app.meteo.fi/tiles/collections/fi-municipalities/tiles/WebMercatorQuad/{z}/{y}/{x}?f=mvt',
-    attributions: 'Statistics Finland / Tilastokeskus',
-    maxZoom: 14,
-  }),
-  // Initial style is set below by setMapLayer once the effective theme
-  // is known. Default to the light variant so the layer is renderable
-  // even if a future code path skips the theme bootstrap.
-  style: municipalityStyleLight,
-});
-
-// Fairways (Vesiväylät) — OGC API Features from Väylävirasto. The
-// dataset is ~770 KB gzipped (1901 LineString features as of 2026-05),
-// small enough to fetch once on first toggle-on using OL's default
-// "all" loading strategy. Limit=10000 leaves headroom; if the dataset
-// ever exceeds it, switch to bbox strategy with a tilegrid snap.
-const vesivaylaAreaLayer = new VectorLayer({
-  visible: false,
-  source: new Vector({
-    format: new GeoJSON(),
-    url: 'https://avoinapi.vaylapilvi.fi/vaylatiedot/ogc/features/v1/collections/vesivaylatiedot:vaylaalueet_uusi/items?f=application/geo%2Bjson&limit=10000',
-    attributions: 'Väylävirasto',
-  }),
-  style: vesivaylaAreaStyle,
-});
-
-const vesivaylatLayer = new VectorLayer({
-  visible: false,
-  // Declutter so overlapping nimifi labels along parallel fairway segments
-  // don't pile up at harbours. Stroke geometry still renders fully — only
-  // text participates in the decluttering.
-  declutter: true,
-  source: new Vector({
-    format: new GeoJSON(),
-    url: 'https://avoinapi.vaylapilvi.fi/vaylatiedot/ogc/features/v1/collections/vesivaylatiedot:vaylat_uusi/items?f=application/geo%2Bjson&limit=10000',
-    attributions: 'Väylävirasto',
-  }),
-  style: vesivaylatStyleFn,
-});
-
-const guideLayer = new VectorLayer({
-  source: new Vector(),
-  style: rangeStyle,
-});
-
-const ownPositionLayer = new VectorLayer({
-  visible: false,
-  source: new Vector({
-    features: [accuracyFeature, positionFeature],
-  }),
-});
-
-const layerss = {
-  satelliteLayer,
-  radarLayer,
-  observationLayer,
-  lightningLayer,
+// Shared dependencies every pane's layers reference — Style objects/functions
+// and the radar-site VectorSource. Passed into createPane so src/pane.js stays
+// free of app state.
+const paneDeps = {
+  options,
+  radarSiteSource,
+  radarStyle,
+  icaoStyle,
+  municipalityStyleLight,
+  vesivaylatStyleFn,
+  vesivaylaAreaStyle,
+  rangeStyle,
 };
 
-const layers = [
-  lightGrayBaseLayer,
-  darkGrayBaseLayer,
-  imageryBaseLayer,
-  // s57Layer,
+const pane0 = createPane(document.getElementById('map'), sharedView, {
+  ...paneDeps,
+  index: 0,
+  // Pane 0 reuses the existing module-global state objects so the aliases
+  // below point at the very same instances the rest of the file mutates.
+  visible: VISIBLE,
+  activeLayers: ACTIVE_LAYERS,
+  layerInRange: LAYER_IN_RANGE,
+  framePools,
+});
+panes.push(pane0);
+
+// Pane-0 aliases — keep the original single-map identifiers working unchanged.
+// Only the handles still referenced directly by radar.js are aliased; the
+// basemaps, municipality and fairway layers are now reached via `pane.*` in the
+// theme/POI fan-outs, and imageryBaseLayer lives only inside pane0.layers.
+const { map, layerss } = pane0;
+const {
   satelliteLayer,
   radarLayer,
-  guideLayer,
   lightningLayer,
-  lightGrayReferenceLayer,
-  darkGrayReferenceLayer,
-  municipalityLayer,
-  vesivaylaAreaLayer,
-  vesivaylatLayer,
-  radarSiteLayer,
-  icaoLayer,
-  ownPositionLayer,
   observationLayer,
-];
+  radarSiteLayer,
+  guideLayer,
+  ownPositionLayer,
+  positionFeature,
+  accuracyFeature,
+} = pane0;
 
-const map = new Map({
-  target: 'map',
-  layers,
-  controls: [],
-  view: new View({
-    enableRotation: false,
-    center: fromLonLat([26, 65]),
-    maxZoom: 16,
-    zoom: 5,
-  }),
-  keyboardEventTarget: document,
-});
+//
+// LAYOUT — 1-up (default) / 2-up / 4-up. Panes are created lazily and cached;
+// the active count drives which ones the clock + UI fan out to. Inactive panes'
+// divs are display:none, so their map size is 0 and their FramePools idle via
+// the FramePool getSize/getVisible guards (no special teardown needed).
+//
+const LAYOUT_ACTIVE_COUNT = { '1-up': 1, '2-up': 2, '4-up': 4 };
+let layoutMode = '1-up';
+let activeCount = 1;
+
+function activePanes() {
+  return panes.slice(0, activeCount);
+}
+
+// Clock interaction gating, wired on EVERY active pane's map. A drag fires
+// pointerdrag on the pane the user touched; the shared view means moveend then
+// fires on every pane. Both are idempotent, so binding to all panes is safe and
+// keeps `isInteracting` correct no matter which pane is dragged.
+function onPanePointerDrag() { isInteracting = true; }
+function onPaneMoveEnd() {
+  isInteracting = false;
+  // Defer the next advance by a full step after any view change (see the
+  // original moveend note: avoids racing the moveend-triggered prefetch).
+  lastAdvance = window.performance.now();
+  const zoom = Math.min(sharedView.getZoom(), 16);
+  localStorage.setItem('metZoom', zoom);
+}
+function wirePaneClockGating(pane) {
+  pane.map.on('pointerdrag', onPanePointerDrag);
+  pane.map.on('moveend', onPaneMoveEnd);
+}
+
+// Copy pane 0's current display state (sublayer params, info, opacity,
+// visibility) onto a freshly-created pane so a new split starts as a mirror of
+// what's on screen; the user then edits it independently (Stage 3).
+function clonePaneDisplay(src, dst) {
+  ['satelliteLayer', 'radarLayer', 'lightningLayer', 'observationLayer'].forEach((name) => {
+    const s = src.layerss[name];
+    const d = dst.layerss[name];
+    const ssrc = s.getSource();
+    const dsrc = d.getSource();
+    if (dsrc.getUrl() !== ssrc.getUrl()) dsrc.setUrl(ssrc.getUrl());
+    dsrc.updateParams({ ...ssrc.getParams() });
+    d.set('info', s.get('info'));
+    d.setOpacity(s.getOpacity());
+    d.setVisible(s.getVisible());
+    if (s.getVisible()) dst.VISIBLE.add(name); else dst.VISIBLE.delete(name);
+    dst.ACTIVE_LAYERS[name] = src.ACTIVE_LAYERS[name];
+  });
+}
+
+// One-time wiring for a newly-created pane: build its pools, mirror pane 0's
+// content, apply the current theme + POI visibility, attach interpolators, and
+// gate the clock off its interactions.
+function initNewPane(pane) {
+  buildPanePools(pane);
+  clonePaneDisplay(pane0, pane);
+  setMapLayer(getEffectiveTheme());
+  applyPoiVisibility();
+  attachInterpolators();
+  wirePaneClockGating(pane);
+}
+
+// Create any panes up to `count` that don't exist yet (targets #map-1..#map-3),
+// all sharing the single View.
+function ensurePanes(count) {
+  for (let i = panes.length; i < count; i++) {
+    const el = document.getElementById(`map-${i}`);
+    const pane = createPane(el, sharedView, {
+      ...paneDeps,
+      index: i,
+      visible: new Set(pane0.VISIBLE),
+      activeLayers: { ...pane0.ACTIVE_LAYERS },
+      layerInRange: {},
+    });
+    panes.push(pane);
+    initNewPane(pane);
+  }
+}
+
+function updateLayoutChipsState() {
+  document.querySelectorAll('#overflowMenu .chip[data-layout]').forEach((chip) => {
+    chip.setAttribute('aria-checked', String(chip.getAttribute('data-layout') === layoutMode));
+  });
+}
+
+function resizeAllPanes() {
+  for (const pane of panes) pane.updateSize();
+}
+
+function setLayout(mode) {
+  if (!(mode in LAYOUT_ACTIVE_COUNT)) return;
+  layoutMode = mode;
+  activeCount = LAYOUT_ACTIVE_COUNT[mode];
+  ensurePanes(activeCount);
+  document.body.classList.toggle('split-2', mode === '2-up');
+  document.body.classList.toggle('split-4', mode === '4-up');
+  // Let the grid reflow before measuring; then size every map (inactive panes
+  // collapse to 0 and idle) and re-drive the active panes for the current time.
+  window.requestAnimationFrame(() => {
+    resizeAllPanes();
+    attachInterpolators();
+    setTime('keep');
+    recomputeAllTimelineCells();
+  });
+  updateLayoutChipsState();
+  track('layout', { mode });
+}
 
 function rangeRings(layer, coordinates, range) {
   if (typeof range === 'number' && layer && coordinates) {
@@ -904,13 +822,19 @@ function setTime(action = 'next') {
   let end = Math.floor(Date.now() / resolution) * resolution - resolution;
   let start = end - resolution * 12;
 
-  for (const item of VISIBLE) {
-    const wmslayer = layerss[item].getSource().getParams().LAYERS;
-    if (wmslayer in layerInfo) {
-      if (item === 'radarLayer' || item === 'satelliteLayer' || item === 'observationLayer') {
-        end = Math.min(end, Math.floor(layerInfo[wmslayer].time.end / resolution) * resolution);
+  // Compute the shared 13-frame window from the UNION of every active pane's
+  // visible layers — time is identical across panes, so one window drives them
+  // all. The newest-frame cap (end) and the resolution come from whichever
+  // visible layer in any pane is freshest / coarsest.
+  for (const pane of activePanes()) {
+    for (const item of pane.VISIBLE) {
+      const wmslayer = pane.layerss[item].getSource().getParams().LAYERS;
+      if (wmslayer in layerInfo) {
+        if (item === 'radarLayer' || item === 'satelliteLayer' || item === 'observationLayer') {
+          end = Math.min(end, Math.floor(layerInfo[wmslayer].time.end / resolution) * resolution);
+        }
+        resolution = Math.max(resolution, layerInfo[wmslayer].time.resolution);
       }
-      resolution = Math.max(resolution, layerInfo[wmslayer].time.resolution);
     }
   }
 
@@ -981,14 +905,17 @@ function setTime(action = 'next') {
   //      its image (opacity 0) so a previously-loaded frame doesn't stay
   //      stuck on screen.
   const STALE_THRESHOLD_MS = 24 * 60 * 60 * 1000;
-  const routeLayer = (name, window, currentTime) => {
-    const olLayer = layerss[name];
-    const button = document.getElementById(`${name}Button`);
+  // Route one (pane, category) for the current window. Per-pane concerns —
+  // opacity, LAYER_IN_RANGE and the pool's window/time. The shared top toolbar's
+  // stale-data button reflects pane 0 only; per-pane pills own their own state.
+  const routeLayer = (pane, name, window, currentTime) => {
+    const olLayer = pane.layerss[name];
+    const button = pane.index === 0 ? document.getElementById(`${name}Button`) : null;
 
-    if (!VISIBLE.has(name)) {
+    if (!pane.VISIBLE.has(name)) {
       if (button) button.classList.remove('stale-data');
       olLayer.setOpacity(1);
-      LAYER_IN_RANGE[name] = true;
+      pane.LAYER_IN_RANGE[name] = true;
       return;
     }
 
@@ -1001,18 +928,21 @@ function setTime(action = 'next') {
     const inRange = !info || !info.start || !info.end
       || (tNow >= info.start && tNow <= info.end);
     olLayer.setOpacity(inRange ? 1 : 0);
-    LAYER_IN_RANGE[name] = inRange;
+    pane.LAYER_IN_RANGE[name] = inRange;
 
     if (!inRange) return;
 
-    const pool = framePools[name];
+    const pool = pane.framePools[name];
+    if (!pool) return;
     pool.setWindow(window);
     pool.showTime(currentTime);
   };
-  routeLayer('satelliteLayer', windowInstant, timeISO);
-  routeLayer('radarLayer', windowInstant, timeISO);
-  routeLayer('lightningLayer', windowInterval, timeInterval);
-  routeLayer('observationLayer', windowInterval, timeInterval);
+  for (const pane of activePanes()) {
+    routeLayer(pane, 'satelliteLayer', windowInstant, timeISO);
+    routeLayer(pane, 'radarLayer', windowInstant, timeISO);
+    routeLayer(pane, 'lightningLayer', windowInterval, timeInterval);
+    routeLayer(pane, 'observationLayer', windowInterval, timeInterval);
+  }
   updateMapTimeDisplay(timeISO);
 }
 
@@ -1020,12 +950,12 @@ function setTime(action = 'next') {
 // TIME CONTROLS
 //
 
-let isInteracting = false;
-
 function anyPoolZooming() {
-  for (const name of Object.keys(framePools)) {
-    const p = framePools[name];
-    if (p && p.isZoomGestureActive && p.isZoomGestureActive()) return true;
+  for (const pane of activePanes()) {
+    for (const name of Object.keys(pane.framePools)) {
+      const p = pane.framePools[name];
+      if (p && p.isZoomGestureActive && p.isZoomGestureActive()) return true;
+    }
   }
   return false;
 }
@@ -1071,18 +1001,22 @@ const renderTick = function (now) {
   lastWarpTick = now;
 
   const t = (now - lastAdvance) / stepDuration;
-  for (const name of Object.keys(framePools)) {
-    if (!VISIBLE.has(name)) continue; // eslint-disable-line no-continue
-    if (LAYER_IN_RANGE[name] === false) continue; // eslint-disable-line no-continue
-    const pool = framePools[name];
-    if (pool) pool.showInterpolated(t);
+  for (const pane of activePanes()) {
+    for (const name of Object.keys(pane.framePools)) {
+      if (!pane.VISIBLE.has(name)) continue; // eslint-disable-line no-continue
+      if (pane.LAYER_IN_RANGE[name] === false) continue; // eslint-disable-line no-continue
+      const pool = pane.framePools[name];
+      if (pool) pool.showInterpolated(t);
+    }
   }
 };
 
 function setInterpActiveAll(active) {
-  for (const name of Object.keys(framePools)) {
-    const pool = framePools[name];
-    if (pool && pool.interpolator) pool.setInterpActive(active);
+  for (const pane of activePanes()) {
+    for (const name of Object.keys(pane.framePools)) {
+      const pool = pane.framePools[name];
+      if (pool && pool.interpolator) pool.setInterpActive(active);
+    }
   }
 }
 
@@ -1138,11 +1072,13 @@ function getEffectiveTheme() {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
+// Theme is global — the shared Style singletons are mutated once, then every
+// pane's vector layers are told to re-render with the new colours.
 function applyIcaoTheme(theme) {
   const t = icaoTextColors[theme] || icaoTextColors.dark;
   icaoStyle.getText().getFill().setColor(t.fill);
   icaoStyle.getText().getStroke().setColor(t.halo);
-  icaoLayer.changed();
+  for (const pane of panes) pane.icaoLayer.changed();
 }
 
 function applyVesivaylatTheme(theme) {
@@ -1150,35 +1086,26 @@ function applyVesivaylatTheme(theme) {
   const t = vesivaylatLabelColors[theme] || vesivaylatLabelColors.dark;
   vesivaylatLabelStyle.getText().getFill().setColor(t.fill);
   vesivaylatLabelStyle.getText().getStroke().setColor(t.halo);
-  vesivaylatLayer.changed();
   vesivaylaAreaStyle.getFill().setColor(vesivaylaAreaFills[theme] || vesivaylaAreaFills.light);
-  vesivaylaAreaLayer.changed();
+  for (const pane of panes) {
+    pane.vesivaylatLayer.changed();
+    pane.vesivaylaAreaLayer.changed();
+  }
 }
 
 function setMapLayer(maplayer) {
   debug(`Set ${maplayer} map.`);
-  switch (maplayer) {
-    case 'light':
-      darkGrayBaseLayer.setVisible(false);
-      darkGrayReferenceLayer.setVisible(false);
-      lightGrayBaseLayer.setVisible(true);
-      lightGrayReferenceLayer.setVisible(true);
-      municipalityLayer.setStyle(municipalityStyleLight);
-      applyIcaoTheme('light');
-      applyVesivaylatTheme('light');
-      break;
-    case 'dark':
-      darkGrayBaseLayer.setVisible(true);
-      darkGrayReferenceLayer.setVisible(true);
-      lightGrayBaseLayer.setVisible(false);
-      lightGrayReferenceLayer.setVisible(false);
-      municipalityLayer.setStyle(municipalityStyleDark);
-      applyIcaoTheme('dark');
-      applyVesivaylatTheme('dark');
-      break;
-    default:
-      break;
+  if (maplayer !== 'light' && maplayer !== 'dark') return;
+  const light = maplayer === 'light';
+  for (const pane of panes) {
+    pane.darkGrayBaseLayer.setVisible(!light);
+    pane.darkGrayReferenceLayer.setVisible(!light);
+    pane.lightGrayBaseLayer.setVisible(light);
+    pane.lightGrayReferenceLayer.setVisible(light);
+    pane.municipalityLayer.setStyle(light ? municipalityStyleLight : municipalityStyleDark);
   }
+  applyIcaoTheme(maplayer);
+  applyVesivaylatTheme(maplayer);
 }
 
 function getThemeMode() {
@@ -1931,6 +1858,7 @@ function openOverflowMenu() {
   overflowBackdropEl.classList.add('open');
   menuButtonEl.setAttribute('aria-expanded', 'true');
   updateThemeChipsState();
+  updateLayoutChipsState();
   updatePoiMenuState();
 }
 
@@ -2093,30 +2021,40 @@ document.querySelectorAll('#overflowMenu .chip[data-interp]').forEach((chip) => 
 // silently rejects non-'off' modes, and the user sees no feedback.
 updateInterpChipsState();
 
+// Layout chips (Näkymä): 1-up / 2-up / 4-up.
+document.querySelectorAll('#overflowMenu .chip[data-layout]').forEach((chip) => {
+  chip.addEventListener('mouseup', () => {
+    setLayout(chip.getAttribute('data-layout'));
+  });
+});
+
 // POI layers — map features that users can toggle independently of data layers.
 // Adding a future POI = one entry in this registry; the overflow menu row and
 // localStorage persistence fall out automatically.
+// `layerKeys` are pane property names — a POI toggle fans its visibility out to
+// the matching layer in EVERY pane so context overlays stay consistent across
+// the split.
 const poiRegistry = [
   {
     id: 'radars',
     label: 'Tutka-asemat',
     icon: 'cell_tower',
     defaultOn: true,
-    layerRef: () => radarSiteLayer,
+    layerKeys: ['radarSiteLayer'],
   },
   {
     id: 'airfields',
     label: 'Lentokentät',
     icon: 'flight',
     defaultOn: false,
-    layerRef: () => icaoLayer,
+    layerKeys: ['icaoLayer'],
   },
   {
     id: 'municipalities',
     label: 'Kunnat',
     icon: 'location_city',
     defaultOn: false,
-    layerRef: () => municipalityLayer,
+    layerKeys: ['municipalityLayer'],
   },
   {
     id: 'vesivaylat',
@@ -2126,7 +2064,7 @@ const poiRegistry = [
     // Area fill renders behind the line geometry — both flip together
     // off the same toggle. Order here doesn't drive z-order; the layers
     // array does (vesivaylaAreaLayer sits before vesivaylatLayer there).
-    layerRef: () => [vesivaylaAreaLayer, vesivaylatLayer],
+    layerKeys: ['vesivaylaAreaLayer', 'vesivaylatLayer'],
   },
 ];
 
@@ -2149,9 +2087,12 @@ function persistPoiState() {
 
 function applyPoiVisibility() {
   poiRegistry.forEach((entry) => {
-    const ref = entry.layerRef();
     const visible = !!POI_STATE[entry.id];
-    (Array.isArray(ref) ? ref : [ref]).forEach((l) => l.setVisible(visible));
+    for (const pane of panes) {
+      entry.layerKeys.forEach((key) => {
+        if (pane[key]) pane[key].setVisible(visible);
+      });
+    }
   });
 }
 
@@ -2397,16 +2338,15 @@ function getWMSCapabilities(wms, failCountArg = 0) {
         && getMap.Format.includes('image/webp'));
       getLayers(result.Capability.Layer.Layer, wms, supportsWebp);
       debug(layerInfo);
-      satelliteLayer.set('info', layerInfo[satelliteLayer.getSource().getParams().LAYERS]);
-      radarLayer.set('info', layerInfo[radarLayer.getSource().getParams().LAYERS]);
-      lightningLayer.set('info', layerInfo[lightningLayer.getSource().getParams().LAYERS]);
-      observationLayer.set('info', layerInfo[observationLayer.getSource().getParams().LAYERS]);
-      // Adopt webp for any category already showing a layer from a
-      // webp-capable server, including the boot defaults.
-      applyWireFormat(satelliteLayer);
-      applyWireFormat(radarLayer);
-      applyWireFormat(lightningLayer);
-      applyWireFormat(observationLayer);
+      // Set each visible category's `info` and adopt webp (where advertised)
+      // for every active pane's layers, including the boot defaults.
+      for (const pane of activePanes()) {
+        for (const name of ['satelliteLayer', 'radarLayer', 'lightningLayer', 'observationLayer']) {
+          const olLayer = pane.layerss[name];
+          olLayer.set('info', layerInfo[olLayer.getSource().getParams().LAYERS]);
+          applyWireFormat(olLayer);
+        }
+      }
       switch (wms.category) {
         case 'satelliteLayer':
           updateLayerSelection(satelliteLayer, 'satellite', 'msg_');
@@ -2596,6 +2536,34 @@ function getTimeDimension(dimensions) {
   };
 }
 
+// Build the four FramePools (one per content layer) for a pane and wire each
+// pool's load/flow callbacks into the shared timeline aggregation. For pane 0
+// `pane.framePools` is the module-global `framePools`, so this is identical to
+// the old inline construction on the single-map path.
+function buildPanePools(pane) {
+  const pairs = [
+    ['satelliteLayer', pane.layerss.satelliteLayer],
+    ['radarLayer', pane.layerss.radarLayer],
+    ['lightningLayer', pane.layerss.lightningLayer],
+    ['observationLayer', pane.layerss.observationLayer],
+  ];
+  for (const [name, layer] of pairs) {
+    const key = `${pane.index}:${name}`;
+    poolLoadStates[key] = new Array(13).fill(false);
+    poolFlowStates[key] = new Array(13).fill(false);
+    const pool = new FramePool({ primaryLayer: layer, map: pane.map });
+    pool.onLoadStateChange = (idx, loaded) => {
+      poolLoadStates[key][idx] = loaded;
+      updateTimelineCell(idx);
+    };
+    pool.onFlowStateChange = (idx, ready) => {
+      poolFlowStates[key][idx] = ready;
+      updateTimelineCell(idx);
+    };
+    pane.framePools[name] = pool;
+  }
+}
+
 //
 // MAIN
 //
@@ -2614,8 +2582,7 @@ const main = () => {
   // out of dedup: the server returns a different document per `&layer=`,
   // so each filtered request must run on its own.
   //
-  // Plain object (not a Map) because `Map` is imported from 'ol' at the
-  // top of this file — `new Map()` here would build an OpenLayers Map.
+  // Plain null-prototype object used as a string-keyed set of endpoints.
   const seenEndpoints = Object.create(null);
   Object.values(options.wmsServerConfiguration).forEach((value) => {
     if (value.disabled) return;
@@ -2627,24 +2594,7 @@ const main = () => {
 
   setButtonStates();
 
-  const pairs = [
-    ['satelliteLayer', satelliteLayer],
-    ['radarLayer', radarLayer],
-    ['lightningLayer', lightningLayer],
-    ['observationLayer', observationLayer],
-  ];
-  for (const [name, layer] of pairs) {
-    const pool = new FramePool({ primaryLayer: layer, map });
-    pool.onLoadStateChange = (idx, loaded) => {
-      poolLoadStates[name][idx] = loaded;
-      updateTimelineCell(idx);
-    };
-    pool.onFlowStateChange = (idx, ready) => {
-      poolFlowStates[name][idx] = ready;
-      updateTimelineCell(idx);
-    };
-    framePools[name] = pool;
-  }
+  buildPanePools(pane0);
   // Pools are now in framePools. If the capability probe has already
   // resolved, wire interpolators up now; otherwise the probe's .then
   // will call attachInterpolators once the verdict lands.
@@ -2701,7 +2651,9 @@ const main = () => {
     });
   }
 
-  window.__tutka = { map, framePools, tools };
+  window.__tutka = {
+    panes, map, framePools, tools, sharedView,
+  };
 
   // GEOLOCATION
   geolocation = new Geolocation({
@@ -2790,20 +2742,15 @@ const main = () => {
     displayFeatureInfo(evt.pixel);
   });
 
-  map.on('pointerdrag', () => { isInteracting = true; });
-  map.on('moveend', () => {
-    isInteracting = false;
-    // Defer the next playback advance by a full stepDuration after any
-    // view change. Without this, the advance cadence fires on the very
-    // next RAF tick after a pan (since lastAdvance accumulated while
-    // isInteracting was true), which races with the moveend-triggered
-    // prefetch in FramePool — second prefetch aborts the first, noisy
-    // "Image load error" shows up in the console for every aborted
-    // request.
-    lastAdvance = window.performance.now();
-    const zoom = Math.min(map.getView().getZoom(), 16);
-    localStorage.setItem('metZoom', zoom);
-  });
+  // Clock interaction gating + metZoom persistence, wired per pane (see
+  // wirePaneClockGating / onPaneMoveEnd). pane 0 is wired here; new panes get
+  // wired in initNewPane.
+  wirePaneClockGating(pane0);
+
+  // Keep every pane's map sized on viewport resize and orientation flips (the
+  // 2-up grid swaps cols↔rows on rotation purely in CSS; JS just re-measures).
+  window.addEventListener('resize', resizeAllPanes);
+  window.matchMedia('(orientation: portrait)').addEventListener('change', resizeAllPanes);
 
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Control') {
