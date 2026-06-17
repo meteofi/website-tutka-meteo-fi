@@ -92,6 +92,17 @@ const framePools = {
 // it. pane 0 is pushed in the bootstrap below; setLayout() adds the rest.
 const panes = [];
 
+// The four content categories + their pill icon and shared sublayer-menu id.
+// Declared up here so the per-pane init helpers (initNewPane / buildPanePill)
+// can reference them.
+const PILL_CATEGORIES = ['satelliteLayer', 'radarLayer', 'lightningLayer', 'observationLayer'];
+const CATEGORY_UI = {
+  satelliteLayer: { icon: 'satellite_alt', menu: 'satelliteLongPressMenu', aria: 'Satelliitti' },
+  radarLayer: { icon: 'radar', menu: 'radarLongPressMenu', aria: 'Säätutka' },
+  lightningLayer: { icon: 'bolt', menu: 'lightningLongPressMenu', aria: 'Salamat' },
+  observationLayer: { icon: 'thermostat', menu: 'observationLongPressMenu', aria: 'Havainto' },
+};
+
 // Three interpolation modes:
 //   - 'off'       : no warp layer; animation shows discrete frames only.
 //   - 'crossfade' : warp layer with zero-flow — smooth A→B fade.
@@ -650,6 +661,13 @@ function clonePaneDisplay(src, dst) {
 function initNewPane(pane) {
   buildPanePools(pane);
   clonePaneDisplay(pane0, pane);
+  // Attach the per-pane visibility listener AFTER mirroring (so the clone
+  // doesn't fire a burst of change events before the pane is ready). The
+  // playlist propertychange listener is pane-0 only, so it's not attached here.
+  for (const name of PILL_CATEGORIES) {
+    pane.layerss[name].on('change:visible', onChangeVisible);
+  }
+  buildPanePill(pane);
   setMapLayer(getEffectiveTheme());
   applyPoiVisibility();
   attachInterpolators();
@@ -911,9 +929,11 @@ function setTime(action = 'next') {
   const routeLayer = (pane, name, window, currentTime) => {
     const olLayer = pane.layerss[name];
     const button = pane.index === 0 ? document.getElementById(`${name}Button`) : null;
+    const pillBtn = pane.pillButtons && pane.pillButtons[name];
 
     if (!pane.VISIBLE.has(name)) {
       if (button) button.classList.remove('stale-data');
+      if (pillBtn) pillBtn.classList.remove('stale-data');
       olLayer.setOpacity(1);
       pane.LAYER_IN_RANGE[name] = true;
       return;
@@ -924,6 +944,7 @@ function setTime(action = 'next') {
 
     const isStale = !!(info && info.end && Date.now() - info.end > STALE_THRESHOLD_MS);
     if (button) button.classList.toggle('stale-data', isStale);
+    if (pillBtn) pillBtn.classList.toggle('stale-data', isStale);
 
     const inRange = !info || !info.start || !info.end
       || (tNow >= info.start && tNow <= info.end);
@@ -1219,9 +1240,13 @@ function updateLayer(layer, wmslayer, opts = {}) {
     trackCategory(layer, { action: 'pick', layer: wmslayer, source });
   }
   debug(layerInfo[wmslayer]);
+  const pane = paneOf(layer);
+  const isPane0 = pane === pane0;
   const info = layerInfo[wmslayer];
   layer.set('info', info);
-  if (document.getElementById(wmslayer)) {
+  // The #layers selection list belongs to the primary pane; don't repaint it
+  // for a background pane's sublayer change.
+  if (isPane0 && document.getElementById(wmslayer)) {
     removeSelectedParameter(`#${layer.get('name')} > div`);
     document.getElementById(wmslayer).classList.add('selected');
   }
@@ -1258,20 +1283,22 @@ function updateLayer(layer, wmslayer, opts = {}) {
   }
   if (!skipPersist) {
     const category = layer.get('name');
-    if (category && ACTIVE_LAYERS[category] !== wmslayer) {
-      ACTIVE_LAYERS[category] = wmslayer;
-      persistActiveLayers();
+    if (category && pane.ACTIVE_LAYERS[category] !== wmslayer) {
+      pane.ACTIVE_LAYERS[category] = wmslayer;
+      // Only the primary pane persists to localStorage; background panes are
+      // re-seeded by mirroring when a split is (re)entered.
+      if (isPane0) persistActiveLayers();
     }
   }
   if (!skipVisibility) {
     if (layer.getVisible()) {
-      updateCanonicalPage();
+      if (isPane0) updateCanonicalPage();
     } else {
       layer.setVisible(true);
     }
   }
-  updateLayerSelectionSelected();
-  if (probe && layer === radarLayer) {
+  if (isPane0) updateLayerSelectionSelected();
+  if (isPane0 && probe && layer === radarLayer) {
     // Pass the elevation (set in single-site mode) so the EDR probe queries the
     // displayed sweep; composites carry no ELEVATION param (z stays null).
     probe.setActiveLayer(layer.getVisible() ? wmslayer : null, {
@@ -1312,21 +1339,21 @@ function fitToLayerExtent(wmslayer) {
 // 'radarLayer') after that category's WMS GetCapabilities has populated
 // layerInfo. If the stored layer is no longer advertised by the server,
 // drop it — the layer stays at its constructor-time default.
-function restoreActiveLayer(category) {
+function restoreActiveLayer(category, pane = pane0) {
   if (!category) return;
-  // While drilled into a single radar site, the radar layer intentionally runs
-  // a transient `<collection>/DBZH` product that is NOT in ACTIVE_LAYERS. Skip
-  // the restore so the periodic (60 s) capabilities refresh doesn't revert it
-  // back to the stored composite mid-session.
-  if (category === 'radarLayer' && radarSite && radarSite.isSingleSiteActive()) return;
-  const olLayer = layerss[category];
+  // While drilled into a single radar site (primary pane only), the radar layer
+  // runs a transient `<collection>/DBZH` product that is NOT in ACTIVE_LAYERS.
+  // Skip the restore so the periodic (60 s) capabilities refresh doesn't revert
+  // it back to the stored composite mid-session.
+  if (category === 'radarLayer' && pane === pane0 && radarSite && radarSite.isSingleSiteActive()) return;
+  const olLayer = pane.layerss[category];
   if (!olLayer) return;
-  const stored = ACTIVE_LAYERS[category];
+  const stored = pane.ACTIVE_LAYERS[category];
   if (!stored) return;
 
   if (!layerInfo[stored] || layerInfo[stored].category !== category) {
-    delete ACTIVE_LAYERS[category];
-    persistActiveLayers();
+    delete pane.ACTIVE_LAYERS[category];
+    if (pane === pane0) persistActiveLayers();
     return;
   }
 
@@ -1433,6 +1460,10 @@ const _playlistSliderHandlers = {};
 
 function layerInfoPlaylist(event) {
   const layer = event.target;
+  // The playlist reflects the primary pane only; ignore background panes'
+  // property changes entirely (FIRST check — this fires on every source swap
+  // during playback, so it must stay cheap for non-pane-0 layers).
+  if (layer.get('_paneIndex')) return;
   const name = layer.get('name');
   const info = layer.get('info');
   // Prefer the user-chosen opacity when the interpolator has zeroed
@@ -1581,31 +1612,33 @@ function onChangeVisible(event) {
   const wmslayer = layer.getSource().getParams().LAYERS;
   const name = layer.get('name');
   const isVisible = layer.getVisible();
-  removeSelectedParameter(`#${name} > div`);
-  if (isVisible) {
-    debug(`Activated ${name}`);
-    VISIBLE.add(name);
-    localStorage.setItem('VISIBLE', JSON.stringify([...VISIBLE]));
-    if (document.getElementById(wmslayer)) {
+  const pane = paneOf(layer);
+  const isPane0 = pane === pane0;
+
+  if (isVisible) pane.VISIBLE.add(name); else pane.VISIBLE.delete(name);
+  debug(`${isVisible ? 'Activated' : 'Deactivated'} ${name} (pane ${pane.index})`);
+
+  // The global toolbar, the #layers selection list and the playlist card all
+  // reflect the primary pane (pane 0). Per-pane state lives on the pill.
+  if (isPane0) {
+    removeSelectedParameter(`#${name} > div`);
+    localStorage.setItem('VISIBLE', JSON.stringify([...pane.VISIBLE]));
+    setButtonState(`${name}Button`, isVisible);
+    if (isVisible && document.getElementById(wmslayer)) {
       document.getElementById(wmslayer).classList.add('selected');
     }
-    setButtonState(`${name}Button`, true);
-    document.getElementById(`${name}Info`).classList.remove('playListDisabled');
+    const info = document.getElementById(`${name}Info`);
+    if (info) info.classList.toggle('playListDisabled', !isVisible);
     const toggleIcon = document.querySelector(`#${name}Info .card-visibility-toggle .material-icons`);
-    if (toggleIcon) toggleIcon.textContent = 'visibility';
-  } else {
-    debug(`Deactivated ${name}`);
-    VISIBLE.delete(name);
-    localStorage.setItem('VISIBLE', JSON.stringify([...VISIBLE]));
-    setButtonState(`${name}Button`, false);
-    document.getElementById(`${name}Info`).classList.add('playListDisabled');
-    const toggleIcon = document.querySelector(`#${name}Info .card-visibility-toggle .material-icons`);
-    if (toggleIcon) toggleIcon.textContent = 'visibility_off';
+    if (toggleIcon) toggleIcon.textContent = isVisible ? 'visibility' : 'visibility_off';
+    updateCanonicalPage();
+    updateLayerSelectionSelected();
   }
-  updateCanonicalPage();
-  updateLayerSelectionSelected();
+
+  refreshPanePillButton(pane, name);
   recomputeAllTimelineCells();
-  if (probe && layer === radarLayer) {
+
+  if (isPane0 && probe && layer === radarLayer) {
     probe.setActiveLayer(isVisible ? wmslayer : null, {
       z: layer.getSource().getParams().ELEVATION,
     });
@@ -1621,9 +1654,9 @@ function onChangeVisible(event) {
   // in-range state immediately so the map time, stale colour and
   // layer opacity update without waiting for a tick or manual step.
   setTime('keep');
-  // Turning the radar layer off exits single-site mode, restoring the composite
-  // product (while hidden) so re-enabling the layer shows the composite again.
-  if (layer === radarLayer && !isVisible && radarSite) {
+  // Turning the primary pane's radar off exits single-site mode, restoring the
+  // composite (while hidden) so re-enabling shows the composite again.
+  if (isPane0 && layer === radarLayer && !isVisible && radarSite) {
     radarSite.exitSingleSite({ restore: true });
   }
 }
@@ -1661,6 +1694,85 @@ function toggleAndAnnounce(layer, segId, source) {
       });
     }
   }
+}
+
+//
+// PER-PANE MINI CONTROLS (split mode)
+//
+// In split layouts each pane carries its own compact category pill so the user
+// edits that pane's content directly; the global top toolbar is hidden. The
+// pill reuses the shared sublayer long-press menus, targeted at the pane.
+// (CATEGORY_UI / PILL_CATEGORIES are declared near the top of the module so the
+// layout helpers above can reference them.)
+
+// Resolve which pane owns an OL content layer (back-ref set in createPane).
+function paneOf(layer) {
+  const idx = layer.get('_paneIndex') || 0;
+  return panes[idx] || pane0;
+}
+
+// Apply a sublayer pick (from a long-press menu) to one pane's category.
+function applySublayerToPane(pane, category, id) {
+  if (category === 'radarLayer') {
+    // Single-site drill-in lives only on the primary pane (radarSite is bound
+    // to pane 0); exit it before swapping the composite there.
+    if (pane === pane0 && radarSite) radarSite.exitSingleSite({ restore: false });
+    updateLayer(pane.layerss.radarLayer, id, { source: 'longpress' });
+    // Recentre the shared view to the picked radar's footprint only for the
+    // primary pane — a background pane's pick shouldn't yank every pane around.
+    if (pane === pane0) fitToLayerExtent(id);
+  } else {
+    updateLayer(pane.layerss[category], id, { source: 'longpress' });
+  }
+  const menu = document.getElementById(CATEGORY_UI[category].menu);
+  if (menu) menu.style.display = 'none';
+}
+
+function refreshPanePillButton(pane, category) {
+  const btn = pane.pillButtons && pane.pillButtons[category];
+  if (!btn) return;
+  const on = pane.VISIBLE.has(category);
+  btn.classList.toggle('selectedButton', on);
+  btn.setAttribute('aria-pressed', String(on));
+}
+
+function refreshPanePill(pane) {
+  PILL_CATEGORIES.forEach((c) => refreshPanePillButton(pane, c));
+}
+
+// Build a pane's pill (once) and wire each button: tap toggles that pane's
+// category, long-press opens the shared sublayer menu targeted at the pane.
+function buildPanePill(pane) {
+  if (pane.pill) return;
+  const pill = document.createElement('div');
+  pill.className = 'pane-pill noselect';
+  pane.pillButtons = {};
+  PILL_CATEGORIES.forEach((category) => {
+    const cfg = CATEGORY_UI[category];
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pane-seg';
+    btn.setAttribute('aria-label', cfg.aria);
+    const icon = document.createElement('i');
+    icon.className = 'material-icons';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = cfg.icon;
+    btn.appendChild(icon);
+    pill.appendChild(btn);
+    pane.pillButtons[category] = btn;
+    createLongPressHandler(
+      btn,
+      cfg.menu,
+      () => toggleLayerVisibility(pane.layerss[category], 'pane-pill'),
+      (id) => applySublayerToPane(pane, category, id),
+      () => pane.layerss[category].getSource().getParams().LAYERS,
+      () => pane.layerss[category].getVisible(),
+      () => { hideCoachmarkNow(); markLongPressDiscovered(); },
+    );
+  });
+  pane.el.appendChild(pill);
+  pane.pill = pill;
+  refreshPanePill(pane);
 }
 
 //
@@ -1735,6 +1847,27 @@ document.querySelectorAll('.card-visibility-toggle').forEach((toggle) => {
   });
 });
 
+// The four shared sublayer menus, opened from the global toolbar (1-up) OR any
+// pane's mini pill (split). Each menu remembers its opener (menu._lpOpener, set
+// in createLongPressHandler) so the outside-click closer below doesn't dismiss
+// it when that very button is released after a long press.
+const LP_MENU_IDS = [
+  'observationLongPressMenu',
+  'satelliteLongPressMenu',
+  'radarLongPressMenu',
+  'lightningLongPressMenu',
+];
+
+function closeLongPressMenusOutside(e) {
+  LP_MENU_IDS.forEach((menuId) => {
+    const menu = document.getElementById(menuId);
+    if (!menu || menu.style.display === 'none') return;
+    if (menu.contains(e.target)) return;
+    if (menu._lpOpener && menu._lpOpener.contains(e.target)) return;
+    menu.style.display = 'none';
+  });
+}
+
 // Close playlist if clicked outside of playlist
 window.addEventListener('mouseup', (e) => {
   // playlist
@@ -1742,36 +1875,10 @@ window.addEventListener('mouseup', (e) => {
     if (document.getElementById('playlistButton').contains(e.target)) return;
     closePlaylist();
   }
-
-  // Close long-press menus when clicking/touching outside
-  const longPressMenus = [
-    { menuId: 'observationLongPressMenu', buttonId: 'observationLayerButton' },
-    { menuId: 'satelliteLongPressMenu', buttonId: 'satelliteLayerButton' },
-    { menuId: 'radarLongPressMenu', buttonId: 'radarLayerButton' },
-    { menuId: 'lightningLongPressMenu', buttonId: 'lightningLayerButton' },
-  ];
-  longPressMenus.forEach((cfg) => {
-    if (!document.getElementById(cfg.menuId).contains(e.target)) {
-      if (document.getElementById(cfg.buttonId).contains(e.target)) return;
-      document.getElementById(cfg.menuId).style.display = 'none';
-    }
-  });
+  closeLongPressMenusOutside(e);
 });
 
-window.addEventListener('touchend', (e) => {
-  const longPressMenus = [
-    { menuId: 'observationLongPressMenu', buttonId: 'observationLayerButton' },
-    { menuId: 'satelliteLongPressMenu', buttonId: 'satelliteLayerButton' },
-    { menuId: 'radarLongPressMenu', buttonId: 'radarLayerButton' },
-    { menuId: 'lightningLongPressMenu', buttonId: 'lightningLayerButton' },
-  ];
-  longPressMenus.forEach((cfg) => {
-    if (!document.getElementById(cfg.menuId).contains(e.target)) {
-      if (document.getElementById(cfg.buttonId).contains(e.target)) return;
-      document.getElementById(cfg.menuId).style.display = 'none';
-    }
-  });
-});
+window.addEventListener('touchend', closeLongPressMenusOutside);
 
 function setButtonState(id, active) {
   const el = document.getElementById(id);
@@ -2403,7 +2510,7 @@ function getWMSCapabilities(wms, failCountArg = 0) {
         default:
           debug('No wms.category set');
       }
-      restoreActiveLayer(wms.category);
+      for (const pane of activePanes()) restoreActiveLayer(wms.category, pane);
       if (IS_FOLLOWING) {
         setTime('last');
       }
@@ -2713,6 +2820,10 @@ const main = () => {
   observationLayer.on('change:visible', onChangeVisible);
   observationLayer.on('propertychange', layerInfoPlaylist);
 
+  // Pane 0's own mini pill — hidden in 1-up (the global toolbar drives pane 0),
+  // shown when a split layout is active.
+  buildPanePill(pane0);
+
   map.on('click', (evt) => {
     const hit = map.forEachFeatureAtPixel(evt.pixel, (f) => f);
     const pin = tools && tools.getPinFeature();
@@ -2868,15 +2979,20 @@ let etaResetAt = Date.now();
 
 function pickEtaSourceLayer() {
   let best = null;
-  VISIBLE.forEach((name) => {
-    const olLayer = layerss[name];
-    if (!olLayer) return;
-    const wmslayer = olLayer.getSource().getParams().LAYERS;
-    const info = layerInfo[wmslayer] && layerInfo[wmslayer].time;
-    if (!info || !info.end || !info.resolution) return;
-    if (Date.now() - info.end > ETA_STALE_THRESHOLD_MS) return;
-    if (!best || info.resolution < best.resolution) best = info;
-  });
+  // The ETA chip is shared, so pick the freshest source across every active
+  // pane's visible layers (matches the shared timeline window).
+  for (const pane of activePanes()) {
+    for (const name of pane.VISIBLE) {
+      const olLayer = pane.layerss[name];
+      const wmslayer = olLayer && olLayer.getSource().getParams().LAYERS;
+      const info = wmslayer && layerInfo[wmslayer] && layerInfo[wmslayer].time;
+      if (info && info.end && info.resolution
+        && Date.now() - info.end <= ETA_STALE_THRESHOLD_MS
+        && (!best || info.resolution < best.resolution)) {
+        best = info;
+      }
+    }
+  }
   return best;
 }
 

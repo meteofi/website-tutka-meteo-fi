@@ -2,7 +2,13 @@
  * Creates a long-press handler for a button that shows a context menu.
  * Short tap (< 500ms) calls onTap. Long press (>= 500ms) shows the menu.
  *
- * @param {string} buttonId - DOM id of the trigger button
+ * Multiple handlers may share one menu (e.g. the same radar sublayer menu
+ * opened from the global toolbar AND from each split pane's mini pill). To
+ * avoid double-firing, the menu items are wired exactly once per menu; each
+ * handler installs its own `onSelect` as the menu's *current* select callback
+ * when it opens. Since only one menu is open at a time, the last opener wins.
+ *
+ * @param {string|HTMLElement} button - the trigger button (DOM id or element)
  * @param {string} menuId - DOM id of the context menu
  * @param {Function} onTap - called on short tap
  * @param {Function} onSelect - called with the selected menu item's data-layer value
@@ -11,14 +17,20 @@
  * @param {Function} [onMenuShown] - called whenever the long-press menu opens
  * @returns {{ show: Function, hide: Function }}
  */
-function createLongPressHandler(buttonId, menuId, onTap, onSelect, getActiveLayer, isLayerVisible, onMenuShown) {
+function createLongPressHandler(button, menuId, onTap, onSelect, getActiveLayer, isLayerVisible, onMenuShown) {
   let timer = null;
   let triggered = false;
   let startTime = 0;
-  const button = document.getElementById(buttonId);
+  const buttonEl = typeof button === 'string' ? document.getElementById(button) : button;
 
   function showMenu() {
     const menu = document.getElementById(menuId);
+    // Install this handler's select callback as the menu's current one, so a
+    // pick routes back to the button/pane that opened it. Record the opener so
+    // the outside-click closer doesn't dismiss the menu when this very button
+    // is released after the long press.
+    menu._lpOnSelect = onSelect;
+    menu._lpOpener = buttonEl;
     const menuItems = menu.querySelectorAll('.menu-item');
     const currentLayer = getActiveLayer();
     const visible = isLayerVisible();
@@ -28,7 +40,7 @@ function createLongPressHandler(buttonId, menuId, onTap, onSelect, getActiveLaye
 
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    const br = button.getBoundingClientRect();
+    const br = buttonEl.getBoundingClientRect();
     menu.style.display = 'block';
     menu.style.visibility = 'hidden';
     const mr = menu.getBoundingClientRect();
@@ -68,25 +80,28 @@ function createLongPressHandler(buttonId, menuId, onTap, onSelect, getActiveLaye
     triggered = false;
   }
 
-  button.addEventListener('mousedown', start);
-  button.addEventListener('mouseup', end);
-  button.addEventListener('mouseleave', cancel);
-  button.addEventListener('touchstart', (e) => { e.preventDefault(); start(e); });
-  button.addEventListener('touchend', (e) => { e.preventDefault(); end(e); });
-  button.addEventListener('touchmove', (e) => { e.preventDefault(); cancel(); });
-  button.addEventListener('touchcancel', (e) => { e.preventDefault(); cancel(); });
+  buttonEl.addEventListener('mousedown', start);
+  buttonEl.addEventListener('mouseup', end);
+  buttonEl.addEventListener('mouseleave', cancel);
+  buttonEl.addEventListener('touchstart', (e) => { e.preventDefault(); start(e); });
+  buttonEl.addEventListener('touchend', (e) => { e.preventDefault(); end(e); });
+  buttonEl.addEventListener('touchmove', (e) => { e.preventDefault(); cancel(); });
+  buttonEl.addEventListener('touchcancel', (e) => { e.preventDefault(); cancel(); });
 
-  // Menu item click/touch handlers
-  document.querySelectorAll(`#${menuId} .menu-item`).forEach((item) => {
-    item.addEventListener('click', function () {
-      onSelect(this.getAttribute('data-layer'));
+  // Wire the menu items exactly once per menu — subsequent handlers reuse the
+  // same wiring via the menu's current `_lpOnSelect`.
+  const menu = document.getElementById(menuId);
+  if (menu && !menu._lpWired) {
+    menu._lpWired = true;
+    menu.querySelectorAll('.menu-item').forEach((item) => {
+      const pick = (e) => {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        if (menu._lpOnSelect) menu._lpOnSelect(item.getAttribute('data-layer'));
+      };
+      item.addEventListener('click', pick);
+      item.addEventListener('touchend', pick);
     });
-    item.addEventListener('touchend', function (e) {
-      e.preventDefault();
-      e.stopPropagation();
-      onSelect(this.getAttribute('data-layer'));
-    });
-  });
+  }
 
   return { show: showMenu, hide: hideMenu };
 }

@@ -89,6 +89,71 @@ body.split-4 #map-3 { display: block; }
     cursor: crosshair;
 }
 
+/* Per-pane mini category pill — shown only in split layouts, anchored to the
+   top-centre of each pane. Compact variant of the glass toolbar pill. */
+.pane-pill {
+    display: none;
+    position: absolute;
+    top: calc(env(safe-area-inset-top, 0px) + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 50;
+    align-items: center;
+    height: 40px;
+    border-radius: 20px;
+    background-color: rgba(0, 0, 0, 0.60);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    backdrop-filter: blur(20px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+    overflow: hidden;
+}
+body.split-2 .pane-pill,
+body.split-4 .pane-pill { display: flex; }
+
+.pane-seg {
+    all: unset;
+    width: 44px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.82);
+    position: relative;
+    transition: color 180ms ease, background-color 180ms ease, transform 120ms ease;
+}
+.pane-seg + .pane-seg::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 10px;
+    bottom: 10px;
+    width: 1px;
+    background: rgba(255, 255, 255, 0.08);
+}
+.pane-seg:active { transform: scale(0.94); background-color: rgba(255, 255, 255, 0.06); }
+.pane-seg .material-icons { font-size: 20px; line-height: 1; }
+.pane-seg.selectedButton { color: var(--dark-primary-color); }
+.pane-seg.selectedButton::after {
+    content: '';
+    position: absolute;
+    bottom: 3px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 14px;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--dark-primary-color);
+}
+.pane-seg.stale-data { color: #ffb74d; }
+
+/* In split layouts the per-pane pills replace the global category pill. Hide
+   only the .pill — the ⋯ menu button (which holds the Näkymä switcher) lives in
+   the same toolbar and must stay reachable. */
+body.split-2 #primaryToolbar .pill,
+body.split-4 #primaryToolbar .pill { display: none; }
+
 /* Common style for top and bottom toolbars. */
 .toolbar {
   position: fixed;
@@ -460,7 +525,8 @@ body.split-4 #map-3 { display: block; }
   body.app-fullscreen #overflowMenu,
   body.app-fullscreen #overflowMenuBackdrop,
   body.app-fullscreen #playList,
-  body.app-fullscreen #playListBackdrop { display: none !important; }
+  body.app-fullscreen #playListBackdrop,
+  body.app-fullscreen .pane-pill { display: none !important; }
 
   /* No timebar underneath, so the chip drops to the screen bottom. */
   body.app-fullscreen #timeChip {
