@@ -19,26 +19,31 @@
 
 import { transform } from 'ol/proj';
 import { getDistance } from 'ol/sphere';
-import LatLon from 'geodesy/latlon-spherical';
 import { resolveEdrTarget, fetchSeries, normalizeLonLat } from './probe';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 // Reticle geometry (SVG user units == CSS px). Center ring is the colour
 // swatch; the two outer rings are fixed-size aiming circles. The radar line
-// runs from just outside the centre ring out toward the viewport edge.
+// starts just outside the centre ring.
 const SVG_SIZE = 320;
 const C = SVG_SIZE / 2;
 const R_CENTER = 16;
 const R_MID = 46;
 const R_OUTER = 88;
 const LINE_INNER = R_CENTER + 4;
-const LINE_OUTER = 150;
+// Cap the arrow length for far radars. For nearer ones the arrow is drawn only
+// as long as the radar's on-screen distance, so the head lands on the radar
+// instead of overshooting past it (see updateDirection).
+const LINE_OUTER_MAX = 150;
+const ARROW_LEN = 10;
+const ARROW_HALF_W = 5;
 
 // The strip window holds 13 frames (0..12), mirroring probe.js.
 const WINDOW_FRAMES = 12;
-// Don't draw the radar line when the centre is essentially on the radar.
-const MIN_TARGET_M = 200;
+// Hide the radar arrow when the radar sits essentially under the reticle — too
+// close on screen to draw a sensible arrow.
+const MIN_TARGET_PX = LINE_INNER + ARROW_LEN;
 
 function el(tag, attrs) {
   const node = document.createElementNS(SVG_NS, tag);
@@ -71,17 +76,13 @@ export default function initCrosshair({
     viewBox: `0 0 ${SVG_SIZE} ${SVG_SIZE}`,
   });
 
-  // Radar-direction line + arrowhead, grouped so a single rotate() aims it.
-  // It points "north" (straight up) at rotate(0); bearing is clockwise from
-  // north, which matches SVG's clockwise-positive rotation (y grows downward).
+  // Radar-direction line + arrowhead. Endpoints are recomputed in screen space
+  // each render (updateDirection), so no rotate() transform is needed.
   const dirGroup = el('g', { class: 'crosshair-dir' });
-  dirGroup.appendChild(el('line', {
-    x1: C, y1: C - LINE_INNER, x2: C, y2: C - LINE_OUTER, class: 'crosshair-dir-line',
-  }));
-  dirGroup.appendChild(el('polygon', {
-    points: `${C - 5},${C - LINE_OUTER + 9} ${C + 5},${C - LINE_OUTER + 9} ${C},${C - LINE_OUTER}`,
-    class: 'crosshair-dir-arrow',
-  }));
+  const dirLine = el('line', { class: 'crosshair-dir-line' });
+  const dirArrow = el('polygon', { class: 'crosshair-dir-arrow' });
+  dirGroup.appendChild(dirLine);
+  dirGroup.appendChild(dirArrow);
   svg.appendChild(dirGroup);
 
   svg.appendChild(el('circle', {
@@ -161,18 +162,42 @@ export default function initCrosshair({
     }
   }
 
+  // Aim the radar-direction arrow in screen space. The head lands exactly on
+  // the radar's on-screen position when within reach, and points straight at it
+  // at a capped length when the radar is far off-screen — never overshooting.
   function updateDirection() {
-    if (!center4326) return;
-    const target = getActiveSiteLonLat() || nearestSiteLonLat(center4326);
-    const d = target ? getDistance(center4326, target) : Infinity;
-    if (target && d > MIN_TARGET_M) {
-      const brg = new LatLon(center4326[1], center4326[0])
-        .initialBearingTo(new LatLon(target[1], target[0]));
-      dirGroup.setAttribute('transform', `rotate(${brg.toFixed(1)} ${C} ${C})`);
-      dirGroup.style.display = '';
-    } else {
-      dirGroup.style.display = 'none';
-    }
+    const target = center4326
+      ? (getActiveSiteLonLat() || nearestSiteLonLat(center4326))
+      : null;
+    const centerPx = map.getPixelFromCoordinate(map.getView().getCenter());
+    const targetPx = target
+      ? map.getPixelFromCoordinate(transform(target, 'EPSG:4326', map.getView().getProjection()))
+      : null;
+    if (!centerPx || !targetPx) { dirGroup.style.display = 'none'; return; }
+
+    const dx = targetPx[0] - centerPx[0];
+    const dy = targetPx[1] - centerPx[1];
+    const dist = Math.hypot(dx, dy);
+    if (dist < MIN_TARGET_PX) { dirGroup.style.display = 'none'; return; }
+
+    const ux = dx / dist;
+    const uy = dy / dist;
+    const len = Math.min(dist, LINE_OUTER_MAX);
+    const tipX = C + ux * len;
+    const tipY = C + uy * len;
+    const backX = C + ux * (len - ARROW_LEN);
+    const backY = C + uy * (len - ARROW_LEN);
+    const perpX = -uy * ARROW_HALF_W;
+    const perpY = ux * ARROW_HALF_W;
+
+    dirLine.setAttribute('x1', (C + ux * LINE_INNER).toFixed(1));
+    dirLine.setAttribute('y1', (C + uy * LINE_INNER).toFixed(1));
+    dirLine.setAttribute('x2', tipX.toFixed(1));
+    dirLine.setAttribute('y2', tipY.toFixed(1));
+    dirArrow.setAttribute('points', `${tipX.toFixed(1)},${tipY.toFixed(1)} `
+      + `${(backX + perpX).toFixed(1)},${(backY + perpY).toFixed(1)} `
+      + `${(backX - perpX).toFixed(1)},${(backY - perpY).toFixed(1)}`);
+    dirGroup.style.display = '';
   }
 
   function refreshCenter4326() {
