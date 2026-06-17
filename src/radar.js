@@ -2713,11 +2713,11 @@ const main = () => {
       return;
     }
 
-    // Tap on a radar-site marker → keep the existing coverage range-ring +
-    // highlight behaviour (displayFeatureInfo draws the rings and fits the
-    // view), then also open the drill-in card (single-site WMS toggle). The
-    // layer-aware lookup distinguishes radar sites from airfield markers
-    // (icaoLayer) regardless of z-order.
+    // Tap on a radar-site marker → open its drill-in card (single-site WMS
+    // toggle). Coverage rings are coupled to the single-site display (drawn on
+    // toggle-on, cleared on toggle-off), not to the tap. The layer-aware lookup
+    // distinguishes radar sites from airfield markers (icaoLayer) regardless of
+    // z-order.
     if (radarSite && radarSiteLayer.getVisible()) {
       let radarSiteHit = null;
       // hitTolerance enlarges the tap target around the small radar symbol

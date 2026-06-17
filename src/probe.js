@@ -91,8 +91,8 @@ async function fetchSeries(collection, param, lon, lat, startISO, endISO, z, sig
   const key = cacheKey(collection, param, z, lon, lat);
   const cached = cacheGet(key);
   if (cached) return cached;
-  let url = `${ENDPOINT}/${collection}/position`
-    + `?f=CoverageJSON&parameter-name=${param}`
+  let url = `${ENDPOINT}/${encodeURIComponent(collection)}/position`
+    + `?f=CoverageJSON&parameter-name=${encodeURIComponent(param)}`
     + `&coords=POINT(${lon.toFixed(4)} ${lat.toFixed(4)})`
     + `&datetime=${encodeURIComponent(`${startISO}/${endISO}`)}`;
   // Single-site polar volumes have a vertical (elevation-angle) axis; pin it
