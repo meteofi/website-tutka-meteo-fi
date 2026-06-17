@@ -111,6 +111,16 @@ body.split-4 #map-3 { display: block; }
 body.split-2 .pane-pill,
 body.split-4 .pane-pill { display: flex; }
 
+/* Only top-row panes touch the device's top edge, so only they need the top
+   safe-area inset (notch / dynamic island). Bottom-row panes sit mid-screen —
+   drop the inset so their pill hugs the pane top instead of floating down.
+   Bottom row = stacked 2-up's lower pane (portrait) and 4-up's bottom two. */
+@media (orientation: portrait) {
+  body.split-2 #map-1 .pane-pill { top: 8px; }
+}
+body.split-4 #map-2 .pane-pill,
+body.split-4 #map-3 .pane-pill { top: 8px; }
+
 .pane-seg {
     all: unset;
     width: 44px;
