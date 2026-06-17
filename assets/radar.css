@@ -1447,17 +1447,28 @@ html, body {
 
 .radar-site-pulse-ring {
   display: block;
+  /* border-box keeps the bordered ring exactly 26px so it stays centered on
+     the marker (content-box would render 30px and sit ~2px off). */
+  box-sizing: border-box;
   width: 100%;
   height: 100%;
   border-radius: 50%;
   border: 2px solid var(--dark-primary-color);
-  box-shadow: 0 0 6px rgba(18, 188, 250, 0.6);
-  animation: radar-site-breathe 1.8s ease-in-out infinite;
+  /* Brightness-led breathing: opacity + glow swing a lot, size barely moves. */
+  animation: radar-site-breathe 3.6s ease-in-out infinite;
 }
 
 @keyframes radar-site-breathe {
-  0%, 100% { transform: scale(0.7); opacity: 0.95; }
-  50% { transform: scale(1.25); opacity: 0.3; }
+  0%, 100% {
+    transform: scale(1.05);
+    opacity: 1;
+    box-shadow: 0 0 9px rgba(18, 188, 250, 0.85);
+  }
+  50% {
+    transform: scale(1);
+    opacity: 0.4;
+    box-shadow: 0 0 2px rgba(18, 188, 250, 0.15);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
