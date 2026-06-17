@@ -154,6 +154,17 @@ body.split-4 .pane-pill { display: flex; }
 body.split-2 #primaryToolbar .pill,
 body.split-4 #primaryToolbar .pill { display: none; }
 
+/* With the pill hidden the ⋯ button is the only child of the centred toolbar,
+   so at narrow widths (< 600px, where it isn't yet docked) it would centre
+   itself over the panes' pills. Dock it top-right at every width in split. */
+body.split-2 #menuButton,
+body.split-4 #menuButton {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  right: max(16px, env(safe-area-inset-right, 0px) + 16px);
+  z-index: 100;
+}
+
 /* Common style for top and bottom toolbars. */
 .toolbar {
   position: fixed;
