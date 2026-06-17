@@ -81,6 +81,7 @@ let lastWarpTick = 0;
 const layerInfo = {};
 let timeline;
 let mapTime = '';
+let appFullscreen = false;
 const framePools = {
   satelliteLayer: null,
   radarLayer: null,
@@ -854,6 +855,9 @@ function updateMapTimeDisplay(time) {
     const stale = ageHours >= 24;
     currentMapTimeDiv.classList.toggle('stale', stale);
     currentMapDateDiv.classList.toggle('stale', stale);
+    // In fullscreen the bottom-left chip mirrors this data time — refresh it
+    // now so it tracks each frame without waiting for the 1 s clock tick.
+    if (appFullscreen) renderTimeChip();
   }
 }
 
@@ -2283,8 +2287,13 @@ document.addEventListener('keyup', (event) => {
     toggleAndAnnounce(lightningLayer, 'lightningLayerButton', 'key');
   } else if (key === '4' || key === 'Digit4') {
     toggleAndAnnounce(observationLayer, 'observationLayerButton', 'key');
+  } else if ((key === 'f' || key === 'KeyF')
+    && !event.ctrlKey && !event.metaKey && !event.altKey) {
+    // Bare `f` only — don't hijack Cmd/Ctrl+F (find-in-page) etc.
+    setAppFullscreen(!appFullscreen);
   } else if (event.key === 'Escape') {
     if (overflowMenuEl.classList.contains('open')) closeOverflowMenu();
+    else if (appFullscreen) setAppFullscreen(false);
     else handled = false;
   } else if (event.key === 'Control') {
     document.getElementById('help').style.display = 'none';
@@ -2921,22 +2930,27 @@ setInterval(updateMapEta, 1000);
 updateMapEta();
 
 // Time chip — small clock in the bottom-left corner. Click to toggle local
-// time vs UTC; the choice persists across sessions.
+// time vs UTC; the choice persists across sessions. In app-fullscreen mode the
+// same pill instead shows the displayed frame's DATA time (see renderTimeChip).
 let timeIsUtc = safeParseJSON('timeIsUtc', false);
 const timeChipEl = document.getElementById('timeChip');
+const tcTime = timeChipEl && timeChipEl.querySelector('.tc-time');
+const tcDate = timeChipEl && timeChipEl.querySelector('.tc-date');
+
+function renderTimeChip() {
+  if (!timeChipEl) return;
+  // Fullscreen shows the displayed frame's data time (mapTime); otherwise the
+  // wall-clock "now". Falls back to now if no frame has loaded yet.
+  const base = (appFullscreen && mapTime) ? dayjs(mapTime) : dayjs();
+  const d = timeIsUtc ? base.utc() : base;
+  tcTime.textContent = d.format('HH:mm');
+  tcDate.textContent = timeIsUtc
+    ? `${d.format('dd D.M.')} UTC`
+    : d.format('dd D.M.');
+  timeChipEl.classList.toggle('utc-mode', timeIsUtc);
+}
+
 if (timeChipEl) {
-  const tcTime = timeChipEl.querySelector('.tc-time');
-  const tcDate = timeChipEl.querySelector('.tc-date');
-
-  const renderTimeChip = () => {
-    const d = timeIsUtc ? dayjs().utc() : dayjs();
-    tcTime.textContent = d.format('HH:mm');
-    tcDate.textContent = timeIsUtc
-      ? `${d.format('dd D.M.')} UTC`
-      : d.format('dd D.M.');
-    timeChipEl.classList.toggle('utc-mode', timeIsUtc);
-  };
-
   timeChipEl.addEventListener('click', (e) => {
     e.stopPropagation();
     timeIsUtc = !timeIsUtc;
@@ -2947,6 +2961,30 @@ if (timeChipEl) {
 
   renderTimeChip();
   setInterval(renderTimeChip, 1000);
+}
+
+// App-level fullscreen ("Koko ruutu") — hides all chrome except the data-time
+// chip (bottom-left) and the exit FAB (bottom-right). Transient view mode, not
+// persisted across reloads.
+function setAppFullscreen(on) {
+  appFullscreen = on;
+  document.body.classList.toggle('app-fullscreen', on);
+  if (on) {
+    closeOverflowMenu();
+    closePlaylist();
+    closeToolFlyout();
+  }
+  renderTimeChip(); // swap now ⇄ data time immediately
+  track(on ? 'fullscreen-on' : 'fullscreen-off');
+}
+
+const fullscreenEnterButton = document.getElementById('fullscreenEnterButton');
+const fullscreenExitButton = document.getElementById('fullscreenExitButton');
+if (fullscreenEnterButton) {
+  fullscreenEnterButton.addEventListener('click', () => setAppFullscreen(true));
+}
+if (fullscreenExitButton) {
+  fullscreenExitButton.addEventListener('click', () => setAppFullscreen(false));
 }
 
 main();
