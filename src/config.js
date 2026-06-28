@@ -141,6 +141,14 @@ const wmsServerConfiguration = {
     category: 'radarLayer',
     attribution: 'DWD',
     license: 'CC-BY-4.0',
+    // Source data's native pixel resolution in metres, used by the
+    // StickyImageWMS clamp to avoid asking the WMS server to upsample
+    // its own grid (no extra information, larger payload, slower
+    // encoding). Tune per source via `gdalinfo <source>` — pixel
+    // size in degrees × 111000 for geographic CRS, raw metres for
+    // projected.
+    // gdalinfo: 0.002798761°/px WGS84 → 311 m.
+    nativeResolutionMeters: 310,
     disabled: false,
   },
   nl: {
@@ -157,6 +165,9 @@ const wmsServerConfiguration = {
     category: 'radarLayer',
     attribution: 'FMI',
     license: 'CC-BY-4.0',
+    // Verified via `gdalinfo` on the source GeoTIFF: 250 m/pixel in
+    // EPSG:3067 (TM35FIN), ~5000×7300 native grid covering Finland.
+    nativeResolutionMeters: 250,
     disabled: false,
   },
   eu: {
@@ -166,6 +177,7 @@ const wmsServerConfiguration = {
     category: 'radarLayer',
     attribution: 'EUMETNET OPERA',
     license: 'CC-BY-4.0',
+    nativeResolutionMeters: 2000,
     disabled: false,
   },
   no: {
@@ -175,6 +187,8 @@ const wmsServerConfiguration = {
     category: 'radarLayer',
     attribution: 'MET Norway',
     license: 'CC-BY-4.0',
+    // gdalinfo: 1000 m/px in a projected CRS.
+    nativeResolutionMeters: 1000,
     disabled: false,
   },
   se: {
@@ -184,6 +198,8 @@ const wmsServerConfiguration = {
     category: 'radarLayer',
     attribution: 'SMHI',
     license: 'CC-BY-4.0',
+    // gdalinfo: 0.024373°/px WGS84 → 2705 m.
+    nativeResolutionMeters: 2700,
     disabled: false,
   },
   dk: {
@@ -193,6 +209,8 @@ const wmsServerConfiguration = {
     category: 'radarLayer',
     attribution: 'DMI',
     license: 'CC-BY-4.0',
+    // gdalinfo: 0.006736°/px WGS84 → 748 m.
+    nativeResolutionMeters: 750,
     disabled: false,
   },
   cz: {

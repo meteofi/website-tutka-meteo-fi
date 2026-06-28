@@ -8,7 +8,6 @@ import ImageLayer from 'ol/layer/Image';
 import VectorLayer from 'ol/layer/Vector';
 import VectorTileLayer from 'ol/layer/VectorTile';
 import XYZ from 'ol/source/XYZ';
-import ImageWMS from 'ol/source/ImageWMS';
 import VectorTileSource from 'ol/source/VectorTile';
 import GeoJSON from 'ol/format/GeoJSON';
 import MVT from 'ol/format/MVT';
@@ -37,6 +36,7 @@ import initProbe from './probe';
 import initRadarSite from './radarSite';
 import initCrosshair from './crosshair';
 import FramePool from './animation/framePool';
+import StickyImageWMS from './animation/stickyImageWMS';
 import { canInterpolate, RadarInterpolator } from './animation/interpolation';
 import { track } from './analytics';
 
@@ -545,7 +545,7 @@ const satelliteLayer = new ImageLayer({
   name: 'satelliteLayer',
   visible: VISIBLE.has('satelliteLayer'),
   opacity: 0.7,
-  source: new ImageWMS({
+  source: new StickyImageWMS({
     url: options.wmsServerConfiguration.eumetsat1.url,
     params: { FORMAT: 'image/jpeg', LAYERS: 'rgb_eview' },
     hidpi: false,
@@ -566,7 +566,7 @@ const radarLayer = new ImageLayer({
   name: 'radarLayer',
   visible: VISIBLE.has('radarLayer'),
   opacity: 0.7,
-  source: new ImageWMS({
+  source: new StickyImageWMS({
     url: options.wmsServerConfiguration.fi.url,
     params: { LAYERS: options.defaultRadarLayer },
     attributions: 'FMI (CC-BY-4.0)',
@@ -598,7 +598,7 @@ radarLayer.set('disableWebp', true);
 const lightningLayer = new ImageLayer({
   name: 'lightningLayer',
   visible: VISIBLE.has('lightningLayer'),
-  source: new ImageWMS({
+  source: new StickyImageWMS({
     url: options.wmsServerConfiguration['meteo-obs-new'].url,
     params: { FORMAT: 'image/png8', LAYERS: options.defaultLightningLayer },
     ratio: options.imageRatio,
@@ -612,7 +612,7 @@ lightningLayer.set('defaultFormat', 'image/png8');
 const observationLayer = new ImageLayer({
   name: 'observationLayer',
   visible: VISIBLE.has('observationLayer'),
-  source: new ImageWMS({
+  source: new StickyImageWMS({
     url: options.wmsServerConfiguration['meteo-obs-new'].url,
     params: { FORMAT: 'image/png8', LAYERS: options.defaultObservationLayer },
     ratio: options.imageRatio,
@@ -1248,6 +1248,35 @@ function applyWireFormat(layer) {
   }
 }
 
+// Fan out the per-layer native resolution clamp to the FramePool's slot
+// sources. Called from updateLayer (on every sublayer switch) and from
+// the boot path after GetCapabilities lands for the default sublayer.
+// Safe to call repeatedly — StickyImageWMS.setNativeResolution is a
+// no-op when the value didn't change.
+function applyNativeResolution(layer) {
+  const wmslayer = layer.getSource().getParams().LAYERS;
+  const info = layerInfo[wmslayer];
+  const meters = (info && typeof info.nativeResolutionMeters === 'number')
+    ? info.nativeResolutionMeters : null;
+  // The category layers are constructed with a plain ImageWMS source at
+  // boot. FramePool swaps it to one of its StickyImageWMS slot sources
+  // on the first showTime, and from then on the layer's source has the
+  // setNativeResolution method. Until then it doesn't — guard so the
+  // first applyNativeResolution call (which fires from the GetCaps
+  // success path BEFORE the first showTime) doesn't throw on the
+  // satellite layer and short-circuit the rest of the apply chain.
+  const src = layer.getSource();
+  if (typeof src.setNativeResolution === 'function') {
+    src.setNativeResolution(meters);
+  }
+  // The pool propagates to all 13 slot sources, which ARE
+  // StickyImageWMS — that's the load-bearing call. After showTime the
+  // primary's source becomes one of those slots and inherits the clamp
+  // transitively.
+  const pool = framePools[layer.get('name')];
+  if (pool) pool.setNativeResolution(meters);
+}
+
 function updateLayer(layer, wmslayer, opts = {}) {
   const {
     skipVisibility = false, skipTracking = false, skipPersist = false, source,
@@ -1301,6 +1330,7 @@ function updateLayer(layer, wmslayer, opts = {}) {
       persistActiveLayers();
     }
   }
+  applyNativeResolution(layer);
   if (!skipVisibility) {
     if (layer.getVisible()) {
       updateCanonicalPage();
@@ -2407,6 +2437,12 @@ function getWMSCapabilities(wms, failCountArg = 0) {
       applyWireFormat(radarLayer);
       applyWireFormat(lightningLayer);
       applyWireFormat(observationLayer);
+      // Same idea for the per-layer native-resolution clamp: the boot
+      // default sublayer never re-enters updateLayer, so apply here too.
+      applyNativeResolution(satelliteLayer);
+      applyNativeResolution(radarLayer);
+      applyNativeResolution(lightningLayer);
+      applyNativeResolution(observationLayer);
       switch (wms.category) {
         case 'satelliteLayer':
           updateLayerSelection(satelliteLayer, 'satellite', 'msg_');
@@ -2541,6 +2577,14 @@ function getLayerInfo(layer, wms, supportsWebp = false) {
   }
   if (typeof wms.transparent !== 'undefined') {
     product.transparent = wms.transparent;
+  }
+
+  // Native pixel resolution of the source data, in metres per pixel.
+  // Used by StickyImageWMS.clampResolution to avoid asking the server
+  // to upsample its own grid (radar composites are typically 500 m –
+  // 2 km; satellite RGBs are 1 km – 3 km). When absent, no clamp.
+  if (typeof wms.nativeResolutionMeters === 'number') {
+    product.nativeResolutionMeters = wms.nativeResolutionMeters;
   }
 
   if (typeof layer.Dimension !== 'undefined') {

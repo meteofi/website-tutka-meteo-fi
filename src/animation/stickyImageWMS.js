@@ -1,6 +1,16 @@
 import ImageWMS from 'ol/source/ImageWMS';
 import ImageState from 'ol/ImageState';
 
+// Match the meteocore WMS server's explicit limits exactly: each
+// GetMap request must be ≤ 8000 px on either axis AND ≤ 64 megapixels
+// total area. The server rejects requests that exceed either bound.
+// Clamping client-side guarantees no rejection trip, and on typical
+// 16:9 viewports the per-axis cap binds first (8000 × 4500 = 36 MP,
+// well under 64 MP); the area cap only kicks in for square-ish
+// requests. Both checks together preserve the server's contract.
+const MAX_REQUEST_DIM = 8000;
+const MAX_REQUEST_PIXELS = 64 * 1000 * 1000;
+
 // fetch() + AbortController based image loader. Each source tracks the
 // in-flight request; a new call aborts the previous one. This prevents
 // superseded requests (after rapid pan/zoom) from wasting server cycles
@@ -67,11 +77,63 @@ export default class StickyImageWMS extends ImageWMS {
     super(options);
     this._sticky = null;
     this._currentAbortController = null;
+    // Optional clamp — when set, requests never go out finer than this
+    // many metres per pixel. The data behind a radar composite (typically
+    // 500 m – 2 km native) gains no information from a finer request;
+    // we'd just waste server time encoding upsampled pixels and shovel
+    // a larger payload over the wire. See `clampResolution` below.
+    this._nativeResolutionMeters = null;
     this.setImageLoadFunction(createAbortableImageLoader(this));
   }
 
+  // Coerce the requested resolution to whichever cap binds:
+  //   * native cap: never request finer than the data's own pixel size
+  //     (scaled by devicePixelRatio so the cap is in device-pixel terms,
+  //     not logical-pixel terms — `hidpi: false` on our sources means
+  //     each request pixel already covers DPR² device pixels);
+  //   * dimension cap: never ask for an image larger than
+  //     MAX_REQUEST_DIM on either axis AND total area ≤
+  //     MAX_REQUEST_PIXELS. The loader inflates the view extent by
+  //     `this.ratio_` before computing WIDTH = inflated_extent_w /
+  //     resolution (same for HEIGHT). So:
+  //       per-axis: resolution ≥ extent_max × ratio / MAX_DIM
+  //       area:     resolution ≥ ratio × sqrt(extent_w × extent_h / MAX_PIXELS)
+  //     Whichever produces the larger resolution wins; on typical 16:9
+  //     viewports the per-axis cap binds first (the area cap only
+  //     matters when the request is close to square).
+  //
+  // Whichever cap is stricter (= larger resolution number) wins overall.
+  clampResolution(extent, resolution) {
+    const dpr = (typeof window !== 'undefined' && window.devicePixelRatio) || 1;
+    let effective = resolution;
+    const nativeCap = this._nativeResolutionMeters;
+    if (nativeCap) {
+      const native = nativeCap * dpr;
+      if (effective < native) effective = native;
+    }
+    if (extent && this.ratio_) {
+      const extW = (extent[2] - extent[0]) * this.ratio_;
+      const extH = (extent[3] - extent[1]) * this.ratio_;
+      const dimCap = Math.max(extW, extH) / MAX_REQUEST_DIM;
+      if (effective < dimCap) effective = dimCap;
+      const areaCap = Math.sqrt((extW * extH) / MAX_REQUEST_PIXELS);
+      if (effective < areaCap) effective = areaCap;
+    }
+    return effective;
+  }
+
+  setNativeResolution(meters) {
+    const next = typeof meters === 'number' && meters > 0 ? meters : null;
+    if (next === this._nativeResolutionMeters) return;
+    this._nativeResolutionMeters = next;
+    // Drop the cached wrapper so a stale higher-res image isn't reused
+    // when the clamp tightens.
+    this.resetImageCache();
+  }
+
   getImage(extent, resolution, pixelRatio, projection) {
-    const image = super.getImage(extent, resolution, pixelRatio, projection);
+    const effective = this.clampResolution(extent, resolution);
+    const image = super.getImage(extent, effective, pixelRatio, projection);
     if (!image) return this._sticky || image;
     const state = image.getState();
     if (state === ImageState.LOADED) {
@@ -88,7 +150,8 @@ export default class StickyImageWMS extends ImageWMS {
   // on moveend only — NOT from getImage, which would fire once per RAF
   // during a drag/zoom gesture and create dozens of requests per pan.
   triggerLoad(extent, resolution, pixelRatio, projection) {
-    const image = super.getImage(extent, resolution, pixelRatio, projection);
+    const effective = this.clampResolution(extent, resolution);
+    const image = super.getImage(extent, effective, pixelRatio, projection);
     if (image && image.getState() === ImageState.IDLE) image.load();
   }
 
@@ -143,7 +206,8 @@ export default class StickyImageWMS extends ImageWMS {
   // on cache miss (that's OL's normal getImage behavior; fan-out will
   // load it later).
   hasLoadedImageForView(extent, resolution, pixelRatio, projection) {
-    const image = super.getImage(extent, resolution, pixelRatio, projection);
+    const effective = this.clampResolution(extent, resolution);
+    const image = super.getImage(extent, effective, pixelRatio, projection);
     return !!(image && image.getState() === ImageState.LOADED);
   }
 }
