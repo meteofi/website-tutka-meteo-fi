@@ -143,13 +143,11 @@ export default function initRadarSite({
     // Keep the original composite as the restore target across a site→site
     // switch — never capture a site layer as the composite.
     const savedComposite = singleSite ? singleSite.savedComposite : getRadarParams().LAYERS;
-    // Set ELEVATION before swapping LAYERS so the first request for the site
-    // already carries the lowest sweep (updateParams merges, so updateLayer's
-    // own LAYERS update preserves it). The composite ignores an ELEVATION param.
-    if (product.elevation != null) {
-      radarLayer.getSource().updateParams({ ELEVATION: product.elevation });
-    }
-    updateLayer(radarLayer, product.wmsLayer, { skipPersist: true, skipTracking: true });
+    // Pass ELEVATION through updateLayer so the very first site request
+    // carries the lowest sweep in the same params update as LAYERS.
+    updateLayer(radarLayer, product.wmsLayer, {
+      skipPersist: true, skipTracking: true, elevation: product.elevation,
+    });
     setTime('keep');
     singleSite = {
       wmsLayer: product.wmsLayer,
@@ -164,14 +162,12 @@ export default function initRadarSite({
   }
 
   // restore=true swaps back to the saved composite; restore=false only clears
-  // single-site state + the ELEVATION param (used when another path — e.g. the
-  // radar long-press menu — is itself about to set a new composite).
+  // single-site state (used when another path — e.g. the radar long-press
+  // menu — is itself about to set a new composite via updateLayer, which
+  // clears ELEVATION in the same params update as its LAYERS swap).
   function exitSingleSite({ restore = true } = {}) {
     if (!singleSite) return;
     if (getRadarParams().LAYERS === singleSite.wmsLayer) {
-      // Clear ELEVATION first so the composite GetMap omits it (ol/uri drops
-      // undefined-valued params).
-      radarLayer.getSource().updateParams({ ELEVATION: undefined });
       if (restore) {
         // Only skip the visibility step when the layer is already hidden (the
         // radar-off path), so restoring there doesn't re-show it. When visible

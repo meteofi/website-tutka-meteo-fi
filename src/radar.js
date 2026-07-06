@@ -149,9 +149,22 @@ function attachInterpolators() {
     for (const name of ['radarLayer', 'satelliteLayer']) {
       const pool = pane.framePools[name];
       if (pool && !pool.interpolator) {
-        pool.setInterpolator(new RadarInterpolator({ useFlow }));
-        pool.refreshFlows();
-        if (playing) pool.setInterpActive(true);
+        // WebGL2 context creation can fail even though the boot probe
+        // passed: browsers cap live contexts (~8-16) and 4-up with radar +
+        // satellite wants up to 8. Leave this pool on discrete frames
+        // instead of letting the throw abort the caller mid-layout with a
+        // half-initialized split.
+        let interpolator = null;
+        try {
+          interpolator = new RadarInterpolator({ useFlow });
+        } catch (err) {
+          debug(`RadarInterpolator unavailable (pane ${pane.index} ${name}): ${err.message}`);
+        }
+        if (interpolator) {
+          pool.setInterpolator(interpolator);
+          pool.refreshFlows();
+          if (playing) pool.setInterpActive(true);
+        }
       }
     }
   }
@@ -662,12 +675,11 @@ function clonePaneDisplay(src, dst) {
     // 0's radar layer), so a new pane can't participate in it: exit would
     // never restore it, and the next 60 s capabilities refresh would silently
     // flip it to the stored composite anyway (restoreActiveLayer's skip guard
-    // covers pane 0 only). Start the new pane on the saved composite instead,
-    // clearing the site's ELEVATION first exactly like exitSingleSite does.
+    // covers pane 0 only). Start the new pane on the saved composite instead;
+    // updateLayer clears the cloned site ELEVATION in its params update.
     if (name === 'radarLayer' && radarSite && radarSite.isSingleSiteActive()) {
       const composite = radarSite.getSavedComposite();
       if (composite) {
-        dsrc.updateParams({ ELEVATION: undefined });
         updateLayer(d, composite, { skipVisibility: true, skipTracking: true, skipPersist: true });
       }
     }
@@ -888,11 +900,16 @@ function setTime(action = 'next') {
   for (const pane of activePanes()) {
     for (const item of pane.VISIBLE) {
       const wmslayer = pane.layerss[item].getSource().getParams().LAYERS;
-      if (wmslayer in layerInfo) {
+      // getLayerInfo only sets `.time` when GetCapabilities advertises a
+      // Dimension, and a malformed dimension can yield non-numeric fields.
+      // A layer without a valid time can't constrain the window — skip it
+      // rather than throwing here on every tick (which freezes playback).
+      const t = wmslayer in layerInfo ? layerInfo[wmslayer].time : null;
+      if (t && Number.isFinite(t.end) && Number.isFinite(t.resolution)) {
         if (item === 'radarLayer' || item === 'satelliteLayer' || item === 'observationLayer') {
-          end = Math.min(end, Math.floor(layerInfo[wmslayer].time.end / resolution) * resolution);
+          end = Math.min(end, Math.floor(t.end / resolution) * resolution);
         }
-        resolution = Math.max(resolution, layerInfo[wmslayer].time.resolution);
+        resolution = Math.max(resolution, t.resolution);
       }
     }
   }
@@ -920,8 +937,14 @@ function setTime(action = 'next') {
   }
 
   if (startDate.getTime() > end) {
+    // Wrap the cursor back to the window start. Do NOT recreate the Timeline
+    // here: rebuilding wipes every cell's loading/flow class, and nothing
+    // re-emits them (the pool state callbacks fire only on change), so the
+    // indicators went permanently blank after the first playback loop. A pure
+    // wrap doesn't change the window, so the existing cell state stays valid;
+    // when the window really shifts, pool.setWindow below triggers per-cell
+    // load-state callbacks that repaint through updateTimelineCell.
     startDate = new Date(start);
-    timeline = new Timeline(13, document.getElementById('timeline'));
   } else if (startDate.getTime() < start) {
     startDate = new Date(end);
   }
@@ -1239,7 +1262,7 @@ function applyWireFormat(layer) {
 
 function updateLayer(layer, wmslayer, opts = {}) {
   const {
-    skipVisibility = false, skipTracking = false, skipPersist = false, source,
+    skipVisibility = false, skipTracking = false, skipPersist = false, source, elevation,
   } = opts;
   debug(`Activated layer ${wmslayer}`);
   if (!skipTracking && source) {
@@ -1262,6 +1285,12 @@ function updateLayer(layer, wmslayer, opts = {}) {
   // Reset style if the new layer doesn't support the currently active style
   const currentStyle = layer.getSource().getParams().STYLES || '';
   const baseUpdate = { LAYERS: wmslayer };
+  // ELEVATION is only meaningful for single-site radar products (radarSite
+  // passes it via opts). Set it in the SAME params update as LAYERS: this
+  // clears a previous drill-in's sweep on every layer switch — otherwise
+  // composite GetMap requests keep carrying the stale ELEVATION to the
+  // server. ol/uri drops undefined-valued params from the request URL.
+  baseUpdate.ELEVATION = elevation != null ? elevation : undefined;
   // Apply the resolved wire format (webp / per-layer override / category
   // default) and transparency, falling back to the layer's category
   // default so a switch FROM a transparent overlay back to a full-disc
@@ -2812,7 +2841,23 @@ const main = () => {
     projection: map.getView().getProjection(),
   });
 
-  geolocation.on('error', (error) => { debug(error.message); });
+  geolocation.on('error', (error) => {
+    debug(error.message);
+    // PERMISSION_DENIED (code 1): tracking can never succeed, so turn it off
+    // fully — otherwise the location button and the (empty) own-position
+    // layer keep advertising a fix that will never come, and a persisted
+    // IS_TRACKING re-arms the dead state on every boot. Transient errors
+    // (POSITION_UNAVAILABLE / TIMEOUT) keep tracking armed and may recover.
+    if (error.code === 1 && IS_TRACKING) {
+      IS_TRACKING = false;
+      localStorage.setItem('IS_TRACKING', JSON.stringify(false));
+      geolocation.setTracking(false);
+      setOwnPositionVisible(false);
+      document.getElementById('gpsStatus').innerHTML = 'gps_not_fixed';
+      setButtonStates();
+      track('tracking-denied');
+    }
+  });
   geolocation.on('change:accuracyGeometry', onChangeAccuracyGeometry);
   geolocation.on('change:position', onChangePosition);
   geolocation.on('change:speed', onChangeSpeed);
