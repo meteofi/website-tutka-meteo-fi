@@ -149,9 +149,22 @@ function attachInterpolators() {
     for (const name of ['radarLayer', 'satelliteLayer']) {
       const pool = pane.framePools[name];
       if (pool && !pool.interpolator) {
-        pool.setInterpolator(new RadarInterpolator({ useFlow }));
-        pool.refreshFlows();
-        if (playing) pool.setInterpActive(true);
+        // WebGL2 context creation can fail even though the boot probe
+        // passed: browsers cap live contexts (~8-16) and 4-up with radar +
+        // satellite wants up to 8. Leave this pool on discrete frames
+        // instead of letting the throw abort the caller mid-layout with a
+        // half-initialized split.
+        let interpolator = null;
+        try {
+          interpolator = new RadarInterpolator({ useFlow });
+        } catch (err) {
+          debug(`RadarInterpolator unavailable (pane ${pane.index} ${name}): ${err.message}`);
+        }
+        if (interpolator) {
+          pool.setInterpolator(interpolator);
+          pool.refreshFlows();
+          if (playing) pool.setInterpActive(true);
+        }
       }
     }
   }
