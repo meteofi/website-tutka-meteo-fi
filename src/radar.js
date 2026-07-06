@@ -2828,7 +2828,23 @@ const main = () => {
     projection: map.getView().getProjection(),
   });
 
-  geolocation.on('error', (error) => { debug(error.message); });
+  geolocation.on('error', (error) => {
+    debug(error.message);
+    // PERMISSION_DENIED (code 1): tracking can never succeed, so turn it off
+    // fully — otherwise the location button and the (empty) own-position
+    // layer keep advertising a fix that will never come, and a persisted
+    // IS_TRACKING re-arms the dead state on every boot. Transient errors
+    // (POSITION_UNAVAILABLE / TIMEOUT) keep tracking armed and may recover.
+    if (error.code === 1 && IS_TRACKING) {
+      IS_TRACKING = false;
+      localStorage.setItem('IS_TRACKING', JSON.stringify(false));
+      geolocation.setTracking(false);
+      setOwnPositionVisible(false);
+      document.getElementById('gpsStatus').innerHTML = 'gps_not_fixed';
+      setButtonStates();
+      track('tracking-denied');
+    }
+  });
   geolocation.on('change:accuracyGeometry', onChangeAccuracyGeometry);
   geolocation.on('change:position', onChangePosition);
   geolocation.on('change:speed', onChangeSpeed);
