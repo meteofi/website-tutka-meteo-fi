@@ -36,7 +36,7 @@ Project hooks enforce two rules automatically: commits/pushes on master are bloc
 
 ## Module map
 
-Entry point: `src/radar.js` (~3100 lines) — bootstraps panes, owns the shared View, the RAF playback clock (`renderTick`/`play`/`stop`), the `setTime` window math, WMS GetCapabilities polling (60 s), all menus/toolbar/keyboard/theme/geolocation, and wires every other module together via callbacks. When you add behavior, prefer putting it in (or extracting to) a focused module and wiring it from radar.js.
+Entry point: `src/radar.js` (~3100 lines) — bootstraps panes, owns the shared View, the RAF playback clock (`renderTick`/`play`/`stop`), the `setTime` window math, WMS GetCapabilities polling (60 s), all menus/toolbar/keyboard/theme/geolocation, and wires every other module together via callbacks. It is the app's god module by history, not by design — follow the **radar.js decomposition rules** below.
 
 | Module | Responsibility |
 |---|---|
@@ -54,6 +54,21 @@ Entry point: `src/radar.js` (~3100 lines) — bootstraps panes, owns the shared 
 | `src/animation/interpolation/` | WebGL optical flow: `index.js` (`RadarInterpolator`), `flowLK.js`, `warp.js`, `glUtils.js`, `capabilities.js` |
 
 Data flow for playback: RAF `renderTick` (radar.js) → advances `startDate` → `setTime` computes one 13-frame window from the union of all visible layers across active panes → routed per (pane, layer) to each `FramePool.showTime` → pools swap preloaded slots (or `showInterpolated` when interpolation is on).
+
+## radar.js decomposition rules
+
+Shrink radar.js opportunistically; never grow it. There is no scheduled big-bang refactor — these standing rules do the work over time.
+
+1. **New behavior goes in a module, not in radar.js.** Create `src/<feature>.js` (or extend the module that owns the concern): take dependencies as an options object, return an API object, wire it from radar.js — the same pattern as `initTools` / `initProbe` / `createPane`. radar.js may only gain import + wiring lines.
+2. **Modules never import radar.js.** No import cycles. Dependencies flow in through the init/deps object; results flow out through caller-provided callbacks. If a module needs `updateLayer` or `setTime`, accept them as callback parameters (see `initRadarSite`) — and prefer intent-named callbacks (`onRequestLayer`) over holding raw radar.js functions.
+3. **Touch it → extract it.** If your change substantially modifies one of these concerns, extract the concern to its target module first (or in the same PR), then change it there:
+   - GetCapabilities polling + parsing (`getWMSCapabilities`, `getLayers`, `getLayerInfo`, `getTimeDimension`) → `src/wms/capabilities.js`
+   - Playlist + layer-selection DOM (`layerInfoPlaylist`, `updateLayerSelection`, `updateLayerSelectionSelected`) → `src/ui/playlist.js`
+   - Theme engine (`getEffectiveTheme`, `setMapLayer`, dark-mode handling) → `src/ui/theme.js`
+   - localStorage persistence (`safeParseJSON` + all scattered `localStorage` reads/writes, keys listed under State & persistence) → `src/state.js`
+4. **Extraction commits are move-only.** Move the code, convert the radar.js globals it used into parameters, wire it up, stop. No behavior changes, no renames, no cleanups in the same commit — put those in a separate commit or PR so the diff stays reviewable.
+5. **Pane-0 ownership stays in radar.js.** The pane-0 alias globals (Hard rule 8) and the RAF clock are not extraction targets; extracted modules receive state as parameters, they never own it.
+6. **One extraction per PR**, verified with the full finish checklist including the 2/4-pane smoke test — radar.js concerns share hidden state, and small PRs keep regressions bisectable.
 
 ## Data sources
 
