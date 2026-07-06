@@ -662,12 +662,11 @@ function clonePaneDisplay(src, dst) {
     // 0's radar layer), so a new pane can't participate in it: exit would
     // never restore it, and the next 60 s capabilities refresh would silently
     // flip it to the stored composite anyway (restoreActiveLayer's skip guard
-    // covers pane 0 only). Start the new pane on the saved composite instead,
-    // clearing the site's ELEVATION first exactly like exitSingleSite does.
+    // covers pane 0 only). Start the new pane on the saved composite instead;
+    // updateLayer clears the cloned site ELEVATION in its params update.
     if (name === 'radarLayer' && radarSite && radarSite.isSingleSiteActive()) {
       const composite = radarSite.getSavedComposite();
       if (composite) {
-        dsrc.updateParams({ ELEVATION: undefined });
         updateLayer(d, composite, { skipVisibility: true, skipTracking: true, skipPersist: true });
       }
     }
@@ -1239,7 +1238,7 @@ function applyWireFormat(layer) {
 
 function updateLayer(layer, wmslayer, opts = {}) {
   const {
-    skipVisibility = false, skipTracking = false, skipPersist = false, source,
+    skipVisibility = false, skipTracking = false, skipPersist = false, source, elevation,
   } = opts;
   debug(`Activated layer ${wmslayer}`);
   if (!skipTracking && source) {
@@ -1262,6 +1261,12 @@ function updateLayer(layer, wmslayer, opts = {}) {
   // Reset style if the new layer doesn't support the currently active style
   const currentStyle = layer.getSource().getParams().STYLES || '';
   const baseUpdate = { LAYERS: wmslayer };
+  // ELEVATION is only meaningful for single-site radar products (radarSite
+  // passes it via opts). Set it in the SAME params update as LAYERS: this
+  // clears a previous drill-in's sweep on every layer switch — otherwise
+  // composite GetMap requests keep carrying the stale ELEVATION to the
+  // server. ol/uri drops undefined-valued params from the request URL.
+  baseUpdate.ELEVATION = elevation != null ? elevation : undefined;
   // Apply the resolved wire format (webp / per-layer override / category
   // default) and transparency, falling back to the layer's category
   // default so a switch FROM a transparent overlay back to a full-disc
