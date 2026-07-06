@@ -919,8 +919,14 @@ function setTime(action = 'next') {
   }
 
   if (startDate.getTime() > end) {
+    // Wrap the cursor back to the window start. Do NOT recreate the Timeline
+    // here: rebuilding wipes every cell's loading/flow class, and nothing
+    // re-emits them (the pool state callbacks fire only on change), so the
+    // indicators went permanently blank after the first playback loop. A pure
+    // wrap doesn't change the window, so the existing cell state stays valid;
+    // when the window really shifts, pool.setWindow below triggers per-cell
+    // load-state callbacks that repaint through updateTimelineCell.
     startDate = new Date(start);
-    timeline = new Timeline(13, document.getElementById('timeline'));
   } else if (startDate.getTime() < start) {
     startDate = new Date(end);
   }
