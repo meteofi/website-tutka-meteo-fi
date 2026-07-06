@@ -887,11 +887,16 @@ function setTime(action = 'next') {
   for (const pane of activePanes()) {
     for (const item of pane.VISIBLE) {
       const wmslayer = pane.layerss[item].getSource().getParams().LAYERS;
-      if (wmslayer in layerInfo) {
+      // getLayerInfo only sets `.time` when GetCapabilities advertises a
+      // Dimension, and a malformed dimension can yield non-numeric fields.
+      // A layer without a valid time can't constrain the window — skip it
+      // rather than throwing here on every tick (which freezes playback).
+      const t = wmslayer in layerInfo ? layerInfo[wmslayer].time : null;
+      if (t && Number.isFinite(t.end) && Number.isFinite(t.resolution)) {
         if (item === 'radarLayer' || item === 'satelliteLayer' || item === 'observationLayer') {
-          end = Math.min(end, Math.floor(layerInfo[wmslayer].time.end / resolution) * resolution);
+          end = Math.min(end, Math.floor(t.end / resolution) * resolution);
         }
-        resolution = Math.max(resolution, layerInfo[wmslayer].time.resolution);
+        resolution = Math.max(resolution, t.resolution);
       }
     }
   }
