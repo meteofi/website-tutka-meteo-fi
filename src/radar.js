@@ -649,10 +649,28 @@ function clonePaneDisplay(src, dst) {
     if (dsrc.getUrl() !== ssrc.getUrl()) dsrc.setUrl(ssrc.getUrl());
     dsrc.updateParams({ ...ssrc.getParams() });
     d.set('info', s.get('info'));
-    d.setOpacity(s.getOpacity());
+    // The interpolator's transparent swap holds the actual opacity at 0 while
+    // the warp renders; _userOpacity carries the user's chosen value (and is
+    // undefined whenever no interpolator is attached). Cloning getOpacity()
+    // here would capture the swap state and leave the new pane invisible.
+    const srcUserOpacity = s.get('_userOpacity');
+    d.setOpacity(srcUserOpacity !== undefined ? srcUserOpacity : s.getOpacity());
     d.setVisible(s.getVisible());
     if (s.getVisible()) dst.VISIBLE.add(name); else dst.VISIBLE.delete(name);
     dst.ACTIVE_LAYERS[name] = src.ACTIVE_LAYERS[name];
+    // Single-site drill-in is a pane-0-only mode (radarSite holds only pane
+    // 0's radar layer), so a new pane can't participate in it: exit would
+    // never restore it, and the next 60 s capabilities refresh would silently
+    // flip it to the stored composite anyway (restoreActiveLayer's skip guard
+    // covers pane 0 only). Start the new pane on the saved composite instead,
+    // clearing the site's ELEVATION first exactly like exitSingleSite does.
+    if (name === 'radarLayer' && radarSite && radarSite.isSingleSiteActive()) {
+      const composite = radarSite.getSavedComposite();
+      if (composite) {
+        dsrc.updateParams({ ELEVATION: undefined });
+        updateLayer(d, composite, { skipVisibility: true, skipTracking: true, skipPersist: true });
+      }
+    }
   });
 }
 

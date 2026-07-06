@@ -107,6 +107,9 @@ export default function initRadarSite({
 
   const isSingleSiteActive = () => singleSite !== null;
   const getActiveWmsLayer = () => (singleSite ? singleSite.wmsLayer : null);
+  // The composite the drill-in will restore on exit. New split panes start on
+  // this instead of the transient site product (see clonePaneDisplay).
+  const getSavedComposite = () => (singleSite ? singleSite.savedComposite : null);
   // [lon, lat] (EPSG:4326) of the active single-site marker, or null in
   // composite mode. Used by the center-crosshair tool to aim its radar line.
   const getActiveSiteLonLat = () => {
@@ -252,6 +255,7 @@ export default function initRadarSite({
     exitSingleSite,
     isSingleSiteActive,
     getActiveWmsLayer,
+    getSavedComposite,
     getActiveSiteLonLat,
   };
 }
