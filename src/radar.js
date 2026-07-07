@@ -44,7 +44,6 @@ const options = {
   defaultRadarLayer: 'fmi-radar-composite-dbz',
   defaultLightningLayer: 'observation:lightning',
   defaultObservationLayer: 'observation:airtemperature',
-  rangeRingSpacing: 50,
   radialSpacing: 30,
   frameRate: 2, // fps
   defaultFrameRate: 2, // fps
@@ -130,14 +129,12 @@ function readInitialInterpMode() {
 canInterpolate().then((ok) => {
   interpCapable = ok;
   interpMode = ok ? readInitialInterpMode() : DEFAULT_INTERP_MODE;
-  // eslint-disable-next-line no-console
-  console.info(`[tutka] INTERP: capable=${ok} mode=${interpMode}`);
+  debug(`[tutka] INTERP: capable=${ok} mode=${interpMode}`);
   trackBoot({ capable: ok, mode: interpMode });
   attachInterpolators();
   updateInterpChipsState();
 }).catch((err) => {
-  // eslint-disable-next-line no-console
-  console.warn('[tutka] INTERP probe failed:', err);
+  debug(`[tutka] INTERP probe failed: ${err && err.message}`);
   trackBoot({ capable: false, mode: DEFAULT_INTERP_MODE, error: true });
 });
 
@@ -607,7 +604,7 @@ panes.push(pane0);
 // Pane-0 aliases — keep the original single-map identifiers working unchanged.
 // Only the handles still referenced directly by radar.js are aliased; the
 // basemaps, municipality and fairway layers are now reached via `pane.*` in the
-// theme/POI fan-outs, and imageryBaseLayer lives only inside pane0.layers.
+// theme/POI fan-outs.
 const { map, layerss } = pane0;
 const {
   satelliteLayer,
@@ -782,7 +779,7 @@ function bearingLine(layer, coordinates, range, direction) {
   const p2 = c.destinationPoint(range * 1000, direction);
   const line = new Polygon([[[p1.lon, p1.lat], [p2.lon, p2.lat]]]);
   layer.getSource().addFeatures([
-    new Feature({ name: `${direction}dasd`, geometry: line.transform('EPSG:4326', map.getView().getProjection()) }),
+    new Feature({ name: `${direction}-bearing`, geometry: line.transform('EPSG:4326', map.getView().getProjection()) }),
   ]);
 }
 
@@ -817,8 +814,6 @@ function onChangePosition(event) {
     pane.positionFeature.setGeometry(coordinates ? new Point(coordinates) : null);
   }
   document.getElementById('gpsStatus').innerHTML = 'gps_fixed';
-  localStorage.setItem('metLatitude', ownPosition4326[1]);
-  localStorage.setItem('metLongitude', ownPosition4326[0]);
   localStorage.setItem('metPosition', JSON.stringify(ownPosition));
   if (tools) tools.refresh();
 }
