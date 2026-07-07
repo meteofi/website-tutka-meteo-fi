@@ -158,12 +158,26 @@ export default class StickyImageWMS extends ImageWMS {
     const state = image.getState();
     if (state === ImageState.LOADED) {
       this._sticky = image;
+      this._setStaleInterim(false);
       return image;
     }
     if (this._sticky && this._sticky.getState() === ImageState.LOADED) {
+      this._setStaleInterim(true);
       return this._sticky;
     }
     return image;
+  }
+
+  // MeteoCore contract, "Pixel budget": while a stale sticky is shown
+  // scaled (zoom transition, re-anchor), render it nearest-neighbor so it
+  // goes blocky instead of mushy; swap back to bilinear the moment the
+  // real image lands. The canvas ImageLayer renderer reads
+  // source.getInterpolate() on every frame right before drawImage, so
+  // flipping the flag here — at the exact moment getImage hands the
+  // renderer a stale image — takes effect on that same rendered frame.
+  // Reaches into the Source private the same way setRequestShape does.
+  _setStaleInterim(stale) {
+    this.interpolate_ = !stale;
   }
 
   // Explicitly start loading for the current view. Called from FramePool
