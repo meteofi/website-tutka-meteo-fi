@@ -1647,6 +1647,17 @@ body.split-4 #menuButton {
   cursor: not-allowed;
 }
 
+/* First site frame still loading (S3-streamed polar volumes can stall for
+   seconds on first touch) — pulse the "Ladataan…" label so it reads as
+   activity, not a frozen button. */
+.radar-site-toggle.loading {
+  animation: radar-site-toggle-loading 1.2s ease-in-out infinite;
+}
+
+@keyframes radar-site-toggle-loading {
+  50% { opacity: 0.55; }
+}
+
 /* Breathing ring marking the active single-site radar. Anchored center-center
    on the marker by an OL Overlay; the outer element only sizes/positions, the
    inner ring runs the animation so it doesn't clash with OL's transform. */

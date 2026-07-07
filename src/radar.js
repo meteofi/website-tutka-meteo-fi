@@ -2651,6 +2651,7 @@ const main = () => {
     setTime,
     drawCoverage: drawRadarCoverage,
     clearCoverage: clearRadarCoverage,
+    isLayerAdvertised: (name) => Boolean(layerInfo[name]),
   });
 
   crosshair = initCrosshair({
