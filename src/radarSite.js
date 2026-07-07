@@ -4,6 +4,9 @@ import { transform } from 'ol/proj';
 // Radar-site drill-in: tap a radar-site marker → a small card anchored to the
 // marker lets the user swap the main radar layer to that single site's WMS
 // product (DBZH at its lowest elevation sweep) and back to the composite.
+// When the server advertises a disk-served `…-radar-single-<site>-…` variant
+// of the site's pvol collection it is preferred (predictable latency); the
+// card shows "Ladataan…" until the first site frame lands.
 //
 // The single-site layer animates exactly like a composite because the meteocore
 // per-site layers (`<collection>/<quantity>`) carry a time dimension and the
@@ -28,16 +31,32 @@ function pickQuantity(quantities) {
   return 'CSP';
 }
 
+// Prefer the disk-served single-site variant when the server advertises it
+// (MeteoCore contract, "Dimensions, format, layers"): `fi-radar-pvol-<site>`
+// layers stream the polar volume from S3, so the first touch of an uncached
+// (site, time) can stall for seconds, while `fi-radar-single-<site>-
+// pvol-<site>` is served from local disk with predictable latency. The
+// single variants are rolling out per site, so fall back to the pvol
+// collection whenever the variant (or the chosen quantity on it) isn't
+// advertised yet.
+function pickCollection(collection, quantity, isLayerAdvertised) {
+  const m = /^([a-z]{2})-radar-pvol-([a-z0-9]+)$/.exec(collection);
+  if (!m) return collection;
+  const single = `${m[1]}-radar-single-${m[2]}-pvol-${m[2]}`;
+  return isLayerAdvertised(`${single}/${quantity}`) ? single : collection;
+}
+
 // Resolve a feature to its WMS product. Returns null when the feature has no
 // `collection` (e.g. an older bundled fallback snapshot) — the card then shows
 // the site but disables the toggle.
-function resolveProduct(feature) {
+function resolveProduct(feature, isLayerAdvertised) {
   const collection = feature.get('collection');
   if (!collection) return null;
   const quantity = pickQuantity(feature.get('quantities'));
+  const served = pickCollection(collection, quantity, isLayerAdvertised);
   const angles = feature.get('elevation_angles');
   const elevation = Array.isArray(angles) && angles.length ? Math.min(...angles) : null;
-  return { wmsLayer: `${collection}/${quantity}`, quantity, elevation };
+  return { wmsLayer: `${served}/${quantity}`, quantity, elevation };
 }
 
 function buildCard() {
@@ -64,7 +83,13 @@ function buildCard() {
 }
 
 export default function initRadarSite({
-  map, radarLayer, updateLayer, setTime, drawCoverage = () => {}, clearCoverage = () => {},
+  map, radarLayer, updateLayer, setTime,
+  drawCoverage = () => {}, clearCoverage = () => {},
+  // Whether the radar WMS currently advertises a layer name (wired to the
+  // GetCapabilities-fed layerInfo registry in radar.js). Drives the
+  // single-variant preference in resolveProduct; defaulting to false keeps
+  // the pvol behavior when the capability data isn't available.
+  isLayerAdvertised = () => false,
 }) {
   const card = buildCard();
   document.body.appendChild(card);
@@ -134,8 +159,56 @@ export default function initRadarSite({
     }
   }
 
+  // First-frame loading indicator. Entering a site swaps LAYERS, which
+  // invalidates every frame slot; a pvol product's first uncached (site,
+  // time) streams from S3 and can stall for seconds while the map keeps
+  // showing the previous product's sticky frames (MeteoCore contract:
+  // render behind a loading state, never block the UI on it). Watch the
+  // displayed frame's source until it reports a load — re-attaching if
+  // playback re-points the primary at another slot — and let renderToggle
+  // show "Ladataan…" meanwhile. Safety timeout so an error path can never
+  // wedge the label.
+  let siteLoading = false;
+  let loadWatch = null;
+
+  function stopLoadWatch() {
+    siteLoading = false;
+    if (!loadWatch) return;
+    loadWatch.detach();
+    clearTimeout(loadWatch.timer);
+    loadWatch = null;
+  }
+
+  function startLoadWatch() {
+    stopLoadWatch();
+    siteLoading = true;
+    let source = null;
+    const finish = () => { stopLoadWatch(); renderToggle(); };
+    const detachSource = () => {
+      if (!source) return;
+      source.un('imageloadend', finish);
+      source.un('imageloaderror', finish);
+    };
+    const attach = () => {
+      detachSource();
+      source = radarLayer.getSource();
+      source.on('imageloadend', finish);
+      source.on('imageloaderror', finish);
+    };
+    const onSourceChange = () => attach();
+    radarLayer.on('change:source', onSourceChange);
+    attach();
+    loadWatch = {
+      timer: setTimeout(finish, 20000),
+      detach: () => {
+        radarLayer.un('change:source', onSourceChange);
+        detachSource();
+      },
+    };
+  }
+
   function enterSingleSite(feature) {
-    const product = resolveProduct(feature);
+    const product = resolveProduct(feature, isLayerAdvertised);
     if (!product) return;
     // Turning the radar on first means a drill-in from a hidden radar layer
     // shows the site rather than silently arming an invisible layer.
@@ -149,6 +222,7 @@ export default function initRadarSite({
       skipPersist: true, skipTracking: true, elevation: product.elevation,
     });
     setTime('keep');
+    startLoadWatch();
     singleSite = {
       wmsLayer: product.wmsLayer,
       elevation: product.elevation,
@@ -181,13 +255,14 @@ export default function initRadarSite({
       }
     }
     singleSite = null;
+    stopLoadWatch();
     updateActiveIndicator();
     clearCoverage();
     renderToggle();
   }
 
   function renderToggle() {
-    const product = cardFeature ? resolveProduct(cardFeature) : null;
+    const product = cardFeature ? resolveProduct(cardFeature, isLayerAdvertised) : null;
     if (!product) {
       toggleBtn.disabled = true;
       toggleBtn.setAttribute('aria-pressed', 'false');
@@ -196,10 +271,13 @@ export default function initRadarSite({
       return;
     }
     const active = isSingleSiteActive() && getActiveWmsLayer() === product.wmsLayer;
+    const loading = active && siteLoading;
     toggleBtn.disabled = false;
     toggleBtn.setAttribute('aria-pressed', active ? 'true' : 'false');
+    toggleBtn.setAttribute('aria-busy', loading ? 'true' : 'false');
     toggleBtn.classList.toggle('active', active);
-    toggleBtn.textContent = active ? 'Piilota tämä tutka' : 'Näytä tämä tutka';
+    toggleBtn.classList.toggle('loading', loading);
+    toggleBtn.textContent = active ? (loading ? 'Ladataan…' : 'Piilota tämä tutka') : 'Näytä tämä tutka';
   }
 
   function openCardForFeature(feature) {
@@ -208,7 +286,7 @@ export default function initRadarSite({
     const nod = feature.get('nod');
     nameEl.textContent = nod ? `${name} (${nod})` : name;
 
-    const product = resolveProduct(feature);
+    const product = resolveProduct(feature, isLayerAdvertised);
     const country = (feature.get('country') || '').toUpperCase();
     const parts = [];
     if (product) {
@@ -230,7 +308,7 @@ export default function initRadarSite({
   toggleBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     if (!cardFeature || toggleBtn.disabled) return;
-    const product = resolveProduct(cardFeature);
+    const product = resolveProduct(cardFeature, isLayerAdvertised);
     const active = isSingleSiteActive() && getActiveWmsLayer() === product.wmsLayer;
     if (active) {
       exitSingleSite({ restore: true });
