@@ -1,9 +1,16 @@
 import ImageLayer from 'ol/layer/Image';
 import ImageCanvasSource from 'ol/source/ImageCanvas';
+import ImageState from 'ol/ImageState';
+import { containsExtent } from 'ol/extent';
 import StickyImageWMS from './stickyImageWMS';
 import computeRequestShape from '../wms/requestShape';
 
 const SYNC_PARAM_KEYS = ['LAYERS', 'STYLES', 'FORMAT', 'ELEVATION'];
+
+// MeteoCore server contract: after a re-anchor, fetch the displayed
+// timestep first and backfill the rest outward from it with at most this
+// many GetMaps in the air at once.
+const MAX_IN_FLIGHT = 4;
 
 function pickSyncParams(params) {
   const out = {};
@@ -52,6 +59,9 @@ export default class FramePool {
     // Current request shape ({ dpr, ratio } from src/wms/requestShape.js);
     // derived lazily in _getViewContext, null until the first load path runs.
     this._shape = null;
+    // Current quantized request anchor (see _updateAnchor), null until the
+    // first load path runs.
+    this._anchor = null;
     // Optional RadarInterpolator instance. When present, showInterpolated
     // drives the interpolator's warp shader and a separate warp layer
     // displays the interpolated canvas.
@@ -133,11 +143,9 @@ export default class FramePool {
           // whether to run LK or zero-fill based on its useFlow flag.
           this._checkFlowCompute(slot.time);
         }
-        // Fan out: as the current ring of frames finishes loading,
-        // trigger the next ring outward. Throttles total wire traffic
-        // (never more than 2 new requests per ring) while eventually
-        // loading all 13 frames.
-        this._advanceFrontier();
+        // Backfill: each completion frees a slot under the in-flight
+        // cap; keep pumping outward until all 13 frames are loaded.
+        this._pumpLoads();
       });
       source.on('imageloaderror', (event) => {
         if (event.image !== slot.source.image) return;
@@ -181,7 +189,7 @@ export default class FramePool {
     // When the layer becomes visible after being hidden, catch up on
     // any view changes that happened while hidden.
     this.primary.on('change:visible', () => {
-      if (this.primary.getVisible()) this._prefetchAroundCurrent();
+      if (this.primary.getVisible()) this._pumpLoads();
     });
 
     this._primaryParamsSnap = this._snapPrimary();
@@ -251,7 +259,7 @@ export default class FramePool {
       this.interpolator.onParamsChanged({ flowInvariant });
       this._notifyAllFlowState();
     }
-    this._prefetchAroundCurrent();
+    this._pumpLoads();
   }
 
   _getViewContext() {
@@ -272,11 +280,95 @@ export default class FramePool {
       devicePixelRatio: window.devicePixelRatio,
       zoom: view.getZoom(),
     }));
+    const anchor = this._updateAnchor(view, size);
     return {
-      extent: view.calculateExtent(size),
+      extent: anchor.extent,
       resolution: view.getResolution(),
       projection: view.getProjection(),
     };
+  }
+
+  // Compute (or keep) the quantized, world-anchored request extent.
+  //
+  // MeteoCore contract, "Buffer anchoring": the buffered bbox must not
+  // follow the exact view — its anchor snaps to a coarse world grid with
+  // steps of about half the buffer margin, so panning away and back
+  // reuses URLs already in the browser/server caches instead of minting
+  // a unique bbox per pan. The anchor is FROZEN while the view stays
+  // inside the buffer margin (in particular for the whole of an
+  // undisturbed animation loop) and is only replaced when the view edge
+  // crosses the margin or the resolution/request-shape changes; every
+  // caller reaches this via debounced paths.
+  //
+  // Replacing the anchor invalidates all 13 frames at once (their bbox
+  // changed, per the contract), so old wrappers are dropped and slots
+  // marked stale; stickies survive so the previous frames stay on
+  // screen until the new bbox loads.
+  _updateAnchor(view, size) {
+    const resolution = view.getResolution();
+    const center = view.getCenter();
+    const shape = this._shape;
+    const prev = this._anchor;
+    // Everything below derives from (css size, ladder resolution, shape) —
+    // NOT from view.calculateExtent(). An extent-derived width wobbles in
+    // its last float bits depending on where the center sits (subtracting
+    // coordinates of ~1e6 m magnitude), which would perturb the grid step
+    // and break the byte-identical URLs that pan-away-and-back is meant
+    // to reproduce.
+    const w = size[0] * resolution;
+    const h = size[1] * resolution;
+    const viewExtent = [
+      center[0] - w / 2, center[1] - h / 2,
+      center[0] + w / 2, center[1] + h / 2,
+    ];
+    if (
+      prev
+      && prev.resolution === resolution
+      && prev.dpr === shape.dpr
+      && prev.ratio === shape.ratio
+      && containsExtent(prev.bufferedExtent, viewExtent)
+    ) {
+      return prev;
+    }
+    // Per-side buffer margin in world units. The anchor grid step is half
+    // the margin, so a snap displaces the buffer by at most a quarter
+    // margin and the view is always still covered. At ratio 1.0 (pixel
+    // budget exhausted, no buffer) the margin is 0 and the anchor simply
+    // follows the view — there is nothing to reuse without a buffer.
+    const marginX = ((shape.ratio - 1) * w) / 2;
+    const marginY = ((shape.ratio - 1) * h) / 2;
+    let cx = center[0];
+    let cy = center[1];
+    if (marginX > 0) cx = Math.round(cx / (marginX / 2)) * (marginX / 2);
+    if (marginY > 0) cy = Math.round(cy / (marginY / 2)) * (marginY / 2);
+    const anchor = {
+      extent: [cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2],
+      bufferedExtent: [
+        cx - w / 2 - marginX,
+        cy - h / 2 - marginY,
+        cx + w / 2 + marginX,
+        cy + h / 2 + marginY,
+      ],
+      resolution,
+      dpr: shape.dpr,
+      ratio: shape.ratio,
+    };
+    this._anchor = anchor;
+    for (const slot of this.slots) {
+      slot.source.setAnchorExtent(anchor.extent);
+      if (prev) {
+        slot.source.resetImageCache();
+        if (slot.loaded) {
+          slot.loaded = false;
+          this._notifyLoadChange(slot);
+        }
+        if (this.interpolator && slot.time) {
+          this.interpolator.invalidateSlot(slot.time);
+        }
+      }
+    }
+    if (prev) this._notifyAllFlowState();
+    return anchor;
   }
 
   // Fan a newly computed shape out to every slot source, and keep the
@@ -311,33 +403,29 @@ export default class FramePool {
     return this._gestureEndAt > 0 && performance.now() < this._gestureEndAt;
   }
 
-  // Prefetch the initial ring: current, +1, +2 (wrapping). Animation
-  // plays forward the vast majority of the time, so we bias the
-  // initial fetch toward upcoming frames instead of the symmetric
-  // previous+next ring.
-  _prefetchAroundCurrent() {
-    if (!this.primary.getVisible()) return;
-    if (this.isZoomGestureActive()) return;
-    if (!this.currentTime || !this.windowTimes) return;
-    const curIdx = this.windowTimes.indexOf(this.currentTime);
-    if (curIdx < 0) return;
-    const ctx = this._getViewContext();
-    if (!ctx) return;
-    for (let offset = 0; offset < 3; offset++) {
-      const idx = (curIdx + offset) % this.size;
-      const slot = this._slotAtIndex(idx);
-      if (slot && slot.time) {
-        slot.source.triggerLoad(ctx.extent, ctx.resolution, 1, ctx.projection);
-      }
+  // How many slots have a request in the air right now. Counted from the
+  // wrappers' live state rather than event bookkeeping, so a superseded
+  // wrapper can't leak a stale count.
+  _inFlight() {
+    let n = 0;
+    for (const slot of this.slots) {
+      const { image } = slot.source;
+      if (image && image.getState() === ImageState.LOADING) n++;
     }
+    return n;
   }
 
-  // Extend the prefetch frontier forward. Called from imageloadend so
-  // that each completion pulls in the next couple of upcoming frames —
-  // scanning forward from current, wrapping at the end of the window.
-  // Backward frames are only re-fetched once the forward sweep wraps
-  // around, which matches typical playback behavior (rarely reverse).
-  _advanceFrontier() {
+  // Load pump (MeteoCore contract, "Buffer anchoring"): fetch the CURRENT
+  // frame first — the only one the user is waiting for — then backfill
+  // the window outward from it (+1, -1, +2, -2, …), keeping at most
+  // MAX_IN_FLIGHT requests in the air. Called wherever loading may
+  // proceed: showTime, imageloadend (each completion frees a slot under
+  // the cap), debounced moveend, visibility restore and param resync.
+  // Every call shares the anchor from _getViewContext, so all 13 frames
+  // of a loop carry the same bbox. No wrap at the window edges: the
+  // frame "after" the last one is the first, an hour away — the least
+  // useful thing to fetch next.
+  _pumpLoads() {
     if (!this.primary.getVisible()) return;
     if (this.isZoomGestureActive()) return;
     if (!this.currentTime || !this.windowTimes) return;
@@ -345,13 +433,20 @@ export default class FramePool {
     if (curIdx < 0) return;
     const ctx = this._getViewContext();
     if (!ctx) return;
-    let triggered = 0;
-    for (let offset = 0; offset < this.size && triggered < 2; offset++) {
-      const idx = (curIdx + offset) % this.size;
-      const slot = this._slotAtIndex(idx);
-      if (slot && slot.time && !slot.loaded) {
-        slot.source.triggerLoad(ctx.extent, ctx.resolution, 1, ctx.projection);
-        triggered++;
+    let inFlight = this._inFlight();
+    for (let k = 0; k < this.size * 2 && inFlight < MAX_IN_FLIGHT; k++) {
+      const offset = k % 2 ? (k + 1) / 2 : -(k / 2);
+      const idx = curIdx + offset;
+      if (idx >= 0 && idx < this.size) {
+        const slot = this._slotAtIndex(idx);
+        if (slot && slot.time && !slot.loaded) {
+          const { image } = slot.source;
+          if (!image || image.getState() !== ImageState.LOADING) {
+            slot.source.triggerLoad(ctx.extent, ctx.resolution, 1, ctx.projection);
+            const { image: after } = slot.source;
+            if (after && after.getState() === ImageState.LOADING) inFlight++;
+          }
+        }
       }
     }
   }
@@ -433,7 +528,7 @@ export default class FramePool {
     if (this.primary.getSource() !== slot.source) {
       this.primary.setSource(slot.source);
     }
-    this._prefetchAroundCurrent();
+    this._pumpLoads();
     return true;
   }
 
@@ -722,7 +817,7 @@ export default class FramePool {
         }
       }
     }
-    this._prefetchAroundCurrent();
+    this._pumpLoads();
     this._notifyAllFlowState();
   }
 
