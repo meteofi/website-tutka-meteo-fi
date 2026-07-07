@@ -109,7 +109,19 @@ export default class StickyImageWMS extends ImageWMS {
     this._sticky = null;
     this._wantedSrc = null;
     this._shapeDpr = 1;
+    this._anchorExtent = null;
     this.setImageLoadFunction(createSharedImageLoader(this));
+  }
+
+  // World-anchored request extent (view-sized; computed and quantized by
+  // FramePool._updateAnchor). When set, every getImage-family call
+  // substitutes it for the caller's extent, so the OL renderer (which
+  // passes the live view extent) and the pool (which passes the anchor)
+  // key the same wrapper — and the padded GetMap bbox derives from the
+  // quantized anchor, not from wherever the view happens to sit. That is
+  // what makes pan-away-and-back reproduce byte-identical URLs.
+  setAnchorExtent(extent) {
+    this._anchorExtent = extent;
   }
 
   // Apply the request shape computed by src/wms/requestShape.js. `dpr`
@@ -136,7 +148,8 @@ export default class StickyImageWMS extends ImageWMS {
   }
 
   getImage(extent, resolution, pixelRatio, projection) {
-    const image = super.getImage(extent, this._shaped(resolution), 1, projection);
+    const ext = this._anchorExtent || extent;
+    const image = super.getImage(ext, this._shaped(resolution), 1, projection);
     if (!image) return this._sticky || image;
     const state = image.getState();
     if (state === ImageState.LOADED) {
@@ -153,7 +166,8 @@ export default class StickyImageWMS extends ImageWMS {
   // on moveend only — NOT from getImage, which would fire once per RAF
   // during a drag/zoom gesture and create dozens of requests per pan.
   triggerLoad(extent, resolution, pixelRatio, projection) {
-    const image = super.getImage(extent, this._shaped(resolution), 1, projection);
+    const ext = this._anchorExtent || extent;
+    const image = super.getImage(ext, this._shaped(resolution), 1, projection);
     if (image && image.getState() === ImageState.IDLE) image.load();
   }
 
@@ -206,7 +220,8 @@ export default class StickyImageWMS extends ImageWMS {
   // on cache miss (that's OL's normal getImage behavior; fan-out will
   // load it later).
   hasLoadedImageForView(extent, resolution, pixelRatio, projection) {
-    const image = super.getImage(extent, this._shaped(resolution), 1, projection);
+    const ext = this._anchorExtent || extent;
+    const image = super.getImage(ext, this._shaped(resolution), 1, projection);
     return !!(image && image.getState() === ImageState.LOADED);
   }
 }
