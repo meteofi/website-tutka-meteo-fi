@@ -74,6 +74,41 @@ Shrink radar.js opportunistically; never grow it. There is no scheduled big-bang
 
 Active servers (see `src/config.js` for the full registry): `meteocore.app.meteo.fi/wms` (Finnish + European radar composites — the primary radar source), `wms.meteo.fi` (DBZ/rain-rate products), `wms-obs.app.meteo.fi` (weather observations), `view.eumetsat.int` (satellite RGB products, MTG lightning, RDT). The probe/crosshair read values from the EDR API at `meteocore.app.meteo.fi/edr` (CoverageJSON). Entries marked `disabled: true` (openwms.fmi.fi, Environment Canada, KNMI, …) are inactive — don't document or build on them.
 
+## MeteoCore request-shape rules (server contract)
+
+Rules from the MeteoCore server architect — they govern **every GetMap sent to `meteocore.app.meteo.fi/wms`**. The server caches renders in three layers: (1) an exact-URL rendered cache (byte-identical GetMap URLs served from memory), (2) a meta-tile cache of 256 px tiles snapped to a *world-aligned* grid keyed on (layer, time, elevation, tile, zoom step) — overlapping viewports share tiles, and an oversized bbox pre-warms the tiles a pan will need, so buffering is server-friendly, and (3) the browser HTTP cache — explicit-TIME responses carry `Cache-Control: public, max-age=86400, immutable` + ETag, so a repeated URL costs zero network. A well-shaped request stream turns 0.5–3 s cold renders into ~1 ms cache hits.
+
+### Pixel budget — zoom-adaptive split between sharpness and pan buffer
+
+- **Hard ceiling: 6 Mpx per GetMap. Target: ≤ 4 Mpx.** Requested pixels are the dominant cost (render + encode + transfer all scale with WIDTH × HEIGHT).
+- **Zoomed in (Web-Mercator z ≥ 8): render at full devicePixelRatio.** Never let the browser upscale a lower-resolution image here — bilinear upscaling blurs the radar cell edges the user is inspecting. Sharpness beats buffer size at these zooms; compute the buffer from the leftover budget: `ratio = clamp(sqrt(TARGET / (cssW × cssH × dpr²)), 1.0, 2.0)`. If even ratio 1.0 at full DPR exceeds the 6 Mpx ceiling (large retina desktop fullscreen), reduce effective DPR just enough to fit — never exceed the ceiling.
+- **Zoomed out (z ≤ 7): cap effective DPR at ~1.5** and spend the freed budget on the pan buffer (ratio up to 2.0). At synoptic scales the slight upscale is imperceptible, and these are the largest, most expensive viewports.
+- On phones this works out naturally: 390×844 at DPR 3 zoomed in is ~3 Mpx at ratio 1.1; zoomed out at DPR 1.5 it affords the full 2× buffer mobile panning needs.
+- While waiting for a fetch (zoom transition, re-anchor), the previous image is shown scaled — consider `image-rendering: pixelated` on the radar layer during that interim so stale frames go blocky instead of mushy, then swap to the new full-res image.
+
+### Buffer anchoring — make pan refetches recur
+
+- **Quantize the buffered bbox anchor to a coarse grid** (steps of about half the buffer margin) instead of centering it on the exact view. Panning away and back then reuses URLs already in the browser cache, and all users converge on the same server cache entries. An unquantized anchor makes every refetch a unique, never-reusable URL.
+- **Freeze the anchor while an animation loop is running.** Any bbox or size change invalidates every cached frame of the loop at once.
+- Re-anchor only when the view edge crosses the buffer margin, debounced. On re-anchor, fetch the **currently displayed timestep first** (the only frame the user is waiting for), then backfill the remaining timesteps outward from it, **≤ 4 requests in flight**. Keep showing the previous image until the new one arrives.
+
+### Deterministic URLs
+
+- Always send an explicit `TIME=` taken verbatim from the values the server advertises in GetCapabilities. Never omit TIME — the server-side default shifts every ~5 min and defeats all caching.
+- Round bbox coordinates to a fixed precision and keep query-parameter order stable, so equal views produce byte-identical URLs.
+- Refresh GetCapabilities on a ~60 s timer, never per user interaction.
+
+### Zoom
+
+- Snap to discrete Web-Mercator zoom levels — the server's render ladder aligns with them, so discrete zooms reuse its tile cache; fractional zoom levels each pay a fresh cold render.
+- Debounce zoom-end ~200 ms; never issue GetMap for intermediate pinch/wheel frames.
+
+### Dimensions, format, layers
+
+- One (TIME, ELEVATION) pair per request; animate one elevation at a time — each pair is an independent render.
+- `FORMAT=image/png&TRANSPARENT=TRUE`. The server emits palette PNG8; JPEG breaks transparency and is not smaller.
+- Per-site polar-volume layers (`fi-radar-pvol-<site>/<MOMENT>`) are streamed from S3: the first touch of an uncached (site, time) can stall for seconds — always render behind a loading state, never block the UI on it. The `fi-radar-single-<site>-…` variants are served from local disk and have the most predictable latency for interactive use.
+
 ## State & persistence
 
 - localStorage keys: `metPosition`, `metZoom`, `VISIBLE`, `ACTIVE_LAYERS`, `interpMode`, `IS_DARK`, `IS_TRACKING`, `IS_FOLLOWING`, `LP_HINT_SEEN`, `POI_STATE`, `timeIsUtc` (+ legacy `metLatitude`/`metLongitude` writes). JSON values go through `safeParseJSON` in radar.js.
