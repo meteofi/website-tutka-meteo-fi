@@ -1,5 +1,6 @@
 import ImageWMS from 'ol/source/ImageWMS';
 import ImageState from 'ol/ImageState';
+import roundUrlBbox from '../wms/deterministicUrl';
 
 // Shared frame-blob cache across ALL sources — and therefore all split panes.
 // The GetMap URL (`src`) is deterministic from the layer params plus the
@@ -73,7 +74,10 @@ function sharedFetchBlob(src) {
 // superseded request (the source moved to a new extent before the old fetch
 // resolved) so a stale completion is ignored instead of clobbering the wrapper.
 function createSharedImageLoader(source) {
-  return (imageWrapper, src) => {
+  return (imageWrapper, olSrc) => {
+    // Canonicalize before anything keys on the URL: the rounded form is
+    // what's fetched, cached (blob/browser/server) and dedup-compared.
+    const src = roundUrlBbox(olSrc);
     source._wantedSrc = src;
     const htmlImage = imageWrapper.getImage();
     const assign = (blob) => {
