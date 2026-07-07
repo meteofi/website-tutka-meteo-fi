@@ -192,14 +192,19 @@ export default function initTools({
   const distValue = distRow.querySelector('.marker-value');
   const bearValue = bearRow.querySelector('.marker-value');
   const bearSub = bearRow.querySelector('.marker-sub');
+  const probeLabel = probeRow.querySelector('.marker-label');
   const probeValue = probeRow.querySelector('.marker-value');
   const probeSub = probeRow.querySelector('.marker-sub');
   const markerCloseBtn = markerCard.querySelector('.marker-card-close');
 
+  // Payload from probe.js: { value, text, label, rainRate }. The label + unit
+  // follow the active radar moment; the Marshall-Palmer rain-rate sub-line only
+  // makes sense for reflectivity, so it's blanked for velocity/ZDR.
   function setProbeValue(v) {
-    if (!v || v.dbz == null) { probeRow.hidden = true; return; }
-    probeValue.textContent = `${Math.round(v.dbz)} dBZ`;
-    probeSub.textContent = formatRainRate(dbzToRainRateMmH(v.dbz));
+    if (!v || v.value == null) { probeRow.hidden = true; return; }
+    probeLabel.textContent = v.label;
+    probeValue.textContent = v.text;
+    probeSub.textContent = v.rainRate ? formatRainRate(dbzToRainRateMmH(v.value)) : '';
     probeRow.hidden = false;
   }
 

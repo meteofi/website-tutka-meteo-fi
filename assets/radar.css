@@ -1619,6 +1619,40 @@ body.split-4 #menuButton {
   font-variant-numeric: tabular-nums;
 }
 
+/* Moment selector (DBZH / VRADH / ZDR) — segmented control above the toggle.
+   Hidden for sites that advertise only one selectable moment. */
+.radar-site-moments {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.radar-site-moments[hidden] { display: none; }
+
+.radar-site-moment {
+  all: unset;
+  flex: 1;
+  box-sizing: border-box;
+  padding: 6px 4px;
+  text-align: center;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--dark-medium-emphasis-text-color);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.radar-site-moment:hover { background: rgba(18, 188, 250, 0.14); }
+
+.radar-site-moment.active {
+  background: var(--dark-primary-color);
+  color: #00131c;
+}
+
 .radar-site-toggle {
   all: unset;
   display: block;

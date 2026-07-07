@@ -19,7 +19,9 @@
 
 import { transform } from 'ol/proj';
 import { getDistance } from 'ol/sphere';
-import { resolveEdrTarget, fetchSeries, normalizeLonLat } from './probe';
+import {
+  resolveEdrTarget, fetchSeries, normalizeLonLat, paramSpec, formatReadout,
+} from './probe';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -124,12 +126,13 @@ export default function initCrosshair({
   let inFlight = null;
   let refetchTimer = 0;
 
-  function setReadout(dbz) {
-    if (dbz == null || Number.isNaN(dbz)) {
+  function setReadout(value) {
+    const text = formatReadout(value, paramSpec(parameter));
+    if (!text) {
       readout.hidden = true;
       readout.textContent = '';
     } else {
-      readout.textContent = `${Math.round(dbz)} dBZ`;
+      readout.textContent = text;
       readout.hidden = false;
     }
   }
@@ -231,20 +234,21 @@ export default function initCrosshair({
     updateDirection();
   }
 
-  // --- dBZ value via EDR (windowed, mirrors probe.js) -----------------------
-  // Mirror probe.js exactly: floor at 0 dBZ (anything below is "no
-  // precipitation" → no readout) and take the peak among samples landing in the
-  // cursor's frame cell, so this readout matches what Pistemittaus shows at the
-  // same point.
+  // --- value via EDR (windowed, mirrors probe.js) ---------------------------
+  // Mirror probe.js exactly: apply the parameter's "no-signal" floor (0 dBZ for
+  // reflectivity, none for signed moments) and take the most extreme sample
+  // (largest magnitude) among those landing in the cursor's frame cell, so this
+  // readout matches what Pistemittaus shows at the same point.
   function pickFrameValue() {
     if (!series || !windowMs || !stepMs || cursorMs == null) return null;
+    const { floor } = paramSpec(parameter);
     const startMs = windowMs[0];
     const idx = Math.round((cursorMs - startMs) / stepMs);
     let peak = null;
     series.forEach((p) => {
-      if (p.v == null || p.v < 0) return;
+      if (p.v == null || (floor != null && p.v < floor)) return;
       if (Math.round((p.t - startMs) / stepMs) !== idx) return;
-      if (peak == null || p.v > peak) peak = p.v;
+      if (peak == null || Math.abs(p.v) > Math.abs(peak)) peak = p.v;
     });
     return peak;
   }
