@@ -44,7 +44,6 @@ const options = {
   defaultRadarLayer: 'fmi-radar-composite-dbz',
   defaultLightningLayer: 'observation:lightning',
   defaultObservationLayer: 'observation:airtemperature',
-  rangeRingSpacing: 50,
   radialSpacing: 30,
   frameRate: 2, // fps
   defaultFrameRate: 2, // fps
@@ -130,14 +129,12 @@ function readInitialInterpMode() {
 canInterpolate().then((ok) => {
   interpCapable = ok;
   interpMode = ok ? readInitialInterpMode() : DEFAULT_INTERP_MODE;
-  // eslint-disable-next-line no-console
-  console.info(`[tutka] INTERP: capable=${ok} mode=${interpMode}`);
+  debug(`[tutka] INTERP: capable=${ok} mode=${interpMode}`);
   trackBoot({ capable: ok, mode: interpMode });
   attachInterpolators();
   updateInterpChipsState();
 }).catch((err) => {
-  // eslint-disable-next-line no-console
-  console.warn('[tutka] INTERP probe failed:', err);
+  debug(`[tutka] INTERP probe failed: ${err && err.message}`);
   trackBoot({ capable: false, mode: DEFAULT_INTERP_MODE, error: true });
 });
 
@@ -607,7 +604,7 @@ panes.push(pane0);
 // Pane-0 aliases — keep the original single-map identifiers working unchanged.
 // Only the handles still referenced directly by radar.js are aliased; the
 // basemaps, municipality and fairway layers are now reached via `pane.*` in the
-// theme/POI fan-outs, and imageryBaseLayer lives only inside pane0.layers.
+// theme/POI fan-outs.
 const { map, layerss } = pane0;
 const {
   satelliteLayer,
@@ -782,7 +779,7 @@ function bearingLine(layer, coordinates, range, direction) {
   const p2 = c.destinationPoint(range * 1000, direction);
   const line = new Polygon([[[p1.lon, p1.lat], [p2.lon, p2.lat]]]);
   layer.getSource().addFeatures([
-    new Feature({ name: `${direction}dasd`, geometry: line.transform('EPSG:4326', map.getView().getProjection()) }),
+    new Feature({ name: `${direction}-bearing`, geometry: line.transform('EPSG:4326', map.getView().getProjection()) }),
   ]);
 }
 
@@ -817,8 +814,6 @@ function onChangePosition(event) {
     pane.positionFeature.setGeometry(coordinates ? new Point(coordinates) : null);
   }
   document.getElementById('gpsStatus').innerHTML = 'gps_fixed';
-  localStorage.setItem('metLatitude', ownPosition4326[1]);
-  localStorage.setItem('metLongitude', ownPosition4326[0]);
   localStorage.setItem('metPosition', JSON.stringify(ownPosition));
   if (tools) tools.refresh();
 }
@@ -848,23 +843,6 @@ function updateMapTimeDisplay(time) {
     // now so it tracks each frame without waiting for the 1 s clock tick.
     if (appFullscreen) renderTimeChip();
   }
-}
-
-function getActiveLayers() {
-  const active = [];
-  if (satelliteLayer.getVisible()) {
-    active.push(satelliteLayer.getSource().getParams().LAYERS);
-  }
-  if (radarLayer.getVisible()) {
-    active.push(radarLayer.getSource().getParams().LAYERS);
-  }
-  if (lightningLayer.getVisible()) {
-    active.push(lightningLayer.getSource().getParams().LAYERS);
-  }
-  if (observationLayer.getVisible()) {
-    active.push(observationLayer.getSource().getParams().LAYERS);
-  }
-  return active;
 }
 
 function updateCanonicalPage() {
@@ -1220,13 +1198,6 @@ function setUserTheme(mode) {
   track('theme-change', { pref: mode, shown: getEffectiveTheme() });
 }
 
-function removeSelectedParameter(selector) {
-  const els = document.querySelectorAll(selector);
-  els.forEach((elem) => {
-    elem.classList.remove('selected');
-  });
-}
-
 // Resolve the GetMap wire format for a sublayer. Precedence: an explicit
 // per-layer config override (`info.format`) wins; otherwise image/webp
 // when the serving WMS advertised it in GetCapabilities (smaller payload,
@@ -1273,12 +1244,6 @@ function updateLayer(layer, wmslayer, opts = {}) {
   const isPane0 = pane === pane0;
   const info = layerInfo[wmslayer];
   layer.set('info', info);
-  // The #layers selection list belongs to the primary pane; don't repaint it
-  // for a background pane's sublayer change.
-  if (isPane0 && document.getElementById(wmslayer)) {
-    removeSelectedParameter(`#${layer.get('name')} > div`);
-    document.getElementById(wmslayer).classList.add('selected');
-  }
   if (info && info.url) {
     layer.setLayerUrl(info.url);
   }
@@ -1332,7 +1297,6 @@ function updateLayer(layer, wmslayer, opts = {}) {
       layer.setVisible(true);
     }
   }
-  if (isPane0) updateLayerSelectionSelected();
   if (isPane0 && probe && layer === radarLayer) {
     // Pass the elevation (set in single-site mode) so the EDR probe queries the
     // displayed sweep; composites carry no ELEVATION param (z stays null).
@@ -1439,56 +1403,6 @@ function drawRadarCoverage(feature) {
 
 function clearRadarCoverage() {
   guideLayer.getSource().clear(true);
-}
-
-function createLayerInfoElement(content, className, isHTML) {
-  const div = document.createElement('div');
-  div.classList.add(className);
-  if (typeof content !== 'undefined' && content !== null) {
-    if (isHTML) {
-      div.innerHTML = content;
-    } else {
-      div.textContent = content;
-    }
-  }
-  return div;
-}
-
-function layerInfoDiv(wmslayer) {
-  const info = layerInfo[wmslayer];
-  const div = document.createElement('div');
-  const resolution = info && info.time ? Math.round(info.time.resolution / 60000) : 0;
-
-  div.id = `${wmslayer}Meta`;
-  div.setAttribute('data-layer-name', wmslayer);
-  div.setAttribute('data-layer-category', info ? info.category : '');
-
-  div.appendChild(createLayerInfoElement(info ? info.title : '', 'title'));
-
-  const previewDiv = document.createElement('div');
-  previewDiv.classList.add('preview');
-  if (info && info.url && info.layer) {
-    const img = document.createElement('img');
-    img.className = 'responsiveImage';
-    img.loading = 'lazy';
-    img.src = `${info.url}?TIME=PT1H/PRESENT&SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&FORMAT=image%2Fpng8&TRANSPARENT=true&CRS=EPSG%3A3067&STYLES=&WIDTH=300&HEIGHT=300&BBOX=-183243.50620644476%2C6575998.62606195%2C1038379.8685031873%2C7797622.000771582&LAYERS=${encodeURIComponent(info.layer)}`;
-    previewDiv.appendChild(img);
-  }
-  div.appendChild(previewDiv);
-  div.appendChild(createLayerInfoElement(info ? info.abstract : '', 'abstract'));
-  if (info && info.time && info.time.end) {
-    div.appendChild(createLayerInfoElement((resolution > 60 ? `${resolution / 60} tuntia ` : `${resolution} minuuttia, viimeisin: `) + dayjs(info.time.end).format('LT'), 'time'));
-  } else {
-    div.appendChild(createLayerInfoElement('Aikatiedot ei saatavilla', 'time'));
-  }
-  if (info && info.attribution && info.attribution.Title) {
-    let attrText = info.attribution.Title;
-    if (info.license) attrText += ` (${info.license})`;
-    div.appendChild(createLayerInfoElement(attrText, 'attribution'));
-  } else {
-    div.appendChild(createLayerInfoElement('', 'attribution'));
-  }
-  return div;
 }
 
 const _playlistSliderHandlers = {};
@@ -1653,21 +1567,16 @@ function onChangeVisible(event) {
   if (isVisible) pane.VISIBLE.add(name); else pane.VISIBLE.delete(name);
   debug(`${isVisible ? 'Activated' : 'Deactivated'} ${name} (pane ${pane.index})`);
 
-  // The global toolbar, the #layers selection list and the playlist card all
-  // reflect the primary pane (pane 0). Per-pane state lives on the pill.
+  // The global toolbar and the playlist card reflect the primary pane
+  // (pane 0). Per-pane state lives on the pill.
   if (isPane0) {
-    removeSelectedParameter(`#${name} > div`);
     localStorage.setItem('VISIBLE', JSON.stringify([...pane.VISIBLE]));
     setButtonState(`${name}Button`, isVisible);
-    if (isVisible && document.getElementById(wmslayer)) {
-      document.getElementById(wmslayer).classList.add('selected');
-    }
     const info = document.getElementById(`${name}Info`);
     if (info) info.classList.toggle('playListDisabled', !isVisible);
     const toggleIcon = document.querySelector(`#${name}Info .card-visibility-toggle .material-icons`);
     if (toggleIcon) toggleIcon.textContent = isVisible ? 'visibility' : 'visibility_off';
     updateCanonicalPage();
-    updateLayerSelectionSelected();
   }
 
   refreshPanePillButton(pane, name);
@@ -2429,52 +2338,6 @@ document.addEventListener('keyup', (event) => {
   }
 });
 
-function updateLayerSelection(ollayer, type, filter) {
-  // `filter` may be a single substring (original API) or an array of
-  // substrings — the lightning menu uses an array so it can collect
-  // both the FMI lightning-network layer (`observation:lightning`) and
-  // the EUMETSAT MTG Lightning Imager layer (`li_afa`) under the same
-  // category card.
-  const filters = Array.isArray(filter) ? filter : [filter];
-  const parent = document.getElementById('layers');
-  document.querySelectorAll(`.${type}LayerSelect`).forEach((child) => {
-    parent.removeChild(child);
-  });
-  Object.keys(layerInfo).sort().forEach((layer) => {
-    if (filters.some((f) => layerInfo[layer].layer.includes(f))) {
-      const div = layerInfoDiv(layer);
-      div.onclick = function () {
-        if (ollayer.getVisible() && getActiveLayers().includes(layer)) {
-          toggleLayerVisibility(ollayer, 'playlist');
-        } else {
-          updateLayer(ollayer, layerInfo[layer].layer, { source: 'playlist' });
-        }
-      };
-      div.classList.add(`${type}LayerSelect`);
-      div.classList.add('layerSelectItem');
-      const ollayerInfo = ollayer.get('info');
-      if (ollayerInfo && ollayerInfo.layer === layer) {
-        div.classList.add('selectedLayer');
-      }
-      document.getElementById('layers').appendChild(div);
-    }
-  });
-  updateLayerSelectionSelected();
-}
-
-function updateLayerSelectionSelected() {
-  debug('UPDATE Layer Selection Selected called');
-  const activeLayers = getActiveLayers();
-  document.querySelectorAll('.layerSelectItem').forEach((div) => {
-    div.classList.remove('selectedLayer');
-    if (VISIBLE.has(div.getAttribute('data-layer-category'))) {
-      if (activeLayers.includes(div.getAttribute('data-layer-name'))) {
-        div.classList.add('selectedLayer');
-      }
-    }
-  });
-}
-
 function getWMSCapabilities(wms, failCountArg = 0) {
   let failCount = failCountArg;
   const parser = new WMSCapabilities();
@@ -2524,27 +2387,6 @@ function getWMSCapabilities(wms, failCountArg = 0) {
           olLayer.set('info', layerInfo[olLayer.getSource().getParams().LAYERS]);
           applyWireFormat(olLayer);
         }
-      }
-      switch (wms.category) {
-        case 'satelliteLayer':
-          updateLayerSelection(satelliteLayer, 'satellite', 'msg_');
-          break;
-        case 'observationLayer':
-          updateLayerSelection(observationLayer, 'observation', 'observation:');
-          // The FMI observation server is what publishes `observation:lightning`,
-          // so refresh the lightning menu too — otherwise the order in which
-          // GetCapabilities responses arrive decides whether the FMI entry
-          // ends up listed alongside the EUMETSAT MTG one.
-          updateLayerSelection(lightningLayer, 'lightning', ['lightning', 'li_afa', 'rdt']);
-          break;
-        case 'radarLayer':
-          updateLayerSelection(radarLayer, 'radar', 'suomi_');
-          break;
-        case 'lightningLayer':
-          updateLayerSelection(lightningLayer, 'lightning', ['lightning', 'li_afa', 'rdt']);
-          break;
-        default:
-          debug('No wms.category set');
       }
       for (const pane of activePanes()) restoreActiveLayer(wms.category, pane);
       if (IS_FOLLOWING) {

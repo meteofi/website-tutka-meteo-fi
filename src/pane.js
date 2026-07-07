@@ -89,14 +89,6 @@ export default function createPane(targetEl, sharedView, deps) {
   //
   // BASEMAPS
   //
-  const imageryBaseLayer = new TileLayer({
-    visible: false,
-    source: new XYZ({
-      attributions: 'Tiles © <a href="https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer">ArcGIS</a>',
-      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    }),
-  });
-
   const lightGrayBaseLayer = new TileLayer({
     visible: false,
     preload: Infinity,
@@ -281,7 +273,6 @@ export default function createPane(targetEl, sharedView, deps) {
   const layers = [
     lightGrayBaseLayer,
     darkGrayBaseLayer,
-    imageryBaseLayer,
     satelliteLayer,
     radarLayer,
     guideLayer,
@@ -313,7 +304,6 @@ export default function createPane(targetEl, sharedView, deps) {
     layers,
     layerss,
     // individual layer handles
-    imageryBaseLayer,
     lightGrayBaseLayer,
     lightGrayReferenceLayer,
     darkGrayBaseLayer,
