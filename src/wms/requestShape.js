@@ -24,7 +24,18 @@ export const CEILING_PIXELS = 6e6;
 
 const FULL_DPR_MIN_ZOOM = 8;
 const SYNOPTIC_DPR_CAP = 1.5;
-const MIN_RATIO = 1;
+// A pan buffer is not optional. The contract's letter allows the ratio to
+// fall to 1.0 when full DPR exhausts the ceiling (any retina Mac) and to
+// ~1.16 on phones zoomed in — in practice both showed blank strips on
+// every casual pan AND re-anchored/refetched the whole 13-frame window,
+// because a thumb pan easily exceeds a sub-10% margin. Guarantee a 20%
+// margin per side (close to the pre-budget ratio 1.5 feel) by reserving
+// room for it within the hard ceiling BEFORE computing effective DPR — a
+// deliberate deviation from the contract's sharpness-first letter in
+// favor of its pan-buffer intent. Standard phones still fit full DPR
+// (390×844×3² × 1.4² = 5.8 Mpx ≤ 6); large retina viewports trade some
+// sharpness (MBP 14": 1.39× upscale) for a usable buffer.
+const MIN_RATIO = 1.4;
 const MAX_RATIO = 2;
 
 // Pure function of (CSS viewport size, device pixel ratio, integer zoom) →
@@ -40,7 +51,8 @@ export default function computeRequestShape({
   // round anyway so float noise can't flip the branch at the boundary.
   const zoomedIn = Math.round(zoom) >= FULL_DPR_MIN_ZOOM;
   let dpr = zoomedIn ? deviceDpr : Math.min(deviceDpr, SYNOPTIC_DPR_CAP);
-  dpr = Math.min(dpr, Math.sqrt(CEILING_PIXELS / cssArea));
+  // Reserve room for the minimum buffer within the hard ceiling.
+  dpr = Math.min(dpr, Math.sqrt(CEILING_PIXELS / (cssArea * MIN_RATIO * MIN_RATIO)));
   const ratio = Math.min(
     MAX_RATIO,
     Math.max(MIN_RATIO, Math.sqrt(TARGET_PIXELS / (cssArea * dpr * dpr))),
