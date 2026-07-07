@@ -26,11 +26,56 @@ const EDR_COLLECTIONS = new Set([
   'chmi-radar-composite-dbz',
 ]);
 
-// Fixed visible dBZ range for the chart Y axis. Anything below 0 dBZ
-// is treated as "no precipitation" and renders no bar. The upper bound
-// caps at 50 dBZ — extreme cells (>50) clamp to a full-height bar.
-const Y_MIN_DBZ = 0;
-const Y_MAX_DBZ = 50;
+// Per-EDR-parameter readout spec — the single source of truth for units, the
+// "no-signal" floor, the chart Y range and the pistemittaus sub-line, shared by
+// the chart below, the center-crosshair readout and the pistemittaus marker
+// card so the three can't drift. Fields:
+//   - floor: value below which a sample is "no signal" (no bar / no readout);
+//     null means every value is meaningful (signed moments like radial velocity).
+//   - min/max: frame the chart Y axis. Bars are drawn from the value-0 line
+//     within [min,max], so min:0 gives today's bottom-anchored dBZ bars and a
+//     negative min gives a diverging baseline.
+//   - rainRate: gates the Marshall-Palmer sub-line (reflectivity only).
+//   - label: names the moment on the pistemittaus marker card (Finnish UI).
+// Composite mosaics report parameter 'reflectivity'; single sites report their
+// WMS quantity (DBZH/VRADH/ZDR). Any unmapped quantity falls back to dBZ, which
+// is the pre-existing behavior.
+const PARAM_SPECS = {
+  reflectivity: {
+    label: 'Heijastavuus', unit: 'dBZ', floor: 0, min: 0, max: 50, decimals: 0, rainRate: true,
+  },
+  DBZH: {
+    label: 'Heijastavuus', unit: 'dBZ', floor: 0, min: 0, max: 50, decimals: 0, rainRate: true,
+  },
+  VRADH: {
+    label: 'Nopeus', unit: 'm/s', floor: null, min: -48, max: 48, decimals: 0, rainRate: false,
+  },
+  ZDR: {
+    label: 'ZDR', unit: 'dB', floor: null, min: -2, max: 8, decimals: 1, rainRate: false,
+  },
+};
+
+export function paramSpec(parameter) {
+  return (parameter && PARAM_SPECS[parameter]) || PARAM_SPECS.reflectivity;
+}
+
+// Format a numeric readout per its spec, or '' when there is no value.
+export function formatReadout(value, spec) {
+  if (value == null || Number.isNaN(value)) return '';
+  return `${value.toFixed(spec.decimals)} ${spec.unit}`;
+}
+
+// Bar geometry for one value: fractions in [0,1] (measured from the bottom of
+// the plot) for both the value and the zero baseline. min:0 → baseline 0 →
+// bottom-anchored bars; a negative min lifts the baseline for signed moments.
+function barFractions(value, spec) {
+  const range = spec.max - spec.min;
+  const clamp01 = (x) => Math.max(0, Math.min(1, x));
+  return {
+    value: clamp01((value - spec.min) / range),
+    baseline: clamp01((0 - spec.min) / range),
+  };
+}
 
 // OpenLayers hands back longitudes outside [-180, 180] when the map is panned
 // across world copies (e.g. lon 360.0017 for a point that is really near 0°).
@@ -81,7 +126,8 @@ function parseCoverage(cov, param) {
   return ts.map((t, i) => {
     const raw = vs[i];
     // Preserve real numbers as-is. Only JSON null marks missing data
-    // (off-coverage points). The Y_MIN_DBZ floor is applied at render time.
+    // (off-coverage points). The parameter's "no-signal" floor (spec.floor) is
+    // applied at render time.
     const v = (raw == null) ? null : raw;
     return { t: new Date(t).getTime(), v };
   });
@@ -124,12 +170,6 @@ export async function fetchSeries(collection, param, lon, lat, startISO, endISO,
   const series = parseCoverage(await r.json(), param);
   cacheSet(key, series);
   return series;
-}
-
-function normalizeDbz(v) {
-  if (v == null || v < Y_MIN_DBZ) return null;
-  const n = (v - Y_MIN_DBZ) / (Y_MAX_DBZ - Y_MIN_DBZ);
-  return Math.min(1, n);
 }
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -175,14 +215,14 @@ export default function initProbe({ container, onValueChange }) {
   let inFlight = null; // AbortController for active fetch
   let state = 'idle'; // 'idle' | 'loading' | 'ready' | 'empty' | 'error'
 
-  // Per-cell peak value, set in render(). Each slot is { dbz, norm } where
-  // dbz is the raw peak reflectivity (used for the readout, may exceed
-  // Y_MAX_DBZ) and norm is the clamped 0..1 value used for bar height.
+  // Per-cell peak sample, set in render(). Each slot is { val } — the most
+  // extreme raw value in the cell (peak dBZ, or strongest signed velocity);
+  // barFractions maps it to bar geometry per the active parameter's spec.
   let peakByCell = [];
   // Sentinel value distinct from null/number so the very first transition
   // (idle → null) doesn't get short-circuited by the de-dupe check.
   const NO_EMIT = Symbol('no-emit');
-  let lastEmittedDbz = NO_EMIT;
+  let lastEmittedValue = NO_EMIT;
 
   // The load-state strip below has 13 equal-flex cells. To keep the chart's
   // bends and the vertical cursor visually centered on each cell, we anchor
@@ -208,8 +248,8 @@ export default function initProbe({ container, onValueChange }) {
     if (state !== 'ready') {
       peakByCell = [];
       readout.textContent = '';
-      if (lastEmittedDbz !== null) {
-        lastEmittedDbz = null;
+      if (lastEmittedValue !== null) {
+        lastEmittedValue = null;
         emitValue(null);
       }
     }
@@ -227,6 +267,7 @@ export default function initProbe({ container, onValueChange }) {
 
   function render() {
     if (!series || !windowMs || !resolutionMs) return;
+    const spec = paramSpec(parameter);
     const [startMs, endMs] = windowMs;
 
     const W = svg.clientWidth || container.clientWidth || 800;
@@ -260,17 +301,19 @@ export default function initProbe({ container, onValueChange }) {
     }
 
     // Aggregate per cell: when the strip resolution is coarser than EDR
-    // cadence, multiple samples land in one cell. Take the peak dBZ —
-    // that's the meaningful answer for "did precipitation hit this point
-    // during this slot" and gives exactly one bar per cell.
+    // cadence, multiple samples land in one cell. Keep the most extreme sample
+    // (largest magnitude) — for reflectivity that's the peak dBZ, and for a
+    // signed moment (radial velocity) it's the strongest motion; either way
+    // exactly one bar per cell. `floor` drops "no signal" samples entirely.
     peakByCell = new Array(STRIP_CELLS).fill(null);
     for (const p of visible) {
-      if (p.v == null || p.v < Y_MIN_DBZ) continue; // eslint-disable-line no-continue
+      if (p.v == null) continue; // eslint-disable-line no-continue
+      if (spec.floor != null && p.v < spec.floor) continue; // eslint-disable-line no-continue
       const idx = frameIndex(p.t, startMs);
       if (idx == null || idx < 0 || idx >= STRIP_CELLS) continue; // eslint-disable-line no-continue
       const prev = peakByCell[idx];
-      if (prev == null || p.v > prev.dbz) {
-        peakByCell[idx] = { dbz: p.v, norm: normalizeDbz(p.v) };
+      if (prev == null || Math.abs(p.v) > Math.abs(prev.val)) {
+        peakByCell[idx] = { val: p.v };
       }
     }
 
@@ -278,12 +321,17 @@ export default function initProbe({ container, onValueChange }) {
       const cell = peakByCell[idx];
       if (cell == null) continue; // eslint-disable-line no-continue
       const cx = (idx + 0.5) * cellW;
-      const h = Math.max(1.5, cell.norm * innerH);
+      // Bars grow from the value-0 baseline (bottom for dBZ, mid-axis for a
+      // signed moment) to the sample's value.
+      const f = barFractions(cell.val, spec);
+      const yVal = padY + innerH * (1 - f.value);
+      const yBase = padY + innerH * (1 - f.baseline);
+      const h = Math.max(1.5, Math.abs(yVal - yBase));
       const rect = document.createElementNS(SVG_NS, 'rect');
       rect.setAttribute('class', 'probe-bar');
       rect.setAttribute('data-frame', String(idx));
       rect.setAttribute('x', (cx - barW / 2).toFixed(1));
-      rect.setAttribute('y', (padY + innerH - h).toFixed(1));
+      rect.setAttribute('y', Math.min(yVal, yBase).toFixed(1));
       rect.setAttribute('width', barW.toFixed(1));
       rect.setAttribute('height', h.toFixed(1));
       svg.appendChild(rect);
@@ -306,12 +354,18 @@ export default function initProbe({ container, onValueChange }) {
       const isCurrent = Number(b.getAttribute('data-frame')) === idx;
       b.classList.toggle('current', isCurrent);
     });
+    const spec = paramSpec(parameter);
     const cell = (idx >= 0 && idx < peakByCell.length) ? peakByCell[idx] : null;
-    const dbz = cell ? cell.dbz : null;
-    readout.textContent = dbz == null ? '' : `${Math.round(dbz)} dBZ`;
-    if (dbz !== lastEmittedDbz) {
-      lastEmittedDbz = dbz;
-      emitValue(dbz == null ? null : { dbz });
+    const val = cell ? cell.val : null;
+    readout.textContent = formatReadout(val, spec);
+    if (val !== lastEmittedValue) {
+      lastEmittedValue = val;
+      emitValue(val == null ? null : {
+        value: val,
+        text: formatReadout(val, spec),
+        label: spec.label,
+        rainRate: spec.rainRate,
+      });
     }
   }
 

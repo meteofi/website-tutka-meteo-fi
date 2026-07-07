@@ -21,6 +21,11 @@ import { transform } from 'ol/proj';
 // firing on the 60 s capabilities refresh — is neutralised by the caller via
 // isSingleSiteActive().
 
+// Radar moments offered in the drill-in card's selector, in display order:
+// reflectivity (rain), horizontal radial velocity (Doppler), differential
+// reflectivity. The card only shows the ones a given site actually advertises.
+const SITE_MOMENTS = ['DBZH', 'VRADH', 'ZDR'];
+
 // Choose the quantity to display: DBZH when the radar offers it (all FI + EE
 // radars do), otherwise the first advertised quantity, with a final CSP
 // fallback (present on every radar).
@@ -49,10 +54,10 @@ function pickQuantity(quantities) {
 //      LayerNotDefined 400 for all 13 frames. Return `{ unavailable: true }`
 //      instead so the card disables the toggle; the 60 s capabilities
 //      refresh re-enables it automatically when the radar comes back.
-function resolveProduct(feature, isLayerAdvertised) {
+function resolveProduct(feature, isLayerAdvertised, requestedQuantity) {
   const collection = feature.get('collection');
   if (!collection) return null;
-  const quantity = pickQuantity(feature.get('quantities'));
+  const quantity = requestedQuantity || pickQuantity(feature.get('quantities'));
   const angles = feature.get('elevation_angles');
   const elevation = Array.isArray(angles) && angles.length ? Math.min(...angles) : null;
   const m = /^([a-z]{2})-radar-pvol-([a-z0-9]+)$/.exec(collection);
@@ -85,6 +90,7 @@ function buildCard() {
     <div class="radar-site-body">
       <div class="radar-site-name"></div>
       <div class="radar-site-sub"></div>
+      <div class="radar-site-moments" role="group" aria-label="Tutkasuure" hidden></div>
       <button type="button" class="radar-site-toggle" aria-pressed="false">Näytä tämä tutka</button>
     </div>
   `;
@@ -131,13 +137,35 @@ export default function initRadarSite({
 
   const nameEl = card.querySelector('.radar-site-name');
   const subEl = card.querySelector('.radar-site-sub');
+  const momentsEl = card.querySelector('.radar-site-moments');
   const toggleBtn = card.querySelector('.radar-site-toggle');
   const closeBtn = card.querySelector('.marker-card-close');
 
-  // null in composite mode; otherwise { wmsLayer, elevation, savedComposite, feature }.
+  // null in composite mode; otherwise
+  // { wmsLayer, quantity, elevation, savedComposite, feature }.
   let singleSite = null;
   // The feature whose card is currently shown (may differ from the active site).
   let cardFeature = null;
+  // The moment the card's selector currently points at. Session-ephemeral: reset
+  // per card open (to the active site's moment if that site is shown, else DBZH),
+  // matching the no-persist convention for single-site drill-in.
+  let selectedQuantity = 'DBZH';
+
+  // Moments this site advertises among the selectable set (catalog-driven).
+  const availableMoments = (feature) => {
+    const quantities = feature.get('quantities');
+    if (!Array.isArray(quantities)) return [];
+    return SITE_MOMENTS.filter((q) => quantities.includes(q));
+  };
+
+  // The quantity to request for a feature: the selected moment when this site
+  // offers it, otherwise the default (DBZH / first advertised). Keeps the card
+  // coherent when the selection carries over to a site that lacks that moment.
+  const chosenQuantityFor = (feature) => {
+    const avail = availableMoments(feature);
+    if (avail.includes(selectedQuantity)) return selectedQuantity;
+    return pickQuantity(feature.get('quantities'));
+  };
 
   const isSingleSiteActive = () => singleSite !== null;
   const getActiveWmsLayer = () => (singleSite ? singleSite.wmsLayer : null);
@@ -217,7 +245,7 @@ export default function initRadarSite({
   }
 
   function enterSingleSite(feature) {
-    const product = resolveProduct(feature, isLayerAdvertised);
+    const product = resolveProduct(feature, isLayerAdvertised, chosenQuantityFor(feature));
     if (!product || product.unavailable) return;
     // Turning the radar on first means a drill-in from a hidden radar layer
     // shows the site rather than silently arming an invisible layer.
@@ -234,6 +262,7 @@ export default function initRadarSite({
     startLoadWatch();
     singleSite = {
       wmsLayer: product.wmsLayer,
+      quantity: product.quantity,
       elevation: product.elevation,
       savedComposite,
       feature,
@@ -270,8 +299,49 @@ export default function initRadarSite({
     renderToggle();
   }
 
+  // Rebuild the moment segmented control for the shown feature. Hidden unless
+  // the site advertises at least two selectable moments (a DBZH-only site keeps
+  // the original single-toggle card). The active button reflects the chosen
+  // moment — which may differ from `selectedQuantity` when the site lacks it.
+  function renderMoments() {
+    momentsEl.textContent = '';
+    if (!cardFeature) { momentsEl.hidden = true; return; }
+    const avail = availableMoments(cardFeature);
+    if (avail.length < 2) { momentsEl.hidden = true; return; }
+    momentsEl.hidden = false;
+    const chosen = chosenQuantityFor(cardFeature);
+    avail.forEach((q) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'radar-site-moment';
+      btn.textContent = q;
+      const on = q === chosen;
+      btn.classList.toggle('active', on);
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        selectMoment(q);
+      });
+      momentsEl.appendChild(btn);
+    });
+  }
+
+  // Pick a moment. When the shown site is the one currently displayed, swap it
+  // live (re-enter with the new quantity, re-arming the loading watch); when the
+  // site is off, this only arms the moment the toggle will show.
+  function selectMoment(q) {
+    if (!cardFeature || q === selectedQuantity) return;
+    selectedQuantity = q;
+    if (isSingleSiteActive() && singleSite.feature === cardFeature) {
+      enterSingleSite(cardFeature);
+    }
+    renderMoments();
+    renderToggle();
+  }
+
   function renderToggle() {
-    const product = cardFeature ? resolveProduct(cardFeature, isLayerAdvertised) : null;
+    const product = cardFeature
+      ? resolveProduct(cardFeature, isLayerAdvertised, chosenQuantityFor(cardFeature)) : null;
     if (!product || product.unavailable) {
       toggleBtn.disabled = true;
       toggleBtn.setAttribute('aria-pressed', 'false');
@@ -293,20 +363,24 @@ export default function initRadarSite({
 
   function openCardForFeature(feature) {
     cardFeature = feature;
+    // Reset the selector to the shown site's live moment if it's the active
+    // one, otherwise to the DBZH default. The moment is now surfaced by the
+    // selector, so drop it from the sub-line (elevation + country remain).
+    selectedQuantity = (isSingleSiteActive() && singleSite.feature === feature)
+      ? singleSite.quantity : 'DBZH';
+
     const name = feature.get('name') || 'Tutka-asema';
     const nod = feature.get('nod');
     nameEl.textContent = nod ? `${name} (${nod})` : name;
 
-    const product = resolveProduct(feature, isLayerAdvertised);
+    const product = resolveProduct(feature, isLayerAdvertised, chosenQuantityFor(feature));
     const country = (feature.get('country') || '').toUpperCase();
     const parts = [];
-    if (product) {
-      parts.push(product.quantity);
-      if (product.elevation != null) parts.push(`${product.elevation}°`);
-    }
+    if (product && product.elevation != null) parts.push(`${product.elevation}°`);
     if (country) parts.push(country);
     subEl.textContent = parts.join(' · ');
 
+    renderMoments();
     renderToggle();
     overlay.setPosition(feature.getGeometry().getCoordinates());
   }
@@ -319,7 +393,7 @@ export default function initRadarSite({
   toggleBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     if (!cardFeature || toggleBtn.disabled) return;
-    const product = resolveProduct(cardFeature, isLayerAdvertised);
+    const product = resolveProduct(cardFeature, isLayerAdvertised, chosenQuantityFor(cardFeature));
     const active = isSingleSiteActive() && getActiveWmsLayer() === product.wmsLayer;
     if (active) {
       exitSingleSite({ restore: true });
