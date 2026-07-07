@@ -2651,7 +2651,14 @@ const main = () => {
     setTime,
     drawCoverage: drawRadarCoverage,
     clearCoverage: clearRadarCoverage,
-    isLayerAdvertised: (name) => Boolean(layerInfo[name]),
+    // Tri-state: undefined until the radar GetCapabilities has been parsed
+    // (the registry can't answer yet), then a definite yes/no. radarSite
+    // stays optimistic on undefined and only disables its toggle on a
+    // definite "not advertised" (down radar / not-yet-served station).
+    isLayerAdvertised: (name) => {
+      const ready = Object.values(layerInfo).some((info) => info.category === 'radarLayer');
+      return ready ? Boolean(layerInfo[name]) : undefined;
+    },
   });
 
   crosshair = initCrosshair({
