@@ -108,11 +108,35 @@ export default class StickyImageWMS extends ImageWMS {
     super(options);
     this._sticky = null;
     this._wantedSrc = null;
+    this._shapeDpr = 1;
     this.setImageLoadFunction(createSharedImageLoader(this));
   }
 
+  // Apply the request shape computed by src/wms/requestShape.js. `dpr`
+  // scales the requested resolution (WIDTH × HEIGHT = cssSize × dpr ×
+  // ratio); `ratio` replaces the pan-buffer ratio. Reaches into ImageWMS
+  // privates the same way resetImageCache does: OL bakes `ratio_` into the
+  // lazily-created loader closure, so the loader must be dropped for a
+  // ratio change to take effect (getImageInternal rebuilds it on demand).
+  setRequestShape({ dpr, ratio }) {
+    this._shapeDpr = dpr;
+    if (ratio !== this.ratio_) {
+      this.ratio_ = ratio;
+      this.loader = null;
+    }
+  }
+
+  // Every caller funnels through here (renderer getImage, triggerLoad,
+  // hasLoadedImageForView), so OL's wrapper cache is keyed on the same
+  // shaped resolution no matter who asks — the renderer passing the map's
+  // devicePixelRatio must not create a differently-keyed wrapper than the
+  // pool passing 1, or slot load events get filtered as stale.
+  _shaped(resolution) {
+    return this._shapeDpr !== 1 ? resolution / this._shapeDpr : resolution;
+  }
+
   getImage(extent, resolution, pixelRatio, projection) {
-    const image = super.getImage(extent, resolution, pixelRatio, projection);
+    const image = super.getImage(extent, this._shaped(resolution), 1, projection);
     if (!image) return this._sticky || image;
     const state = image.getState();
     if (state === ImageState.LOADED) {
@@ -129,7 +153,7 @@ export default class StickyImageWMS extends ImageWMS {
   // on moveend only — NOT from getImage, which would fire once per RAF
   // during a drag/zoom gesture and create dozens of requests per pan.
   triggerLoad(extent, resolution, pixelRatio, projection) {
-    const image = super.getImage(extent, resolution, pixelRatio, projection);
+    const image = super.getImage(extent, this._shaped(resolution), 1, projection);
     if (image && image.getState() === ImageState.IDLE) image.load();
   }
 
@@ -182,7 +206,7 @@ export default class StickyImageWMS extends ImageWMS {
   // on cache miss (that's OL's normal getImage behavior; fan-out will
   // load it later).
   hasLoadedImageForView(extent, resolution, pixelRatio, projection) {
-    const image = super.getImage(extent, resolution, pixelRatio, projection);
+    const image = super.getImage(extent, this._shaped(resolution), 1, projection);
     return !!(image && image.getState() === ImageState.LOADED);
   }
 }

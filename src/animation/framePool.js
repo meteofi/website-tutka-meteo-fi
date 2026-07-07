@@ -1,6 +1,7 @@
 import ImageLayer from 'ol/layer/Image';
 import ImageCanvasSource from 'ol/source/ImageCanvas';
 import StickyImageWMS from './stickyImageWMS';
+import computeRequestShape from '../wms/requestShape';
 
 const SYNC_PARAM_KEYS = ['LAYERS', 'STYLES', 'FORMAT', 'ELEVATION'];
 
@@ -48,6 +49,9 @@ export default class FramePool {
     this.size = size;
     this.slots = [];
     this.ratio = ratio;
+    // Current request shape ({ dpr, ratio } from src/wms/requestShape.js);
+    // derived lazily in _getViewContext, null until the first load path runs.
+    this._shape = null;
     // Optional RadarInterpolator instance. When present, showInterpolated
     // drives the interpolator's warp shader and a separate warp layer
     // displays the interpolated canvas.
@@ -257,11 +261,43 @@ export default class FramePool {
     // calculateExtent collapses to [cx, cy, cx, cy] and triggerLoad fires
     // WMS GETs with WIDTH=0/HEIGHT=0 and a point BBOX.
     if (!size || size[0] <= 0 || size[1] <= 0) return null;
+    // Every load path funnels through here, so the request shape is
+    // re-derived at the same debounced boundaries as the loads themselves.
+    // Its inputs (pane size, zoom, devicePixelRatio) are constant during
+    // an undisturbed playback loop, so the shape — and with it every
+    // frame's WIDTH/HEIGHT — stays frozen while the animation runs.
+    this._applyRequestShape(computeRequestShape({
+      width: size[0],
+      height: size[1],
+      devicePixelRatio: window.devicePixelRatio,
+      zoom: view.getZoom(),
+    }));
     return {
       extent: view.calculateExtent(size),
       resolution: view.getResolution(),
       projection: view.getProjection(),
     };
+  }
+
+  // Fan a newly computed shape out to every slot source, and keep the
+  // pool's `ratio` + the warp source's buffer ratio in lockstep with it —
+  // deriveViewExtent unpads canvas extents by this.ratio, so a mismatch
+  // would misplace the interpolation's extent checks. A shape change
+  // re-keys every slot's next request (new WIDTH/HEIGHT), costing one
+  // window refetch — the same price as the zoom/resize that caused it.
+  _applyRequestShape(shape) {
+    const prev = this._shape;
+    if (prev && prev.dpr === shape.dpr && prev.ratio === shape.ratio) return;
+    this._shape = shape;
+    this.ratio = shape.ratio;
+    for (const slot of this.slots) {
+      slot.source.setRequestShape(shape);
+    }
+    if (this.warpLayer) {
+      const warpSource = this.warpLayer.getSource();
+      warpSource.ratio_ = shape.ratio;
+      warpSource.changed();
+    }
   }
 
   _slotAtIndex(idx) {
