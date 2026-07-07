@@ -31,32 +31,41 @@ function pickQuantity(quantities) {
   return 'CSP';
 }
 
-// Prefer the disk-served single-site variant when the server advertises it
-// (MeteoCore contract, "Dimensions, format, layers"): `fi-radar-pvol-<site>`
-// layers stream the polar volume from S3, so the first touch of an uncached
-// (site, time) can stall for seconds, while `fi-radar-single-<site>-
-// pvol-<site>` is served from local disk with predictable latency. The
-// single variants are rolling out per site, so fall back to the pvol
-// collection whenever the variant (or the chosen quantity on it) isn't
-// advertised yet.
-function pickCollection(collection, quantity, isLayerAdvertised) {
-  const m = /^([a-z]{2})-radar-pvol-([a-z0-9]+)$/.exec(collection);
-  if (!m) return collection;
-  const single = `${m[1]}-radar-single-${m[2]}-pvol-${m[2]}`;
-  return isLayerAdvertised(`${single}/${quantity}`) ? single : collection;
-}
-
 // Resolve a feature to its WMS product. Returns null when the feature has no
 // `collection` (e.g. an older bundled fallback snapshot) — the card then shows
 // the site but disables the toggle.
+//
+// Layer choice against the live capabilities registry (isLayerAdvertised is
+// tri-state: true/false, or undefined while the radar GetCapabilities hasn't
+// been parsed yet):
+//   1. Prefer the disk-served `…-radar-single-<site>-pvol-<site>` variant
+//      when advertised (MeteoCore contract: pvol streams from S3 and the
+//      first touch can stall for seconds; single variants have predictable
+//      latency). The variants are rolling out per site.
+//   2. Otherwise use the pvol collection — but only when it's advertised or
+//      the registry can't answer yet. The features catalog keeps a marker
+//      while a radar is down for days (e.g. fipet 2026-07) and the WMS drops
+//      its layers meanwhile; requesting it anyway just yields a
+//      LayerNotDefined 400 for all 13 frames. Return `{ unavailable: true }`
+//      instead so the card disables the toggle; the 60 s capabilities
+//      refresh re-enables it automatically when the radar comes back.
 function resolveProduct(feature, isLayerAdvertised) {
   const collection = feature.get('collection');
   if (!collection) return null;
   const quantity = pickQuantity(feature.get('quantities'));
-  const served = pickCollection(collection, quantity, isLayerAdvertised);
   const angles = feature.get('elevation_angles');
   const elevation = Array.isArray(angles) && angles.length ? Math.min(...angles) : null;
-  return { wmsLayer: `${served}/${quantity}`, quantity, elevation };
+  const m = /^([a-z]{2})-radar-pvol-([a-z0-9]+)$/.exec(collection);
+  if (m) {
+    const single = `${m[1]}-radar-single-${m[2]}-pvol-${m[2]}`;
+    if (isLayerAdvertised(`${single}/${quantity}`) === true) {
+      return { wmsLayer: `${single}/${quantity}`, quantity, elevation };
+    }
+  }
+  if (isLayerAdvertised(`${collection}/${quantity}`) === false) {
+    return { unavailable: true, quantity, elevation };
+  }
+  return { wmsLayer: `${collection}/${quantity}`, quantity, elevation };
 }
 
 function buildCard() {
@@ -209,7 +218,7 @@ export default function initRadarSite({
 
   function enterSingleSite(feature) {
     const product = resolveProduct(feature, isLayerAdvertised);
-    if (!product) return;
+    if (!product || product.unavailable) return;
     // Turning the radar on first means a drill-in from a hidden radar layer
     // shows the site rather than silently arming an invisible layer.
     if (!radarLayer.getVisible()) radarLayer.setVisible(true);
@@ -263,11 +272,13 @@ export default function initRadarSite({
 
   function renderToggle() {
     const product = cardFeature ? resolveProduct(cardFeature, isLayerAdvertised) : null;
-    if (!product) {
+    if (!product || product.unavailable) {
       toggleBtn.disabled = true;
       toggleBtn.setAttribute('aria-pressed', 'false');
-      toggleBtn.classList.remove('active');
-      toggleBtn.textContent = 'Saatavilla vain verkossa';
+      toggleBtn.classList.remove('active', 'loading');
+      // Down radar (marker present, WMS layers gone) vs. offline snapshot
+      // feature that never had a collection.
+      toggleBtn.textContent = product ? 'Ei tutkakuvaa juuri nyt' : 'Saatavilla vain verkossa';
       return;
     }
     const active = isSingleSiteActive() && getActiveWmsLayer() === product.wmsLayer;
