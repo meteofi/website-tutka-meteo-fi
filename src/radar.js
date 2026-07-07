@@ -573,6 +573,12 @@ const sharedView = new View({
   center: fromLonLat([26, 65]),
   maxZoom: 16,
   zoom: 5,
+  // MeteoCore server contract (see CLAUDE.md): GetMap requests must sit on
+  // the discrete Web-Mercator zoom ladder — the server's render/tile cache is
+  // keyed on it, and every fractional zoom pays a fresh cold render. Snapping
+  // the shared View keeps all panes' requests cache-aligned; pinch/wheel
+  // gestures stay smooth and settle on an integer level at gesture end.
+  constrainResolution: true,
 });
 
 // Shared dependencies every pane's layers reference — Style objects/functions
