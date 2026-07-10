@@ -23,11 +23,13 @@ import dayjs from 'dayjs';
 
 // Cap the export resolution; a DPR-3 phone doesn't need a 3× PNG.
 const EXPORT_DPR_MAX = 2;
+// …and a large desktop window doesn't need a 5000 px one: cap the long edge
+// so toBlob and the OS share sheet stay fast. Phone captures are unaffected.
+const EXPORT_MAX_EDGE = 2560;
 
 // Composite one pane's layer canvases into a fresh canvas at `dpr` × CSS
-// pixels. Returns the canvas plus the pane's viewport rect for stitching.
-function compositePane(pane, dpr) {
-  const rect = pane.el.getBoundingClientRect();
+// pixels (`rect` is the pane's viewport rect, measured by the caller).
+function compositePane(pane, rect, dpr) {
   const out = document.createElement('canvas');
   out.width = Math.round(rect.width * dpr);
   out.height = Math.round(rect.height * dpr);
@@ -78,7 +80,7 @@ function compositePane(pane, dpr) {
   });
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalAlpha = 1;
-  return { canvas: out, rect };
+  return out;
 }
 
 function canvasToBlob(canvas) {
@@ -154,17 +156,20 @@ export default function initShare({
 
   // Fully synchronous: renderSync + composite + stitch + info bar.
   function capture() {
-    const dpr = Math.min(window.devicePixelRatio || 1, EXPORT_DPR_MAX);
-    const comps = getActivePanes().map((pane) => {
-      pane.map.renderSync();
-      return compositePane(pane, dpr);
-    });
+    const panes = getActivePanes();
     // Stitch panes by their live grid geometry — handles 1/2/4-pane and
     // portrait/landscape splits with no layout-specific code.
-    const minX = Math.min(...comps.map((c) => c.rect.left));
-    const minY = Math.min(...comps.map((c) => c.rect.top));
-    const maxX = Math.max(...comps.map((c) => c.rect.right));
-    const maxY = Math.max(...comps.map((c) => c.rect.bottom));
+    const rects = panes.map((pane) => pane.el.getBoundingClientRect());
+    const minX = Math.min(...rects.map((r) => r.left));
+    const minY = Math.min(...rects.map((r) => r.top));
+    const maxX = Math.max(...rects.map((r) => r.right));
+    const maxY = Math.max(...rects.map((r) => r.bottom));
+    const longEdge = Math.max(maxX - minX, maxY - minY);
+    const dpr = Math.min(window.devicePixelRatio || 1, EXPORT_DPR_MAX, EXPORT_MAX_EDGE / longEdge);
+    const comps = panes.map((pane, i) => {
+      pane.map.renderSync();
+      return { canvas: compositePane(pane, rects[i], dpr), rect: rects[i] };
+    });
     const stitched = document.createElement('canvas');
     stitched.width = Math.round((maxX - minX) * dpr);
     stitched.height = Math.round((maxY - minY) * dpr);
@@ -208,8 +213,16 @@ export default function initShare({
       }
 
       if (file && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        // WebKit's share sheet mishandles files combined with a url: macOS
+        // Safari spins preparing the payload, then shares only the link and
+        // drops the image. Send the image alone there — the capture's info
+        // bar already carries the site name. Every iOS browser is WebKit
+        // too, so key off the engine vendor rather than a Safari UA sniff.
+        const payload = navigator.vendor === 'Apple Computer, Inc.'
+          ? { files: [file], title: 'Säätutka' }
+          : { files: [file], title: 'Säätutka', url };
         try {
-          await navigator.share({ files: [file], title: 'Säätutka', url });
+          await navigator.share(payload);
           onShared('web-share-files');
           return;
         } catch (err) {
