@@ -14,12 +14,14 @@ import { transform } from 'ol/proj';
 // only work here is swapping LAYERS + setting ELEVATION via the existing
 // updateLayer path, then letting setTime drive the window as usual.
 //
-// State is kept module-local (`singleSite`); the invariant is:
+// State is kept per instance — one instance per pane, each bound to that
+// pane's map and radar layer, so split panes drill in independently. The
+// invariant is:
 //   singleSite != null  ⟺  radarLayer LAYERS is a site layer we set.
 // Every transition sets or clears both ends, so the composite is always
 // restorable. The one external path that could break it — restoreActiveLayer
-// firing on the 60 s capabilities refresh — is neutralised by the caller via
-// isSingleSiteActive().
+// firing on the 60 s capabilities refresh — is neutralised per pane by the
+// caller via isSingleSiteActive().
 
 // Radar moments offered in the drill-in card's selector, in display order:
 // reflectivity (rain), horizontal radial velocity (Doppler), differential
@@ -75,7 +77,6 @@ function resolveProduct(feature, isLayerAdvertised, requestedQuantity) {
 
 function buildCard() {
   const card = document.createElement('div');
-  card.id = 'radarSiteCard';
   card.className = 'marker-card radar-site-card';
   card.setAttribute('role', 'region');
   card.setAttribute('aria-label', 'Tutka-asema');
@@ -98,7 +99,7 @@ function buildCard() {
 }
 
 export default function initRadarSite({
-  map, radarLayer, updateLayer, setTime,
+  map, radarLayer, radarSiteLayer, updateLayer, setTime,
   drawCoverage = () => {}, clearCoverage = () => {},
   // Whether the radar WMS currently advertises a layer name (wired to the
   // GetCapabilities-fed layerInfo registry in radar.js). Drives the
@@ -361,6 +362,21 @@ export default function initRadarSite({
     toggleBtn.textContent = active ? (loading ? 'Ladataan…' : 'Piilota tämä tutka') : 'Näytä tämä tutka';
   }
 
+  // Hit-test a map pixel against this pane's radar-site markers. The
+  // layer-aware lookup distinguishes radar sites from other point markers
+  // (e.g. airfields) regardless of z-order; hitTolerance enlarges the tap
+  // target around the small radar symbol (touch-friendly) without changing
+  // how the marker is drawn. Returns the feature or null.
+  function findSiteAtPixel(pixel) {
+    if (!radarSiteLayer || !radarSiteLayer.getVisible()) return null;
+    let hit = null;
+    map.forEachFeatureAtPixel(pixel, (f, layer) => {
+      if (layer === radarSiteLayer) { hit = f; return true; }
+      return false;
+    }, { hitTolerance: 12 });
+    return hit;
+  }
+
   function openCardForFeature(feature) {
     cardFeature = feature;
     // Reset the selector to the shown site's live moment if it's the active
@@ -409,6 +425,7 @@ export default function initRadarSite({
   });
 
   return {
+    findSiteAtPixel,
     openCardForFeature,
     hideCard,
     exitSingleSite,
