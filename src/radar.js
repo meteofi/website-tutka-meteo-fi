@@ -617,8 +617,6 @@ const {
   radarLayer,
   lightningLayer,
   observationLayer,
-  radarSiteLayer,
-  guideLayer,
 } = pane0;
 
 //
@@ -674,14 +672,13 @@ function clonePaneDisplay(src, dst) {
     d.setVisible(s.getVisible());
     if (s.getVisible()) dst.VISIBLE.add(name); else dst.VISIBLE.delete(name);
     dst.ACTIVE_LAYERS[name] = src.ACTIVE_LAYERS[name];
-    // Single-site drill-in is a pane-0-only mode (radarSite holds only pane
-    // 0's radar layer), so a new pane can't participate in it: exit would
-    // never restore it, and the next 60 s capabilities refresh would silently
-    // flip it to the stored composite anyway (restoreActiveLayer's skip guard
-    // covers pane 0 only). Start the new pane on the saved composite instead;
+    // Single-site drill-in is transient per-pane state we deliberately don't
+    // clone: the new pane gets its own radarSite instance with no drill-in
+    // record, so cloning the site params would leave it stuck without an exit
+    // path. Start the new pane on the source pane's saved composite instead;
     // updateLayer clears the cloned site ELEVATION in its params update.
-    if (name === 'radarLayer' && radarSite && radarSite.isSingleSiteActive()) {
-      const composite = radarSite.getSavedComposite();
+    if (name === 'radarLayer' && src.radarSite && src.radarSite.isSingleSiteActive()) {
+      const composite = src.radarSite.getSavedComposite();
       if (composite) {
         updateLayer(d, composite, { skipVisibility: true, skipTracking: true, skipPersist: true });
       }
@@ -702,6 +699,13 @@ function initNewPane(pane) {
     pane.layerss[name].on('change:visible', onChangeVisible);
   }
   buildPanePill(pane);
+  initPaneRadarSite(pane);
+  // Radar-site taps work in every pane; the other pane-0 click concerns
+  // (measure/probe tools, station feature info) deliberately stay pane-0-only.
+  pane.map.on('click', (evt) => {
+    const hit = pane.radarSite.findSiteAtPixel(evt.pixel);
+    if (hit) pane.radarSite.openCardForFeature(hit);
+  });
   setMapLayer(getEffectiveTheme());
   applyPoiVisibility();
   attachInterpolators();
@@ -1346,11 +1350,11 @@ function fitToLayerExtent(wmslayer) {
 // drop it — the layer stays at its constructor-time default.
 function restoreActiveLayer(category, pane = pane0) {
   if (!category) return;
-  // While drilled into a single radar site (primary pane only), the radar layer
-  // runs a transient `<collection>/DBZH` product that is NOT in ACTIVE_LAYERS.
+  // While a pane is drilled into a single radar site, its radar layer runs a
+  // transient `<collection>/<quantity>` product that is NOT in ACTIVE_LAYERS.
   // Skip the restore so the periodic (60 s) capabilities refresh doesn't revert
   // it back to the stored composite mid-session.
-  if (category === 'radarLayer' && pane === pane0 && radarSite && radarSite.isSingleSiteActive()) return;
+  if (category === 'radarLayer' && pane.radarSite && pane.radarSite.isSingleSiteActive()) return;
   const olLayer = pane.layerss[category];
   if (!olLayer) return;
   const stored = pane.ACTIVE_LAYERS[category];
@@ -1396,19 +1400,47 @@ const displayFeatureInfo = function (pixel) {
 };
 
 // Radar coverage overlay (range rings + radial bearings) for the radar shown in
-// single-site mode. Owned by radarSite's enter/exit so the rings appear and
-// clear together with the single-radar display — not on a bare marker tap.
-function drawRadarCoverage(feature) {
-  guideLayer.getSource().clear(true);
+// single-site mode, drawn on the owning pane's guide layer. Owned by that
+// pane's radarSite enter/exit so the rings appear and clear together with the
+// single-radar display — not on a bare marker tap.
+function drawRadarCoverage(pane, feature) {
+  pane.guideLayer.getSource().clear(true);
   if (!feature) return;
-  const coords = transform(feature.getGeometry().getCoordinates(), map.getView().getProjection(), 'EPSG:4326');
-  [50000, 100000, 150000, 200000, 250000].forEach((range) => rangeRings(guideLayer, coords, range));
+  const coords = transform(feature.getGeometry().getCoordinates(), pane.map.getView().getProjection(), 'EPSG:4326');
+  [50000, 100000, 150000, 200000, 250000].forEach((range) => rangeRings(pane.guideLayer, coords, range));
   Array.from({ length: 360 / options.radialSpacing }, (_, index) => index * options.radialSpacing)
-    .forEach((bearing) => bearingLine(guideLayer, coords, 250, bearing));
+    .forEach((bearing) => bearingLine(pane.guideLayer, coords, 250, bearing));
 }
 
-function clearRadarCoverage() {
-  guideLayer.getSource().clear(true);
+function clearRadarCoverage(pane) {
+  pane.guideLayer.getSource().clear(true);
+}
+
+// Whether the radar WMS currently advertises a layer name, fed by the
+// GetCapabilities-driven layerInfo registry. Tri-state: undefined until the
+// radar GetCapabilities has been parsed (the registry can't answer yet), then
+// a definite yes/no. radarSite stays optimistic on undefined and only disables
+// its toggle on a definite "not advertised" (down radar / not-yet-served
+// station).
+function isRadarLayerAdvertised(name) {
+  const ready = Object.values(layerInfo).some((info) => info.category === 'radarLayer');
+  return ready ? Boolean(layerInfo[name]) : undefined;
+}
+
+// One radar-site drill-in instance per pane (card + pulse overlays on the
+// pane's own map, layer swaps on the pane's own radar layer), so split panes
+// drill into sites independently.
+function initPaneRadarSite(pane) {
+  pane.radarSite = initRadarSite({
+    map: pane.map,
+    radarLayer: pane.layerss.radarLayer,
+    radarSiteLayer: pane.radarSiteLayer,
+    updateLayer,
+    setTime,
+    drawCoverage: (feature) => drawRadarCoverage(pane, feature),
+    clearCoverage: () => clearRadarCoverage(pane),
+    isLayerAdvertised: isRadarLayerAdvertised,
+  });
 }
 
 const _playlistSliderHandlers = {};
@@ -1604,10 +1636,10 @@ function onChangeVisible(event) {
   // in-range state immediately so the map time, stale colour and
   // layer opacity update without waiting for a tick or manual step.
   setTime('keep');
-  // Turning the primary pane's radar off exits single-site mode, restoring the
+  // Turning a pane's radar off exits its single-site mode, restoring the
   // composite (while hidden) so re-enabling shows the composite again.
-  if (isPane0 && layer === radarLayer && !isVisible && radarSite) {
-    radarSite.exitSingleSite({ restore: true });
+  if (name === 'radarLayer' && !isVisible && pane.radarSite) {
+    pane.radarSite.exitSingleSite({ restore: true });
   }
 }
 
@@ -1664,9 +1696,9 @@ function paneOf(layer) {
 // Apply a sublayer pick (from a long-press menu) to one pane's category.
 function applySublayerToPane(pane, category, id) {
   if (category === 'radarLayer') {
-    // Single-site drill-in lives only on the primary pane (radarSite is bound
-    // to pane 0); exit it before swapping the composite there.
-    if (pane === pane0 && radarSite) radarSite.exitSingleSite({ restore: false });
+    // Exit the pane's single-site drill-in before swapping its composite;
+    // updateLayer clears ELEVATION in the same params update as LAYERS.
+    if (pane.radarSite) pane.radarSite.exitSingleSite({ restore: false });
     updateLayer(pane.layerss.radarLayer, id, { source: 'longpress' });
     // Recentre the shared view to the picked radar's footprint only for the
     // primary pane — a background pane's pick shouldn't yank every pane around.
@@ -2644,22 +2676,8 @@ const main = () => {
   });
   syncToolGroup();
 
-  radarSite = initRadarSite({
-    map,
-    radarLayer,
-    updateLayer,
-    setTime,
-    drawCoverage: drawRadarCoverage,
-    clearCoverage: clearRadarCoverage,
-    // Tri-state: undefined until the radar GetCapabilities has been parsed
-    // (the registry can't answer yet), then a definite yes/no. radarSite
-    // stays optimistic on undefined and only disables its toggle on a
-    // definite "not advertised" (down radar / not-yet-served station).
-    isLayerAdvertised: (name) => {
-      const ready = Object.values(layerInfo).some((info) => info.category === 'radarLayer');
-      return ready ? Boolean(layerInfo[name]) : undefined;
-    },
-  });
+  initPaneRadarSite(pane0);
+  radarSite = pane0.radarSite;
 
   crosshair = initCrosshair({
     map,
@@ -2770,20 +2788,11 @@ const main = () => {
 
     // Tap on a radar-site marker → open its drill-in card (single-site WMS
     // toggle). Coverage rings are coupled to the single-site display (drawn on
-    // toggle-on, cleared on toggle-off), not to the tap. The layer-aware lookup
-    // distinguishes radar sites from airfield markers (icaoLayer) regardless of
-    // z-order.
-    if (radarSite && radarSiteLayer.getVisible()) {
-      let radarSiteHit = null;
-      // hitTolerance enlarges the tap target around the small radar symbol
-      // (touch-friendly) without changing how the marker is drawn.
-      map.forEachFeatureAtPixel(evt.pixel, (f, layer) => {
-        if (layer === radarSiteLayer) { radarSiteHit = f; return true; }
-        return false;
-      }, { hitTolerance: 12 });
+    // toggle-on, cleared on toggle-off), not to the tap. The layer-aware
+    // hit-test lives in radarSite (findSiteAtPixel).
+    if (radarSite) {
+      const radarSiteHit = radarSite.findSiteAtPixel(evt.pixel);
       if (radarSiteHit) {
-        // Just open the card — coverage rings are coupled to the single-site
-        // display (drawn on toggle-on, cleared on toggle-off), not to the tap.
         // Drop any leftover station highlight from a previous plain-feature tap.
         if (highlight) {
           featureOverlay.getSource().removeFeature(highlight);
