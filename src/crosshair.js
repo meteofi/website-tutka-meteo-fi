@@ -30,9 +30,9 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 // starts just outside the centre ring.
 const SVG_SIZE = 320;
 const C = SVG_SIZE / 2;
-const R_CENTER = 16;
-const R_MID = 46;
-const R_OUTER = 88;
+const R_CENTER = 10;
+const R_MID = 38;
+const R_OUTER = 74;
 const LINE_INNER = R_CENTER + 4;
 // Cap the arrow length for far radars. For nearer ones the arrow is drawn only
 // as long as the radar's on-screen distance, so the head lands on the radar
