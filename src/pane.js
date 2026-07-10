@@ -89,12 +89,17 @@ export default function createPane(targetEl, sharedView, deps) {
   //
   // BASEMAPS
   //
+  // Every raster source below requests images with CORS (crossOrigin:
+  // 'anonymous') so the layer canvases stay untainted and the share tool can
+  // export the map with canvas.toBlob(). One non-CORS draw taints a canvas
+  // permanently. All the servers return Access-Control-Allow-Origin: *.
   const lightGrayBaseLayer = new TileLayer({
     visible: false,
     preload: Infinity,
     source: new XYZ({
       attributions: 'Tiles © <a href="https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer">ArcGIS</a>',
       url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+      crossOrigin: 'anonymous',
     }),
   });
 
@@ -103,6 +108,7 @@ export default function createPane(targetEl, sharedView, deps) {
     source: new XYZ({
       attributions: 'Tiles © <a href="https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer">ArcGIS</a>',
       url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
+      crossOrigin: 'anonymous',
     }),
   });
 
@@ -111,6 +117,7 @@ export default function createPane(targetEl, sharedView, deps) {
     source: new XYZ({
       attributions: 'Tiles © <a href="https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer">ArcGIS</a>',
       url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}',
+      crossOrigin: 'anonymous',
     }),
   });
 
@@ -118,6 +125,7 @@ export default function createPane(targetEl, sharedView, deps) {
     source: new XYZ({
       attributions: 'Tiles © <a href="https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer">ArcGIS</a>',
       url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
+      crossOrigin: 'anonymous',
     }),
   });
 
@@ -135,6 +143,7 @@ export default function createPane(targetEl, sharedView, deps) {
       attributions: 'EUMETSAT',
       ratio: options.imageRatio,
       serverType: 'geoserver',
+      crossOrigin: 'anonymous',
     }),
   });
   satelliteLayer.set('defaultFormat', 'image/jpeg');
@@ -170,6 +179,7 @@ export default function createPane(targetEl, sharedView, deps) {
       ratio: options.imageRatio,
       hidpi: false,
       serverType: 'geoserver',
+      crossOrigin: 'anonymous',
     }),
   });
   lightningLayer.set('defaultFormat', 'image/png8');
@@ -183,6 +193,7 @@ export default function createPane(targetEl, sharedView, deps) {
       ratio: options.imageRatio,
       hidpi: false,
       serverType: 'geoserver',
+      crossOrigin: 'anonymous',
     }),
   });
   observationLayer.set('defaultFormat', 'image/png8');
