@@ -672,14 +672,13 @@ function clonePaneDisplay(src, dst) {
     d.setVisible(s.getVisible());
     if (s.getVisible()) dst.VISIBLE.add(name); else dst.VISIBLE.delete(name);
     dst.ACTIVE_LAYERS[name] = src.ACTIVE_LAYERS[name];
-    // Single-site drill-in is a pane-0-only mode (radarSite holds only pane
-    // 0's radar layer), so a new pane can't participate in it: exit would
-    // never restore it, and the next 60 s capabilities refresh would silently
-    // flip it to the stored composite anyway (restoreActiveLayer's skip guard
-    // covers pane 0 only). Start the new pane on the saved composite instead;
+    // Single-site drill-in is transient per-pane state we deliberately don't
+    // clone: the new pane gets its own radarSite instance with no drill-in
+    // record, so cloning the site params would leave it stuck without an exit
+    // path. Start the new pane on the source pane's saved composite instead;
     // updateLayer clears the cloned site ELEVATION in its params update.
-    if (name === 'radarLayer' && radarSite && radarSite.isSingleSiteActive()) {
-      const composite = radarSite.getSavedComposite();
+    if (name === 'radarLayer' && src.radarSite && src.radarSite.isSingleSiteActive()) {
+      const composite = src.radarSite.getSavedComposite();
       if (composite) {
         updateLayer(d, composite, { skipVisibility: true, skipTracking: true, skipPersist: true });
       }
@@ -700,6 +699,13 @@ function initNewPane(pane) {
     pane.layerss[name].on('change:visible', onChangeVisible);
   }
   buildPanePill(pane);
+  initPaneRadarSite(pane);
+  // Radar-site taps work in every pane; the other pane-0 click concerns
+  // (measure/probe tools, station feature info) deliberately stay pane-0-only.
+  pane.map.on('click', (evt) => {
+    const hit = pane.radarSite.findSiteAtPixel(evt.pixel);
+    if (hit) pane.radarSite.openCardForFeature(hit);
+  });
   setMapLayer(getEffectiveTheme());
   applyPoiVisibility();
   attachInterpolators();
@@ -1344,11 +1350,11 @@ function fitToLayerExtent(wmslayer) {
 // drop it — the layer stays at its constructor-time default.
 function restoreActiveLayer(category, pane = pane0) {
   if (!category) return;
-  // While drilled into a single radar site (primary pane only), the radar layer
-  // runs a transient `<collection>/DBZH` product that is NOT in ACTIVE_LAYERS.
+  // While a pane is drilled into a single radar site, its radar layer runs a
+  // transient `<collection>/<quantity>` product that is NOT in ACTIVE_LAYERS.
   // Skip the restore so the periodic (60 s) capabilities refresh doesn't revert
   // it back to the stored composite mid-session.
-  if (category === 'radarLayer' && pane === pane0 && radarSite && radarSite.isSingleSiteActive()) return;
+  if (category === 'radarLayer' && pane.radarSite && pane.radarSite.isSingleSiteActive()) return;
   const olLayer = pane.layerss[category];
   if (!olLayer) return;
   const stored = pane.ACTIVE_LAYERS[category];
@@ -1630,10 +1636,10 @@ function onChangeVisible(event) {
   // in-range state immediately so the map time, stale colour and
   // layer opacity update without waiting for a tick or manual step.
   setTime('keep');
-  // Turning the primary pane's radar off exits single-site mode, restoring the
+  // Turning a pane's radar off exits its single-site mode, restoring the
   // composite (while hidden) so re-enabling shows the composite again.
-  if (isPane0 && layer === radarLayer && !isVisible && radarSite) {
-    radarSite.exitSingleSite({ restore: true });
+  if (name === 'radarLayer' && !isVisible && pane.radarSite) {
+    pane.radarSite.exitSingleSite({ restore: true });
   }
 }
 
@@ -1690,9 +1696,9 @@ function paneOf(layer) {
 // Apply a sublayer pick (from a long-press menu) to one pane's category.
 function applySublayerToPane(pane, category, id) {
   if (category === 'radarLayer') {
-    // Single-site drill-in lives only on the primary pane (radarSite is bound
-    // to pane 0); exit it before swapping the composite there.
-    if (pane === pane0 && radarSite) radarSite.exitSingleSite({ restore: false });
+    // Exit the pane's single-site drill-in before swapping its composite;
+    // updateLayer clears ELEVATION in the same params update as LAYERS.
+    if (pane.radarSite) pane.radarSite.exitSingleSite({ restore: false });
     updateLayer(pane.layerss.radarLayer, id, { source: 'longpress' });
     // Recentre the shared view to the picked radar's footprint only for the
     // primary pane — a background pane's pick shouldn't yank every pane around.
