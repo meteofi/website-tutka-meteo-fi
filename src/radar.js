@@ -65,7 +65,6 @@ let geolocation;
 let tools = null;
 let probe = null;
 let radarSite = null;
-let crosshair = null;
 let startDate = new Date(Math.floor(Date.now() / 300000) * 300000 - 300000 * 12);
 // Handle of the currently-running playback loop (now a requestAnimationFrame
 // id — was a setInterval handle before the RAF refactor). Null when paused.
@@ -700,6 +699,7 @@ function initNewPane(pane) {
   }
   buildPanePill(pane);
   initPaneRadarSite(pane);
+  initPaneCrosshair(pane);
   // Radar-site taps work in every pane; the other pane-0 click concerns
   // (measure/probe tools, station feature info) deliberately stay pane-0-only.
   pane.map.on('click', (evt) => {
@@ -764,6 +764,10 @@ function setLayout(mode) {
     resizeAllPanes();
     attachInterpolators();
     setTime('keep');
+    // After setTime, so newly-active panes' crosshairs receive the current
+    // window first (while still hidden) and show() then fetches fresh data
+    // once; also hides crosshairs of panes that just dropped out.
+    syncCrosshairVisibility();
     recomputeAllTimelineCells();
   });
   updateLayoutChipsState();
@@ -951,7 +955,12 @@ function setTime(action = 'next') {
   // updateTimeLine((startDate.getTime()-start)/resolution);
   timeline.update((startDate.getTime() - start) / resolution);
   if (probe) probe.setCursor(startDate.getTime(), start, resolution);
-  if (crosshair) crosshair.setCursor(startDate.getTime(), start, resolution);
+  // Per-pane crosshairs: only active panes get the cursor — inactive panes'
+  // reticles are hidden and must not refetch; they pick up the current window
+  // on reactivation (setLayout runs setTime before syncCrosshairVisibility).
+  for (const pane of activePanes()) {
+    if (pane.crosshair) pane.crosshair.setCursor(startDate.getTime(), start, resolution);
+  }
 
   // var startDateFormat = moment(startDate.toISOString()).utc().format()
   // debug("---");
@@ -1313,11 +1322,13 @@ function updateLayer(layer, wmslayer, opts = {}) {
     probe.setActiveLayer(layer.getVisible() ? wmslayer : null, {
       z: layer.getSource().getParams().ELEVATION,
     });
-    if (crosshair) {
-      crosshair.setActiveLayer(layer.getVisible() ? wmslayer : null, {
-        z: layer.getSource().getParams().ELEVATION,
-      });
-    }
+  }
+  // The crosshair readout is per-pane: each reticle tracks its own pane's
+  // radar product (the pistemittaus probe above stays pane-0-only by scope).
+  if (pane.crosshair && layer === pane.layerss.radarLayer) {
+    pane.crosshair.setActiveLayer(layer.getVisible() ? wmslayer : null, {
+      z: layer.getSource().getParams().ELEVATION,
+    });
   }
 }
 
@@ -1441,6 +1452,28 @@ function initPaneRadarSite(pane) {
     clearCoverage: () => clearRadarCoverage(pane),
     isLayerAdvertised: isRadarLayerAdvertised,
   });
+}
+
+// One crosshair ("Tähtäin") instance per pane: the reticle overlays the
+// pane's own viewport, samples the pane's own radar canvas, and targets the
+// EDR collection of whatever product that pane currently shows (composite or
+// single-site drill-in).
+function initPaneCrosshair(pane) {
+  const layer = pane.layerss.radarLayer;
+  pane.crosshair = initCrosshair({
+    map: pane.map,
+    radarLayer: layer,
+    radarSiteSource,
+    getActiveSiteLonLat: pane.radarSite.getActiveSiteLonLat,
+  });
+  // Seed the EDR target from the pane's current product: clonePaneDisplay
+  // writes params via updateParams (not updateLayer), so no setActiveLayer
+  // sync has fired for a freshly-created split pane.
+  if (layer.getVisible()) {
+    pane.crosshair.setActiveLayer(layer.getSource().getParams().LAYERS, {
+      z: layer.getSource().getParams().ELEVATION,
+    });
+  }
 }
 
 const _playlistSliderHandlers = {};
@@ -1624,11 +1657,11 @@ function onChangeVisible(event) {
     probe.setActiveLayer(isVisible ? wmslayer : null, {
       z: layer.getSource().getParams().ELEVATION,
     });
-    if (crosshair) {
-      crosshair.setActiveLayer(isVisible ? wmslayer : null, {
-        z: layer.getSource().getParams().ELEVATION,
-      });
-    }
+  }
+  if (name === 'radarLayer' && pane.crosshair) {
+    pane.crosshair.setActiveLayer(isVisible ? wmslayer : null, {
+      z: layer.getSource().getParams().ELEVATION,
+    });
   }
   // Visibility change may invalidate the current timeline window
   // (e.g. activating a stale satellite caps `end` to its old time.end,
@@ -2046,6 +2079,20 @@ function closeToolFlyout() {
   }, 200);
 }
 
+// Show the crosshair on every ACTIVE pane while the Tähtäin tool is armed,
+// hide it everywhere else. Hiding dropped panes is mandatory, not cosmetic:
+// zero-size panes still receive postrender via the shared View, so a stray
+// visible crosshair would keep issuing debounced EDR refetches — hide()
+// aborts its in-flight fetch and timer.
+function syncCrosshairVisibility() {
+  const armed = tools && tools.getActiveTool() === 'crosshair';
+  panes.forEach((pane, i) => {
+    if (!pane.crosshair) return;
+    if (armed && i < activeCount) pane.crosshair.show();
+    else pane.crosshair.hide();
+  });
+}
+
 // Reflect the active tool (or the last-used tool when nothing is armed) in the
 // FAB icon and the flyout items' pressed state. Passed to initTools as
 // onToolChange so Esc / chip-× / mutual exclusion all keep the FAB in sync.
@@ -2060,10 +2107,7 @@ function syncToolGroup() {
   }
   // The crosshair is a passive screen-centre overlay rather than a map-tap
   // tool, so its visibility is driven here from the single-select tool state.
-  if (crosshair) {
-    if (active === 'crosshair') crosshair.show();
-    else crosshair.hide();
-  }
+  syncCrosshairVisibility();
 }
 
 if (toolFabBtn && toolFlyoutEl) {
@@ -2678,18 +2722,7 @@ const main = () => {
 
   initPaneRadarSite(pane0);
   radarSite = pane0.radarSite;
-
-  crosshair = initCrosshair({
-    map,
-    radarLayer,
-    radarSiteSource,
-    getActiveSiteLonLat: radarSite.getActiveSiteLonLat,
-  });
-  if (radarLayer.getVisible()) {
-    crosshair.setActiveLayer(radarLayer.getSource().getParams().LAYERS, {
-      z: radarLayer.getSource().getParams().ELEVATION,
-    });
-  }
+  initPaneCrosshair(pane0);
 
   // Overflow "Mittaa" row still arms the measure tool; remember it as the
   // last-used tool so the FAB reflects it. (The FAB itself is wired above as a
