@@ -213,12 +213,17 @@ export default function initShare({
       }
 
       if (file && navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        // WebKit's share sheet mishandles files combined with a url: macOS
-        // Safari spins preparing the payload, then shares only the link and
-        // drops the image. Send the image alone there — the capture's info
-        // bar already carries the site name. Every iOS browser is WebKit
-        // too, so key off the engine vendor rather than a Safari UA sniff.
-        const payload = navigator.vendor === 'Apple Computer, Inc.'
+        // macOS Safari's share sheet mishandles files combined with a url:
+        // it spins preparing the payload, then shares only the link and
+        // drops the image. iOS handles the combination fine (verified on
+        // iPhone), so only desktop-Mac WebKit gets the image-only payload —
+        // the capture's info bar already carries the site name. iPadOS
+        // masquerades as MacIntel but exposes touch points, so it keeps the
+        // full payload.
+        const isMacWebKit = navigator.vendor === 'Apple Computer, Inc.'
+          && navigator.platform.indexOf('Mac') === 0
+          && navigator.maxTouchPoints <= 1;
+        const payload = isMacWebKit
           ? { files: [file], title: 'Säätutka' }
           : { files: [file], title: 'Säätutka', url };
         try {
