@@ -118,11 +118,15 @@ export default function initShare({
 }) {
   // Append an info bar below the map (never covers data): frame time +
   // site name on the first line, data attributions on the second.
-  function drawInfoBar(mapCanvas, dpr) {
-    const pad = Math.round(10 * dpr);
-    const f1 = Math.round(15 * dpr);
-    const f2 = Math.round(11 * dpr);
-    const gap = Math.round(4 * dpr);
+  // Typography scales with the image, not the device: a retina-desktop
+  // capture is thousands of pixels wide, so a devicePixelRatio-based font
+  // came out unreadably small once the image was scaled down in a feed.
+  // 3.8% of the smaller dimension ≈ the old 15 px × dpr on a phone capture.
+  function drawInfoBar(mapCanvas) {
+    const f1 = Math.min(Math.max(Math.round(Math.min(mapCanvas.width, mapCanvas.height) * 0.038), 14), 96);
+    const f2 = Math.round(f1 * 0.73);
+    const pad = Math.round(f1 * 0.67);
+    const gap = Math.round(f1 * 0.27);
     const barH = pad + f1 + gap + f2 + pad;
     const out = document.createElement('canvas');
     out.width = mapCanvas.width;
@@ -182,7 +186,7 @@ export default function initShare({
         ctx.fillRect(0, Math.round((c.rect.top - minY) * dpr) - Math.floor(w / 2), stitched.width, w);
       }
     }
-    return drawInfoBar(stitched, dpr);
+    return drawInfoBar(stitched);
   }
 
   // Reentrancy guard: a second tap while the OS sheet is open would make
