@@ -26,6 +26,30 @@ const EXPORT_DPR_MAX = 2;
 // …and a large desktop window doesn't need a 5000 px one: cap the long edge
 // so toBlob and the OS share sheet stay fast. Phone captures are unaffected.
 const EXPORT_MAX_EDGE = 2560;
+// Social platforms are unkind to very tall or very wide images (feeds crop
+// previews hard), so clamp the capture between 4:5 portrait and 1.91:1
+// landscape — Instagram's limits, safe everywhere else — by center-cropping
+// the long dimension. The view center is the user's focus (crosshair,
+// geolocation), so it stays in frame. A phone-portrait capture becomes 4:5;
+// anything already inside the range is untouched.
+const ASPECT_MIN = 4 / 5; // tallest allowed width/height
+const ASPECT_MAX = 1.91; // widest allowed width/height
+
+function cropToAspect(canvas) {
+  const ratio = canvas.width / canvas.height;
+  let w = canvas.width;
+  let h = canvas.height;
+  if (ratio < ASPECT_MIN) h = Math.round(canvas.width / ASPECT_MIN);
+  else if (ratio > ASPECT_MAX) w = Math.round(canvas.height * ASPECT_MAX);
+  else return canvas;
+  const out = document.createElement('canvas');
+  out.width = w;
+  out.height = h;
+  const sx = Math.round((canvas.width - w) / 2);
+  const sy = Math.round((canvas.height - h) / 2);
+  out.getContext('2d').drawImage(canvas, sx, sy, w, h, 0, 0, w, h);
+  return out;
+}
 
 // Composite one pane's layer canvases into a fresh canvas at `dpr` × CSS
 // pixels (`rect` is the pane's viewport rect, measured by the caller).
@@ -191,7 +215,7 @@ export default function initShare({
         ctx.fillRect(0, Math.round((c.rect.top - minY) * dpr) - Math.floor(w / 2), stitched.width, w);
       }
     }
-    return drawInfoBar(stitched);
+    return drawInfoBar(cropToAspect(stitched));
   }
 
   // Reentrancy guard: a second tap while the OS sheet is open would make
