@@ -271,14 +271,12 @@ export default class FramePool {
     if (!size || size[0] <= 0 || size[1] <= 0) return null;
     // Every load path funnels through here, so the request shape is
     // re-derived at the same debounced boundaries as the loads themselves.
-    // Its inputs (pane size, zoom, devicePixelRatio) are constant during
-    // an undisturbed playback loop, so the shape — and with it every
-    // frame's WIDTH/HEIGHT — stays frozen while the animation runs.
+    // Its only input (pane size) is constant during an undisturbed playback
+    // loop, so the shape — and with it every frame's WIDTH/HEIGHT — stays
+    // frozen while the animation runs.
     this._applyRequestShape(computeRequestShape({
       width: size[0],
       height: size[1],
-      devicePixelRatio: window.devicePixelRatio,
-      zoom: view.getZoom(),
     }));
     const anchor = this._updateAnchor(view, size);
     return {
