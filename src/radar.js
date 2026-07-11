@@ -31,6 +31,7 @@ import initTools from './tools';
 import initProbe from './probe';
 import initRadarSite from './radarSite';
 import initCrosshair from './crosshair';
+import initShare from './share';
 import FramePool from './animation/framePool';
 import { canInterpolate, RadarInterpolator } from './animation/interpolation';
 import { track } from './analytics';
@@ -2724,6 +2725,15 @@ const main = () => {
   radarSite = pane0.radarSite;
   initPaneCrosshair(pane0);
 
+  const share = initShare({
+    button: document.getElementById('shareButton'),
+    getActivePanes: () => activePanes(),
+    getFrameTimestamp: () => (startDate ? startDate.getTime() : Date.now()),
+    getAttributions: shareAttributions,
+    onFeedback: (text) => showCoachmark(text),
+    onShared: (method) => track('share', { method }),
+  });
+
   // Overflow "Mittaa" row still arms the measure tool; remember it as the
   // last-used tool so the FAB reflects it. (The FAB itself is wired above as a
   // tool-group flyout.)
@@ -2737,7 +2747,7 @@ const main = () => {
   }
 
   window.__tutka = {
-    panes, map, framePools, tools, sharedView,
+    panes, map, framePools, tools, sharedView, share,
   };
 
   // GEOLOCATION
@@ -2926,6 +2936,25 @@ const etaValueEl = etaEl ? etaEl.querySelector('.eta-value') : null;
 let etaSeenEnd = null;
 let etaResolution = null;
 let etaResetAt = Date.now();
+
+// Attribution strings baked into the share capture: the basemap credit plus
+// every active pane's visible products (same iteration as pickEtaSourceLayer).
+// Before GetCapabilities resolves, layerInfo is empty and only the basemap
+// credit comes out — accepted degraded case in the first seconds after boot.
+function shareAttributions() {
+  const parts = new Set(['Tiles © ArcGIS']);
+  for (const pane of activePanes()) {
+    for (const name of pane.VISIBLE) {
+      const olLayer = pane.layerss[name];
+      const wmslayer = olLayer && olLayer.getSource().getParams().LAYERS;
+      const info = wmslayer && layerInfo[wmslayer];
+      if (info && info.attribution && info.attribution.Title) {
+        parts.add(info.license ? `${info.attribution.Title} (${info.license})` : info.attribution.Title);
+      }
+    }
+  }
+  return [...parts];
+}
 
 function pickEtaSourceLayer() {
   let best = null;
