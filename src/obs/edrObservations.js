@@ -26,23 +26,23 @@
 // Request shaping mirrors the GetMap rules (CLAUDE.md "MeteoCore
 // request-shape rules") in spirit: the queried polygon is the viewport plus
 // a pan buffer, its corners quantized to a coarse grid so equal-ish views
-// produce byte-identical URLs, and parameter order is stable. Re-fetching is
-// range-based per chunk, so a 60 s refresh that nudges the window forward
-// costs one small delta request instead of a full window.
+// produce byte-identical URLs, and parameter order is stable (shared EDR
+// helpers in ../edr/areaQuery.js). Re-fetching is range-based, so a 60 s
+// refresh that nudges the window forward costs one small delta request
+// instead of a full window.
+
+import {
+  quantizedAreaBounds as quantizedBoundsFor,
+  buildAreaUrl as buildAreaUrlFor,
+  floorToMinute,
+  ceilToMinute,
+} from '../edr/areaQuery';
 
 const ENDPOINT = 'https://meteocore.app.meteo.fi/edr/collections/fmi-obs/area';
 
 // Snap tolerance = the WMS obs layer's accumulation window (TIME=PT10M/…):
 // a station labels a frame only with an observation at most this old.
 export const SNAP_TOLERANCE_MS = 10 * 60 * 1000;
-
-// Polygon corners snap outward to this grid (degrees) so panning away and
-// back reuses URLs, and all users converge on the same server queries.
-const GRID_DEG = 0.5;
-
-// Pan buffer per side, as a fraction of the viewport span. Same rationale as
-// requestShape.js MIN_RATIO: a casual pan must not leave the fetched area.
-const MARGIN_FRACTION = 0.25;
 
 // Polygon area budget (deg²). Together with the coverage clamp below it
 // keeps a worst-case fetch (~1000 Nordic stations × 7 params × ~13 values
@@ -73,86 +73,15 @@ export const OBS_PRODUCTS = {
   'observation:wind': { params: ['wind_speed', 'wind_from_direction'] },
 };
 
-// Duplicated from probe.js normalizeLonLat so this module stays free of UI
-// imports (node-runnable); the planned src/edr/ helper extraction unifies
-// them. OL hands back longitudes outside [-180, 180] across world copies.
-function wrapLon(lon) {
-  return ((((lon + 180) % 360) + 360) % 360) - 180;
-}
-
-function clampLat(lat) {
-  return Math.max(-90, Math.min(90, lat));
-}
-
-const floorToMinute = (ms) => Math.floor(ms / 60000) * 60000;
-const ceilToMinute = (ms) => Math.ceil(ms / 60000) * 60000;
-
-// ms epoch → 'YYYY-MM-DDTHH:mm:ssZ' (no milliseconds — smaller, stable URLs).
-function isoSeconds(ms) {
-  return `${new Date(ms).toISOString().slice(0, 19)}Z`;
-}
-
-// Viewport extent [lonMin, latMin, lonMax, latMax] (degrees) → the quantized,
-// buffered, coverage-clamped query bounds, or null when the view doesn't
-// touch the coverage box. Pure and deterministic: equal-ish views → equal
-// bounds → recurring URLs (requestShape.js philosophy).
+// Obs-specific bindings of the shared area-query helpers (../edr/areaQuery):
+// same signatures this module always exported, so the client below and the
+// verification harness are unchanged.
 export function quantizedAreaBounds(viewExtent) {
-  const [vw, vs, ve, vn] = viewExtent;
-  let w = wrapLon(vw);
-  let e = wrapLon(ve);
-  // A view spanning the antimeridian (or ≥ a full world copy) degenerates
-  // after wrapping; the coverage box is nowhere near it, so treat the wrap
-  // ambiguity by falling back to the full coverage box clamp below.
-  if (e <= w) { [w, e] = [COVERAGE_BBOX[0], COVERAGE_BBOX[2]]; }
-  let s = clampLat(vs);
-  let n = clampLat(vn);
-  const marginLon = (e - w) * MARGIN_FRACTION;
-  const marginLat = (n - s) * MARGIN_FRACTION;
-  w -= marginLon; e += marginLon; s -= marginLat; n += marginLat;
-  // Shrink around the view center while the box exceeds the area budget.
-  // Linear scale on both axes keeps the aspect.
-  const maxArea = MAX_AREA_DEG2;
-  const rawArea = (e - w) * (n - s);
-  if (rawArea > maxArea) {
-    const scale = Math.sqrt(maxArea / rawArea);
-    const cx = (w + e) / 2;
-    const cy = (s + n) / 2;
-    const halfW = ((e - w) / 2) * scale;
-    const halfH = ((n - s) / 2) * scale;
-    w = cx - halfW; e = cx + halfW; s = cy - halfH; n = cy + halfH;
-  }
-  // Snap outward to the grid, then clamp to coverage (grid-aligned, so the
-  // result stays on the grid and toFixed(1) below is lossless).
-  w = Math.max(COVERAGE_BBOX[0], Math.floor(w / GRID_DEG) * GRID_DEG);
-  s = Math.max(COVERAGE_BBOX[1], Math.floor(s / GRID_DEG) * GRID_DEG);
-  e = Math.min(COVERAGE_BBOX[2], Math.ceil(e / GRID_DEG) * GRID_DEG);
-  n = Math.min(COVERAGE_BBOX[3], Math.ceil(n / GRID_DEG) * GRID_DEG);
-  if (e <= w || n <= s) return null;
-  // The outward snap can re-inflate the box past the budget; trim whole grid
-  // steps off the longer axis (alternating sides) until it holds. Stays
-  // grid-aligned and deterministic, so URLs still recur.
-  let flip = false;
-  while ((e - w) * (n - s) > maxArea && e - w > GRID_DEG && n - s > GRID_DEG) {
-    if (e - w >= n - s) {
-      if (flip) w += GRID_DEG; else e -= GRID_DEG;
-    } else if (flip) s += GRID_DEG; else n -= GRID_DEG;
-    flip = !flip;
-  }
-  return [w, s, e, n];
+  return quantizedBoundsFor(viewExtent, { coverageBbox: COVERAGE_BBOX, maxAreaDeg2: MAX_AREA_DEG2 });
 }
 
-// Deterministic query URL: sorted parameters, minute-aligned datetime range,
-// one-decimal polygon coords (exact — corners live on the 0.5° grid).
 export function buildAreaUrl(bounds, params, startMs, endMs) {
-  const [w, s, e, n] = bounds;
-  const c = (v) => v.toFixed(1);
-  const poly = `POLYGON((${c(w)} ${c(s)},${c(e)} ${c(s)},${c(e)} ${c(n)},${c(w)} ${c(n)},${c(w)} ${c(s)}))`;
-  const names = [...params].sort().join(',');
-  const datetime = `${isoSeconds(startMs)}/${isoSeconds(endMs)}`;
-  return `${ENDPOINT}?f=CoverageJSON`
-    + `&parameter-name=${encodeURIComponent(names)}`
-    + `&datetime=${encodeURIComponent(datetime)}`
-    + `&coords=${encodeURIComponent(poly)}`;
+  return buildAreaUrlFor(ENDPOINT, bounds, params, startMs, endMs);
 }
 
 // CoverageCollection → station records. One PointSeries coverage per
