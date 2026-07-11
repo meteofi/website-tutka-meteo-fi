@@ -7,11 +7,14 @@
 // before any UI exists. The vector obs layer (PR 2) is the intended caller.
 //
 // Live-server facts this module is built around (measured 2026-07-11):
-//   - The server rejects area queries matching more than ~500 stations with
-//     HTTP 500 (a whole-Finland polygon already fails). Until the server
-//     grows a graceful `limit`, requests are chunked into latitude bands
-//     small enough to stay under the cap, and clamped to the Nordic coverage
-//     box the WMS layer usefully showed anyway.
+//   - Server request-size limits (deployed 2026-07-11): a 500,000-value
+//     budget (stations × parameters × timesteps), a 20,000 station×parameter
+//     fan-out bound per area query, and HTTP 400 fast-fails whose message
+//     names the dimension to narrow — never 5xx. A whole-viewport window
+//     fetch (~500 stations × ≤7 params × ~13 values per param-hour) sits far
+//     below both, so one request covers the viewport; the polygon is still
+//     clamped to the Nordic coverage box (WMS-parity) and an area budget so
+//     world-scale zooms can't approach the fan-out bound.
 //   - Responses carry RAW per-station observation times — no resampling.
 //     Time axes within one response ranged from 1 to 59 points per hour, and
 //     ~53% of values are null. Snapping to animation frames happens here:
@@ -41,13 +44,14 @@ const GRID_DEG = 0.5;
 // requestShape.js MIN_RATIO: a casual pan must not leave the fetched area.
 const MARGIN_FRACTION = 0.25;
 
-// Station-cap guards (tunables, pending the server-side `limit` fix):
-// chunks of ≤60 deg² stayed well under the ~500-station cap at Finnish
-// density (half-Finland ≈ 49 deg² → ~250 stations), and 4 chunks bound the
-// total work at synoptic zooms. Beyond that the box shrinks around the view
-// center — matching how far out the label raster was readable anyway.
-const CHUNK_MAX_AREA_DEG2 = 60;
-const MAX_CHUNKS = 4;
+// Polygon area budget (deg²). Together with the coverage clamp below it
+// keeps a worst-case fetch (~1000 Nordic stations × 7 params × ~13 values
+// per param-hour ≈ 90k values) comfortably inside the server's 500k-value
+// budget and 20k fan-out bound. Oversize requests would 400 fast (a skipped
+// update, not an outage) — but we simply never send them. Beyond the budget
+// the box shrinks around the view center, matching how far out the label
+// raster was readable anyway.
+const MAX_AREA_DEG2 = 240;
 
 // v1 coverage parity: the WMS layer only usefully showed Fennoscandia + the
 // Baltics; the EDR collection is global (WIGOS), where an unclamped synoptic
@@ -88,8 +92,6 @@ function isoSeconds(ms) {
   return `${new Date(ms).toISOString().slice(0, 19)}Z`;
 }
 
-const areaDeg2 = ([w, s, e, n]) => Math.max(0, e - w) * Math.max(0, n - s);
-
 // Viewport extent [lonMin, latMin, lonMax, latMax] (degrees) → the quantized,
 // buffered, coverage-clamped query bounds, or null when the view doesn't
 // touch the coverage box. Pure and deterministic: equal-ish views → equal
@@ -107,9 +109,9 @@ export function quantizedAreaBounds(viewExtent) {
   const marginLon = (e - w) * MARGIN_FRACTION;
   const marginLat = (n - s) * MARGIN_FRACTION;
   w -= marginLon; e += marginLon; s -= marginLat; n += marginLat;
-  // Shrink around the view center while the box exceeds the chunked-request
-  // budget (station-cap guard). Linear scale on both axes keeps the aspect.
-  const maxArea = CHUNK_MAX_AREA_DEG2 * MAX_CHUNKS;
+  // Shrink around the view center while the box exceeds the area budget.
+  // Linear scale on both axes keeps the aspect.
+  const maxArea = MAX_AREA_DEG2;
   const rawArea = (e - w) * (n - s);
   if (rawArea > maxArea) {
     const scale = Math.sqrt(maxArea / rawArea);
@@ -137,21 +139,6 @@ export function quantizedAreaBounds(viewExtent) {
     flip = !flip;
   }
   return [w, s, e, n];
-}
-
-// Split bounds into ≤ MAX_CHUNKS grid-aligned latitude bands of
-// ≤ CHUNK_MAX_AREA_DEG2 each, so no single request risks the station cap and
-// one failing band degrades that band only. Band edges are shared lines; a
-// station exactly on one may appear in both bands and dedups by key on merge.
-export function chunkBounds(bounds) {
-  const [w, s, e, n] = bounds;
-  const bandCount = Math.min(MAX_CHUNKS, Math.max(1, Math.ceil(areaDeg2(bounds) / CHUNK_MAX_AREA_DEG2)));
-  const bandLat = Math.ceil((n - s) / bandCount / GRID_DEG) * GRID_DEG;
-  const chunks = [];
-  for (let s0 = s; s0 < n; s0 += bandLat) {
-    chunks.push([w, s0, e, Math.min(n, s0 + bandLat)]);
-  }
-  return chunks;
 }
 
 // Deterministic query URL: sorted parameters, minute-aligned datetime range,
@@ -259,104 +246,94 @@ function pruneStations(stationMap, keepFromMs) {
 }
 
 // The stateful client. One instance per app (panes share it — same data
-// feeds every pane's vector layer, the radarSiteSource pattern).
+// feeds every pane's vector layer, the radarSiteSource pattern). `products`
+// is a list because split-screen panes can show different obs products; one
+// request set fetches the union of their parameters.
 //
 //   const client = createObsClient();
-//   await client.ensureWindow({ viewExtent, product, startMs, endMs });
+//   await client.ensureWindow({ viewExtent, products: [product], startMs, endMs });
 //   const rows = client.snapToFrames(frameTimes, product);
 //
 // ensureWindow is cheap to call repeatedly (every setTime): it no-ops when
 // the quantized bounds, product and fetched range already cover the request,
 // delta-fetches when only the window end moved forward, and refetches fully
-// (aborting anything in flight) when the polygon or product changed. Chunks
-// fetch in parallel and fail independently: a chunk that errors (e.g. the
-// station cap) keeps its previous data and is retried on the next call,
-// while the other bands stay live.
+// (aborting anything in flight) when the polygon or product changed. A fetch
+// that errors keeps the previous store and is retried on the next call.
 export function createObsClient({ fetchImpl } = {}) {
   const doFetch = fetchImpl || ((url, opts) => fetch(url, opts));
-  // chunkKey → { bounds, startMs, endMs, stations: Map(stationKey → record) }
-  let chunkStates = new Map();
+  const stations = new Map(); // stationKey → record
+  let fetchBounds = null;
+  let fetchedStartMs = null;
+  let fetchedEndMs = null;
   let boundsKey = null;
   let paramsKey = null;
   let controller = null;
   let inflight = null; // { key, promise }
+  // Bumped whenever fetched data lands in the store — callers compare it to
+  // decide whether derived state (rendered features) needs a rebuild.
+  let revision = 0;
 
-  async function fetchChunk(state, startMs, endMs, signal, params) {
-    const url = buildAreaUrl(state.bounds, params, startMs, endMs);
-    const r = await doFetch(url, { signal });
-    if (!r.ok) throw new Error(`EDR ${r.status}`);
-    const fresh = parseCoverageCollection(await r.json(), params);
-    mergeStations(state.stations, fresh, startMs);
-    state.startMs = state.startMs == null ? startMs : Math.min(state.startMs, startMs);
-    state.endMs = endMs;
-  }
-
-  async function run(key, params, fetchStartMs, fetchEndMs) {
-    controller = typeof AbortController === 'undefined' ? null : new AbortController();
-    const signal = controller ? controller.signal : undefined;
-    const jobs = [];
-    for (const state of chunkStates.values()) {
-      const hasWindow = state.endMs != null && state.startMs <= fetchStartMs;
-      if (!hasWindow || state.endMs < fetchEndMs) {
-        // Extend forward from what this chunk already has; anything else
-        // (fresh chunk, backward jump) fetches the full range.
-        const deltaStart = hasWindow ? state.endMs : fetchStartMs;
-        jobs.push(fetchChunk(state, deltaStart, fetchEndMs, signal, params));
-      }
+  async function run(params, fetchStartMs, fetchEndMs) {
+    const covered = fetchedEndMs != null && fetchedStartMs <= fetchStartMs && fetchedEndMs >= fetchEndMs;
+    if (!covered) {
+      // Extend forward from what the store already has; anything else
+      // (fresh store, backward jump) fetches the full range.
+      const extendsForward = fetchedEndMs != null && fetchedStartMs <= fetchStartMs && fetchedEndMs < fetchEndMs;
+      const deltaStart = extendsForward ? fetchedEndMs : fetchStartMs;
+      controller = typeof AbortController === 'undefined' ? null : new AbortController();
+      const url = buildAreaUrl(fetchBounds, params, deltaStart, fetchEndMs);
+      const r = await doFetch(url, { signal: controller ? controller.signal : undefined });
+      if (!r.ok) throw new Error(`EDR ${r.status}`);
+      const fresh = parseCoverageCollection(await r.json(), params);
+      mergeStations(stations, fresh, deltaStart);
+      fetchedStartMs = fetchedStartMs == null ? deltaStart : Math.min(fetchedStartMs, deltaStart);
+      fetchedEndMs = fetchEndMs;
+      revision += 1;
     }
-    const results = await Promise.allSettled(jobs);
-    for (const state of chunkStates.values()) pruneStations(state.stations, fetchStartMs);
-    const failures = results.filter((res) => res.status === 'rejected');
-    if (failures.length === results.length && results.length > 0) throw failures[0].reason;
-    return failures.length;
-  }
-
-  function mergeView() {
-    const merged = new Map();
-    for (const state of chunkStates.values()) {
-      for (const [k, station] of state.stations) {
-        if (!merged.has(k)) merged.set(k, station);
-      }
-    }
-    return merged;
+    pruneStations(stations, fetchStartMs);
   }
 
   return {
     // viewExtent: [lonMin, latMin, lonMax, latMax] in degrees (CRS84).
+    // products: `observation:*` ids whose parameter union to fetch.
     // startMs/endMs: the animation window; the query start is extended by
     // the snap tolerance so frame 0 has its lookback data.
     async ensureWindow({
-      viewExtent, product, startMs, endMs,
+      viewExtent, products, startMs, endMs,
     }) {
-      const spec = OBS_PRODUCTS[product];
-      if (!spec) throw new Error(`unknown observation product: ${product}`);
+      const params = [...new Set(products.flatMap((product) => {
+        const spec = OBS_PRODUCTS[product];
+        if (!spec) throw new Error(`unknown observation product: ${product}`);
+        return spec.params;
+      }))].sort();
       const bounds = quantizedAreaBounds(viewExtent);
       const fetchStartMs = floorToMinute(startMs - SNAP_TOLERANCE_MS);
       const fetchEndMs = ceilToMinute(endMs);
       if (!bounds) {
-        chunkStates = new Map();
+        stations.clear();
         boundsKey = null;
-        return { stations: 0, failedChunks: 0 };
+        return { stations: 0 };
       }
       const bKey = bounds.join(',');
-      const pKey = spec.params.join(',');
+      const pKey = params.join(',');
       if (bKey !== boundsKey || pKey !== paramsKey) {
         if (controller) controller.abort();
         inflight = null;
         boundsKey = bKey;
         paramsKey = pKey;
-        chunkStates = new Map(chunkBounds(bounds).map((b) => [b.join(','), {
-          bounds: b, startMs: null, endMs: null, stations: new Map(),
-        }]));
+        fetchBounds = bounds;
+        fetchedStartMs = null;
+        fetchedEndMs = null;
+        stations.clear();
       }
       const key = `${bKey}|${pKey}|${fetchStartMs}|${fetchEndMs}`;
       if (!inflight || inflight.key !== key) {
-        const promise = run(key, spec.params, fetchStartMs, fetchEndMs)
+        const promise = run(params, fetchStartMs, fetchEndMs)
           .finally(() => { if (inflight && inflight.key === key) inflight = null; });
         inflight = { key, promise };
       }
-      const failedChunks = await inflight.promise;
-      return { stations: mergeView().size, failedChunks };
+      await inflight.promise;
+      return { stations: stations.size };
     },
 
     // frameTimes (ms, ascending, typically the 13-frame window) →
@@ -366,7 +343,7 @@ export function createObsClient({ fetchImpl } = {}) {
       const spec = OBS_PRODUCTS[product];
       if (!spec) return [];
       const rows = [];
-      for (const station of mergeView().values()) {
+      for (const station of stations.values()) {
         const values = {};
         let hasAny = false;
         for (const param of spec.params) {
@@ -385,6 +362,12 @@ export function createObsClient({ fetchImpl } = {}) {
       return rows;
     },
 
+    // Monotonic data-store version — compare across calls to skip rebuilding
+    // derived state when nothing new arrived.
+    revision() {
+      return revision;
+    },
+
     abort() {
       if (controller) controller.abort();
       inflight = null;
@@ -392,7 +375,9 @@ export function createObsClient({ fetchImpl } = {}) {
 
     clear() {
       this.abort();
-      chunkStates = new Map();
+      stations.clear();
+      fetchedStartMs = null;
+      fetchedEndMs = null;
       boundsKey = null;
       paramsKey = null;
     },
