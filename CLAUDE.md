@@ -47,6 +47,7 @@ Entry point: `src/radar.js` (~3100 lines) — bootstraps panes, owns the shared 
 | `src/probe.js` | dBZ point-probe chart via the EDR API; exports shared EDR helpers used by crosshair |
 | `src/crosshair.js` | Center reticle readout; reads radar pixels via `getData()` + dBZ via probe helpers |
 | `src/radarSite.js` | Single-radar-site drill-in (calls back into radar.js `updateLayer`/`setTime`) |
+| `src/share.js` | "Jaa näkymä" share sheet: composites active panes' layer canvases to a PNG (OL export-map pattern, `renderSync` to stay in the iOS gesture window; needs `crossOrigin` on every raster source), social aspect clamp + info bar, Web Share ladder (image+url → url → download+clipboard; macOS Safari gets image without url) |
 | `src/longpress.js` | Long-press menu plumbing for toolbar buttons |
 | `src/analytics.js` | `track()` wrapper for Umami (no-ops if umami is absent) |
 | `src/animation/framePool.js` | `FramePool` — 13 preloaded WMS image slots per (pane, layer), prefetch, sticky swap, interpolator lifecycle |
