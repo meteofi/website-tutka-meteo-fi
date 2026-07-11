@@ -56,7 +56,7 @@ function pinLabelStyle(circle, bg, fg, text) {
   });
 }
 
-function lineLabelStyle(text) {
+export function lineLabelStyle(text) {
   return new Style({
     stroke: new Stroke({
       color: 'rgba(18, 188, 250, 0.85)',
@@ -75,16 +75,16 @@ function lineLabelStyle(text) {
   });
 }
 
-const COMPASS_16_EN = [
+export const COMPASS_16_EN = [
   'N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
   'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW',
 ];
 
-function compassIndex(deg) {
+export function compassIndex(deg) {
   return Math.round(((deg % 360) + 360) / 22.5) % 16;
 }
 
-function formatDistance(meters) {
+export function formatDistance(meters) {
   if (meters < 1000) return `${Math.round(meters)} m`;
   if (meters < 10000) return `${(meters / 1000).toFixed(1)} km`;
   return `${Math.round(meters / 1000)} km`;
@@ -151,7 +151,7 @@ function buildMarkerCard() {
 }
 
 export default function initTools({
-  map, getOwnPosition, getFrameTimestamp, onPinChange, onToolChange,
+  map, getOwnPosition, getFrameTimestamp, onPinChange, onToolChange, rangeCircle, freehand,
 }) {
   const emitPinChange = typeof onPinChange === 'function'
     ? (lonLat) => { try { onPinChange(lonLat); } catch (_) { /* ignore */ } }
@@ -428,7 +428,8 @@ export default function initTools({
   // leaving (measure features, or the probe pin + card + chart) and sets up the
   // one we're entering. Passing null (or anything else) disarms.
   function setActiveTool(next) {
-    const tool = (next === 'measure' || next === 'pistemittaus' || next === 'crosshair') ? next : null;
+    const TOOL_NAMES = ['measure', 'pistemittaus', 'crosshair', 'rengas', 'piirto'];
+    const tool = TOOL_NAMES.includes(next) ? next : null;
     if (tool === activeTool) return;
 
     // Tear down the tool we're leaving.
@@ -439,6 +440,12 @@ export default function initTools({
       // removeMarker also clears the probe value and emits a null pin, which
       // collapses the EDR chart.
       removeMarker();
+    } else if (activeTool === 'rengas') {
+      // disarm() deactivates every pane's Draw (aborting any mid-drag stroke)
+      // and clears the circle graphics.
+      if (rangeCircle) rangeCircle.disarm();
+    } else if (activeTool === 'piirto') {
+      if (freehand) freehand.disarm();
     }
 
     activeTool = tool;
@@ -459,6 +466,16 @@ export default function initTools({
       markerTranslate.setActive(false);
       setChipIdentity('center_focus_weak', 'TÄHTÄIN');
       setChipHint('siirrä karttaa');
+    } else if (tool === 'rengas') {
+      markerTranslate.setActive(false);
+      setChipIdentity('track_changes', 'ETÄISYYSRENGAS');
+      setChipHint('paina ja vedä kartalla');
+      if (rangeCircle) rangeCircle.arm();
+    } else if (tool === 'piirto') {
+      markerTranslate.setActive(false);
+      setChipIdentity('gesture', 'PIIRTO');
+      setChipHint('piirrä vetämällä');
+      if (freehand) freehand.arm();
     } else {
       markerTranslate.setActive(false);
     }

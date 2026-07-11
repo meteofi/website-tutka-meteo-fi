@@ -28,6 +28,8 @@ import createPane from './pane';
 import wmsServerConfiguration from './config';
 import createLongPressHandler, { longPressMenuOpener } from './longpress';
 import initTools from './tools';
+import initRangeCircle from './rangeCircle';
+import initFreehand from './freehand';
 import initProbe from './probe';
 import initRadarSite from './radarSite';
 import initCrosshair from './crosshair';
@@ -64,6 +66,12 @@ let ownPosition = [];
 let ownPosition4326 = [];
 let geolocation;
 let tools = null;
+let rangeCircle = null;
+let freehand = null;
+// Drag-to-draw tools own the whole pointer sequence while armed. A tap that
+// aborts a stroke (below Draw's clickTolerance) still emits a map click, so
+// the click routers bail out for these tools instead of opening popups.
+const DRAW_TOOL_NAMES = new Set(['rengas', 'piirto']);
 let probe = null;
 let radarSite = null;
 let startDate = new Date(Math.floor(Date.now() / 300000) * 300000 - 300000 * 12);
@@ -650,6 +658,14 @@ function wirePaneClockGating(pane) {
   pane.map.on('pointerdrag', onPanePointerDrag);
   pane.map.on('moveend', onPaneMoveEnd);
 }
+// Draw-tool strokes fire pointerdrag (arming the gate) but consume the whole
+// pointer sequence without moving the view, so the moveend that normally
+// clears the gate never comes — without this callback the clock would stay
+// stuck until the next pan.
+function onDrawStrokeEnd() {
+  isInteracting = false;
+  lastAdvance = window.performance.now();
+}
 
 // Copy pane 0's current display state (sublayer params, info, opacity,
 // visibility) onto a freshly-created pane so a new split starts as a mirror of
@@ -701,9 +717,12 @@ function initNewPane(pane) {
   buildPanePill(pane);
   initPaneRadarSite(pane);
   initPaneCrosshair(pane);
+  if (rangeCircle) rangeCircle.attachPane(pane.map);
+  if (freehand) freehand.attachPane(pane.map);
   // Radar-site taps work in every pane; the other pane-0 click concerns
   // (measure/probe tools, station feature info) deliberately stay pane-0-only.
   pane.map.on('click', (evt) => {
+    if (tools && DRAW_TOOL_NAMES.has(tools.getActiveTool())) return;
     const hit = pane.radarSite.findSiteAtPixel(evt.pixel);
     if (hit) pane.radarSite.openCardForFeature(hit);
   });
@@ -1107,6 +1126,9 @@ const play = function () {
   if (animationId === null) {
     debug('PLAY');
     IS_FOLLOWING = false;
+    // An explicit play must never be blocked by a stale drag gate (e.g. a
+    // gesture that ended without a moveend).
+    isInteracting = false;
     lastAdvance = window.performance.now();
     animationId = window.requestAnimationFrame(renderTick);
     document.getElementById('playstopButton').innerHTML = 'pause';
@@ -2058,7 +2080,9 @@ const toolFabBtn = document.getElementById('measureFab');
 const toolFlyoutEl = document.getElementById('toolFlyout');
 const toolFlyoutBackdropEl = document.getElementById('toolFlyoutBackdrop');
 const toolGroupIconEl = toolFabBtn ? toolFabBtn.querySelector('.tool-group-icon') : null;
-const TOOL_ICONS = { measure: 'straighten', pistemittaus: 'colorize', crosshair: 'center_focus_weak' };
+const TOOL_ICONS = {
+  measure: 'straighten', pistemittaus: 'colorize', crosshair: 'center_focus_weak', rengas: 'track_changes', piirto: 'gesture',
+};
 // Default tool the FAB arms on a plain tap (and shows in its icon) until the
 // user picks another from the flyout — the centre-crosshair reticle.
 let lastTool = 'crosshair';
@@ -2109,6 +2133,10 @@ function syncToolGroup() {
   // The crosshair is a passive screen-centre overlay rather than a map-tap
   // tool, so its visibility is driven here from the single-select tool state.
   syncCrosshairVisibility();
+  // Persist the tool selection across sessions. Prefer `active` over
+  // `lastTool`: the flyout handler updates lastTool only after setActiveTool
+  // (and this callback) returns, so lastTool is stale while arming.
+  if (tools) localStorage.setItem('TOOL_STATE', JSON.stringify({ last: active || lastTool, armed: !!active }));
 }
 
 if (toolFabBtn && toolFlyoutEl) {
@@ -2712,18 +2740,37 @@ const main = () => {
     probe.setActiveLayer(radarLayer.getSource().getParams().LAYERS);
   }
 
+  rangeCircle = initRangeCircle({ onStrokeEnd: onDrawStrokeEnd });
+  rangeCircle.attachPane(map);
+  freehand = initFreehand({ onStrokeEnd: onDrawStrokeEnd });
+  freehand.attachPane(map);
+
   tools = initTools({
     map,
     getOwnPosition: () => ownPosition4326,
     getFrameTimestamp: () => (startDate ? startDate.getTime() : Date.now()),
     onPinChange: (lonLat) => probe && probe.setPin(lonLat),
     onToolChange: syncToolGroup,
+    rangeCircle,
+    freehand,
   });
-  syncToolGroup();
-
   initPaneRadarSite(pane0);
   radarSite = pane0.radarSite;
   initPaneCrosshair(pane0);
+
+  // Restore the tool selection from the previous session: the FAB's
+  // tap-default always, plus re-arming if a tool was armed when the user
+  // left. The TOOL_ICONS guard drops garbage and renamed/removed tools.
+  // Must run after initPaneCrosshair (a re-armed Tähtäin shows its reticle
+  // via syncCrosshairVisibility, which skips panes with no crosshair yet)
+  // and before any other syncToolGroup call (which would persist the
+  // defaults over the saved state before it's read).
+  const savedTool = safeParseJSON('TOOL_STATE', null);
+  if (savedTool && TOOL_ICONS[savedTool.last]) {
+    lastTool = savedTool.last;
+    if (savedTool.armed) tools.setActiveTool(savedTool.last);
+  }
+  syncToolGroup();
 
   const share = initShare({
     button: document.getElementById('shareButton'),
@@ -2794,6 +2841,7 @@ const main = () => {
   buildPanePill(pane0);
 
   map.on('click', (evt) => {
+    if (tools && DRAW_TOOL_NAMES.has(tools.getActiveTool())) return;
     const hit = map.forEachFeatureAtPixel(evt.pixel, (f) => f);
     const pin = tools && tools.getPinFeature();
 
