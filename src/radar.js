@@ -2133,6 +2133,10 @@ function syncToolGroup() {
   // The crosshair is a passive screen-centre overlay rather than a map-tap
   // tool, so its visibility is driven here from the single-select tool state.
   syncCrosshairVisibility();
+  // Persist the tool selection across sessions. Prefer `active` over
+  // `lastTool`: the flyout handler updates lastTool only after setActiveTool
+  // (and this callback) returns, so lastTool is stale while arming.
+  if (tools) localStorage.setItem('TOOL_STATE', JSON.stringify({ last: active || lastTool, armed: !!active }));
 }
 
 if (toolFabBtn && toolFlyoutEl) {
@@ -2750,6 +2754,14 @@ const main = () => {
     rangeCircle,
     freehand,
   });
+  // Restore the tool selection from the previous session: the FAB's
+  // tap-default always, plus re-arming if a tool was armed when the user
+  // left. The TOOL_ICONS guard drops garbage and renamed/removed tools.
+  const savedTool = safeParseJSON('TOOL_STATE', null);
+  if (savedTool && TOOL_ICONS[savedTool.last]) {
+    lastTool = savedTool.last;
+    if (savedTool.armed) tools.setActiveTool(savedTool.last);
+  }
   syncToolGroup();
 
   initPaneRadarSite(pane0);
