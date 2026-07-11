@@ -37,6 +37,35 @@
 export const TARGET_PIXELS = 4e6;
 export const CEILING_PIXELS = 6e6;
 
+// The server rejects GetMap WIDTH/HEIGHT above 8000 px. Requests shaped by
+// computeRequestShape can never get near that, but the panes' BASE ImageWMS
+// sources are unshaped (flat ratio, no pixel budget) — and production logs
+// show rare runaway renders from them (e.g. WIDTH=186035: OL rendering while
+// a layout transient made the map container look ~124k CSS px wide; sane z9
+// resolution, insane size). The guard swaps such a request for a 1×1
+// transparent image: no network, no 400, and the blank stretches invisibly
+// over the bogus extent until the next (sane) render replaces it.
+export const MAX_GETMAP_DIM = 8000;
+
+const BLANK_GIF = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+
+// ol/source/ImageWMS `imageLoadFunction` that drops oversize GetMaps.
+// `onOversize(width, height)` fires on each dropped request — wire it to
+// telemetry so the layout transient that produces these can be identified.
+export function createGetMapSizeGuard(onOversize) {
+  return (image, src) => {
+    const query = new URLSearchParams(src.slice(src.indexOf('?') + 1));
+    const width = Number(query.get('WIDTH'));
+    const height = Number(query.get('HEIGHT'));
+    if (width > MAX_GETMAP_DIM || height > MAX_GETMAP_DIM) {
+      if (onOversize) onOversize(width, height);
+      image.getImage().src = BLANK_GIF;
+      return;
+    }
+    image.getImage().src = src;
+  };
+}
+
 // A pan buffer is not optional: sub-10% margins showed blank strips on every
 // casual pan (Mac AND iPhone) and re-anchored/refetched the whole 13-frame
 // window, because a thumb pan easily exceeds them. Guarantee a 20% margin
