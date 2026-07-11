@@ -28,6 +28,7 @@ import createPane from './pane';
 import wmsServerConfiguration from './config';
 import createLongPressHandler, { longPressMenuOpener } from './longpress';
 import initTools from './tools';
+import initRangeCircle from './rangeCircle';
 import initProbe from './probe';
 import initRadarSite from './radarSite';
 import initCrosshair from './crosshair';
@@ -64,6 +65,11 @@ let ownPosition = [];
 let ownPosition4326 = [];
 let geolocation;
 let tools = null;
+let rangeCircle = null;
+// Drag-to-draw tools own the whole pointer sequence while armed. A tap that
+// aborts a stroke (below Draw's clickTolerance) still emits a map click, so
+// the click routers bail out for these tools instead of opening popups.
+const DRAW_TOOL_NAMES = new Set(['rengas']);
 let probe = null;
 let radarSite = null;
 let startDate = new Date(Math.floor(Date.now() / 300000) * 300000 - 300000 * 12);
@@ -701,9 +707,11 @@ function initNewPane(pane) {
   buildPanePill(pane);
   initPaneRadarSite(pane);
   initPaneCrosshair(pane);
+  if (rangeCircle) rangeCircle.attachPane(pane.map);
   // Radar-site taps work in every pane; the other pane-0 click concerns
   // (measure/probe tools, station feature info) deliberately stay pane-0-only.
   pane.map.on('click', (evt) => {
+    if (tools && DRAW_TOOL_NAMES.has(tools.getActiveTool())) return;
     const hit = pane.radarSite.findSiteAtPixel(evt.pixel);
     if (hit) pane.radarSite.openCardForFeature(hit);
   });
@@ -2058,7 +2066,9 @@ const toolFabBtn = document.getElementById('measureFab');
 const toolFlyoutEl = document.getElementById('toolFlyout');
 const toolFlyoutBackdropEl = document.getElementById('toolFlyoutBackdrop');
 const toolGroupIconEl = toolFabBtn ? toolFabBtn.querySelector('.tool-group-icon') : null;
-const TOOL_ICONS = { measure: 'straighten', pistemittaus: 'colorize', crosshair: 'center_focus_weak' };
+const TOOL_ICONS = {
+  measure: 'straighten', pistemittaus: 'colorize', crosshair: 'center_focus_weak', rengas: 'track_changes',
+};
 // Default tool the FAB arms on a plain tap (and shows in its icon) until the
 // user picks another from the flyout — the centre-crosshair reticle.
 let lastTool = 'crosshair';
@@ -2712,12 +2722,16 @@ const main = () => {
     probe.setActiveLayer(radarLayer.getSource().getParams().LAYERS);
   }
 
+  rangeCircle = initRangeCircle();
+  rangeCircle.attachPane(map);
+
   tools = initTools({
     map,
     getOwnPosition: () => ownPosition4326,
     getFrameTimestamp: () => (startDate ? startDate.getTime() : Date.now()),
     onPinChange: (lonLat) => probe && probe.setPin(lonLat),
     onToolChange: syncToolGroup,
+    rangeCircle,
   });
   syncToolGroup();
 
@@ -2794,6 +2808,7 @@ const main = () => {
   buildPanePill(pane0);
 
   map.on('click', (evt) => {
+    if (tools && DRAW_TOOL_NAMES.has(tools.getActiveTool())) return;
     const hit = map.forEachFeatureAtPixel(evt.pixel, (f) => f);
     const pin = tools && tools.getPinFeature();
 
