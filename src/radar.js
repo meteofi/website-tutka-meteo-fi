@@ -34,6 +34,7 @@ import initProbe from './probe';
 import initRadarSite from './radarSite';
 import initCrosshair from './crosshair';
 import initShare from './share';
+import initObsLayer from './obs/obsLayer';
 import FramePool from './animation/framePool';
 import { canInterpolate, RadarInterpolator } from './animation/interpolation';
 import { track } from './analytics';
@@ -589,6 +590,17 @@ const sharedView = new View({
   constrainResolution: true,
 });
 
+// EDR observation layer opt-in (PR 2 of the obs WMS→EDR migration): with
+// localStorage.OBS_EDR = '1', observations render as a client-side vector
+// layer fed by the EDR API (src/obs/obsLayer.js) instead of the WMS raster.
+// The vector layer's source impersonates the WMS param surface
+// (getParams/updateParams LAYERS), so menus, persistence, playlist and
+// share attributions work unchanged. Remove the key to revert to WMS.
+const OBS_EDR = localStorage.getItem('OBS_EDR') === '1';
+const obsController = OBS_EDR
+  ? initObsLayer({ defaultProduct: options.defaultObservationLayer })
+  : null;
+
 // Shared dependencies every pane's layers reference — Style objects/functions
 // and the radar-site VectorSource. Passed into createPane so src/pane.js stays
 // free of app state.
@@ -601,6 +613,7 @@ const paneDeps = {
   vesivaylatStyleFn,
   vesivaylaAreaStyle,
   rangeStyle,
+  createObservationLayer: obsController ? obsController.createPaneLayer : undefined,
 };
 
 const pane0 = createPane(document.getElementById('map'), sharedView, {
@@ -614,6 +627,7 @@ const pane0 = createPane(document.getElementById('map'), sharedView, {
   framePools,
 });
 panes.push(pane0);
+if (obsController) obsController.bindMap(0, pane0.map);
 
 // Pane-0 aliases — keep the original single-map identifiers working unchanged.
 // Only the handles still referenced directly by radar.js are aliased; the
@@ -752,6 +766,7 @@ function ensurePanes(count) {
       layerInRange: {},
     });
     panes.push(pane);
+    if (obsController) obsController.bindMap(pane.index, pane.map);
     initNewPane(pane);
   }
 }
@@ -917,7 +932,11 @@ function setTime(action = 'next') {
       // A layer without a valid time can't constrain the window — skip it
       // rather than throwing here on every tick (which freezes playback).
       const t = wmslayer in layerInfo ? layerInfo[wmslayer].time : null;
-      if (t && Number.isFinite(t.end) && Number.isFinite(t.resolution)) {
+      // The EDR obs layer snaps raw station reports onto whatever window the
+      // other layers pick — it must not coarsen the shared resolution (its
+      // WMS capabilities entry advertises PT10M) nor cap the newest frame.
+      const constrains = !(OBS_EDR && item === 'observationLayer');
+      if (constrains && t && Number.isFinite(t.end) && Number.isFinite(t.resolution)) {
         if (item === 'radarLayer' || item === 'satelliteLayer' || item === 'observationLayer') {
           end = Math.min(end, Math.floor(t.end / resolution) * resolution);
         }
@@ -1027,7 +1046,12 @@ function setTime(action = 'next') {
     if (button) button.classList.toggle('stale-data', isStale);
     if (pillBtn) pillBtn.classList.toggle('stale-data', isStale);
 
-    const inRange = !info || !info.start || !info.end
+    // The EDR obs vector layer handles per-station data gaps itself (a
+    // frame with no fresh-enough report simply drops that label) — hiding
+    // the whole layer on the WMS capabilities range would blank it on the
+    // newest frames whenever the caps timestamp lags the radar window.
+    const inRange = (obsController && name === 'observationLayer')
+      || !info || !info.start || !info.end
       || (tNow >= info.start && tNow <= info.end);
     olLayer.setOpacity(inRange ? 1 : 0);
     pane.LAYER_IN_RANGE[name] = inRange;
@@ -1045,6 +1069,9 @@ function setTime(action = 'next') {
     routeLayer(pane, 'lightningLayer', windowInterval, timeInterval);
     routeLayer(pane, 'observationLayer', windowInterval, timeInterval);
   }
+  // EDR obs: one shared controller replaces the per-pane obs FramePools.
+  // Window changes trigger a (deduped) fetch; cursor moves only restyle.
+  if (obsController) obsController.route(start, resolution, tNow);
   updateMapTimeDisplay(timeISO);
 }
 
@@ -2676,8 +2703,11 @@ function buildPanePools(pane) {
     ['satelliteLayer', pane.layerss.satelliteLayer],
     ['radarLayer', pane.layerss.radarLayer],
     ['lightningLayer', pane.layerss.lightningLayer],
-    ['observationLayer', pane.layerss.observationLayer],
   ];
+  // The EDR vector observation layer holds its whole window client-side
+  // (obsController routes it in setTime); only the WMS raster animates
+  // through a FramePool.
+  if (!OBS_EDR) pairs.push(['observationLayer', pane.layerss.observationLayer]);
   for (const [name, layer] of pairs) {
     const key = `${pane.index}:${name}`;
     poolLoadStates[key] = new Array(13).fill(false);

@@ -259,10 +259,12 @@ function pruneStations(stationMap, keepFromMs) {
 }
 
 // The stateful client. One instance per app (panes share it — same data
-// feeds every pane's vector layer, the radarSiteSource pattern).
+// feeds every pane's vector layer, the radarSiteSource pattern). `products`
+// is a list because split-screen panes can show different obs products; one
+// request set fetches the union of their parameters.
 //
 //   const client = createObsClient();
-//   await client.ensureWindow({ viewExtent, product, startMs, endMs });
+//   await client.ensureWindow({ viewExtent, products: [product], startMs, endMs });
 //   const rows = client.snapToFrames(frameTimes, product);
 //
 // ensureWindow is cheap to call repeatedly (every setTime): it no-ops when
@@ -280,6 +282,9 @@ export function createObsClient({ fetchImpl } = {}) {
   let paramsKey = null;
   let controller = null;
   let inflight = null; // { key, promise }
+  // Bumped whenever fetched data lands in the store — callers compare it to
+  // decide whether derived state (rendered features) needs a rebuild.
+  let revision = 0;
 
   async function fetchChunk(state, startMs, endMs, signal, params) {
     const url = buildAreaUrl(state.bounds, params, startMs, endMs);
@@ -289,6 +294,7 @@ export function createObsClient({ fetchImpl } = {}) {
     mergeStations(state.stations, fresh, startMs);
     state.startMs = state.startMs == null ? startMs : Math.min(state.startMs, startMs);
     state.endMs = endMs;
+    revision += 1;
   }
 
   async function run(key, params, fetchStartMs, fetchEndMs) {
@@ -323,13 +329,17 @@ export function createObsClient({ fetchImpl } = {}) {
 
   return {
     // viewExtent: [lonMin, latMin, lonMax, latMax] in degrees (CRS84).
+    // products: `observation:*` ids whose parameter union to fetch.
     // startMs/endMs: the animation window; the query start is extended by
     // the snap tolerance so frame 0 has its lookback data.
     async ensureWindow({
-      viewExtent, product, startMs, endMs,
+      viewExtent, products, startMs, endMs,
     }) {
-      const spec = OBS_PRODUCTS[product];
-      if (!spec) throw new Error(`unknown observation product: ${product}`);
+      const params = [...new Set(products.flatMap((product) => {
+        const spec = OBS_PRODUCTS[product];
+        if (!spec) throw new Error(`unknown observation product: ${product}`);
+        return spec.params;
+      }))].sort();
       const bounds = quantizedAreaBounds(viewExtent);
       const fetchStartMs = floorToMinute(startMs - SNAP_TOLERANCE_MS);
       const fetchEndMs = ceilToMinute(endMs);
@@ -339,7 +349,7 @@ export function createObsClient({ fetchImpl } = {}) {
         return { stations: 0, failedChunks: 0 };
       }
       const bKey = bounds.join(',');
-      const pKey = spec.params.join(',');
+      const pKey = params.join(',');
       if (bKey !== boundsKey || pKey !== paramsKey) {
         if (controller) controller.abort();
         inflight = null;
@@ -351,7 +361,7 @@ export function createObsClient({ fetchImpl } = {}) {
       }
       const key = `${bKey}|${pKey}|${fetchStartMs}|${fetchEndMs}`;
       if (!inflight || inflight.key !== key) {
-        const promise = run(key, spec.params, fetchStartMs, fetchEndMs)
+        const promise = run(key, params, fetchStartMs, fetchEndMs)
           .finally(() => { if (inflight && inflight.key === key) inflight = null; });
         inflight = { key, promise };
       }
@@ -383,6 +393,12 @@ export function createObsClient({ fetchImpl } = {}) {
         }
       }
       return rows;
+    },
+
+    // Monotonic data-store version — compare across calls to skip rebuilding
+    // derived state when nothing new arrived.
+    revision() {
+      return revision;
     },
 
     abort() {

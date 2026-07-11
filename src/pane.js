@@ -67,6 +67,10 @@ export default function createPane(targetEl, sharedView, deps) {
     vesivaylatStyleFn,
     vesivaylaAreaStyle,
     rangeStyle,
+    // Optional factory (obs WMS→EDR migration, localStorage.OBS_EDR): builds
+    // the client-rendered vector observation layer in place of the WMS
+    // raster. radar.js owns the controller; panes just host the layer.
+    createObservationLayer,
     visible,
     activeLayers,
     layerInRange = {},
@@ -184,19 +188,24 @@ export default function createPane(targetEl, sharedView, deps) {
   });
   lightningLayer.set('defaultFormat', 'image/png8');
 
-  const observationLayer = new ImageLayer({
-    name: 'observationLayer',
-    visible: VISIBLE.has('observationLayer'),
-    source: new ImageWMS({
-      url: options.wmsServerConfiguration['meteo-obs-new'].url,
-      params: { FORMAT: 'image/png8', LAYERS: options.defaultObservationLayer },
-      ratio: options.imageRatio,
-      hidpi: false,
-      serverType: 'geoserver',
-      crossOrigin: 'anonymous',
-    }),
-  });
-  observationLayer.set('defaultFormat', 'image/png8');
+  let observationLayer;
+  if (createObservationLayer) {
+    observationLayer = createObservationLayer(index, VISIBLE.has('observationLayer'));
+  } else {
+    observationLayer = new ImageLayer({
+      name: 'observationLayer',
+      visible: VISIBLE.has('observationLayer'),
+      source: new ImageWMS({
+        url: options.wmsServerConfiguration['meteo-obs-new'].url,
+        params: { FORMAT: 'image/png8', LAYERS: options.defaultObservationLayer },
+        ratio: options.imageRatio,
+        hidpi: false,
+        serverType: 'geoserver',
+        crossOrigin: 'anonymous',
+      }),
+    });
+    observationLayer.set('defaultFormat', 'image/png8');
+  }
 
   // Back-reference so radar.js can resolve which pane owns a layer when a
   // layer-level event (change:visible / propertychange) fires.
