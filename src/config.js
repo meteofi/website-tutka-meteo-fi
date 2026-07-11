@@ -14,25 +14,6 @@ const wmsServerConfiguration = {
     attribution: 'FMI (CC-BY-4.0)',
     disabled: false,
   },
-  'meteo-obs-new': {
-    url: 'https://wms-obs.app.meteo.fi/geoserver/wms',
-    namespace: 'observation',
-    refresh: 300000,
-    category: 'observationLayer',
-    attribution: 'FMI (CC-BY-4.0)',
-    // The wms-obs GeoServer was turned off permanently 2026-07-12. Its
-    // products are EDR-backed client-side layers now (metadata below in
-    // edrLayerInfo); disabled stops the GetCapabilities polling.
-    disabled: true,
-  },
-  'meteo-obs': {
-    url: 'https://geoserver.app.meteo.fi/geoserver/wms',
-    namespace: 'observation',
-    refresh: 300000,
-    category: 'observationLayer',
-    attribution: 'FMI (CC-BY-4.0)',
-    disabled: true,
-  },
   eumetsat: {
     url: 'https://eumetview.eumetsat.int/geoserv/wms',
     namespace: 'meteosat',

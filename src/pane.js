@@ -69,13 +69,9 @@ export default function createPane(targetEl, sharedView, deps) {
     vesivaylatStyleFn,
     vesivaylaAreaStyle,
     rangeStyle,
-    // Optional factory (obs WMS→EDR migration, localStorage.OBS_EDR): builds
-    // the client-rendered vector observation layer in place of the WMS
-    // raster. radar.js owns the controller; panes just host the layer.
+    // Layer factories for the EDR-backed vector layers (observations, FMI
+    // lightning). radar.js owns the controllers; panes just host the layers.
     createObservationLayer,
-    // Optional factory (lightning WMS→EDR migration): builds the vector FMI
-    // lightning layer; a companion ImageWMS layer (below) keeps rendering
-    // the EUMETSAT WMS products (li_afa/rdt) of the same category.
     createLightningLayer,
     visible,
     activeLayers,
@@ -86,8 +82,7 @@ export default function createPane(targetEl, sharedView, deps) {
     framePools = {
       satelliteLayer: null,
       radarLayer: null,
-      lightningLayer: null,
-      observationLayer: null,
+      lightningWmsLayer: null,
     },
     index = 0,
   } = deps;
@@ -198,64 +193,30 @@ export default function createPane(targetEl, sharedView, deps) {
   // Opt out of the webp wire format for radar specifically (see radar.js notes).
   radarLayer.set('disableWebp', true);
 
-  let lightningLayer;
-  let lightningWmsLayer = null;
-  if (createLightningLayer) {
-    lightningLayer = createLightningLayer(index, VISIBLE.has('lightningLayer'));
-    // Companion raster for the category's WMS products (li_afa/rdt from
-    // view.eumetsat.int). Hidden until a WMS product is selected — the
-    // lightning controller owns its visibility; radar.js owns its FramePool.
-    lightningWmsLayer = new ImageLayer({
-      name: 'lightningWmsLayer',
-      visible: false,
-      source: new ImageWMS({
-        url: options.wmsServerConfiguration['mtg-li-afa'].url,
-        params: { FORMAT: 'image/png', TRANSPARENT: 'TRUE', LAYERS: 'li_afa' },
-        ratio: options.imageRatio,
-        hidpi: false,
-        serverType: 'geoserver',
-        crossOrigin: 'anonymous',
-        imageLoadFunction: getMapGuard('lightningWmsLayer'),
-      }),
-    });
-    lightningWmsLayer.set('defaultFormat', 'image/png');
-    lightningWmsLayer.set('_paneIndex', index);
-  } else {
-    lightningLayer = new ImageLayer({
-      name: 'lightningLayer',
-      visible: VISIBLE.has('lightningLayer'),
-      source: new ImageWMS({
-        url: options.wmsServerConfiguration['meteo-obs-new'].url,
-        params: { FORMAT: 'image/png8', LAYERS: options.defaultLightningLayer },
-        ratio: options.imageRatio,
-        hidpi: false,
-        serverType: 'geoserver',
-        crossOrigin: 'anonymous',
-        imageLoadFunction: getMapGuard('lightningLayer'),
-      }),
-    });
-    lightningLayer.set('defaultFormat', 'image/png8');
-  }
+  // FMI lightning is an EDR-backed vector layer (src/lightning/); this
+  // companion raster carries the category's WMS products (li_afa/rdt from
+  // view.eumetsat.int). Hidden until a WMS product is selected — the
+  // lightning controller owns its visibility; radar.js owns its FramePool.
+  const lightningLayer = createLightningLayer(index, VISIBLE.has('lightningLayer'));
+  const lightningWmsLayer = new ImageLayer({
+    name: 'lightningWmsLayer',
+    visible: false,
+    source: new ImageWMS({
+      url: options.wmsServerConfiguration['mtg-li-afa'].url,
+      params: { FORMAT: 'image/png', TRANSPARENT: 'TRUE', LAYERS: 'li_afa' },
+      ratio: options.imageRatio,
+      hidpi: false,
+      serverType: 'geoserver',
+      crossOrigin: 'anonymous',
+      imageLoadFunction: getMapGuard('lightningWmsLayer'),
+    }),
+  });
+  lightningWmsLayer.set('defaultFormat', 'image/png');
+  lightningWmsLayer.set('_paneIndex', index);
 
-  let observationLayer;
-  if (createObservationLayer) {
-    observationLayer = createObservationLayer(index, VISIBLE.has('observationLayer'));
-  } else {
-    observationLayer = new ImageLayer({
-      name: 'observationLayer',
-      visible: VISIBLE.has('observationLayer'),
-      source: new ImageWMS({
-        url: options.wmsServerConfiguration['meteo-obs-new'].url,
-        params: { FORMAT: 'image/png8', LAYERS: options.defaultObservationLayer },
-        ratio: options.imageRatio,
-        hidpi: false,
-        serverType: 'geoserver',
-        crossOrigin: 'anonymous',
-        imageLoadFunction: getMapGuard('observationLayer'),
-      }),
-    });
-    observationLayer.set('defaultFormat', 'image/png8');
-  }
+  // Observations are an EDR-backed vector layer too (src/obs/); the wms-obs
+  // GeoServer that once rendered both as rasters is permanently offline.
+  const observationLayer = createObservationLayer(index, VISIBLE.has('observationLayer'));
 
   // Back-reference so radar.js can resolve which pane owns a layer when a
   // layer-level event (change:visible / propertychange) fires.
@@ -346,7 +307,7 @@ export default function createPane(targetEl, sharedView, deps) {
     satelliteLayer,
     radarLayer,
     guideLayer,
-    ...(lightningWmsLayer ? [lightningWmsLayer] : []),
+    lightningWmsLayer,
     lightningLayer,
     lightGrayReferenceLayer,
     darkGrayReferenceLayer,
