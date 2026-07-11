@@ -35,6 +35,7 @@ import initRadarSite from './radarSite';
 import initCrosshair from './crosshair';
 import initShare from './share';
 import initObsLayer from './obs/obsLayer';
+import initLightningLayer from './lightning/lightningLayer';
 import FramePool from './animation/framePool';
 import { canInterpolate, RadarInterpolator } from './animation/interpolation';
 import { track } from './analytics';
@@ -603,6 +604,21 @@ const obsController = OBS_EDR
   ? initObsLayer({ defaultProduct: options.defaultObservationLayer })
   : null;
 
+// FMI lightning is EDR-backed (the wms-obs GeoServer that rendered
+// observation:lightning is permanently offline); the EUMETSAT WMS products
+// of the same category (li_afa/rdt) render through a per-pane companion
+// ImageWMS layer the controller shows/hides on product switches.
+// onWmsProduct routes a WMS product pick through the normal updateLayer
+// param/url path against the companion — with skips because the controller
+// owns companion visibility and the facade layer already carried the
+// category's persistence/tracking.
+const lightningController = initLightningLayer({
+  defaultProduct: options.defaultLightningLayer,
+  onWmsProduct: (companionLayer, id) => updateLayer(companionLayer, id, {
+    skipPersist: true, skipVisibility: true, skipTracking: true,
+  }),
+});
+
 // Shared dependencies every pane's layers reference — Style objects/functions
 // and the radar-site VectorSource. Passed into createPane so src/pane.js stays
 // free of app state.
@@ -616,6 +632,7 @@ const paneDeps = {
   vesivaylaAreaStyle,
   rangeStyle,
   createObservationLayer: obsController ? obsController.createPaneLayer : undefined,
+  createLightningLayer: lightningController.createPaneLayer,
 };
 
 const pane0 = createPane(document.getElementById('map'), sharedView, {
@@ -630,6 +647,7 @@ const pane0 = createPane(document.getElementById('map'), sharedView, {
 });
 panes.push(pane0);
 if (obsController) obsController.bindMap(0, pane0.map);
+lightningController.bindMap(0, pane0.map, pane0.lightningWmsLayer);
 
 // Pane-0 aliases — keep the original single-map identifiers working unchanged.
 // Only the handles still referenced directly by radar.js are aliased; the
@@ -769,6 +787,7 @@ function ensurePanes(count) {
     });
     panes.push(pane);
     if (obsController) obsController.bindMap(pane.index, pane.map);
+    lightningController.bindMap(pane.index, pane.map, pane.lightningWmsLayer);
     initNewPane(pane);
   }
 }
@@ -1028,12 +1047,15 @@ function setTime(action = 'next') {
   // Route one (pane, category) for the current window. Per-pane concerns —
   // opacity, LAYER_IN_RANGE and the pool's window/time. The shared top toolbar's
   // stale-data button reflects pane 0 only; per-pane pills own their own state.
-  const routeLayer = (pane, name, window, currentTime) => {
-    const olLayer = pane.layerss[name];
-    const button = pane.index === 0 ? document.getElementById(`${name}Button`) : null;
-    const pillBtn = pane.pillButtons && pane.pillButtons[name];
+  // `uiName` maps a companion layer (the lightning category's WMS raster,
+  // which lives outside layerss) onto the category whose visibility/button
+  // state governs it; for layerss entries it equals `name`.
+  const routeLayer = (pane, name, window, currentTime, uiName = name) => {
+    const olLayer = pane.layerss[name] || pane[name];
+    const button = pane.index === 0 ? document.getElementById(`${uiName}Button`) : null;
+    const pillBtn = pane.pillButtons && pane.pillButtons[uiName];
 
-    if (!pane.VISIBLE.has(name)) {
+    if (!pane.VISIBLE.has(uiName)) {
       if (button) button.classList.remove('stale-data');
       if (pillBtn) pillBtn.classList.remove('stale-data');
       olLayer.setOpacity(1);
@@ -1070,10 +1092,19 @@ function setTime(action = 'next') {
     routeLayer(pane, 'radarLayer', windowInstant, timeISO);
     routeLayer(pane, 'lightningLayer', windowInterval, timeInterval);
     routeLayer(pane, 'observationLayer', windowInterval, timeInterval);
+    // The lightning category's WMS raster (li_afa/rdt) rides its own pool on
+    // the companion layer, gated on the category's visibility/button state.
+    // In EDR mode the companion is hidden and its pool idles on the
+    // FramePool getVisible guard — skip the routing entirely.
+    if (pane.lightningWmsLayer && lightningController.isWmsMode(pane.index)) {
+      routeLayer(pane, 'lightningWmsLayer', windowInterval, timeInterval, 'lightningLayer');
+    }
   }
-  // EDR obs: one shared controller replaces the per-pane obs FramePools.
-  // Window changes trigger a (deduped) fetch; cursor moves only restyle.
+  // EDR vector layers: one shared controller each replaces the per-pane
+  // FramePools. Window changes trigger a (deduped) fetch; cursor moves only
+  // restyle client-side.
   if (obsController) obsController.route(start, resolution, tNow);
+  lightningController.route(start, resolution, tNow);
   updateMapTimeDisplay(timeISO);
 }
 
@@ -2527,6 +2558,14 @@ function getWMSCapabilities(wms, failCountArg = 0) {
           olLayer.set('info', layerInfo[olLayer.getSource().getParams().LAYERS]);
           applyWireFormat(olLayer);
         }
+        // The lightning WMS companion carries the actual EUMETSAT raster;
+        // adopt webp/format for it too (the facade's applyWireFormat is a
+        // no-op on the vector source).
+        if (pane.lightningWmsLayer) {
+          const companion = pane.lightningWmsLayer;
+          companion.set('info', layerInfo[companion.getSource().getParams().LAYERS]);
+          applyWireFormat(companion);
+        }
       }
       for (const pane of activePanes()) restoreActiveLayer(wms.category, pane);
       if (IS_FOLLOWING) {
@@ -2704,11 +2743,13 @@ function buildPanePools(pane) {
   const pairs = [
     ['satelliteLayer', pane.layerss.satelliteLayer],
     ['radarLayer', pane.layerss.radarLayer],
-    ['lightningLayer', pane.layerss.lightningLayer],
   ];
-  // The EDR vector observation layer holds its whole window client-side
-  // (obsController routes it in setTime); only the WMS raster animates
-  // through a FramePool.
+  // The EDR vector layers (FMI lightning, observations) hold their whole
+  // window client-side — their controllers route them in setTime; only WMS
+  // rasters animate through FramePools. The lightning category's WMS
+  // products (li_afa/rdt) animate via the companion layer's pool.
+  if (pane.lightningWmsLayer) pairs.push(['lightningWmsLayer', pane.lightningWmsLayer]);
+  else pairs.push(['lightningLayer', pane.layerss.lightningLayer]);
   if (!OBS_EDR) pairs.push(['observationLayer', pane.layerss.observationLayer]);
   for (const [name, layer] of pairs) {
     const key = `${pane.index}:${name}`;

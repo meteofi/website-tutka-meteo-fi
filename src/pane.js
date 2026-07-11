@@ -73,6 +73,10 @@ export default function createPane(targetEl, sharedView, deps) {
     // the client-rendered vector observation layer in place of the WMS
     // raster. radar.js owns the controller; panes just host the layer.
     createObservationLayer,
+    // Optional factory (lightning WMS→EDR migration): builds the vector FMI
+    // lightning layer; a companion ImageWMS layer (below) keeps rendering
+    // the EUMETSAT WMS products (li_afa/rdt) of the same category.
+    createLightningLayer,
     visible,
     activeLayers,
     layerInRange = {},
@@ -194,20 +198,44 @@ export default function createPane(targetEl, sharedView, deps) {
   // Opt out of the webp wire format for radar specifically (see radar.js notes).
   radarLayer.set('disableWebp', true);
 
-  const lightningLayer = new ImageLayer({
-    name: 'lightningLayer',
-    visible: VISIBLE.has('lightningLayer'),
-    source: new ImageWMS({
-      url: options.wmsServerConfiguration['meteo-obs-new'].url,
-      params: { FORMAT: 'image/png8', LAYERS: options.defaultLightningLayer },
-      ratio: options.imageRatio,
-      hidpi: false,
-      serverType: 'geoserver',
-      crossOrigin: 'anonymous',
-      imageLoadFunction: getMapGuard('lightningLayer'),
-    }),
-  });
-  lightningLayer.set('defaultFormat', 'image/png8');
+  let lightningLayer;
+  let lightningWmsLayer = null;
+  if (createLightningLayer) {
+    lightningLayer = createLightningLayer(index, VISIBLE.has('lightningLayer'));
+    // Companion raster for the category's WMS products (li_afa/rdt from
+    // view.eumetsat.int). Hidden until a WMS product is selected — the
+    // lightning controller owns its visibility; radar.js owns its FramePool.
+    lightningWmsLayer = new ImageLayer({
+      name: 'lightningWmsLayer',
+      visible: false,
+      source: new ImageWMS({
+        url: options.wmsServerConfiguration['mtg-li-afa'].url,
+        params: { FORMAT: 'image/png', TRANSPARENT: 'TRUE', LAYERS: 'li_afa' },
+        ratio: options.imageRatio,
+        hidpi: false,
+        serverType: 'geoserver',
+        crossOrigin: 'anonymous',
+        imageLoadFunction: getMapGuard('lightningWmsLayer'),
+      }),
+    });
+    lightningWmsLayer.set('defaultFormat', 'image/png');
+    lightningWmsLayer.set('_paneIndex', index);
+  } else {
+    lightningLayer = new ImageLayer({
+      name: 'lightningLayer',
+      visible: VISIBLE.has('lightningLayer'),
+      source: new ImageWMS({
+        url: options.wmsServerConfiguration['meteo-obs-new'].url,
+        params: { FORMAT: 'image/png8', LAYERS: options.defaultLightningLayer },
+        ratio: options.imageRatio,
+        hidpi: false,
+        serverType: 'geoserver',
+        crossOrigin: 'anonymous',
+        imageLoadFunction: getMapGuard('lightningLayer'),
+      }),
+    });
+    lightningLayer.set('defaultFormat', 'image/png8');
+  }
 
   let observationLayer;
   if (createObservationLayer) {
@@ -318,6 +346,7 @@ export default function createPane(targetEl, sharedView, deps) {
     satelliteLayer,
     radarLayer,
     guideLayer,
+    ...(lightningWmsLayer ? [lightningWmsLayer] : []),
     lightningLayer,
     lightGrayReferenceLayer,
     darkGrayReferenceLayer,
@@ -353,6 +382,7 @@ export default function createPane(targetEl, sharedView, deps) {
     satelliteLayer,
     radarLayer,
     lightningLayer,
+    lightningWmsLayer,
     observationLayer,
     radarSiteLayer,
     icaoLayer,
