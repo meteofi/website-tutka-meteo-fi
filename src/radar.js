@@ -590,13 +590,15 @@ const sharedView = new View({
   constrainResolution: true,
 });
 
-// EDR observation layer opt-in (PR 2 of the obs WMS→EDR migration): with
-// localStorage.OBS_EDR = '1', observations render as a client-side vector
-// layer fed by the EDR API (src/obs/obsLayer.js) instead of the WMS raster.
-// The vector layer's source impersonates the WMS param surface
-// (getParams/updateParams LAYERS), so menus, persistence, playlist and
-// share attributions work unchanged. Remove the key to revert to WMS.
-const OBS_EDR = localStorage.getItem('OBS_EDR') === '1';
+// EDR observation layer (obs WMS→EDR migration): observations render as a
+// client-side vector layer fed by the EDR API (src/obs/obsLayer.js) instead
+// of the WMS raster. The vector layer's source impersonates the WMS param
+// surface (getParams/updateParams LAYERS), so menus, persistence, playlist
+// and share attributions work unchanged. Default ON since 2026-07-11 (the
+// wms-obs GeoServer was falling over under load; the EDR path has no runtime
+// dependency on it). localStorage.OBS_WMS = '1' is the per-browser escape
+// hatch back to the WMS raster while the old path still exists.
+const OBS_EDR = localStorage.getItem('OBS_WMS') !== '1';
 const obsController = OBS_EDR
   ? initObsLayer({ defaultProduct: options.defaultObservationLayer })
   : null;
