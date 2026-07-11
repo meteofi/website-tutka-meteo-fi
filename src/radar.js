@@ -25,7 +25,7 @@ import localizedFormat from 'dayjs/plugin/localizedFormat';
 import durationPlugin from 'dayjs/plugin/duration';
 import Timeline from './timeline';
 import createPane from './pane';
-import wmsServerConfiguration from './config';
+import wmsServerConfiguration, { edrLayerInfo } from './config';
 import createLongPressHandler, { longPressMenuOpener } from './longpress';
 import initTools from './tools';
 import initRangeCircle from './rangeCircle';
@@ -2753,6 +2753,16 @@ const main = () => {
     const key = `${value.url}|${value.namespace || ''}|${layerKey}`;
     if (!(key in seenEndpoints)) seenEndpoints[key] = value;
   });
+
+  // EDR-backed products (former wms-obs GeoServer, offline for good) have no
+  // GetCapabilities: seed their layerInfo statically and run the
+  // observation-product restore that used to piggyback on the capabilities
+  // response. Lightning is NOT restored here — its stored value can be a
+  // WMS product (li_afa/rdt) whose layerInfo arrives with the EUMETSAT
+  // capabilities, and that response triggers the category restore itself.
+  Object.assign(layerInfo, edrLayerInfo);
+  for (const pane of activePanes()) restoreActiveLayer('observationLayer', pane);
+
   Object.values(seenEndpoints).forEach((wms) => getWMSCapabilities(wms));
 
   setButtonStates();
