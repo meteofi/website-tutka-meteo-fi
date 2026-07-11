@@ -43,7 +43,9 @@ Entry point: `src/radar.js` (~3100 lines) — bootstraps panes, owns the shared 
 | `src/config.js` | Static registry of WMS servers/layers (pure data; entries with `disabled: true` are off) |
 | `src/pane.js` | `createPane()` — one OL map + full layer stack + per-pane state; panes receive the shared View |
 | `src/timeline.js` | 13-cell timeline strip UI |
-| `src/tools.js` | Measure + point-probe ("pistemittaus") tools; single `activeTool` state machine |
+| `src/tools.js` | Measure + point-probe ("pistemittaus") tools; single `activeTool` state machine for all five tools (arms/disarms the draw modules injected via deps) |
+| `src/rangeCircle.js` | Etäisyysrengas: drag-to-draw geodesic range/bearing circle (`circular()` ring, live radius + bearing labels); one shared `VectorSource` rendered per-pane + per-pane invisible-sketch `Draw`, so a drag in any pane mirrors in all; emits `onStrokeEnd` so radar.js can clear the `isInteracting` clock gate (draw strokes never fire `moveend`) |
+| `src/freehand.js` | Piirto: freehand strokes that accumulate until disarm; same shared-source / per-pane `Draw` / `onStrokeEnd` pattern as rangeCircle |
 | `src/probe.js` | dBZ point-probe chart via the EDR API; exports shared EDR helpers used by crosshair |
 | `src/crosshair.js` | Center reticle readout; reads radar pixels via `getData()` + dBZ via probe helpers |
 | `src/radarSite.js` | Single-radar-site drill-in (calls back into radar.js `updateLayer`/`setTime`) |
