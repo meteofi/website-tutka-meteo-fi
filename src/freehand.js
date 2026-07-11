@@ -20,7 +20,13 @@ const STROKE_STYLE = new Style({
 // VectorSource rendered through a per-pane VectorLayer, and a per-pane Draw
 // interaction with an invisible sketch — panes share one View, so a stroke
 // drawn in any pane mirrors pixel-identically in all of them.
-export default function initFreehand() {
+//
+// onStrokeEnd fires whenever a drag gesture ends (drawend or drawabort). The
+// caller needs it to unstick its clock gating: a draw stroke consumes the
+// whole pointer sequence without moving the view, so the moveend that
+// normally follows a drag never fires.
+export default function initFreehand({ onStrokeEnd } = {}) {
+  const emitStrokeEnd = typeof onStrokeEnd === 'function' ? onStrokeEnd : () => {};
   const source = new VectorSource();
   const attached = [];
   let armed = false;
@@ -67,12 +73,14 @@ export default function initFreehand() {
     draw.on('drawend', () => {
       detachSketch();
       liveFeature = null;
+      emitStrokeEnd();
     });
     // Tap-abort / Esc / setActive(false): drop the unfinished stroke only.
     draw.on('drawabort', () => {
       detachSketch();
       if (liveFeature) source.removeFeature(liveFeature);
       liveFeature = null;
+      emitStrokeEnd();
     });
     // Panes can be created while the tool is armed (1-up → 4-up switch).
     draw.setActive(armed);

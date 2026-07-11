@@ -658,6 +658,14 @@ function wirePaneClockGating(pane) {
   pane.map.on('pointerdrag', onPanePointerDrag);
   pane.map.on('moveend', onPaneMoveEnd);
 }
+// Draw-tool strokes fire pointerdrag (arming the gate) but consume the whole
+// pointer sequence without moving the view, so the moveend that normally
+// clears the gate never comes — without this callback the clock would stay
+// stuck until the next pan.
+function onDrawStrokeEnd() {
+  isInteracting = false;
+  lastAdvance = window.performance.now();
+}
 
 // Copy pane 0's current display state (sublayer params, info, opacity,
 // visibility) onto a freshly-created pane so a new split starts as a mirror of
@@ -1118,6 +1126,9 @@ const play = function () {
   if (animationId === null) {
     debug('PLAY');
     IS_FOLLOWING = false;
+    // An explicit play must never be blocked by a stale drag gate (e.g. a
+    // gesture that ended without a moveend).
+    isInteracting = false;
     lastAdvance = window.performance.now();
     animationId = window.requestAnimationFrame(renderTick);
     document.getElementById('playstopButton').innerHTML = 'pause';
@@ -2725,9 +2736,9 @@ const main = () => {
     probe.setActiveLayer(radarLayer.getSource().getParams().LAYERS);
   }
 
-  rangeCircle = initRangeCircle();
+  rangeCircle = initRangeCircle({ onStrokeEnd: onDrawStrokeEnd });
   rangeCircle.attachPane(map);
-  freehand = initFreehand();
+  freehand = initFreehand({ onStrokeEnd: onDrawStrokeEnd });
   freehand.attachPane(map);
 
   tools = initTools({
