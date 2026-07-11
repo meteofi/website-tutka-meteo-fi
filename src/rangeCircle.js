@@ -29,12 +29,12 @@ function centerLabelStyle(text) {
     }),
     text: new Text({
       text,
-      font: 'bold 13px Roboto, sans-serif',
-      offsetY: -14,
+      font: 'bold 16px Roboto, sans-serif',
+      offsetY: -24,
       textAlign: 'center',
       fill: new Fill({ color: '#ffffff' }),
       // Outline so the label stays legible over any radar/map colour
-      stroke: new Stroke({ color: 'rgba(0, 0, 0, 0.85)', width: 3 }),
+      stroke: new Stroke({ color: 'rgba(0, 0, 0, 0.85)', width: 4 }),
     }),
   });
 }
