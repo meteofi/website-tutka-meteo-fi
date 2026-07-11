@@ -2754,19 +2754,23 @@ const main = () => {
     rangeCircle,
     freehand,
   });
+  initPaneRadarSite(pane0);
+  radarSite = pane0.radarSite;
+  initPaneCrosshair(pane0);
+
   // Restore the tool selection from the previous session: the FAB's
   // tap-default always, plus re-arming if a tool was armed when the user
   // left. The TOOL_ICONS guard drops garbage and renamed/removed tools.
+  // Must run after initPaneCrosshair (a re-armed Tähtäin shows its reticle
+  // via syncCrosshairVisibility, which skips panes with no crosshair yet)
+  // and before any other syncToolGroup call (which would persist the
+  // defaults over the saved state before it's read).
   const savedTool = safeParseJSON('TOOL_STATE', null);
   if (savedTool && TOOL_ICONS[savedTool.last]) {
     lastTool = savedTool.last;
     if (savedTool.armed) tools.setActiveTool(savedTool.last);
   }
   syncToolGroup();
-
-  initPaneRadarSite(pane0);
-  radarSite = pane0.radarSite;
-  initPaneCrosshair(pane0);
 
   const share = initShare({
     button: document.getElementById('shareButton'),
