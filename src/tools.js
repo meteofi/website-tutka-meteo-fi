@@ -151,7 +151,7 @@ function buildMarkerCard() {
 }
 
 export default function initTools({
-  map, getOwnPosition, getFrameTimestamp, onPinChange, onToolChange, rangeCircle,
+  map, getOwnPosition, getFrameTimestamp, onPinChange, onToolChange, rangeCircle, freehand,
 }) {
   const emitPinChange = typeof onPinChange === 'function'
     ? (lonLat) => { try { onPinChange(lonLat); } catch (_) { /* ignore */ } }
@@ -428,7 +428,7 @@ export default function initTools({
   // leaving (measure features, or the probe pin + card + chart) and sets up the
   // one we're entering. Passing null (or anything else) disarms.
   function setActiveTool(next) {
-    const TOOL_NAMES = ['measure', 'pistemittaus', 'crosshair', 'rengas'];
+    const TOOL_NAMES = ['measure', 'pistemittaus', 'crosshair', 'rengas', 'piirto'];
     const tool = TOOL_NAMES.includes(next) ? next : null;
     if (tool === activeTool) return;
 
@@ -444,6 +444,8 @@ export default function initTools({
       // disarm() deactivates every pane's Draw (aborting any mid-drag stroke)
       // and clears the circle graphics.
       if (rangeCircle) rangeCircle.disarm();
+    } else if (activeTool === 'piirto') {
+      if (freehand) freehand.disarm();
     }
 
     activeTool = tool;
@@ -469,6 +471,11 @@ export default function initTools({
       setChipIdentity('track_changes', 'ETÄISYYSRENGAS');
       setChipHint('paina ja vedä kartalla');
       if (rangeCircle) rangeCircle.arm();
+    } else if (tool === 'piirto') {
+      markerTranslate.setActive(false);
+      setChipIdentity('gesture', 'PIIRTO');
+      setChipHint('piirrä vetämällä');
+      if (freehand) freehand.arm();
     } else {
       markerTranslate.setActive(false);
     }

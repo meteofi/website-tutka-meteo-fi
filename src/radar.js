@@ -29,6 +29,7 @@ import wmsServerConfiguration from './config';
 import createLongPressHandler, { longPressMenuOpener } from './longpress';
 import initTools from './tools';
 import initRangeCircle from './rangeCircle';
+import initFreehand from './freehand';
 import initProbe from './probe';
 import initRadarSite from './radarSite';
 import initCrosshair from './crosshair';
@@ -66,10 +67,11 @@ let ownPosition4326 = [];
 let geolocation;
 let tools = null;
 let rangeCircle = null;
+let freehand = null;
 // Drag-to-draw tools own the whole pointer sequence while armed. A tap that
 // aborts a stroke (below Draw's clickTolerance) still emits a map click, so
 // the click routers bail out for these tools instead of opening popups.
-const DRAW_TOOL_NAMES = new Set(['rengas']);
+const DRAW_TOOL_NAMES = new Set(['rengas', 'piirto']);
 let probe = null;
 let radarSite = null;
 let startDate = new Date(Math.floor(Date.now() / 300000) * 300000 - 300000 * 12);
@@ -708,6 +710,7 @@ function initNewPane(pane) {
   initPaneRadarSite(pane);
   initPaneCrosshair(pane);
   if (rangeCircle) rangeCircle.attachPane(pane.map);
+  if (freehand) freehand.attachPane(pane.map);
   // Radar-site taps work in every pane; the other pane-0 click concerns
   // (measure/probe tools, station feature info) deliberately stay pane-0-only.
   pane.map.on('click', (evt) => {
@@ -2067,7 +2070,7 @@ const toolFlyoutEl = document.getElementById('toolFlyout');
 const toolFlyoutBackdropEl = document.getElementById('toolFlyoutBackdrop');
 const toolGroupIconEl = toolFabBtn ? toolFabBtn.querySelector('.tool-group-icon') : null;
 const TOOL_ICONS = {
-  measure: 'straighten', pistemittaus: 'colorize', crosshair: 'center_focus_weak', rengas: 'track_changes',
+  measure: 'straighten', pistemittaus: 'colorize', crosshair: 'center_focus_weak', rengas: 'track_changes', piirto: 'gesture',
 };
 // Default tool the FAB arms on a plain tap (and shows in its icon) until the
 // user picks another from the flyout — the centre-crosshair reticle.
@@ -2724,6 +2727,8 @@ const main = () => {
 
   rangeCircle = initRangeCircle();
   rangeCircle.attachPane(map);
+  freehand = initFreehand();
+  freehand.attachPane(map);
 
   tools = initTools({
     map,
@@ -2732,6 +2737,7 @@ const main = () => {
     onPinChange: (lonLat) => probe && probe.setPin(lonLat),
     onToolChange: syncToolGroup,
     rangeCircle,
+    freehand,
   });
   syncToolGroup();
 
