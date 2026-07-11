@@ -29,6 +29,8 @@ import Feature from 'ol/Feature';
 import {
   Circle as CircleStyle, Fill, Stroke, Style,
 } from 'ol/style';
+import { track } from './analytics';
+import { createGetMapSizeGuard } from './wms/requestShape';
 
 // The blue GPS dot + grey accuracy disc. One pair per pane so the marker can
 // render in every pane; radar.js updates each pane's geometry on GPS change.
@@ -136,6 +138,22 @@ export default function createPane(targetEl, sharedView, deps) {
   //
   // CONTENT LAYERS
   //
+  // Drop-and-report guard for runaway base-source GetMaps (WIDTH/HEIGHT in
+  // the tens of thousands — see requestShape.js MAX_GETMAP_DIM). The
+  // telemetry captures the container/window geometry at the moment of the
+  // oversize render so the layout transient causing it can be identified.
+  const getMapGuard = (layerName) => createGetMapSizeGuard((w, h) => {
+    console.warn(`Dropped oversize GetMap ${w}x${h} (${layerName}, pane ${index})`); // eslint-disable-line no-console
+    track('oversize-getmap', {
+      layer: layerName,
+      size: `${w}x${h}`,
+      el: `${targetEl.clientWidth}x${targetEl.clientHeight}`,
+      win: `${window.innerWidth}x${window.innerHeight}`,
+      dpr: window.devicePixelRatio,
+      pane: index,
+    });
+  });
+
   const satelliteLayer = new ImageLayer({
     name: 'satelliteLayer',
     visible: VISIBLE.has('satelliteLayer'),
@@ -148,6 +166,7 @@ export default function createPane(targetEl, sharedView, deps) {
       ratio: options.imageRatio,
       serverType: 'geoserver',
       crossOrigin: 'anonymous',
+      imageLoadFunction: getMapGuard('satelliteLayer'),
     }),
   });
   satelliteLayer.set('defaultFormat', 'image/jpeg');
@@ -168,6 +187,7 @@ export default function createPane(targetEl, sharedView, deps) {
       // the canvas (getData) without tainting it. The meteocore WMS returns
       // Access-Control-Allow-Origin: *, so it's safe.
       crossOrigin: 'anonymous',
+      imageLoadFunction: getMapGuard('radarLayer'),
     }),
   });
   radarLayer.set('defaultFormat', 'image/png');
@@ -184,6 +204,7 @@ export default function createPane(targetEl, sharedView, deps) {
       hidpi: false,
       serverType: 'geoserver',
       crossOrigin: 'anonymous',
+      imageLoadFunction: getMapGuard('lightningLayer'),
     }),
   });
   lightningLayer.set('defaultFormat', 'image/png8');
@@ -202,6 +223,7 @@ export default function createPane(targetEl, sharedView, deps) {
         hidpi: false,
         serverType: 'geoserver',
         crossOrigin: 'anonymous',
+        imageLoadFunction: getMapGuard('observationLayer'),
       }),
     });
     observationLayer.set('defaultFormat', 'image/png8');
