@@ -20,6 +20,10 @@ const wmsServerConfiguration = {
     refresh: 300000,
     category: 'observationLayer',
     attribution: 'FMI (CC-BY-4.0)',
+    // The wms-obs GeoServer was turned off permanently 2026-07-12. Its
+    // products are EDR-backed client-side layers now (metadata below in
+    // edrLayerInfo); disabled stops the GetCapabilities polling.
+    disabled: true,
   },
   'meteo-obs': {
     url: 'https://geoserver.app.meteo.fi/geoserver/wms',
@@ -218,6 +222,67 @@ const wmsServerConfiguration = {
     category: 'radarLayer',
     attribution: 'NOAA',
     disabled: true,
+  },
+};
+
+// Static layerInfo metadata for products that no longer come from any WMS
+// GetCapabilities: the wms-obs GeoServer is permanently offline and these
+// products are served by the MeteoCore EDR API, rendered client-side. Seeded
+// into radar.js layerInfo at boot so the stored-product restore
+// (restoreActiveLayer's category guard) and the playlist cards keep working.
+// Deliberately WITHOUT `url` (updateLayer must not call setLayerUrl on the
+// vector facades) and WITHOUT `time` (EDR layers adapt to any window and
+// must not constrain the shared 13-frame math).
+const FMI_ATTRIBUTION = { Title: 'FMI (CC-BY-4.0)' };
+export const edrLayerInfo = {
+  'observation:airtemperature': {
+    category: 'observationLayer',
+    layer: 'observation:airtemperature',
+    title: 'Lämpötila',
+    abstract: 'Lämpötila 2 metrin korkeudella (°C).',
+    attribution: FMI_ATTRIBUTION,
+  },
+  'observation:dew_point_temperature': {
+    category: 'observationLayer',
+    layer: 'observation:dew_point_temperature',
+    title: 'Kastepiste',
+    abstract: 'Kastepistelämpötila (°C).',
+    attribution: FMI_ATTRIBUTION,
+  },
+  'observation:relative_humidity': {
+    category: 'observationLayer',
+    layer: 'observation:relative_humidity',
+    title: 'Kosteus',
+    abstract: 'Suhteellinen kosteus (%).',
+    attribution: FMI_ATTRIBUTION,
+  },
+  'observation:wind': {
+    category: 'observationLayer',
+    layer: 'observation:wind',
+    title: 'Tuuli',
+    abstract: 'Tuulen 10 minuutin keskinopeus (m/s) ja suunta.',
+    attribution: FMI_ATTRIBUTION,
+  },
+  'observation:wind_speed': {
+    category: 'observationLayer',
+    layer: 'observation:wind_speed',
+    title: 'Tuulen nopeus',
+    abstract: 'Tuulen 10 minuutin keskinopeus (m/s).',
+    attribution: FMI_ATTRIBUTION,
+  },
+  'observation:wind_speed_of_gust': {
+    category: 'observationLayer',
+    layer: 'observation:wind_speed_of_gust',
+    title: 'Puuskat',
+    abstract: 'Tuulen puuskanopeus (m/s).',
+    attribution: FMI_ATTRIBUTION,
+  },
+  'observation:lightning': {
+    category: 'lightningLayer',
+    layer: 'observation:lightning',
+    title: 'Salamahavainnot',
+    abstract: 'Salamanpaikannusverkon havaitsemat maa- ja pilvisalamat.',
+    attribution: FMI_ATTRIBUTION,
   },
 };
 
