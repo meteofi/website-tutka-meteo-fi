@@ -44,19 +44,21 @@ const ENDPOINT = 'https://meteocore.app.meteo.fi/edr/collections/fmi-obs/area';
 // a station labels a frame only with an observation at most this old.
 export const SNAP_TOLERANCE_MS = 10 * 60 * 1000;
 
-// Polygon area budget (deg²). Together with the coverage clamp below it
-// keeps a worst-case fetch (~1000 Nordic stations × 7 params × ~13 values
-// per param-hour ≈ 90k values) comfortably inside the server's 500k-value
-// budget and 20k fan-out bound. Oversize requests would 400 fast (a skipped
-// update, not an outage) — but we simply never send them. Beyond the budget
-// the box shrinks around the view center, matching how far out the label
-// raster was readable anyway.
-const MAX_AREA_DEG2 = 240;
-
-// v1 coverage parity: the WMS layer only usefully showed Fennoscandia + the
-// Baltics; the EDR collection is global (WIGOS), where an unclamped synoptic
-// viewport would blow the station cap. Grid-aligned lon/lat bounds.
+// Coverage box (Fennoscandia + Baltics — parity with what the old raster
+// usefully showed; the EDR collection itself is global WIGOS). Grid-aligned
+// lon/lat bounds.
 const COVERAGE_BBOX = [4, 53, 42, 72];
+
+// Polygon area budget (deg²): the ENTIRE coverage box fits in one request
+// under the server's limits — measured 2026-07-12: 2 065 stations report
+// within an hour over the full box, i.e. ~12.4k station×param fan-out at
+// all six parameters (bound 20k) and ~60k values (budget 500k), 128 KB
+// gzipped in ~1.3 s. So the budget equals the box: zoomed-out views get
+// observations across the whole coverage instead of a center-clamped square
+// (the 240 deg² clamp this replaces dated from the old 500-station server
+// cap). The shrink-around-center logic still guards world-scale views whose
+// center is far outside coverage.
+const MAX_AREA_DEG2 = (COVERAGE_BBOX[2] - COVERAGE_BBOX[0]) * (COVERAGE_BBOX[3] - COVERAGE_BBOX[1]);
 
 // WMS sublayer id → EDR parameter list. The `observation:*` ids are kept
 // verbatim so ACTIVE_LAYERS persistence, canonical URLs and the product menu
