@@ -283,6 +283,12 @@ export default function createPane(targetEl, sharedView, deps) {
   const { positionFeature, accuracyFeature } = makePositionFeatures();
   const ownPositionLayer = new VectorLayer({
     visible: false,
+    // Re-render during zoom/pan so the AIS symbol's pixel-sized geometries
+    // (triangle, heading line — computed from the frame's resolution) stay a
+    // constant screen size instead of scaling with the map and snapping back
+    // when the gesture ends. One feature pair; per-frame restyle is cheap.
+    updateWhileAnimating: true,
+    updateWhileInteracting: true,
     source: new Vector({
       features: [accuracyFeature, positionFeature],
     }),

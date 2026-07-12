@@ -31,8 +31,8 @@ export const gpsPositionStyle = new Style({
   }),
 });
 
-const TRI_H = 15; // triangle height (px)
-const TRI_W = 9; // triangle base width (px) — isosceles, acute apex
+const TRI_H = 20; // triangle height (px)
+const TRI_W = 12; // triangle base width (px) — isosceles, acute apex
 const HEADING_LEN = 2 * TRI_H; // IMO: heading line twice the symbol length, from the apex
 const TURN_FLAG = 5; // px, fixed-length flag at the end of the heading line
 const VECTOR_MINUTES = 6; // COG/SOG vector shows a 6-minute run
@@ -107,7 +107,7 @@ export function createOwnShipStyleFn() {
     if (orientDeg != null) lines.push(`${Math.round(((orientDeg % 360) + 360) % 360)}°`);
     if (state.sogKn != null) lines.push(`${state.sogKn.toFixed(1).replace('.', ',')} kn`);
     if (lines.length) {
-      const offsetY = cos >= 0 ? 32 : -32;
+      const offsetY = cos >= 0 ? 36 : -36;
       styles.push(new Style({
         text: new Text({
           text: lines.join('\n'),
