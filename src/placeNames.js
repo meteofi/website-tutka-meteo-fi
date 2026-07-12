@@ -113,8 +113,13 @@ function getSharedSource() {
 export function createPlaceNamesLayer() {
   return new VectorLayer({
     source: getSharedSource(),
-    declutter: true,
-    // Declutter keeps the first-rendered feature on collision, so render
+    // Private declutter group: layers sharing a declutter value are
+    // decluttered TOGETHER, topmost layer first — with plain `true` the
+    // observation layer's symbols (obsLayer.js, also declutter: true,
+    // higher in the stack) knocked out place names, major cities included.
+    // Names must only declutter against other names.
+    declutter: 'place-names',
+    // Within a layer, first-rendered wins declutter collisions, so render
     // coarser (more important) bands first; ties break alphabetically for a
     // stable label set frame-to-frame.
     renderOrder: (a, b) => (b.get('s') - a.get('s')) || (a.get('n') < b.get('n') ? -1 : 1),
