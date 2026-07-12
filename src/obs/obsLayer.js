@@ -37,10 +37,19 @@ import createObsStyle from './obsStyles';
 // Pan/zoom settle time before re-checking the fetched polygon. The quantized
 // bounds make most moveends a no-op; this only spaces out the checks.
 const MOVE_DEBOUNCE_MS = 300;
+// The very first fetch waits longer: at boot the 13 radar frames must win
+// the bandwidth and the main thread, and the first seconds shift the window
+// several times (each GetCapabilities arrival) — one deferred fetch replaces
+// that burst. Labels appear ~2 s later; radar appears sooner.
+const FIRST_FETCH_DELAY_MS = 2000;
 const FRAME_COUNT = 13;
 
 export default function initObsLayer({ defaultProduct }) {
-  const client = createObsClient();
+  // Low-priority hint (Chromium; ignored elsewhere): observation data must
+  // not outrank the radar frame images the user is actually waiting for.
+  const client = createObsClient({
+    fetchImpl: (url, opts) => fetch(url, { ...opts, priority: 'low' }),
+  });
   const entries = []; // one per pane, in pane-index order
   let frameTimesMs = null;
   let frameIndex = FRAME_COUNT - 1;
@@ -48,6 +57,7 @@ export default function initObsLayer({ defaultProduct }) {
   let builtRevision = -1;
   let builtKey = '';
   let moveTimer = null;
+  let fetchAttempted = false;
 
   // The first pane with a laid-out map defines the shared viewport (all
   // panes share one View; inactive panes have size 0 and are skipped).
@@ -100,7 +110,13 @@ export default function initObsLayer({ defaultProduct }) {
     }
   }
 
+  function scheduleRefetch() {
+    clearTimeout(moveTimer);
+    moveTimer = setTimeout(refetch, fetchAttempted ? MOVE_DEBOUNCE_MS : FIRST_FETCH_DELAY_MS);
+  }
+
   async function refetch() {
+    fetchAttempted = true;
     if (!frameTimesMs) return;
     const products = visibleProducts();
     const viewExtent = currentViewExtent();
@@ -140,7 +156,7 @@ export default function initObsLayer({ defaultProduct }) {
           // Render what the store already has for the new product right
           // away; the fetch tops up if its parameters weren't covered yet.
           rebuildIfChanged();
-          refetch();
+          scheduleRefetch();
         }
       };
       const layer = new VectorLayer({
@@ -155,7 +171,7 @@ export default function initObsLayer({ defaultProduct }) {
       });
       layer.setLayerUrl = () => {};
       layer.on('change:visible', () => {
-        if (layer.getVisible()) refetch(); else rebuildIfChanged();
+        if (layer.getVisible()) scheduleRefetch(); else rebuildIfChanged();
       });
       entry.layer = layer;
       entries.push(entry);
@@ -169,16 +185,10 @@ export default function initObsLayer({ defaultProduct }) {
       const entry = entries.find((e) => e.index === paneIndex);
       if (!entry || entry.map) return;
       entry.map = map;
-      map.on('moveend', () => {
-        clearTimeout(moveTimer);
-        moveTimer = setTimeout(refetch, MOVE_DEBOUNCE_MS);
-      });
+      map.on('moveend', scheduleRefetch);
       // The clock's first route() can run before the map has a size (boot
       // order), which skips the fetch; retry once the pane has rendered.
-      map.once('postrender', () => {
-        clearTimeout(moveTimer);
-        moveTimer = setTimeout(refetch, MOVE_DEBOUNCE_MS);
-      });
+      map.once('postrender', scheduleRefetch);
     },
 
     // Clock fan-out — the FramePool setWindow/showTime equivalent, called
@@ -189,7 +199,7 @@ export default function initObsLayer({ defaultProduct }) {
       if (key !== windowKey) {
         windowKey = key;
         frameTimesMs = Array.from({ length: FRAME_COUNT }, (_, i) => windowStartMs + i * stepMs);
-        refetch();
+        scheduleRefetch();
       }
       const idx = Math.max(0, Math.min(FRAME_COUNT - 1, Math.round((cursorMs - windowStartMs) / stepMs)));
       if (idx !== frameIndex) {
