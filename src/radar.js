@@ -34,6 +34,8 @@ import initCrosshair from './crosshair';
 import initShare from './share';
 import initObsLayer from './obs/obsLayer';
 import initLightningLayer from './lightning/lightningLayer';
+import { createPlaceNamesLayer, placeNamesStyleLight, placeNamesStyleDark } from './placeNames';
+import radarSitesFallbackUrl from './data/radars-finland.geojson';
 import initOwnLocation from './ownLocation';
 import initOwnLocationMenu from './ui/ownLocationMenu';
 import FramePool from './animation/framePool';
@@ -540,7 +542,7 @@ const RADAR_SITE_COLLECTIONS = [
   'https://meteocore.app.meteo.fi/features/collections/fi-radar-pvol/items?f=application/geo%2Bjson&limit=1000',
   'https://meteocore.app.meteo.fi/features/collections/ee-radar-volume/items?f=application/geo%2Bjson&limit=1000',
 ];
-const RADAR_SITE_FALLBACK_URL = 'radars-finland.json';
+const RADAR_SITE_FALLBACK_URL = radarSitesFallbackUrl;
 
 const radarSiteSource = new Vector({
   format: new GeoJSON(),
@@ -628,6 +630,7 @@ const paneDeps = {
   rangeStyle,
   createObservationLayer: obsController.createPaneLayer,
   createLightningLayer: lightningController.createPaneLayer,
+  createPlaceNamesLayer,
 };
 
 const pane0 = createPane(document.getElementById('map'), sharedView, {
@@ -1217,9 +1220,8 @@ function setMapLayer(maplayer) {
   const light = maplayer === 'light';
   for (const pane of panes) {
     pane.darkGrayBaseLayer.setVisible(!light);
-    pane.darkGrayReferenceLayer.setVisible(!light);
     pane.lightGrayBaseLayer.setVisible(light);
-    pane.lightGrayReferenceLayer.setVisible(light);
+    pane.placeNamesLayer.setStyle(light ? placeNamesStyleLight : placeNamesStyleDark);
     pane.municipalityLayer.setStyle(light ? municipalityStyleLight : municipalityStyleDark);
   }
   applyIcaoTheme(maplayer);
@@ -2246,6 +2248,13 @@ document.querySelectorAll('#overflowMenu .chip[data-layout]').forEach((chip) => 
 // the split.
 const poiRegistry = [
   {
+    id: 'placenames',
+    label: 'Nimistö',
+    icon: 'label',
+    defaultOn: true,
+    layerKeys: ['placeNamesLayer'],
+  },
+  {
     id: 'radars',
     label: 'Tutka-asemat',
     icon: 'cell_tower',
@@ -3037,7 +3046,7 @@ let etaResetAt = Date.now();
 // Before GetCapabilities resolves, layerInfo is empty and only the basemap
 // credit comes out — accepted degraded case in the first seconds after boot.
 function shareAttributions() {
-  const parts = new Set(['Tiles © ArcGIS']);
+  const parts = new Set(['Tiles © ArcGIS', 'Nimistö © Maanmittauslaitos']);
   for (const pane of activePanes()) {
     for (const name of pane.VISIBLE) {
       const olLayer = pane.layerss[name];
