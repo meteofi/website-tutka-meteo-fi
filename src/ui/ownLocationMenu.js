@@ -62,7 +62,7 @@ export default function initOwnLocationMenu({
       if ('serial' in navigator) {
         chip.hidden = false;
         chip.setAttribute('aria-disabled', 'true');
-        chip.textContent = 'NMEA — tulossa';
+        chip.title = 'Tulossa'; // keep the label a single line ("NMEA")
       }
       return;
     }
