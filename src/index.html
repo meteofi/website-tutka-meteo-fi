@@ -96,6 +96,20 @@
     <div class="menu-header">Karttakohteet</div>
     <div id="poiList"></div>
     <div class="menu-divider"></div>
+    <div class="menu-header">Oma sijainti</div>
+    <div class="theme-chips" role="radiogroup" aria-label="Oman sijainnin lähde">
+      <button class="chip" role="radio" aria-checked="true" data-own-loc="gps">GPS</button>
+      <button class="chip" role="radio" aria-checked="false" data-own-loc="ais">AIS-alus</button>
+      <button class="chip" role="radio" aria-checked="false" data-own-loc="nmea" hidden>NMEA</button>
+    </div>
+    <div class="menu-row mmsi-row" id="mmsiRow" hidden>
+      <span class="menu-label">MMSI</span>
+      <input id="mmsiInput" type="text" inputmode="numeric" pattern="[0-9]{9}" maxlength="9"
+             enterkeyhint="done" autocomplete="off" aria-label="Oman aluksen MMSI-numero">
+      <span id="mmsiVesselName" class="mmsi-vessel-name" aria-live="polite"></span>
+    </div>
+    <div class="mmsi-hint" id="mmsiHint" hidden>Syötä aluksen 9-numeroinen MMSI</div>
+    <div class="menu-divider"></div>
     <div class="menu-header">Teema</div>
     <div class="theme-chips" role="radiogroup" aria-label="Teema">
       <button class="chip" role="radio" aria-checked="false" data-theme="auto">Automaattinen</button>

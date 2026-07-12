@@ -9,6 +9,14 @@
 import Geolocation from 'ol/Geolocation';
 import Point from 'ol/geom/Point';
 import { transform } from 'ol/proj';
+import { track } from './analytics';
+
+// Persisted own-location settings. The MMSI survives source flips on purpose:
+// a user who runs on GPS for a while must not have to retype it.
+const SOURCE_KEY = 'ownLocationSource';
+const MMSI_KEY = 'ownMmsi';
+const VALID_SOURCES = new Set(['gps', 'ais']); // 'nmea' reserved for Web Serial input
+const MMSI_RE = /^[0-9]{9}$/;
 
 export default function initOwnLocation({
   projection, // map view projection (shared View; never changes)
@@ -20,6 +28,17 @@ export default function initOwnLocation({
 }) {
   let tracking = false;
   let lastCoordinates = null;
+
+  // MMSI is a string end to end — leading zeros are significant.
+  let mmsi = String(localStorage.getItem(MMSI_KEY) || '');
+  if (!MMSI_RE.test(mmsi)) mmsi = '';
+  let source = localStorage.getItem(SOURCE_KEY);
+  if (!VALID_SOURCES.has(source) || (source === 'ais' && !mmsi)) {
+    // Self-heal: an unknown value, or AIS without a usable MMSI, can only
+    // produce a marker that never gets a fix — fall back to GPS and re-persist.
+    source = 'gps';
+    localStorage.setItem(SOURCE_KEY, source);
+  }
 
   const geolocation = new Geolocation({
     trackingOptions: {
@@ -86,5 +105,33 @@ export default function initOwnLocation({
     }
   }
 
-  return { setTracking, adoptPane };
+  function getSource() { return source; }
+  function getMmsi() { return mmsi; }
+
+  function isSourceAvailable(candidate) {
+    return candidate === 'gps' || (candidate === 'ais' && MMSI_RE.test(mmsi));
+  }
+
+  function setMmsi(value) {
+    const next = String(value || '').trim();
+    if (!MMSI_RE.test(next)) return false;
+    if (next === mmsi) return true;
+    mmsi = next;
+    localStorage.setItem(MMSI_KEY, mmsi);
+    return true;
+  }
+
+  function setSource(next) {
+    if (!VALID_SOURCES.has(next) || !isSourceAvailable(next)) return false;
+    if (next === source) return true;
+    source = next;
+    localStorage.setItem(SOURCE_KEY, source);
+    // Only the source enum — never the MMSI, vessel name, or coordinates.
+    track('own-location-source', { source });
+    return true;
+  }
+
+  return {
+    setTracking, adoptPane, getSource, setSource, getMmsi, setMmsi, isSourceAvailable,
+  };
 }

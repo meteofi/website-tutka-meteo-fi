@@ -35,6 +35,7 @@ import initShare from './share';
 import initObsLayer from './obs/obsLayer';
 import initLightningLayer from './lightning/lightningLayer';
 import initOwnLocation from './ownLocation';
+import initOwnLocationMenu from './ui/ownLocationMenu';
 import FramePool from './animation/framePool';
 import { canInterpolate, RadarInterpolator } from './animation/interpolation';
 import { track } from './analytics';
@@ -66,6 +67,7 @@ const metZoom = Number(localStorage.getItem('metZoom')) || 9;
 let ownPosition = [];
 let ownPosition4326 = [];
 let ownLocation;
+let ownLocationMenu;
 let tools = null;
 let rangeCircle = null;
 let freehand = null;
@@ -2050,6 +2052,7 @@ function openOverflowMenu() {
   updateThemeChipsState();
   updateLayoutChipsState();
   updatePoiMenuState();
+  if (ownLocationMenu) ownLocationMenu.refresh();
 }
 
 function closeOverflowMenu() {
@@ -2863,6 +2866,13 @@ const main = () => {
     },
   });
 
+  ownLocationMenu = initOwnLocationMenu({
+    getSource: () => ownLocation.getSource(),
+    getMmsi: () => ownLocation.getMmsi(),
+    onSelectSource: (source) => ownLocation.setSource(source),
+    onMmsiCommit: (value) => ownLocation.setMmsi(value),
+  });
+
   // Layers
   satelliteLayer.on('change:visible', onChangeVisible);
   satelliteLayer.on('propertychange', layerInfoPlaylist);
@@ -2990,6 +3000,7 @@ function trackBoot({ capable, mode, error }) {
     'satellite-visible': VISIBLE.has('satelliteLayer'),
     'lightning-visible': VISIBLE.has('lightningLayer'),
     'observation-visible': VISIBLE.has('observationLayer'),
+    'own-location-source': ownLocation ? ownLocation.getSource() : 'gps',
     'interp-capable': capable,
     'interp-mode': mode,
     'build-date': BUILD_DATE,
