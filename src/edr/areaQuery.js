@@ -58,6 +58,15 @@ export function quantizedAreaBounds(viewExtent, { coverageBbox, maxAreaDeg2 }) {
   const marginLon = (e - w) * MARGIN_FRACTION;
   const marginLat = (n - s) * MARGIN_FRACTION;
   w -= marginLon; e += marginLon; s -= marginLat; n += marginLat;
+  // Work inside the coverage box from here on. Shrinking a world-scale view
+  // around its raw center first would clip the box asymmetrically — e.g. a
+  // Europe-wide view centered south of the Nordics lost the box's northern
+  // edge to the budget even though the intersection alone fit it.
+  w = Math.max(w, coverageBbox[0]);
+  s = Math.max(s, coverageBbox[1]);
+  e = Math.min(e, coverageBbox[2]);
+  n = Math.min(n, coverageBbox[3]);
+  if (e <= w || n <= s) return null;
   // Shrink around the view center while the box exceeds the area budget.
   // Linear scale on both axes keeps the aspect.
   const rawArea = (e - w) * (n - s);

@@ -36,9 +36,12 @@ const ENDPOINT = 'https://meteocore.app.meteo.fi/edr/collections/fmi-lightning/a
 // Detection-network coverage advertised by the collection (CRS84 w,s,e,n).
 const COVERAGE_BBOX = [4, 54, 42, 72];
 
-// Same viewport area budget as the obs client — strikes are far sparser
-// than the value budget allows, this just bounds the polygon size.
-const MAX_AREA_DEG2 = 240;
+// Area budget = the whole coverage box (same reasoning as the obs client:
+// a full-box window fetch sits far below the server's 500k-value budget —
+// a 30k-strike storm night over the full box was ~62k values). Zoomed-out
+// views show strikes across the whole coverage instead of a center-clamped
+// square.
+const MAX_AREA_DEG2 = (COVERAGE_BBOX[2] - COVERAGE_BBOX[0]) * (COVERAGE_BBOX[3] - COVERAGE_BBOX[1]);
 
 // peak_current: kA, sign is polarity, |value| drives the symbol size.
 // cloud_indicator: 0 = cloud-to-ground, 1 = intra-cloud (styled smaller).
