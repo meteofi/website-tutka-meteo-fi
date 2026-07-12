@@ -29,6 +29,7 @@ import initTools from './tools';
 import initRangeCircle from './rangeCircle';
 import initFreehand from './freehand';
 import initSectionLine from './sectionLine';
+import initCrossSection from './crossSection';
 import initProbe from './probe';
 import initRadarSite from './radarSite';
 import initCrosshair from './crosshair';
@@ -75,6 +76,7 @@ let tools = null;
 let rangeCircle = null;
 let freehand = null;
 let sectionLine = null;
+let crossSection = null;
 // Drag-to-draw tools own the whole pointer sequence while armed. A tap that
 // aborts a stroke (below Draw's clickTolerance) still emits a map click, so
 // the click routers bail out for these tools instead of opening popups.
@@ -974,6 +976,7 @@ function setTime(action = 'next') {
   // updateTimeLine((startDate.getTime()-start)/resolution);
   timeline.update((startDate.getTime() - start) / resolution);
   if (probe) probe.setCursor(startDate.getTime(), start, resolution);
+  if (crossSection) crossSection.setCursor(startDate.getTime(), start, resolution);
   // Per-pane crosshairs: only active panes get the cursor — inactive panes'
   // reticles are hidden and must not refetch; they pick up the current window
   // on reactivation (setLayout runs setTime before syncCrosshairVisibility).
@@ -2794,7 +2797,17 @@ const main = () => {
   rangeCircle.attachPane(map);
   freehand = initFreehand({ onStrokeEnd: onDrawStrokeEnd });
   freehand.attachPane(map);
-  sectionLine = initSectionLine({ onStrokeEnd: onDrawStrokeEnd });
+  crossSection = initCrossSection({
+    container: document.getElementById('sectionPanel'),
+    radarSiteSource,
+    projection: map.getView().getProjection(),
+    isLayerAdvertised: isRadarLayerAdvertised,
+    onRequestClose: () => { if (tools) tools.setActiveTool(null); },
+  });
+  sectionLine = initSectionLine({
+    onLineChange: (line) => { if (crossSection) crossSection.setLine(line); },
+    onStrokeEnd: onDrawStrokeEnd,
+  });
   sectionLine.attachPane(map);
 
   tools = initTools({
