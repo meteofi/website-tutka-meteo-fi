@@ -84,6 +84,15 @@ body.split-4 #map-1,
 body.split-4 #map-2,
 body.split-4 #map-3 { display: block; }
 
+/* Minimal separator between panes: a 2px grid gap that lets the grid's
+   background show through. A near-opaque neutral gray reads on both dark and
+   light map content. Only in split modes — 1-up has no gap. */
+body.split-2 #paneGrid,
+body.split-4 #paneGrid {
+    gap: 2px;
+    background-color: rgba(160, 160, 160, 0.9);
+}
+
 /* Crosshair only while a map-tap tool (Mittaa / Pistemittaus) is armed. */
 .pane.tool-armed {
     cursor: crosshair;
@@ -860,6 +869,57 @@ body.split-4 #menuButton {
   #overflowMenu .chip:focus-visible {
     box-shadow: 0 0 0 2px var(--dark-primary-color);
   }
+  #overflowMenu .chip[aria-disabled="true"] {
+    opacity: 0.45;
+    cursor: default;
+  }
+
+  /* Oma sijainti: MMSI input row (AIS source) */
+  #overflowMenu .mmsi-row { height: 44px; cursor: default; }
+  #overflowMenu .mmsi-row[hidden] { display: none; }
+  #overflowMenu .mmsi-row .menu-label { flex: 0 0 auto; }
+  #overflowMenu .mmsi-row input {
+    /* No `all: unset` here: it strips WebKit's internal editability
+       (-webkit-user-modify), making the field read-only in macOS Safari
+       while Chrome keeps working. Reset properties individually instead. */
+    appearance: none;
+    -webkit-appearance: none;
+    border: none;
+    outline: none;
+    margin: 0;
+    -webkit-user-select: text;
+    user-select: text;
+    box-sizing: border-box;
+    width: 13ch;
+    padding: 6px 10px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+    color: var(--dark-high-emphasis-text-color);
+    /* 16px minimum — anything smaller makes iOS Safari zoom the page on focus */
+    font-size: 16px;
+    font-family: 'Roboto', sans-serif;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.06em;
+  }
+  #overflowMenu .mmsi-row input:focus-visible {
+    box-shadow: inset 0 0 0 1px var(--dark-primary-color);
+  }
+  #overflowMenu .mmsi-vessel-name {
+    flex: 1;
+    font-size: 12px;
+    color: var(--dark-medium-emphasis-text-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    text-align: right;
+  }
+  #overflowMenu .mmsi-hint {
+    padding: 0 16px 8px;
+    font-size: 12px;
+    color: #ffb74d;
+  }
+  #overflowMenu .mmsi-hint[hidden] { display: none; }
 
   /* ========================================================================
      Coachmark toast — shows Finnish layer name briefly on activation
@@ -1833,42 +1893,6 @@ body.split-4 #menuButton {
   font-size: 11px;
   color: var(--dark-medium-emphasis-text-color);
   margin-top: 1px;
-}
-
-/* ========================================================================
-   Työkalut menu row (in overflow menu)
-   ======================================================================== */
-
-#overflowMenu .menu-row.menu-tool {
-  all: unset;
-  display: flex;
-  align-items: center;
-  height: 48px;
-  padding: 0 16px;
-  gap: 14px;
-  cursor: pointer;
-  color: var(--dark-high-emphasis-text-color);
-  transition: background-color 120ms ease;
-  font-family: inherit;
-  font-size: 14px;
-  box-sizing: border-box;
-  width: 100%;
-}
-#overflowMenu .menu-row.menu-tool:hover { background-color: rgba(18, 188, 250, 0.08); }
-#overflowMenu .menu-row.menu-tool:focus-visible { background-color: rgba(18, 188, 250, 0.12); }
-#overflowMenu .menu-row.menu-tool .material-icons {
-  font-size: 20px;
-  color: var(--dark-primary-color);
-  flex-shrink: 0;
-}
-#overflowMenu .menu-row.menu-tool .menu-label {
-  flex: 1;
-  font-size: 14px;
-  font-weight: 500;
-}
-#overflowMenu .menu-row.menu-tool .menu-sub {
-  font-size: 12px;
-  color: var(--dark-medium-emphasis-text-color);
 }
 
 /* ========================================================================

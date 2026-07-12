@@ -50,7 +50,7 @@ if ('serviceWorker' in navigator && window.location.hostname !== 'localhost') {
     const { target } = event;
     if (!target || target.tagName !== 'SCRIPT') return;
     const src = target.src || '';
-    if (!/\/(radar|openlayers|vendors|runtime)[.-][^/]*\.js$/.test(src)) return;
+    if (!/\/(radar|openlayers|vendors|runtime|mqtt)[.-][^/]*\.js$/.test(src)) return;
     console.warn('Chunk load failed, unregistering SWs and reloading:', src);
     swTrack('sw-chunk-load-error', { src });
     navigator.serviceWorker.getRegistrations()

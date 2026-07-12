@@ -51,6 +51,10 @@ Entry point: `src/radar.js` (~3100 lines) — bootstraps panes, owns the shared 
 | `src/radarSite.js` | Single-radar-site drill-in (calls back into radar.js `updateLayer`/`setTime`) |
 | `src/share.js` | "Jaa näkymä" share sheet: composites active panes' layer canvases to a PNG (OL export-map pattern, `renderSync` to stay in the iOS gesture window; needs `crossOrigin` on every raster source), social aspect clamp + info bar, Web Share ladder (image+url → url → download+clipboard; macOS Safari gets image without url) |
 | `src/longpress.js` | Long-press menu plumbing for toolbar buttons |
+| `src/ownLocation.js` | Own-location controller: owns the position sources (device GPS via OL Geolocation; own vessel via Digitraffic AIS keyed on a persisted MMSI; `nmea` enum slot reserved for Web Serial) and fans position/accuracy geometry out to every pane's marker features. radar.js keeps IS_TRACKING + the pane-0 position globals and receives results via callbacks. The marker is wall-clock "now" — zero FramePool/`setTime` coupling |
+| `src/ais/aisClient.js` | Digitraffic marine AIS transport: MQTT-over-WSS (`vessels-v2/<mmsi>/+` — the live per-vessel topic tail is `location`, singular, although the docs say `locations` — plus the `vessels-v2/status` keepalive topic) + REST bootstrap (`/api/ais/v1/locations`, `/vessels/{mmsi}`, `Digitraffic-User` header, ≤5 MQTT connects/min). mqtt.js v5 loads lazily inside `connect()` as the async `mqtt` chunk — read the splitChunks + GenerateSW comments in webpack.config.js before touching chunking. Multi-MMSI `setSubscriptions` is the seam for the future rescue-vessel (shipType 51) layer |
+| `src/ais/ownShipStyle.js` | Own-position symbology: the shared blue GPS dot (`gpsPositionStyle`) + the IMO active-AIS-target style function (acute isosceles triangle oriented by heading/COG with the position at half-height; solid heading line 2× symbol length from the apex + turn flag from `rot`; short-dash 3-min COG/SOG vector; two-line °/kn label that flips above/below by heading direction) driven by the feature's `aisState` property; AIS sentinel filtering (heading 511 / cog 360 / sog 102.3 / rot −128) happens in ownLocation.js |
+| `src/ui/ownLocationMenu.js` | "Oma sijainti" overflow-menu section: GPS/AIS source chips + 9-digit MMSI input; pending-selection flow keeps GPS effective until a valid MMSI commits |
 | `src/analytics.js` | `track()` wrapper for Umami (no-ops if umami is absent) |
 | `src/edr/areaQuery.js` | Shared EDR area-query shaping: quantized 0.5°-grid polygons, coverage/area clamps, deterministic URLs (the requestShape.js philosophy applied to EDR) |
 | `src/obs/edrObservations.js` | EDR `fmi-obs` client: multi-station area fetches, delta fetches, snapping raw irregular station reports onto the 13 animation frames (10-min tolerance) |
@@ -82,6 +86,8 @@ Shrink radar.js opportunistically; never grow it. There is no scheduled big-bang
 ## Data sources
 
 Active servers (see `src/config.js` for the full registry): `meteocore.app.meteo.fi/wms` (Finnish + European radar composites — the primary radar source), `wms.meteo.fi` (DBZ/rain-rate products), `view.eumetsat.int` (satellite RGB products, MTG lightning, RDT). The EDR API at `meteocore.app.meteo.fi/edr` (CoverageJSON) feeds the probe/crosshair (`position` queries) and the observation + FMI lightning vector layers (`area` queries on the `fmi-obs` / `fmi-lightning` collections; metadata for these products is seeded statically via `edrLayerInfo` in config.js because they have no GetCapabilities). The old `wms-obs.app.meteo.fi` GeoServer is **permanently offline** (2026-07-12) — never reintroduce references to it. Entries marked `disabled: true` (openwms.fmi.fi, Environment Canada, KNMI, …) are inactive — don't document or build on them.
+
+The own-location AIS source uses Digitraffic marine traffic (`meri.digitraffic.fi`, not in config.js — owned by `src/ais/aisClient.js`): MQTT over WSS on port 443 (no credentials) + REST `api/ais/v1`. Usage rules: identify the app (`Digitraffic-User: tutka.meteo.fi` header, app-prefixed MQTT clientId — never personal info), ≤5 MQTT connects/min per IP (reconnectPeriod 15 s), subscribe `vessels-v2/status` against idle disconnects. Never send MMSI/vessel names/coordinates to umami.
 
 ## MeteoCore request-shape rules (server contract)
 
@@ -122,7 +128,7 @@ Rules from the MeteoCore server architect — they govern **every GetMap sent to
 
 ## State & persistence
 
-- localStorage keys: `metPosition`, `metZoom`, `VISIBLE`, `ACTIVE_LAYERS`, `interpMode`, `IS_DARK`, `IS_TRACKING`, `IS_FOLLOWING`, `LP_HINT_SEEN`, `POI_STATE`, `TOOL_STATE`, `timeIsUtc` (+ legacy `metLatitude`/`metLongitude` writes). JSON values go through `safeParseJSON` in radar.js.
+- localStorage keys: `metPosition`, `metZoom`, `VISIBLE`, `ACTIVE_LAYERS`, `interpMode`, `IS_DARK`, `IS_TRACKING`, `IS_FOLLOWING`, `LP_HINT_SEEN`, `POI_STATE`, `TOOL_STATE`, `timeIsUtc`, `ownLocationSource` (`'gps'`/`'ais'`, `'nmea'` reserved; self-heals to `gps` when stored `ais` has no usable MMSI), `ownMmsi` (9-digit string, survives source flips; owned by `src/ownLocation.js`) (+ legacy `metLatitude`/`metLongitude` writes). JSON values go through `safeParseJSON` in radar.js.
 - Map center/zoom also syncs to the URL hash via `ol-hashed`.
 - `IS_FOLLOWING` (auto-advance to newest frame) is derived in `setTime`; the 60 s GetCapabilities refresh calls `setTime('last')` while following.
 

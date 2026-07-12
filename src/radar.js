@@ -2,7 +2,6 @@
 // radar.[contenthash].js so the deployed test build differs from the
 // previous one and the new banner flow can be exercised end-to-end.
 import { View } from 'ol';
-import Geolocation from 'ol/Geolocation';
 import ImageLayer from 'ol/layer/Image';
 import VectorLayer from 'ol/layer/Vector';
 import GeoJSON from 'ol/format/GeoJSON';
@@ -11,7 +10,6 @@ import { fromLonLat, transform, transformExtent } from 'ol/proj';
 import sync from 'ol-hashed';
 import Feature from 'ol/Feature';
 import Polygon, { circular } from 'ol/geom/Polygon';
-import Point from 'ol/geom/Point';
 import {
   Circle as CircleStyle, Fill, Stroke, Style, Text,
 } from 'ol/style';
@@ -36,6 +34,8 @@ import initCrosshair from './crosshair';
 import initShare from './share';
 import initObsLayer from './obs/obsLayer';
 import initLightningLayer from './lightning/lightningLayer';
+import initOwnLocation from './ownLocation';
+import initOwnLocationMenu from './ui/ownLocationMenu';
 import FramePool from './animation/framePool';
 import { canInterpolate, RadarInterpolator } from './animation/interpolation';
 import { track } from './analytics';
@@ -66,7 +66,8 @@ const metPosition = safeParseJSON('metPosition', []);
 const metZoom = Number(localStorage.getItem('metZoom')) || 9;
 let ownPosition = [];
 let ownPosition4326 = [];
-let geolocation;
+let ownLocation;
+let ownLocationMenu;
 let tools = null;
 let rangeCircle = null;
 let freehand = null;
@@ -758,13 +759,8 @@ function initNewPane(pane) {
   applyPoiVisibility();
   attachInterpolators();
   wirePaneClockGating(pane);
-  // Mirror the GPS marker into the new pane if tracking is on.
-  if (IS_TRACKING) {
-    pane.ownPositionLayer.setVisible(true);
-    if (ownPosition && ownPosition.length > 1) {
-      pane.positionFeature.setGeometry(new Point(ownPosition));
-    }
-  }
+  // Mirror the own-position marker into the new pane if tracking is on.
+  if (IS_TRACKING) ownLocation.adoptPane(pane);
 }
 
 // Create any panes up to `count` that don't exist yet (targets #map-1..#map-3),
@@ -845,46 +841,6 @@ function bearingLine(layer, coordinates, range, direction) {
   layer.getSource().addFeatures([
     new Feature({ name: `${direction}-bearing`, geometry: line.transform('EPSG:4326', map.getView().getProjection()) }),
   ]);
-}
-
-// GEOLOCATION Functions
-
-function onChangeAccuracyGeometry(event) {
-  debug('Accuracy geometry changed.');
-  // One device position, shown in every pane (each pane owns its own feature).
-  const geom = event.target.getAccuracyGeometry();
-  for (const pane of panes) {
-    pane.accuracyFeature.setGeometry(geom ? geom.clone() : null);
-  }
-}
-
-function onChangeSpeed(event) {
-  debug('Speed changed.');
-  const speed = event.target.getSpeed();
-  if (Number.isFinite(speed)) {
-    document.getElementById('currentSpeed').style.display = 'block';
-    document.getElementById('currentSpeedValue').innerHTML = Math.round((speed * 3600) / 1000);
-  } else {
-    document.getElementById('currentSpeed').style.display = 'none';
-  }
-}
-
-function onChangePosition(event) {
-  debug('Position changed.');
-  const coordinates = event.target.getPosition();
-  ownPosition = coordinates;
-  ownPosition4326 = transform(coordinates, map.getView().getProjection(), 'EPSG:4326');
-  for (const pane of panes) {
-    pane.positionFeature.setGeometry(coordinates ? new Point(coordinates) : null);
-  }
-  document.getElementById('gpsStatus').innerHTML = 'gps_fixed';
-  localStorage.setItem('metPosition', JSON.stringify(ownPosition));
-  if (tools) tools.refresh();
-}
-
-// Show/hide the GPS marker layer in every pane.
-function setOwnPositionVisible(visible) {
-  for (const pane of panes) pane.ownPositionLayer.setVisible(visible);
 }
 
 // WMS
@@ -2007,14 +1963,12 @@ document.getElementById('locationLayerButton').addEventListener('mouseup', () =>
   if (IS_TRACKING) {
     IS_TRACKING = false;
     localStorage.setItem('IS_TRACKING', JSON.stringify(false));
-    geolocation.setTracking(false);
-    setOwnPositionVisible(false);
+    ownLocation.setTracking(false);
     track('tracking-off');
   } else {
     IS_TRACKING = true;
     localStorage.setItem('IS_TRACKING', JSON.stringify(true));
-    geolocation.setTracking(true);
-    setOwnPositionVisible(true);
+    ownLocation.setTracking(true);
     if (ownPosition.length > 1) {
       map.getView().setCenter(ownPosition);
     }
@@ -2098,6 +2052,7 @@ function openOverflowMenu() {
   updateThemeChipsState();
   updateLayoutChipsState();
   updatePoiMenuState();
+  if (ownLocationMenu) ownLocationMenu.refresh();
 }
 
 function closeOverflowMenu() {
@@ -2456,8 +2411,14 @@ function hideCoachmarkNow() {
   coachmarkEl.hidden = true;
 }
 
+// Keystrokes aimed at a form field (e.g. the MMSI input) must never trigger
+// the global shortcuts — typing "230…" would toggle layers on every digit.
+function isTextEntryTarget(target) {
+  return !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+}
+
 document.addEventListener('keyup', (event) => {
-  if (event.defaultPrevented) {
+  if (event.defaultPrevented || isTextEntryTarget(event.target)) {
     return;
   }
 
@@ -2858,50 +2819,59 @@ const main = () => {
     onShared: (method) => track('share', { method }),
   });
 
-  // Overflow "Mittaa" row still arms the measure tool; remember it as the
-  // last-used tool so the FAB reflects it. (The FAB itself is wired above as a
-  // tool-group flyout.)
-  const measureToolBtn = document.getElementById('measureTool');
-  if (measureToolBtn) {
-    measureToolBtn.addEventListener('click', () => {
-      closeOverflowMenu();
-      lastTool = 'measure';
-      tools.setActiveTool('measure');
-    });
-  }
-
   window.__tutka = {
     panes, map, framePools, tools, sharedView, share,
   };
 
-  // GEOLOCATION
-  geolocation = new Geolocation({
-    trackingOptions: {
-      enableHighAccuracy: true,
-    },
+  // GEOLOCATION — own-location controller owns the source and the per-pane
+  // marker fan-out (src/ownLocation.js); radar.js keeps IS_TRACKING and the
+  // pane-0 position globals.
+  ownLocation = initOwnLocation({
     projection: map.getView().getProjection(),
+    getPanes: () => panes,
+    debug,
+    onPositionChange: (coordinates, lonLat) => {
+      ownPosition = coordinates;
+      ownPosition4326 = lonLat;
+      localStorage.setItem('metPosition', JSON.stringify(ownPosition));
+      if (tools) tools.refresh();
+    },
+    onSpeedChange: (kmh) => {
+      if (kmh != null) {
+        document.getElementById('currentSpeed').style.display = 'block';
+        document.getElementById('currentSpeedValue').innerHTML = Math.round(kmh);
+      } else {
+        document.getElementById('currentSpeed').style.display = 'none';
+      }
+    },
+    onStatusChange: (status) => {
+      if (status === 'fixed') {
+        document.getElementById('gpsStatus').innerHTML = 'gps_fixed';
+      } else if (status === 'denied') {
+        // Permission denied: the controller has already stopped tracking and
+        // hidden the marker layers; drop the persisted flag so a dead state
+        // is not re-armed on every boot.
+        IS_TRACKING = false;
+        localStorage.setItem('IS_TRACKING', JSON.stringify(false));
+        document.getElementById('gpsStatus').innerHTML = 'gps_not_fixed';
+        setButtonStates();
+        track('tracking-denied');
+      } else {
+        // 'searching' / 'stale' / 'error' — no usable fix right now.
+        document.getElementById('gpsStatus').innerHTML = 'gps_not_fixed';
+      }
+    },
+    onVesselInfo: (info) => {
+      if (ownLocationMenu) ownLocationMenu.setVesselInfo(info);
+    },
   });
 
-  geolocation.on('error', (error) => {
-    debug(error.message);
-    // PERMISSION_DENIED (code 1): tracking can never succeed, so turn it off
-    // fully — otherwise the location button and the (empty) own-position
-    // layer keep advertising a fix that will never come, and a persisted
-    // IS_TRACKING re-arms the dead state on every boot. Transient errors
-    // (POSITION_UNAVAILABLE / TIMEOUT) keep tracking armed and may recover.
-    if (error.code === 1 && IS_TRACKING) {
-      IS_TRACKING = false;
-      localStorage.setItem('IS_TRACKING', JSON.stringify(false));
-      geolocation.setTracking(false);
-      setOwnPositionVisible(false);
-      document.getElementById('gpsStatus').innerHTML = 'gps_not_fixed';
-      setButtonStates();
-      track('tracking-denied');
-    }
+  ownLocationMenu = initOwnLocationMenu({
+    getSource: () => ownLocation.getSource(),
+    getMmsi: () => ownLocation.getMmsi(),
+    onSelectSource: (source) => ownLocation.setSource(source),
+    onMmsiCommit: (value) => ownLocation.setMmsi(value),
   });
-  geolocation.on('change:accuracyGeometry', onChangeAccuracyGeometry);
-  geolocation.on('change:position', onChangePosition);
-  geolocation.on('change:speed', onChangeSpeed);
 
   // Layers
   satelliteLayer.on('change:visible', onChangeVisible);
@@ -2984,7 +2954,7 @@ const main = () => {
   window.matchMedia('(orientation: portrait)').addEventListener('change', resizeAllPanes);
 
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Control') {
+    if (event.key === 'Control' && !isTextEntryTarget(event.target)) {
       document.getElementById('help').style.display = 'block';
     }
   });
@@ -3004,8 +2974,7 @@ const main = () => {
   }
 
   if (IS_TRACKING) {
-    geolocation.setTracking(true);
-    setOwnPositionVisible(true);
+    ownLocation.setTracking(true);
   }
 
   // Position map
@@ -3031,6 +3000,7 @@ function trackBoot({ capable, mode, error }) {
     'satellite-visible': VISIBLE.has('satelliteLayer'),
     'lightning-visible': VISIBLE.has('lightningLayer'),
     'observation-visible': VISIBLE.has('observationLayer'),
+    'own-location-source': ownLocation ? ownLocation.getSource() : 'gps',
     'interp-capable': capable,
     'interp-mode': mode,
     'build-date': BUILD_DATE,

@@ -4,6 +4,10 @@
     "browser": true,
     "es2022": true
   },
+  "parserOptions": {
+    "ecmaVersion": 2022,
+    "sourceType": "module"
+  },
   "globals": {
     "umami": "readonly",
     "BUILD_DATE": "readonly"
@@ -16,11 +20,38 @@
       "LabeledStatement",
       "WithStatement"
     ],
-    "no-param-reassign": ["error", { "props": false }],
+    "no-param-reassign": [
+      "error",
+      {
+        "props": false
+      }
+    ],
     "no-nested-ternary": "off",
-    "no-use-before-define": ["error", { "functions": false, "classes": true, "variables": true }],
+    "no-use-before-define": [
+      "error",
+      {
+        "functions": false,
+        "classes": true,
+        "variables": true
+      }
+    ],
     "no-underscore-dangle": "off",
-    "max-len": ["error", { "code": 140, "ignoreComments": true, "ignoreStrings": true, "ignoreTemplateLiterals": true, "ignoreUrls": true }],
-    "import/extensions": ["error", "ignorePackages", { "js": "never" }]
+    "max-len": [
+      "error",
+      {
+        "code": 140,
+        "ignoreComments": true,
+        "ignoreStrings": true,
+        "ignoreTemplateLiterals": true,
+        "ignoreUrls": true
+      }
+    ],
+    "import/extensions": [
+      "error",
+      "ignorePackages",
+      {
+        "js": "never"
+      }
+    ]
   }
 }
