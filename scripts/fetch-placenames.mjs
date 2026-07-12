@@ -22,8 +22,11 @@ const ITEMS_URL = 'https://avoin-paikkatieto.maanmittauslaitos.fi/geographic-nam
 
 // scaleRelevance bands the app renders. 1:500k and coarser covers the radar
 // app's zoom range (country -> region); the finer bands (250k..25k) are
-// hiking-map detail and would grow the file ~4x-30x.
-const BANDS = [8000000, 2000000, 1000000, 500000];
+// hiking-map detail and would grow the file ~4x-30x. The full value ladder
+// (probed live — the API 400s on anything else) is 0, 25k, 50k, 100k, 250k,
+// 500k, 1M, 2M, 4.5M, 8M; note 4.5M (the old yleiskartta 1:4.5M series),
+// which is where second-tier cities like Hyvinkää and Järvenpää live.
+const BANDS = [8000000, 4500000, 2000000, 1000000, 500000];
 
 // placeTypeGroup -> single-char style class shipped to the client:
 //   c  city (401 kaupunki)

@@ -7,7 +7,8 @@
 // One shared VectorSource feeds a per-pane VectorLayer (OL layers can't be
 // shared across maps), so split-screen costs no extra fetches or parsing.
 // Each feature carries minimal properties: n = name, s = scaleRelevance band
-// (500k/1M/2M/8M), c = style class (c city, a settlement, w water, t terrain).
+// (500k/1M/2M/4.5M/8M), c = style class (c city, a settlement, w water,
+// t terrain).
 // The layer is wall-clock static: no FramePool, no setTime coupling.
 
 import VectorLayer from 'ol/layer/Vector';
@@ -19,20 +20,23 @@ import {
 import placeNamesUrl from './data/placenames-fi.geojson';
 
 // View resolution (m/px) above which only names of at least this
-// scaleRelevance render. Boundaries sit at Web-Mercator z ≈ 6.75 / 7.75 /
-// 9.75: whole country -> the 19 big cities, each step adds detail. The
-// full 500k band (7.4k village-level names, ~4x the 1M band) deliberately
-// enters two steps after 1M — at z8.75 it buried the radar picture.
+// scaleRelevance render: one band per zoom step at z ≈ 6.75 / 7.75 / 8.75 /
+// 9.75, cumulative names 19 -> 164 -> 516 -> 2.2k -> 9.6k. The boundaries
+// track the bands' design scales (res 1450 ≈ 1:5.2M paper scale, where the
+// 4.5M yleiskartta names belong) except the full 500k band, deliberately
+// held to z9.75 — village-level density any earlier buries the radar.
 function minBandForResolution(resolution) {
   if (resolution > 1450) return 8000000;
-  if (resolution > 725) return 2000000;
+  if (resolution > 725) return 4500000;
+  if (resolution > 363) return 2000000;
   if (resolution > 181) return 1000000;
   return 500000;
 }
 
 const FONT_SIZE_BY_BAND = {
   8000000: 14,
-  2000000: 13,
+  4500000: 13,
+  2000000: 12,
   1000000: 12,
   500000: 11,
 };
