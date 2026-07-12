@@ -146,10 +146,11 @@ export default function initOwnLocation({
     const heading = data.heading === 511 ? null : data.heading;
     const cog = data.cog === 360 ? null : data.cog;
     const sogKn = data.sog === 102.3 ? null : data.sog;
+    const rot = data.rot === -128 ? null : data.rot; // -128 = turn rate not available
     lastAisFixMs = data.time ? data.time * 1000 : Date.now();
     const stale = Date.now() - lastAisFixMs > AIS_STALE_MS;
     setAisState({
-      heading, cog, sogKn, lat: data.lat, name: vesselInfo && vesselInfo.name, mmsi, stale,
+      heading, cog, sogKn, rot, lat: data.lat, name: vesselInfo && vesselInfo.name, mmsi, stale,
     });
     const coordinates = transform([data.lon, data.lat], 'EPSG:4326', projection);
     lastCoordinates = coordinates;
