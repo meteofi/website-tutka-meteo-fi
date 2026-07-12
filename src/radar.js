@@ -2819,18 +2819,6 @@ const main = () => {
     onShared: (method) => track('share', { method }),
   });
 
-  // Overflow "Mittaa" row still arms the measure tool; remember it as the
-  // last-used tool so the FAB reflects it. (The FAB itself is wired above as a
-  // tool-group flyout.)
-  const measureToolBtn = document.getElementById('measureTool');
-  if (measureToolBtn) {
-    measureToolBtn.addEventListener('click', () => {
-      closeOverflowMenu();
-      lastTool = 'measure';
-      tools.setActiveTool('measure');
-    });
-  }
-
   window.__tutka = {
     panes, map, framePools, tools, sharedView, share,
   };
