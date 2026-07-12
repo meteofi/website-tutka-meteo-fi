@@ -36,6 +36,11 @@ import { createLightningClient } from './edrLightning';
 
 const FRAME_COUNT = 13;
 const MOVE_DEBOUNCE_MS = 300;
+// The very first fetch waits longer: at boot the 13 radar frames must win
+// the bandwidth and the main thread, and the first seconds shift the window
+// several times (each GetCapabilities arrival) — one deferred fetch replaces
+// that burst.
+const FIRST_FETCH_DELAY_MS = 2000;
 const LIVE_POLL_MS = 45000;
 
 // Products this controller renders itself; every other id on the lightning
@@ -91,7 +96,11 @@ function strikeStyle(peakCurrent, cloud) {
 }
 
 export default function initLightningLayer({ defaultProduct, onWmsProduct }) {
-  const client = createLightningClient();
+  // Low-priority hint (Chromium; ignored elsewhere): strike data must not
+  // outrank the radar frame images the user is actually waiting for.
+  const client = createLightningClient({
+    fetchImpl: (url, opts) => fetch(url, { ...opts, priority: 'low' }),
+  });
   const entries = []; // one per pane, in pane-index order
   let frameTimesMs = null;
   let stepMs = 5 * 60000;
@@ -103,6 +112,7 @@ export default function initLightningLayer({ defaultProduct, onWmsProduct }) {
   let builtRevision = -1;
   let builtKey = '';
   let moveTimer = null;
+  let fetchAttempted = false;
 
   function currentViewExtent() {
     for (const entry of entries) {
@@ -168,6 +178,7 @@ export default function initLightningLayer({ defaultProduct, onWmsProduct }) {
   }
 
   async function refetch() {
+    fetchAttempted = true;
     if (frameTimesMs && anyEdrVisible()) {
       const viewExtent = currentViewExtent();
       if (viewExtent) {
@@ -190,7 +201,7 @@ export default function initLightningLayer({ defaultProduct, onWmsProduct }) {
 
   function scheduleRefetch() {
     clearTimeout(moveTimer);
-    moveTimer = setTimeout(refetch, MOVE_DEBOUNCE_MS);
+    moveTimer = setTimeout(refetch, fetchAttempted ? MOVE_DEBOUNCE_MS : FIRST_FETCH_DELAY_MS);
   }
 
   // The 45 s live top-up (v1 feature): newest strikes are seconds behind
@@ -235,7 +246,7 @@ export default function initLightningLayer({ defaultProduct, onWmsProduct }) {
         if (entry.mode === 'wms') {
           if (onWmsProduct && entry.companion) onWmsProduct(entry.companion, id);
         } else {
-          refetch();
+          scheduleRefetch();
         }
         rebuildIfChanged();
       };
@@ -252,7 +263,7 @@ export default function initLightningLayer({ defaultProduct, onWmsProduct }) {
       layer.setLayerUrl = () => {};
       layer.on('change:visible', () => {
         syncEntry(entry);
-        if (layer.getVisible()) refetch(); else rebuildIfChanged();
+        if (layer.getVisible()) scheduleRefetch(); else rebuildIfChanged();
       });
       entry.layer = layer;
       entries.push(entry);
@@ -288,7 +299,7 @@ export default function initLightningLayer({ defaultProduct, onWmsProduct }) {
         windowKey = key;
         frameTimesMs = Array.from({ length: FRAME_COUNT }, (_, i) => windowStartMs + i * windowStepMs);
         changed = true;
-        refetch();
+        scheduleRefetch();
       }
       const idx = Math.max(0, Math.min(FRAME_COUNT - 1, Math.round((cursorMs - windowStartMs) / windowStepMs)));
       if (idx !== frameIndex) {
