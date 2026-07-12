@@ -34,14 +34,21 @@ module.exports = (env, argv) => {
       port: 9000,
       open: true,
     },
-    // module: {
-    //     rules: [
-    //       {
-    //         test: /\.worker\.js$/,
-    //         use: { loader: 'worker-loader' }
-    //       }
-    //     ]
-    //   },
+    module: {
+      rules: [
+        // Bundled GeoJSON data (place names) is emitted as a content-hashed
+        // asset so it rides the immutable-cache path like the JS bundles.
+        // The .geojson extension is deliberate: firebase.json serves
+        // **/*.json with Cache-Control: no-cache (right for manifest-style
+        // files, wrong for 1 MB of hashed data) and *.geojson gets its own
+        // immutable header rule there. Importing the file yields its URL.
+        {
+          test: /\.geojson$/,
+          type: 'asset/resource',
+          generator: { filename: '[name].[contenthash][ext]' },
+        },
+      ],
+    },
     plugins: [
       new webpack.ProvidePlugin({
         process: 'process/browser',

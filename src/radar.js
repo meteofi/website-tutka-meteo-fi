@@ -34,6 +34,7 @@ import initCrosshair from './crosshair';
 import initShare from './share';
 import initObsLayer from './obs/obsLayer';
 import initLightningLayer from './lightning/lightningLayer';
+import { createPlaceNamesLayer, placeNamesStyleLight, placeNamesStyleDark } from './placeNames';
 import initOwnLocation from './ownLocation';
 import initOwnLocationMenu from './ui/ownLocationMenu';
 import FramePool from './animation/framePool';
@@ -628,6 +629,7 @@ const paneDeps = {
   rangeStyle,
   createObservationLayer: obsController.createPaneLayer,
   createLightningLayer: lightningController.createPaneLayer,
+  createPlaceNamesLayer,
 };
 
 const pane0 = createPane(document.getElementById('map'), sharedView, {
@@ -1217,9 +1219,8 @@ function setMapLayer(maplayer) {
   const light = maplayer === 'light';
   for (const pane of panes) {
     pane.darkGrayBaseLayer.setVisible(!light);
-    pane.darkGrayReferenceLayer.setVisible(!light);
     pane.lightGrayBaseLayer.setVisible(light);
-    pane.lightGrayReferenceLayer.setVisible(light);
+    pane.placeNamesLayer.setStyle(light ? placeNamesStyleLight : placeNamesStyleDark);
     pane.municipalityLayer.setStyle(light ? municipalityStyleLight : municipalityStyleDark);
   }
   applyIcaoTheme(maplayer);
@@ -3037,7 +3038,7 @@ let etaResetAt = Date.now();
 // Before GetCapabilities resolves, layerInfo is empty and only the basemap
 // credit comes out — accepted degraded case in the first seconds after boot.
 function shareAttributions() {
-  const parts = new Set(['Tiles © ArcGIS']);
+  const parts = new Set(['Tiles © ArcGIS', 'Nimistö © Maanmittauslaitos']);
   for (const pane of activePanes()) {
     for (const name of pane.VISIBLE) {
       const olLayer = pane.layerss[name];

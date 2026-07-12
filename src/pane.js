@@ -67,6 +67,8 @@ export default function createPane(targetEl, sharedView, deps) {
     // lightning). radar.js owns the controllers; panes just host the layers.
     createObservationLayer,
     createLightningLayer,
+    // Place-name labels (src/placeNames.js) — panes share one VectorSource.
+    createPlaceNamesLayer,
     visible,
     activeLayers,
     layerInRange = {},
@@ -102,15 +104,6 @@ export default function createPane(targetEl, sharedView, deps) {
     }),
   });
 
-  const lightGrayReferenceLayer = new TileLayer({
-    visible: false,
-    source: new XYZ({
-      attributions: 'Tiles © <a href="https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer">ArcGIS</a>',
-      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
-      crossOrigin: 'anonymous',
-    }),
-  });
-
   const darkGrayBaseLayer = new TileLayer({
     preload: Infinity,
     source: new XYZ({
@@ -120,13 +113,11 @@ export default function createPane(targetEl, sharedView, deps) {
     }),
   });
 
-  const darkGrayReferenceLayer = new TileLayer({
-    source: new XYZ({
-      attributions: 'Tiles © <a href="https://services.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer">ArcGIS</a>',
-      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}',
-      crossOrigin: 'anonymous',
-    }),
-  });
+  // Place-name labels replace the ArcGIS reference (label) tile layers: one
+  // theme-agnostic vector layer whose style setMapLayer swaps, instead of two
+  // rasters toggled per theme. Sits above the animated rasters but below the
+  // lightning/observation vectors and every tool overlay.
+  const placeNamesLayer = createPlaceNamesLayer();
 
   //
   // CONTENT LAYERS
@@ -306,11 +297,10 @@ export default function createPane(targetEl, sharedView, deps) {
     darkGrayBaseLayer,
     satelliteLayer,
     radarLayer,
+    placeNamesLayer,
     guideLayer,
     lightningWmsLayer,
     lightningLayer,
-    lightGrayReferenceLayer,
-    darkGrayReferenceLayer,
     municipalityLayer,
     vesivaylaAreaLayer,
     vesivaylatLayer,
@@ -337,9 +327,8 @@ export default function createPane(targetEl, sharedView, deps) {
     layerss,
     // individual layer handles
     lightGrayBaseLayer,
-    lightGrayReferenceLayer,
     darkGrayBaseLayer,
-    darkGrayReferenceLayer,
+    placeNamesLayer,
     satelliteLayer,
     radarLayer,
     lightningLayer,
