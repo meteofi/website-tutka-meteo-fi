@@ -16,6 +16,10 @@ module.exports = (env, argv) => {
       path: path.resolve(__dirname, 'dist'),
       // filename: 'radar.js'
       filename: 'radar.[contenthash].js',
+      // Async (lazy) chunks keep their own name — the mqtt chunk must be
+      // distinguishable from the eager radar.* bundles so GenerateSW can skip
+      // precaching it and sw-register.js can self-heal a stale-hash load.
+      chunkFilename: '[name].[contenthash].js',
     },
     resolve: {
       fallback: {
@@ -82,26 +86,38 @@ module.exports = (env, argv) => {
           // itself (see sw-register.js).
           //
           // The chunk-404 risk that originally motivated dropping
-          // `clientsClaim` doesn't apply to this app: we have zero
-          // dynamic imports (verified by `grep -rn 'import(' src/`),
-          // so the in-memory page never refetches its JS bundles
-          // after the controller flips. Lazy non-JS fetches
-          // (radars-finland.json, airfields-finland.json,
-          // airspace-finland.json) are plain non-hashed filenames and
-          // exist under the same URL in the new precache.
+          // `clientsClaim` is narrow in this app: the ONLY dynamic
+          // import is the AIS mqtt chunk (src/ais/aisClient.js), which
+          // is excluded from the precache below. If a stale page
+          // requests an old-hash mqtt chunk right after a deploy, the
+          // controllerchange auto-reload (sw-register.js) usually gets
+          // there first; failing that, the sw-register self-heal
+          // listener matches mqtt.*.js and recovers with an
+          // unregister + reload, and aisClient catches the import()
+          // rejection and degrades to a recoverable error state.
+          // Lazy non-JS fetches (radars-finland.json,
+          // airfields-finland.json, airspace-finland.json) are plain
+          // non-hashed filenames and exist under the same URL in the
+          // new precache.
           maximumFileSizeToCacheInBytes: 5000000, // 5MB
           skipWaiting: true,
           clientsClaim: true,
           // Activate-time cleanup of stale Workbox precache caches.
-          // Safe in this app because nothing is lazily code-split — all
-          // JS is loaded at startup, so the running tab doesn't need
-          // SW-A's precache after that point. Non-JS assets that ARE
-          // fetched lazily (radars-finland.json, airfields-finland.json,
-          // airspace-finland.json) are plain non-hashed filenames; if a
-          // cache miss falls through to network it succeeds.
+          // Safe in this app because the eager JS is all loaded at
+          // startup, so the running tab doesn't need SW-A's precache
+          // after that point. The one lazily code-split chunk (mqtt,
+          // AIS own-location source) is excluded from the precache and
+          // has the recovery ladder described above. Non-JS assets that
+          // ARE fetched lazily (radars-finland.json,
+          // airfields-finland.json, airspace-finland.json) are plain
+          // non-hashed filenames; if a cache miss falls through to
+          // network it succeeds.
           cleanupOutdatedCaches: true,
-          // Don't precache everything - be more selective
-          exclude: [/\.map$/, /manifest$/, /LICENSE/],
+          // Don't precache everything - be more selective. The mqtt
+          // chunk is lazy on purpose: precaching it would make every
+          // GPS-only user download it in the background, and AIS needs
+          // the network anyway.
+          exclude: [/\.map$/, /manifest$/, /LICENSE/, /^mqtt[.-][^/]*\.js$/],
           runtimeCaching: [{
             urlPattern: new RegExp('^https://server\\.arcgisonline\\.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/'),
             handler: 'StaleWhileRevalidate',
@@ -168,8 +184,23 @@ module.exports = (env, argv) => {
             priority: -20,
             reuseExistingChunk: true,
           },
+          // mqtt is loaded via dynamic import() only when the user activates
+          // the AIS own-location source, and must stay OUT of the eager
+          // bundles. The vendor group's fixed name + chunks:'all' merges any
+          // matching async module into the initial vendors chunk regardless
+          // of other groups' priority (same-name chunk merge happens after
+          // group assignment), so the vendor test itself must exclude mqtt —
+          // the negative lookahead below is the load-bearing part. This group
+          // then names the async chunk deterministically ("mqtt.<hash>.js")
+          // for the GenerateSW exclude and the sw-register self-heal regex.
+          mqtt: {
+            test: /[\\/]node_modules[\\/]mqtt[\\/]/,
+            name: 'mqtt',
+            priority: 20,
+            chunks: 'async',
+          },
           vendor: {
-            test: /[\\/]node_modules[\\/]/,
+            test: /[\\/]node_modules[\\/](?!mqtt[\\/])/,
             name: 'vendors',
             priority: -10,
             chunks: 'all',

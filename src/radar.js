@@ -2862,7 +2862,13 @@ const main = () => {
         document.getElementById('gpsStatus').innerHTML = 'gps_not_fixed';
         setButtonStates();
         track('tracking-denied');
+      } else {
+        // 'searching' / 'stale' / 'error' — no usable fix right now.
+        document.getElementById('gpsStatus').innerHTML = 'gps_not_fixed';
       }
+    },
+    onVesselInfo: (info) => {
+      if (ownLocationMenu) ownLocationMenu.setVesselInfo(info);
     },
   });
 

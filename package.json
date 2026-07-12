@@ -31,6 +31,7 @@
   "dependencies": {
     "dayjs": "^1.11.13",
     "geodesy": "^2.2.1",
+    "mqtt": "^5.15.2",
     "ol": "^10.9.0",
     "ol-hashed": "^2.1.0"
   }

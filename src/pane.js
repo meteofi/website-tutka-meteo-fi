@@ -26,23 +26,17 @@ import GeoJSON from 'ol/format/GeoJSON';
 import MVT from 'ol/format/MVT';
 import Vector from 'ol/source/Vector';
 import Feature from 'ol/Feature';
-import {
-  Circle as CircleStyle, Fill, Stroke, Style,
-} from 'ol/style';
+import { Fill, Style } from 'ol/style';
+import { gpsPositionStyle } from './ais/ownShipStyle';
 import { track } from './analytics';
 import { createGetMapSizeGuard } from './wms/requestShape';
 
-// The blue GPS dot + grey accuracy disc. One pair per pane so the marker can
-// render in every pane; radar.js updates each pane's geometry on GPS change.
+// The own-position marker + grey accuracy disc. One pair per pane so the
+// marker can render in every pane; the ownLocation controller updates each
+// pane's geometry (and swaps the style when the AIS source is active).
 function makePositionFeatures() {
   const positionFeature = new Feature();
-  positionFeature.setStyle(new Style({
-    image: new CircleStyle({
-      radius: 6,
-      fill: new Fill({ color: '#3399CC' }),
-      stroke: new Stroke({ color: '#fff', width: 2 }),
-    }),
-  }));
+  positionFeature.setStyle(gpsPositionStyle);
 
   const accuracyFeature = new Feature();
   accuracyFeature.setStyle(new Style({
