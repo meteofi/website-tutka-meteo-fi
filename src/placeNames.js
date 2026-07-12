@@ -20,13 +20,13 @@ import placeNamesUrl from './data/placenames-fi.geojson';
 
 // View resolution (m/px) above which only names of at least this
 // scaleRelevance render. Boundaries sit at Web-Mercator z ≈ 6.75 / 7.75 /
-// 8.75, chosen so the label density roughly matches the old ArcGIS
-// reference layer: whole country -> the 19 big cities, and every zoom-in
-// step roughly doubles the name detail.
+// 9.75: whole country -> the 19 big cities, each step adds detail. The
+// full 500k band (7.4k village-level names, ~4x the 1M band) deliberately
+// enters two steps after 1M — at z8.75 it buried the radar picture.
 function minBandForResolution(resolution) {
   if (resolution > 1450) return 8000000;
   if (resolution > 725) return 2000000;
-  if (resolution > 363) return 1000000;
+  if (resolution > 181) return 1000000;
   return 500000;
 }
 
@@ -40,21 +40,25 @@ const FONT_SIZE_BY_BAND = {
 // Same halo-inversion rationale as icaoTextColors in radar.js: the halo must
 // sink into the basemap, not ring the text. Water names get the classic
 // cartographic blue (lifted for the dark basemap), terrain a muted olive so
-// nature names read as background against settlements.
+// nature names read as background against settlements. Dark fills stay dim
+// (icaoTextColors territory, ~#ccc and below) with a thin low-alpha halo —
+// brighter fills read as white-outlined text glaring over the dark radar.
 const PALETTES = {
   light: {
     halo: 'rgba(255,255,255,0.85)',
+    haloWidth: 2.5,
     c: '#1a1a1a',
     a: '#3d3d3d',
     w: '#2a5d8f',
     t: '#5f5f4d',
   },
   dark: {
-    halo: 'rgba(0,0,0,0.8)',
-    c: '#e8e8e8',
-    a: '#c2c2c2',
-    w: '#8fb8dd',
-    t: '#a9a98f',
+    halo: 'rgba(0,0,0,0.55)',
+    haloWidth: 2,
+    c: '#cfcfcf',
+    a: '#a8a8a8',
+    w: '#7fa3c4',
+    t: '#93937c',
   },
 };
 
@@ -78,7 +82,7 @@ function makeStyleFunction(theme) {
         text: new Text({
           font: `${slant}${weight}${size}px Roboto, sans-serif`,
           fill: new Fill({ color: palette[cls] || palette.a }),
-          stroke: new Stroke({ color: palette.halo, width: 2.5 }),
+          stroke: new Stroke({ color: palette.halo, width: palette.haloWidth }),
         }),
       });
       styleCache.set(key, style);
