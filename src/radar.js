@@ -2248,6 +2248,13 @@ document.querySelectorAll('#overflowMenu .chip[data-layout]').forEach((chip) => 
 // the split.
 const poiRegistry = [
   {
+    id: 'placenames',
+    label: 'Nimistö',
+    icon: 'label',
+    defaultOn: true,
+    layerKeys: ['placeNamesLayer'],
+  },
+  {
     id: 'radars',
     label: 'Tutka-asemat',
     icon: 'cell_tower',
