@@ -28,6 +28,7 @@ import createLongPressHandler, { longPressMenuOpener } from './longpress';
 import initTools from './tools';
 import initRangeCircle from './rangeCircle';
 import initFreehand from './freehand';
+import initSectionLine from './sectionLine';
 import initProbe from './probe';
 import initRadarSite from './radarSite';
 import initCrosshair from './crosshair';
@@ -73,10 +74,11 @@ let ownLocationMenu;
 let tools = null;
 let rangeCircle = null;
 let freehand = null;
+let sectionLine = null;
 // Drag-to-draw tools own the whole pointer sequence while armed. A tap that
 // aborts a stroke (below Draw's clickTolerance) still emits a map click, so
 // the click routers bail out for these tools instead of opening popups.
-const DRAW_TOOL_NAMES = new Set(['rengas', 'piirto']);
+const DRAW_TOOL_NAMES = new Set(['rengas', 'piirto', 'poikkileikkaus']);
 let probe = null;
 let radarSite = null;
 let startDate = new Date(Math.floor(Date.now() / 300000) * 300000 - 300000 * 12);
@@ -751,6 +753,7 @@ function initNewPane(pane) {
   initPaneCrosshair(pane);
   if (rangeCircle) rangeCircle.attachPane(pane.map);
   if (freehand) freehand.attachPane(pane.map);
+  if (sectionLine) sectionLine.attachPane(pane.map);
   // Radar-site taps work in every pane; the other pane-0 click concerns
   // (measure/probe tools, station feature info) deliberately stay pane-0-only.
   pane.map.on('click', (evt) => {
@@ -2095,7 +2098,7 @@ const toolFlyoutEl = document.getElementById('toolFlyout');
 const toolFlyoutBackdropEl = document.getElementById('toolFlyoutBackdrop');
 const toolGroupIconEl = toolFabBtn ? toolFabBtn.querySelector('.tool-group-icon') : null;
 const TOOL_ICONS = {
-  measure: 'straighten', pistemittaus: 'colorize', crosshair: 'center_focus_weak', rengas: 'track_changes', piirto: 'gesture',
+  measure: 'straighten', pistemittaus: 'colorize', crosshair: 'center_focus_weak', rengas: 'track_changes', piirto: 'gesture', poikkileikkaus: 'area_chart',
 };
 // Default tool the FAB arms on a plain tap (and shows in its icon) until the
 // user picks another from the flyout — the centre-crosshair reticle.
@@ -2791,6 +2794,8 @@ const main = () => {
   rangeCircle.attachPane(map);
   freehand = initFreehand({ onStrokeEnd: onDrawStrokeEnd });
   freehand.attachPane(map);
+  sectionLine = initSectionLine({ onStrokeEnd: onDrawStrokeEnd });
+  sectionLine.attachPane(map);
 
   tools = initTools({
     map,
@@ -2800,6 +2805,7 @@ const main = () => {
     onToolChange: syncToolGroup,
     rangeCircle,
     freehand,
+    sectionLine,
   });
   initPaneRadarSite(pane0);
   radarSite = pane0.radarSite;
