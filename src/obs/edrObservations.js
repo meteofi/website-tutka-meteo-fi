@@ -10,11 +10,10 @@
 //   - Server request-size limits (deployed 2026-07-11): a 500,000-value
 //     budget (stations × parameters × timesteps), a 20,000 station×parameter
 //     fan-out bound per area query, and HTTP 400 fast-fails whose message
-//     names the dimension to narrow — never 5xx. A whole-viewport window
-//     fetch (~500 stations × ≤7 params × ~13 values per param-hour) sits far
-//     below both, so one request covers the viewport; the polygon is still
-//     clamped to the Nordic coverage box (WMS-parity) and an area budget so
-//     world-scale zooms can't approach the fan-out bound.
+//     names the dimension to narrow — never 5xx. One request covers the
+//     viewport; the polygon is clamped to the collection's global coverage
+//     and a parameter-count-aware area budget (see FANOUT_TARGET below) so
+//     no view can approach the fan-out bound.
 //   - Responses carry RAW per-station observation times — no resampling.
 //     Time axes within one response ranged from 1 to 59 points per hour, and
 //     ~53% of values are null. Snapping to animation frames happens here:
@@ -44,21 +43,29 @@ const ENDPOINT = 'https://meteocore.app.meteo.fi/edr/collections/fmi-obs/area';
 // a station labels a frame only with an observation at most this old.
 export const SNAP_TOLERANCE_MS = 10 * 60 * 1000;
 
-// Coverage box (Fennoscandia + Baltics — parity with what the old raster
-// usefully showed; the EDR collection itself is global WIGOS). Grid-aligned
-// lon/lat bounds.
-const COVERAGE_BBOX = [4, 53, 42, 72];
+// The collection's advertised spatial extent, grid-aligned outward — the
+// network is global WIGOS ([-89.05, -75.79, 140.52, 83.66] as of
+// 2026-07-12), so observations render wherever the user pans, not just the
+// Nordics the old raster covered.
+const COVERAGE_BBOX = [-89.5, -76, 141, 84];
 
-// Polygon area budget (deg²): the ENTIRE coverage box fits in one request
-// under the server's limits — measured 2026-07-12: 2 065 stations report
-// within an hour over the full box, i.e. ~12.4k station×param fan-out at
-// all six parameters (bound 20k) and ~60k values (budget 500k), 128 KB
-// gzipped in ~1.3 s. So the budget equals the box: zoomed-out views get
-// observations across the whole coverage instead of a center-clamped square
-// (the 240 deg² clamp this replaces dated from the old 500-station server
-// cap). The shrink-around-center logic still guards world-scale views whose
-// center is far outside coverage.
-const MAX_AREA_DEG2 = (COVERAGE_BBOX[2] - COVERAGE_BBOX[0]) * (COVERAGE_BBOX[3] - COVERAGE_BBOX[1]);
+// Fan-out guard: the server rejects area queries whose stations × params
+// product exceeds 20k, and the full network is big enough to breach it
+// (measured 2026-07-12: 4 051 stations reporting per hour globally, 8 232
+// registered — global × 6 params ≈ 28k). The polygon area budget therefore
+// adapts to the parameter count, sized from the densest measured region
+// (central Europe, ~4.5 reporting stations/deg²) with margin below the
+// bound: one product (1–2 params) affords a continent-scale polygon; the
+// rare many-product pane union shrinks the polygon toward the view center.
+// A miscalibrated density can still 400 — the request key is then poisoned
+// (never retried verbatim), so the failure mode is a skipped update, and
+// the values budget (500k) stays far away in all cases (~13 values per
+// station-hour per param).
+const FANOUT_TARGET = 16000;
+const MAX_STATION_DENSITY_PER_DEG2 = 4.5;
+function maxAreaDeg2For(paramCount) {
+  return FANOUT_TARGET / (MAX_STATION_DENSITY_PER_DEG2 * Math.max(1, paramCount));
+}
 
 // WMS sublayer id → EDR parameter list. The `observation:*` ids are kept
 // verbatim so ACTIVE_LAYERS persistence, canonical URLs and the product menu
@@ -75,11 +82,12 @@ export const OBS_PRODUCTS = {
   'observation:wind': { params: ['wind_speed', 'wind_from_direction'] },
 };
 
-// Obs-specific bindings of the shared area-query helpers (../edr/areaQuery):
-// same signatures this module always exported, so the client below and the
-// verification harness are unchanged.
-export function quantizedAreaBounds(viewExtent) {
-  return quantizedBoundsFor(viewExtent, { coverageBbox: COVERAGE_BBOX, maxAreaDeg2: MAX_AREA_DEG2 });
+// Obs-specific bindings of the shared area-query helpers (../edr/areaQuery).
+export function quantizedAreaBounds(viewExtent, paramCount = 1) {
+  return quantizedBoundsFor(viewExtent, {
+    coverageBbox: COVERAGE_BBOX,
+    maxAreaDeg2: maxAreaDeg2For(paramCount),
+  });
 }
 
 export function buildAreaUrl(bounds, params, startMs, endMs) {
@@ -200,6 +208,7 @@ export function createObsClient({ fetchImpl } = {}) {
   let paramsKey = null;
   let controller = null;
   let inflight = null; // { key, promise }
+  let poisonedKey = null; // last request key that 400'd — never retried verbatim
   // Bumped whenever fetched data lands in the store — callers compare it to
   // decide whether derived state (rendered features) needs a rebuild.
   let revision = 0;
@@ -214,7 +223,11 @@ export function createObsClient({ fetchImpl } = {}) {
       controller = typeof AbortController === 'undefined' ? null : new AbortController();
       const url = buildAreaUrl(fetchBounds, params, deltaStart, fetchEndMs);
       const r = await doFetch(url, { signal: controller ? controller.signal : undefined });
-      if (!r.ok) throw new Error(`EDR ${r.status}`);
+      if (!r.ok) {
+        const err = new Error(`EDR ${r.status}`);
+        err.status = r.status;
+        throw err;
+      }
       const fresh = parseCoverageCollection(await r.json(), params);
       mergeStations(stations, fresh, deltaStart);
       fetchedStartMs = fetchedStartMs == null ? deltaStart : Math.min(fetchedStartMs, deltaStart);
@@ -237,7 +250,7 @@ export function createObsClient({ fetchImpl } = {}) {
         if (!spec) throw new Error(`unknown observation product: ${product}`);
         return spec.params;
       }))].sort();
-      const bounds = quantizedAreaBounds(viewExtent);
+      const bounds = quantizedAreaBounds(viewExtent, params.length);
       const fetchStartMs = floorToMinute(startMs - SNAP_TOLERANCE_MS);
       const fetchEndMs = ceilToMinute(endMs);
       if (!bounds) {
@@ -250,6 +263,7 @@ export function createObsClient({ fetchImpl } = {}) {
       if (bKey !== boundsKey || pKey !== paramsKey) {
         if (controller) controller.abort();
         inflight = null;
+        poisonedKey = null;
         boundsKey = bKey;
         paramsKey = pKey;
         fetchBounds = bounds;
@@ -258,8 +272,15 @@ export function createObsClient({ fetchImpl } = {}) {
         stations.clear();
       }
       const key = `${bKey}|${pKey}|${fetchStartMs}|${fetchEndMs}`;
+      // A request the server rejected as too large fails identically every
+      // time — serve whatever the store has instead of re-asking each tick.
+      if (key === poisonedKey) return { stations: stations.size };
       if (!inflight || inflight.key !== key) {
         const promise = run(params, fetchStartMs, fetchEndMs)
+          .catch((err) => {
+            if (err && err.status === 400) poisonedKey = key;
+            throw err;
+          })
           .finally(() => { if (inflight && inflight.key === key) inflight = null; });
         inflight = { key, promise };
       }
