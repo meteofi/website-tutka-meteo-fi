@@ -35,6 +35,7 @@ import initShare from './share';
 import initObsLayer from './obs/obsLayer';
 import initLightningLayer from './lightning/lightningLayer';
 import { createPlaceNamesLayer, placeNamesStyleLight, placeNamesStyleDark } from './placeNames';
+import radarSitesFallbackUrl from './data/radars-finland.geojson';
 import initOwnLocation from './ownLocation';
 import initOwnLocationMenu from './ui/ownLocationMenu';
 import FramePool from './animation/framePool';
@@ -541,7 +542,7 @@ const RADAR_SITE_COLLECTIONS = [
   'https://meteocore.app.meteo.fi/features/collections/fi-radar-pvol/items?f=application/geo%2Bjson&limit=1000',
   'https://meteocore.app.meteo.fi/features/collections/ee-radar-volume/items?f=application/geo%2Bjson&limit=1000',
 ];
-const RADAR_SITE_FALLBACK_URL = 'radars-finland.json';
+const RADAR_SITE_FALLBACK_URL = radarSitesFallbackUrl;
 
 const radarSiteSource = new Vector({
   format: new GeoJSON(),

@@ -102,10 +102,10 @@ module.exports = (env, argv) => {
           // listener matches mqtt.*.js and recovers with an
           // unregister + reload, and aisClient catches the import()
           // rejection and degrades to a recoverable error state.
-          // Lazy non-JS fetches (radars-finland.json,
-          // airfields-finland.json, airspace-finland.json) are plain
-          // non-hashed filenames and exist under the same URL in the
-          // new precache.
+          // Lazy non-JS fetches (the content-hashed *.geojson data
+          // assets) are precached, so a stale page finds its old-hash
+          // URL in its own SW's precache until the controllerchange
+          // reload lands.
           maximumFileSizeToCacheInBytes: 5000000, // 5MB
           skipWaiting: true,
           clientsClaim: true,
@@ -115,10 +115,10 @@ module.exports = (env, argv) => {
           // after that point. The one lazily code-split chunk (mqtt,
           // AIS own-location source) is excluded from the precache and
           // has the recovery ladder described above. Non-JS assets that
-          // ARE fetched lazily (radars-finland.json,
-          // airfields-finland.json, airspace-finland.json) are plain
-          // non-hashed filenames; if a cache miss falls through to
-          // network it succeeds.
+          // ARE fetched lazily (the content-hashed *.geojson data
+          // assets) are precached; a post-deploy stale tab that lazily
+          // fetches an old-hash geojson after cleanup can 404, but the
+          // controllerchange auto-reload closes that window in seconds.
           cleanupOutdatedCaches: true,
           // Don't precache everything - be more selective. The mqtt
           // chunk is lazy on purpose: precaching it would make every

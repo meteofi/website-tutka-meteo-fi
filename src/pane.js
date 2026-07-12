@@ -30,6 +30,7 @@ import { Fill, Style } from 'ol/style';
 import { gpsPositionStyle } from './ais/ownShipStyle';
 import { track } from './analytics';
 import { createGetMapSizeGuard } from './wms/requestShape';
+import airfieldsUrl from './data/airfields-finland.geojson';
 
 // The own-position marker + grey accuracy disc. One pair per pane so the
 // marker can render in every pane; the ownLocation controller updates each
@@ -224,7 +225,7 @@ export default function createPane(targetEl, sharedView, deps) {
   const icaoLayer = new VectorLayer({
     source: new Vector({
       format: new GeoJSON(),
-      url: 'airfields-finland.json',
+      url: airfieldsUrl,
     }),
     visible: false,
     style(feature) {
