@@ -35,7 +35,7 @@ const TRI_H = 20; // triangle height (px)
 const TRI_W = 12; // triangle base width (px) — isosceles, acute apex
 const HEADING_LEN = 2 * TRI_H; // IMO: heading line twice the symbol length, from the apex
 const TURN_FLAG = 5; // px, fixed-length flag at the end of the heading line
-const VECTOR_MINUTES = 6; // COG/SOG vector shows a 6-minute run
+const VECTOR_MINUTES = 3; // COG/SOG vector shows a 3-minute run
 const MIN_VECTOR_SOG_KN = 0.5; // below this the vector is noise, not motion
 
 // Thin orange own-ship lines over a faint light-gray casing; both basemap themes.
