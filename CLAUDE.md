@@ -6,7 +6,7 @@ Guidance for Claude Code working in this repository. The **Hard rules** section 
 
 Finnish weather-radar PWA (tutka.meteo.fi). Vanilla JavaScript + OpenLayers 10 + webpack 5. No framework, no TypeScript, no automated tests. All UI text is Finnish — write new UI text in Finnish. Most users are on phones (iOS Safari matters).
 
-The app animates a **13-frame time window** of WMS layers (radar, satellite, lightning, observations) on a map, with optional 1/2/4-pane split screen (panes share one OpenLayers View, so they pan/zoom in lockstep) and optional WebGL optical-flow interpolation between radar frames.
+The app animates a **13-frame time window** on a map: WMS raster layers (radar, satellite, EUMETSAT lightning products) plus client-rendered **EDR vector layers** (FMI weather observations and FMI lightning strikes, fetched as CoverageJSON from the MeteoCore EDR API and restyled per frame). Optional 1/2/4-pane split screen (panes share one OpenLayers View, so they pan/zoom in lockstep) and optional WebGL optical-flow interpolation between radar frames.
 
 ## Commands
 
@@ -23,7 +23,7 @@ Project hooks enforce two rules automatically: commits/pushes on master are bloc
 
 ## Hard rules
 
-1. **Never use TileWMS for animated layers** (radar, satellite, lightning, observations). The animation stack (`FramePool` slots, sticky frames, interpolation) requires single-image `ImageWMS` sources. Do not propose tiling, even as an optimization.
+1. **Never use TileWMS for animated raster layers** (radar, satellite, the lightning category's WMS companion). The animation stack (`FramePool` slots, sticky frames, interpolation) requires single-image `ImageWMS` sources. Do not propose tiling, even as an optimization. (FMI observations and FMI lightning are EDR vector layers — no WMS at all; their controllers are routed from `setTime` instead of FramePool.)
 2. **Never commit to master.** Start work with `git fetch origin && git checkout -b <topic-branch> origin/master`, push the branch, open a PR. Pushing master deploys production immediately (Firebase). Every PR automatically gets a preview deploy on the `dev-tutka-meteo-fi` Firebase project.
 3. **`Map` means different things in different files.** `src/pane.js` has `import { Map } from 'ol'`, so `new Map()` there creates an OpenLayers map. `src/probe.js` and `src/animation/stickyImageWMS.js` use the built-in JavaScript `Map`. Always check the file's imports first.
 4. **The animation window is exactly 13 frames** (12 five-minute steps = 1 hour). `FramePool.setWindow` throws on any other length. The constant is duplicated: `13` in `src/radar.js` (several places), `framePool.js` (`size = 13`), `probe.js` (`STRIP_CELLS = 13`); `12` in `crosshair.js` (`WINDOW_FRAMES = 12`). If you change one, audit all of them.
@@ -52,11 +52,17 @@ Entry point: `src/radar.js` (~3100 lines) — bootstraps panes, owns the shared 
 | `src/share.js` | "Jaa näkymä" share sheet: composites active panes' layer canvases to a PNG (OL export-map pattern, `renderSync` to stay in the iOS gesture window; needs `crossOrigin` on every raster source), social aspect clamp + info bar, Web Share ladder (image+url → url → download+clipboard; macOS Safari gets image without url) |
 | `src/longpress.js` | Long-press menu plumbing for toolbar buttons |
 | `src/analytics.js` | `track()` wrapper for Umami (no-ops if umami is absent) |
+| `src/edr/areaQuery.js` | Shared EDR area-query shaping: quantized 0.5°-grid polygons, coverage/area clamps, deterministic URLs (the requestShape.js philosophy applied to EDR) |
+| `src/obs/edrObservations.js` | EDR `fmi-obs` client: multi-station area fetches, delta fetches, snapping raw irregular station reports onto the 13 animation frames (10-min tolerance) |
+| `src/obs/obsLayer.js` | Observation controller: per-pane VectorLayers over one shared client; the source impersonates the WMS param surface (`getParams`/`updateParams` LAYERS) so category plumbing works unchanged |
+| `src/obs/obsStyles.js` | Observation symbology (ports of the old GeoServer SLDs + FMI wind scale); labels render in Roboto at full DPR |
+| `src/lightning/edrLightning.js` | EDR `fmi-lightning` client: strike events, (t,x,y) dedupe, watermark live polls, 400-poisoning (never blind-retry a too-large query) |
+| `src/lightning/lightningLayer.js` | Lightning controller — **dual-backend category**: EDR vector strikes for the FMI product + a per-pane `lightningWmsLayer` ImageWMS companion (own FramePool) for EUMETSAT li_afa/rdt; 45 s live poll feeds the newest frame's open-ended slice |
 | `src/animation/framePool.js` | `FramePool` — 13 preloaded WMS image slots per (pane, layer), prefetch, sticky swap, interpolator lifecycle |
 | `src/animation/stickyImageWMS.js` | `ImageWMS` subclass: keeps last good frame while loading; cross-pane blob cache |
 | `src/animation/interpolation/` | WebGL optical flow: `index.js` (`RadarInterpolator`), `flowLK.js`, `warp.js`, `glUtils.js`, `capabilities.js` |
 
-Data flow for playback: RAF `renderTick` (radar.js) → advances `startDate` → `setTime` computes one 13-frame window from the union of all visible layers across active panes → routed per (pane, layer) to each `FramePool.showTime` → pools swap preloaded slots (or `showInterpolated` when interpolation is on).
+Data flow for playback: RAF `renderTick` (radar.js) → advances `startDate` → `setTime` computes one 13-frame window from the union of all visible layers across active panes → routed per (pane, layer) to each `FramePool.showTime` for WMS rasters — pools swap preloaded slots (or `showInterpolated` when interpolation is on) — and once per tick to `obsController.route()` / `lightningController.route()` for the EDR vector layers, which fetch per window and only restyle on cursor moves.
 
 ## radar.js decomposition rules
 
@@ -75,7 +81,7 @@ Shrink radar.js opportunistically; never grow it. There is no scheduled big-bang
 
 ## Data sources
 
-Active servers (see `src/config.js` for the full registry): `meteocore.app.meteo.fi/wms` (Finnish + European radar composites — the primary radar source), `wms.meteo.fi` (DBZ/rain-rate products), `wms-obs.app.meteo.fi` (weather observations), `view.eumetsat.int` (satellite RGB products, MTG lightning, RDT). The probe/crosshair read values from the EDR API at `meteocore.app.meteo.fi/edr` (CoverageJSON). Entries marked `disabled: true` (openwms.fmi.fi, Environment Canada, KNMI, …) are inactive — don't document or build on them.
+Active servers (see `src/config.js` for the full registry): `meteocore.app.meteo.fi/wms` (Finnish + European radar composites — the primary radar source), `wms.meteo.fi` (DBZ/rain-rate products), `view.eumetsat.int` (satellite RGB products, MTG lightning, RDT). The EDR API at `meteocore.app.meteo.fi/edr` (CoverageJSON) feeds the probe/crosshair (`position` queries) and the observation + FMI lightning vector layers (`area` queries on the `fmi-obs` / `fmi-lightning` collections; metadata for these products is seeded statically via `edrLayerInfo` in config.js because they have no GetCapabilities). The old `wms-obs.app.meteo.fi` GeoServer is **permanently offline** (2026-07-12) — never reintroduce references to it. Entries marked `disabled: true` (openwms.fmi.fi, Environment Canada, KNMI, …) are inactive — don't document or build on them.
 
 ## MeteoCore request-shape rules (server contract)
 
@@ -88,7 +94,7 @@ Rules from the MeteoCore server architect — they govern **every GetMap sent to
 - **Zoomed out (z ≤ 7): cap effective DPR at ~1.5** and spend the freed budget on the pan buffer (ratio up to 2.0). At synoptic scales the slight upscale is imperceptible, and these are the largest, most expensive viewports.
 - On phones this works out naturally: 390×844 at DPR 3 zoomed in is ~3 Mpx at ratio 1.1; zoomed out at DPR 1.5 it affords the full 2× buffer mobile panning needs.
 - **Client deviation (deliberate — keep it):** the letter above allows ratio → 1.0 when full DPR exhausts the ceiling, but in practice sub-10% margins showed blank strips on every casual pan (Mac *and* iPhone) and made each small pan re-anchor and refetch all 13 frames. `src/wms/requestShape.js` therefore enforces **ratio ≥ 1.4** (20% margin per side), reserving room for it within the ceiling *before* computing effective DPR. Do not "fix" this back to the contract formula without re-testing panning on real devices.
-- **Client deviation 2 (deliberate — keep it): requested DPR is capped at 1 for every layer**, ignoring the two DPR bullets above. Three reasons (full rationale in `src/wms/requestShape.js`): (1) no current product out-resolves a CSS pixel at the zooms where full DPR was prescribed — the Finnish composite (~250 m ground ≈ 515 m Web-Mercator at 61°N) is already fully captured by a DPR-1 request from z9 up, so retina fetches cost up to 9× the pixels for no information; (2) observation and lightning layers render fixed-pixel-size numbers/glyphs server-side that become unreadably small at DPR > 1 — these must stay at DPR 1 permanently; (3) fractional DPR (1.5, 3) lands between the server's zoom-ladder steps and pays cold renders. The freed budget goes to the pan buffer (ratio → 2.0 on phones). If a genuinely high-res product appears later, gate DPR 2 (never 1.5/3) per layer on a `nativeResolution` hint — data layers only.
+- **Client deviation 2 (deliberate — keep it): requested DPR is capped at 1 for every layer**, ignoring the two DPR bullets above. Three reasons (full rationale in `src/wms/requestShape.js`): (1) no current product out-resolves a CSS pixel at the zooms where full DPR was prescribed — the Finnish composite (~250 m ground ≈ 515 m Web-Mercator at 61°N) is already fully captured by a DPR-1 request from z9 up, so retina fetches cost up to 9× the pixels for no information; (2) symbol layers (today the EUMETSAT li_afa/RDT overlays; formerly the FMI obs/lightning rasters, which are EDR vector layers now) render fixed-pixel-size glyphs server-side that become unreadably small at DPR > 1 — these must stay at DPR 1 permanently; (3) fractional DPR (1.5, 3) lands between the server's zoom-ladder steps and pays cold renders. The freed budget goes to the pan buffer (ratio → 2.0 on phones). If a genuinely high-res product appears later, gate DPR 2 (never 1.5/3) per layer on a `nativeResolution` hint — data layers only.
 - While waiting for a fetch (zoom transition, re-anchor), the previous image is shown scaled — consider `image-rendering: pixelated` on the radar layer during that interim so stale frames go blocky instead of mushy, then swap to the new full-res image.
 
 ### Buffer anchoring — make pan refetches recur

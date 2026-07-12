@@ -93,8 +93,7 @@ let appFullscreen = false;
 const framePools = {
   satelliteLayer: null,
   radarLayer: null,
-  lightningLayer: null,
-  observationLayer: null,
+  lightningWmsLayer: null,
 };
 // All created panes (index 0..3), cached across layout switches. Declared early
 // so the interpolator/timeline helpers above the pane bootstrap can reference
@@ -591,18 +590,13 @@ const sharedView = new View({
   constrainResolution: true,
 });
 
-// EDR observation layer (obs WMS→EDR migration): observations render as a
-// client-side vector layer fed by the EDR API (src/obs/obsLayer.js) instead
-// of the WMS raster. The vector layer's source impersonates the WMS param
+// Observations render as a client-side vector layer fed by the EDR API
+// (src/obs/obsLayer.js) — the wms-obs GeoServer that served the raster is
+// permanently offline and the WMS fallback path (localStorage.OBS_WMS) has
+// been removed. The vector layer's source impersonates the WMS param
 // surface (getParams/updateParams LAYERS), so menus, persistence, playlist
-// and share attributions work unchanged. Default ON since 2026-07-11 (the
-// wms-obs GeoServer was falling over under load; the EDR path has no runtime
-// dependency on it). localStorage.OBS_WMS = '1' is the per-browser escape
-// hatch back to the WMS raster while the old path still exists.
-const OBS_EDR = localStorage.getItem('OBS_WMS') !== '1';
-const obsController = OBS_EDR
-  ? initObsLayer({ defaultProduct: options.defaultObservationLayer })
-  : null;
+// and share attributions work unchanged.
+const obsController = initObsLayer({ defaultProduct: options.defaultObservationLayer });
 
 // FMI lightning is EDR-backed (the wms-obs GeoServer that rendered
 // observation:lightning is permanently offline); the EUMETSAT WMS products
@@ -631,7 +625,7 @@ const paneDeps = {
   vesivaylatStyleFn,
   vesivaylaAreaStyle,
   rangeStyle,
-  createObservationLayer: obsController ? obsController.createPaneLayer : undefined,
+  createObservationLayer: obsController.createPaneLayer,
   createLightningLayer: lightningController.createPaneLayer,
 };
 
@@ -646,7 +640,7 @@ const pane0 = createPane(document.getElementById('map'), sharedView, {
   framePools,
 });
 panes.push(pane0);
-if (obsController) obsController.bindMap(0, pane0.map);
+obsController.bindMap(0, pane0.map);
 lightningController.bindMap(0, pane0.map, pane0.lightningWmsLayer);
 
 // Pane-0 aliases — keep the original single-map identifiers working unchanged.
@@ -786,7 +780,7 @@ function ensurePanes(count) {
       layerInRange: {},
     });
     panes.push(pane);
-    if (obsController) obsController.bindMap(pane.index, pane.map);
+    obsController.bindMap(pane.index, pane.map);
     lightningController.bindMap(pane.index, pane.map, pane.lightningWmsLayer);
     initNewPane(pane);
   }
@@ -953,10 +947,13 @@ function setTime(action = 'next') {
       // A layer without a valid time can't constrain the window — skip it
       // rather than throwing here on every tick (which freezes playback).
       const t = wmslayer in layerInfo ? layerInfo[wmslayer].time : null;
-      // The EDR obs layer snaps raw station reports onto whatever window the
-      // other layers pick — it must not coarsen the shared resolution (its
-      // WMS capabilities entry advertises PT10M) nor cap the newest frame.
-      const constrains = !(OBS_EDR && item === 'observationLayer');
+      // The EDR vector layers (observations, FMI lightning) snap raw events
+      // onto whatever window the raster layers pick — they must not coarsen
+      // the shared resolution nor cap the newest frame. Their seeded
+      // layerInfo entries carry no `time` on purpose (see config.js
+      // edrLayerInfo), so they fall out via the null check; the explicit
+      // obs guard stays as a belt against a future entry gaining `time`.
+      const constrains = item !== 'observationLayer';
       if (constrains && t && Number.isFinite(t.end) && Number.isFinite(t.resolution)) {
         if (item === 'radarLayer' || item === 'satelliteLayer' || item === 'observationLayer') {
           end = Math.min(end, Math.floor(t.end / resolution) * resolution);
@@ -1074,7 +1071,7 @@ function setTime(action = 'next') {
     // frame with no fresh-enough report simply drops that label) — hiding
     // the whole layer on the WMS capabilities range would blank it on the
     // newest frames whenever the caps timestamp lags the radar window.
-    const inRange = (obsController && name === 'observationLayer')
+    const inRange = name === 'observationLayer'
       || !info || !info.start || !info.end
       || (tNow >= info.start && tNow <= info.end);
     olLayer.setOpacity(inRange ? 1 : 0);
@@ -2735,22 +2732,19 @@ function getTimeDimension(dimensions) {
   };
 }
 
-// Build the four FramePools (one per content layer) for a pane and wire each
-// pool's load/flow callbacks into the shared timeline aggregation. For pane 0
-// `pane.framePools` is the module-global `framePools`, so this is identical to
-// the old inline construction on the single-map path.
+// Build the FramePools for a pane's WMS raster layers and wire each pool's
+// load/flow callbacks into the shared timeline aggregation. The EDR vector
+// layers (observations, FMI lightning) hold their whole window client-side —
+// their controllers are routed in setTime instead; the lightning category's
+// WMS products (li_afa/rdt) animate via the companion layer's pool. For
+// pane 0 `pane.framePools` is the module-global `framePools`, so this is
+// identical to the old inline construction on the single-map path.
 function buildPanePools(pane) {
   const pairs = [
     ['satelliteLayer', pane.layerss.satelliteLayer],
     ['radarLayer', pane.layerss.radarLayer],
+    ['lightningWmsLayer', pane.lightningWmsLayer],
   ];
-  // The EDR vector layers (FMI lightning, observations) hold their whole
-  // window client-side — their controllers route them in setTime; only WMS
-  // rasters animate through FramePools. The lightning category's WMS
-  // products (li_afa/rdt) animate via the companion layer's pool.
-  if (pane.lightningWmsLayer) pairs.push(['lightningWmsLayer', pane.lightningWmsLayer]);
-  else pairs.push(['lightningLayer', pane.layerss.lightningLayer]);
-  if (!OBS_EDR) pairs.push(['observationLayer', pane.layerss.observationLayer]);
   for (const [name, layer] of pairs) {
     const key = `${pane.index}:${name}`;
     poolLoadStates[key] = new Array(13).fill(false);

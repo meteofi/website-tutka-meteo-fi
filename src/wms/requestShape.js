@@ -17,10 +17,13 @@
 //      resolution ≈ 515 m Web-Mercator at 61°N; at z9 one CSS pixel already
 //      covers 306 m, so a DPR-1 request captures the data completely and a
 //      DPR-3 iPhone request fetched 9× the pixels of the same information.
-//   2. Symbol layers — observations and (mostly) lightning — render numbers
-//      and glyphs at fixed pixel sizes server-side; at DPR > 1 they display
-//      scaled down and become unreadably small. These must stay at DPR 1
-//      even if a future high-res data product reintroduces DPR 2 for radar.
+//   2. Symbol layers — today the EUMETSAT lightning imager (li_afa) and RDT
+//      overlays — render glyphs and outlines at fixed pixel sizes
+//      server-side; at DPR > 1 they display scaled down and become
+//      unreadably small. These must stay at DPR 1 even if a future high-res
+//      data product reintroduces DPR 2 for radar. (FMI observations and
+//      lightning, the original motivation for this rule, are client-rendered
+//      EDR vector layers now and out of WMS entirely.)
 //   3. Fractional DPR (1.5, 3) puts the effective resolution between the
 //      server's zoom-ladder steps — the "fractional zoom pays a fresh cold
 //      render" case the contract warns about. Only DPR 1 and 2 land on
