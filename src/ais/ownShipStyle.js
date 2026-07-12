@@ -38,13 +38,13 @@ const TURN_FLAG = 5; // px, fixed-length flag at the end of the heading line
 const VECTOR_MINUTES = 6; // COG/SOG vector shows a 6-minute run
 const MIN_VECTOR_SOG_KN = 0.5; // below this the vector is noise, not motion
 
-// Thin dark lines over a subtle white casing read on both basemap themes.
+// Thin dark lines over a faint light-gray casing read on both basemap themes.
 const ink = (alpha) => `rgba(20, 20, 20, ${alpha})`;
-const casing = (alpha) => `rgba(255, 255, 255, ${0.9 * alpha})`;
+const casing = (alpha) => `rgba(210, 210, 210, ${0.55 * alpha})`;
 
 function cased(geometry, alpha, width, lineDash) {
   return [
-    new Style({ geometry, stroke: new Stroke({ color: casing(alpha), width: width + 2, lineDash }) }),
+    new Style({ geometry, stroke: new Stroke({ color: casing(alpha), width: width + 1, lineDash }) }),
     new Style({ geometry, stroke: new Stroke({ color: ink(alpha), width, lineDash }) }),
   ];
 }
