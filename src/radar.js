@@ -2411,8 +2411,14 @@ function hideCoachmarkNow() {
   coachmarkEl.hidden = true;
 }
 
+// Keystrokes aimed at a form field (e.g. the MMSI input) must never trigger
+// the global shortcuts — typing "230…" would toggle layers on every digit.
+function isTextEntryTarget(target) {
+  return !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+}
+
 document.addEventListener('keyup', (event) => {
-  if (event.defaultPrevented) {
+  if (event.defaultPrevented || isTextEntryTarget(event.target)) {
     return;
   }
 
@@ -2960,7 +2966,7 @@ const main = () => {
   window.matchMedia('(orientation: portrait)').addEventListener('change', resizeAllPanes);
 
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Control') {
+    if (event.key === 'Control' && !isTextEntryTarget(event.target)) {
       document.getElementById('help').style.display = 'block';
     }
   });

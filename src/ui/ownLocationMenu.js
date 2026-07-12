@@ -1,7 +1,7 @@
-// "Oma sijainti" section of the overflow menu: source chips (GPS / AIS-alus /
+// "Oma sijainti" section of the overflow menu: source chips (GPS / AIS /
 // NMEA placeholder) plus the MMSI input row.
 //
-// Pending-selection flow: tapping AIS-alus without a valid MMSI only reveals
+// Pending-selection flow: tapping the AIS chip without a valid MMSI only reveals
 // and focuses the MMSI input (the chip highlights as a preview); the effective
 // source stays GPS until a valid 9-digit MMSI is committed via the input
 // (9th digit / Enter / blur). Reopening the menu reverts a dangling pending
@@ -85,6 +85,10 @@ export default function initOwnLocationMenu({
   input.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
       commit();
+      input.blur();
+    } else if (event.key === 'Escape') {
+      // Cancel: restore the persisted value instead of committing the draft.
+      refresh();
       input.blur();
     }
   });

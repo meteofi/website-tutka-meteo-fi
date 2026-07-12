@@ -870,7 +870,16 @@ body.split-4 #menuButton {
   #overflowMenu .mmsi-row[hidden] { display: none; }
   #overflowMenu .mmsi-row .menu-label { flex: 0 0 auto; }
   #overflowMenu .mmsi-row input {
-    all: unset;
+    /* No `all: unset` here: it strips WebKit's internal editability
+       (-webkit-user-modify), making the field read-only in macOS Safari
+       while Chrome keeps working. Reset properties individually instead. */
+    appearance: none;
+    -webkit-appearance: none;
+    border: none;
+    outline: none;
+    margin: 0;
+    -webkit-user-select: text;
+    user-select: text;
     box-sizing: border-box;
     width: 13ch;
     padding: 6px 10px;
