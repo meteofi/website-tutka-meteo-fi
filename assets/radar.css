@@ -84,13 +84,13 @@ body.split-4 #map-1,
 body.split-4 #map-2,
 body.split-4 #map-3 { display: block; }
 
-/* Minimal hairline between panes: a 1px grid gap that lets the grid's
-   background show through as a faint separator. Only in split modes — 1-up
-   has no gap. */
+/* Minimal separator between panes: a 2px grid gap that lets the grid's
+   background show through. A near-opaque neutral gray reads on both dark and
+   light map content. Only in split modes — 1-up has no gap. */
 body.split-2 #paneGrid,
 body.split-4 #paneGrid {
-    gap: 1px;
-    background-color: rgba(255, 255, 255, 0.22);
+    gap: 2px;
+    background-color: rgba(160, 160, 160, 0.9);
 }
 
 /* Crosshair only while a map-tap tool (Mittaa / Pistemittaus) is armed. */
