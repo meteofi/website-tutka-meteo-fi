@@ -152,6 +152,7 @@ function buildMarkerCard() {
 
 export default function initTools({
   map, getOwnPosition, getFrameTimestamp, onPinChange, onToolChange, rangeCircle, freehand,
+  sectionLine,
 }) {
   const emitPinChange = typeof onPinChange === 'function'
     ? (lonLat) => { try { onPinChange(lonLat); } catch (_) { /* ignore */ } }
@@ -428,7 +429,7 @@ export default function initTools({
   // leaving (measure features, or the probe pin + card + chart) and sets up the
   // one we're entering. Passing null (or anything else) disarms.
   function setActiveTool(next) {
-    const TOOL_NAMES = ['measure', 'pistemittaus', 'crosshair', 'rengas', 'piirto'];
+    const TOOL_NAMES = ['measure', 'pistemittaus', 'crosshair', 'rengas', 'piirto', 'poikkileikkaus'];
     const tool = TOOL_NAMES.includes(next) ? next : null;
     if (tool === activeTool) return;
 
@@ -446,6 +447,10 @@ export default function initTools({
       if (rangeCircle) rangeCircle.disarm();
     } else if (activeTool === 'piirto') {
       if (freehand) freehand.disarm();
+    } else if (activeTool === 'poikkileikkaus') {
+      // disarm() clears the section line, which emits onLineChange(null) —
+      // that closes the cross-section panel and aborts its fetches.
+      if (sectionLine) sectionLine.disarm();
     }
 
     activeTool = tool;
@@ -476,6 +481,11 @@ export default function initTools({
       setChipIdentity('gesture', 'PIIRTO');
       setChipHint('piirrä vetämällä');
       if (freehand) freehand.arm();
+    } else if (tool === 'poikkileikkaus') {
+      markerTranslate.setActive(false);
+      setChipIdentity('area_chart', 'POIKKILEIKKAUS');
+      setChipHint('paina ja vedä kartalla');
+      if (sectionLine) sectionLine.arm();
     } else {
       markerTranslate.setActive(false);
     }

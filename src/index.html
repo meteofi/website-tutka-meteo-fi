@@ -157,6 +157,10 @@
               aria-pressed="false" aria-label="Piirto: piirrä kartalle vapaalla kädellä">
         <i class="material-icons" aria-hidden="true">gesture</i>
       </button>
+      <button class="tool-flyout-item" type="button" role="menuitem" data-tool="poikkileikkaus"
+              aria-pressed="false" aria-label="Poikkileikkaus: tutkan pystyleikkaus viivaa pitkin">
+        <i class="material-icons" aria-hidden="true">area_chart</i>
+      </button>
     </div>
   </div>
   <div id="toolFlyoutBackdrop"></div>
@@ -234,6 +238,7 @@
   </div>
 
   <div id="timecontrol" class="toolbar noselect">
+    <div id="sectionPanel" hidden aria-hidden="true"></div>
     <div id="probeChart" hidden aria-hidden="true"></div>
     <div class="playbar noselect">
       <div id="currentSpeed"><div id="currentSpeedValue"></div><div style="font-size: 10px;">km/h</div></div>
