@@ -673,6 +673,201 @@
                     "ZDR"
                 ]
             }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    14.887517,
+                    55.11275
+                ]
+            },
+            "properties": {
+                "name": "Bornholm",
+                "nod": "dkbor",
+                "country": "dk",
+                "collection": "dk-radar-volume-dkbor",
+                "coverage_radius_m": 119000.5,
+                "elevation_angles": [
+                    0.5,
+                    0.7,
+                    1.0,
+                    1.5,
+                    2.4,
+                    4.5,
+                    8.5,
+                    10.0,
+                    13.0,
+                    15.0
+                ],
+                "quantities": [
+                    "DBZH",
+                    "LDR",
+                    "PHIDP",
+                    "RHOHV",
+                    "TH",
+                    "VRAD",
+                    "WRAD",
+                    "ZDR"
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    8.552,
+                    55.173111
+                ]
+            },
+            "properties": {
+                "name": "Romo",
+                "nod": "dkrom",
+                "country": "dk",
+                "collection": "dk-radar-volume-dkrom",
+                "coverage_radius_m": 119500.5,
+                "elevation_angles": [
+                    0.5,
+                    0.6,
+                    1.0,
+                    1.5,
+                    2.4,
+                    4.5,
+                    8.5,
+                    10.0,
+                    13.0,
+                    15.0
+                ],
+                "quantities": [
+                    "DBZH",
+                    "LDR",
+                    "PHIDP",
+                    "RHOHV",
+                    "TH",
+                    "VRAD",
+                    "WRAD",
+                    "ZDR"
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    10.5853,
+                    55.8119
+                ]
+            },
+            "properties": {
+                "name": "Samso",
+                "nod": "dksam",
+                "country": "dk",
+                "collection": "dk-radar-volume-dksam",
+                "coverage_radius_m": 119000.5,
+                "elevation_angles": [
+                    0.5,
+                    0.6,
+                    1.0,
+                    1.5,
+                    2.4,
+                    4.5,
+                    8.4,
+                    10.0,
+                    13.0,
+                    15.0
+                ],
+                "quantities": [
+                    "DBZH",
+                    "LDR",
+                    "PHIDP",
+                    "RHOHV",
+                    "TH",
+                    "VRAD",
+                    "WRAD",
+                    "ZDR"
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    10.136472,
+                    57.489306
+                ]
+            },
+            "properties": {
+                "name": "Sindal",
+                "nod": "dksin",
+                "country": "dk",
+                "collection": "dk-radar-volume-dksin",
+                "coverage_radius_m": 119500.5,
+                "elevation_angles": [
+                    0.5,
+                    0.6,
+                    1.0,
+                    1.5,
+                    2.4,
+                    4.5,
+                    8.5,
+                    10.0,
+                    13.0,
+                    15.0
+                ],
+                "quantities": [
+                    "DBZH",
+                    "LDR",
+                    "PHIDP",
+                    "RHOHV",
+                    "TH",
+                    "VRAD",
+                    "WRAD",
+                    "ZDR"
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    12.449278,
+                    55.326194
+                ]
+            },
+            "properties": {
+                "name": "Stevns",
+                "nod": "dkste",
+                "country": "dk",
+                "collection": "dk-radar-volume-dkste",
+                "coverage_radius_m": 119500.5,
+                "elevation_angles": [
+                    0.5,
+                    0.6,
+                    1.0,
+                    1.5,
+                    2.4,
+                    4.5,
+                    8.5,
+                    10.0,
+                    13.0,
+                    15.0
+                ],
+                "quantities": [
+                    "DBZH",
+                    "LDR",
+                    "PHIDP",
+                    "RHOHV",
+                    "TH",
+                    "VRAD",
+                    "WRAD",
+                    "ZDR"
+                ]
+            }
         }
     ]
 }
