@@ -24,6 +24,7 @@ const EDR_COLLECTIONS = new Set([
   'dmi-radar-composite-dbz',
   'dwd-radar-composite-dbz',
   'chmi-radar-composite-dbz',
+  'imgw-radar-composite-dbz',
 ]);
 
 // Per-EDR-parameter readout spec — the single source of truth for units, the

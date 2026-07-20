@@ -189,6 +189,16 @@ const wmsServerConfiguration = {
     license: 'CC-BY-4.0',
     disabled: false,
   },
+  pl: {
+    url: 'https://meteocore.app.meteo.fi/wms',
+    layer: 'imgw-radar-composite-dbz',
+    refresh: 60000,
+    category: 'radarLayer',
+    // IMGW-PIB open data is licensed under the Polish public-data terms,
+    // not CC-BY — attribution only, no license tag.
+    attribution: 'IMGW-PIB',
+    disabled: false,
+  },
   vn: {
     url: 'https://vietnam.smartmet.fi/wms',
     namespace: 'vnmha:radar',
