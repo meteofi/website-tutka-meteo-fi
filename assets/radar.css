@@ -195,6 +195,13 @@ body.split-4 #menuButton {
   z-index: 100;
 }
 
+/* The search FAB mirrors the ⋯ dock on the left: with the global pill hidden
+   in split, the top-left corner is free at every width. */
+body.split-2 #placeSearchButton,
+body.split-4 #placeSearchButton {
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
+}
+
 /* Common style for top and bottom toolbars. */
 .toolbar {
   position: fixed;
@@ -557,18 +564,26 @@ body.split-4 #menuButton {
   }
   #shareButton .material-icons { font-size: 24px; }
 
-  /* Place-search FAB: third slot of the same bottom-right row. */
+  /* Place-search FAB: top-left, mirroring the ⋯ menu button on the right.
+     Narrow 1-up phones have no corner room (the centered toolbar row leaves
+     ~40px margins on a 390px screen), so it sits one row below the toolbar —
+     the left-side mirror of where the overflow menu panel anchors. At ≥600px
+     it docks to the true top-left corner exactly like #menuButton docks
+     top-right (split-mode docking lives next to the #menuButton split rule). */
   #placeSearchButton {
     position: fixed;
-    right: calc(max(16px, env(safe-area-inset-right, 0px) + 16px) + 120px); /* 2 × (52px FAB + 8px gap) */
-    bottom: calc(env(safe-area-inset-bottom, 0px) + var(--timecontrol-height, 84px) + 16px);
+    top: calc(env(safe-area-inset-top, 0px) + 8px + 52px + 10px);
+    left: max(16px, env(safe-area-inset-left, 0px) + 16px);
     width: 52px;
     height: 52px;
-    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
     z-index: 100;
-    transition: bottom 220ms cubic-bezier(0.2, 0.7, 0.2, 1);
   }
   #placeSearchButton .material-icons { font-size: 24px; }
+  @media (min-width: 600px) {
+    #placeSearchButton {
+      top: calc(env(safe-area-inset-top, 0px) + 8px);
+    }
+  }
 
   /* Exit FAB: hidden in normal mode; bottom-right corner while fullscreen. */
   #fullscreenExitButton { display: none; }
