@@ -70,6 +70,9 @@ export default function createPane(targetEl, sharedView, deps) {
     createLightningLayer,
     // Place-name labels (src/placeNames.js) — panes share one VectorSource.
     createPlaceNamesLayer,
+    // Place-search highlight pulse (src/search/searchHighlight.js) — panes
+    // share one VectorSource so the pulse shows in every split-screen pane.
+    createSearchHighlightLayer,
     visible,
     activeLayers,
     layerInRange = {},
@@ -286,6 +289,10 @@ export default function createPane(targetEl, sharedView, deps) {
     }),
   });
 
+  // Search highlight pulse: appended last in `layers` so the ring draws
+  // above everything (labels, observations, own position).
+  const searchHighlightLayer = createSearchHighlightLayer();
+
   const layerss = {
     satelliteLayer,
     radarLayer,
@@ -309,6 +316,7 @@ export default function createPane(targetEl, sharedView, deps) {
     icaoLayer,
     ownPositionLayer,
     observationLayer,
+    searchHighlightLayer,
   ];
 
   const map = new Map({
@@ -342,6 +350,7 @@ export default function createPane(targetEl, sharedView, deps) {
     vesivaylatLayer,
     guideLayer,
     ownPositionLayer,
+    searchHighlightLayer,
     positionFeature,
     accuracyFeature,
     // per-pane mutable state

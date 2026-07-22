@@ -40,6 +40,8 @@ import { createPlaceNamesLayer, placeNamesStyleLight, placeNamesStyleDark } from
 import radarSitesFallbackUrl from './data/radars-finland.geojson';
 import initOwnLocation from './ownLocation';
 import initOwnLocationMenu from './ui/ownLocationMenu';
+import initPlaceSearch from './ui/placeSearch';
+import initSearchHighlight from './search/searchHighlight';
 import FramePool from './animation/framePool';
 import { canInterpolate, RadarInterpolator } from './animation/interpolation';
 import { track } from './analytics';
@@ -72,6 +74,7 @@ let ownPosition = [];
 let ownPosition4326 = [];
 let ownLocation;
 let ownLocationMenu;
+let placeSearch = null;
 let tools = null;
 let rangeCircle = null;
 let freehand = null;
@@ -622,6 +625,11 @@ const lightningController = initLightningLayer({
   }),
 });
 
+// Place-search highlight pulse: created at module scope (like the obs and
+// lightning controllers) so its per-pane layer factory can join paneDeps
+// before pane 0 is built; the search UI itself is wired later in main().
+const searchHighlight = initSearchHighlight();
+
 // Shared dependencies every pane's layers reference — Style objects/functions
 // and the radar-site VectorSource. Passed into createPane so src/pane.js stays
 // free of app state.
@@ -637,6 +645,7 @@ const paneDeps = {
   createObservationLayer: obsController.createPaneLayer,
   createLightningLayer: lightningController.createPaneLayer,
   createPlaceNamesLayer,
+  createSearchHighlightLayer: searchHighlight.createPaneLayer,
 };
 
 const pane0 = createPane(document.getElementById('map'), sharedView, {
@@ -2466,7 +2475,11 @@ document.addEventListener('keyup', (event) => {
     // Bare `f` only — don't hijack Cmd/Ctrl+F (find-in-page) etc.
     setAppFullscreen(!appFullscreen);
   } else if (event.key === 'Escape') {
-    if (overflowMenuEl.classList.contains('open')) closeOverflowMenu();
+    // Blurred-input case only: while the search input has focus, its own
+    // keydown handler closes the overlay and this listener never sees the
+    // key (isTextEntryTarget guard above).
+    if (placeSearch && placeSearch.isOpen()) placeSearch.close();
+    else if (overflowMenuEl.classList.contains('open')) closeOverflowMenu();
     else if (appFullscreen) setAppFullscreen(false);
     else handled = false;
   } else if (event.key === 'Control') {
@@ -2901,6 +2914,12 @@ const main = () => {
     getMmsi: () => ownLocation.getMmsi(),
     onSelectSource: (source) => ownLocation.setSource(source),
     onMmsiCommit: (value) => ownLocation.setMmsi(value),
+  });
+
+  placeSearch = initPlaceSearch({
+    button: document.getElementById('placeSearchButton'),
+    view: sharedView,
+    onHighlight: (coord) => searchHighlight.pulseAt(coord),
   });
 
   // Layers

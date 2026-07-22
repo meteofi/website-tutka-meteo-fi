@@ -195,6 +195,16 @@ body.split-4 #menuButton {
   z-index: 100;
 }
 
+/* The search FAB mirrors the ⋯ dock on the left: with the global pill hidden
+   in split, the top-left corner is free at every width. */
+body.split-2 #placeSearchButton,
+body.split-4 #placeSearchButton {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 8px);
+  left: max(16px, env(safe-area-inset-left, 0px) + 16px);
+  z-index: 100;
+}
+
 /* Common style for top and bottom toolbars. */
 .toolbar {
   position: fixed;
@@ -557,6 +567,36 @@ body.split-4 #menuButton {
   }
   #shareButton .material-icons { font-size: 24px; }
 
+  /* Place-search FAB: left bookend of the toolbar row, mirroring the ⋯
+     menu button on the right ([🔍][pill][⋯], flex-centered together).
+     The full row is 52+10+248+10+52 = 372px, so below 390px (iPhone
+     mini/SE, 360px Androids) it can't fit — there the FAB drops out of
+     the row to a fixed slot just below the toolbar's left side. At
+     ≥600px it docks to the true top-left corner exactly like #menuButton
+     docks top-right (split-mode docking lives next to the #menuButton
+     split rule). */
+  #placeSearchButton {
+    width: 52px;
+    height: 52px;
+  }
+  #placeSearchButton .material-icons { font-size: 24px; }
+  @media (max-width: 389px) {
+    #placeSearchButton {
+      position: fixed;
+      top: calc(env(safe-area-inset-top, 0px) + 8px + 52px + 10px);
+      left: max(16px, env(safe-area-inset-left, 0px) + 16px);
+      z-index: 100;
+    }
+  }
+  @media (min-width: 600px) {
+    #placeSearchButton {
+      position: fixed;
+      top: calc(env(safe-area-inset-top, 0px) + 8px);
+      left: max(16px, env(safe-area-inset-left, 0px) + 16px);
+      z-index: 100;
+    }
+  }
+
   /* Exit FAB: hidden in normal mode; bottom-right corner while fullscreen. */
   #fullscreenExitButton { display: none; }
   body.app-fullscreen #fullscreenExitButton {
@@ -574,6 +614,8 @@ body.split-4 #menuButton {
   body.app-fullscreen #locationLayerButton,
   body.app-fullscreen #fullscreenEnterButton,
   body.app-fullscreen #shareButton,
+  body.app-fullscreen #placeSearchButton,
+  body.app-fullscreen #placeSearchOverlay,
   body.app-fullscreen #toolChip,
   body.app-fullscreen #measureCard,
   body.app-fullscreen #coachmark,
@@ -587,6 +629,142 @@ body.split-4 #menuButton {
   body.app-fullscreen #timeChip {
     bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
   }
+
+  /* ========================================================================
+     Place search (Etsi paikka) — full-screen overlay from the search FAB
+     ======================================================================== */
+  #placeSearchOverlay {
+    position: fixed;
+    /* Explicit top+bottom via inset — iOS Safari needs explicit offsets on
+       position: fixed elements. */
+    inset: 0;
+    z-index: 200; /* above long-press menus (130), below #help (1000) */
+    background: rgba(0, 0, 0, 0.5); /* the map dim doubles as the backdrop */
+    opacity: 0;
+    transition: opacity 180ms ease;
+    pointer-events: none;
+  }
+  #placeSearchOverlay.open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  #placeSearchOverlay[hidden] { display: none !important; }
+
+  .place-search-panel {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: max(12px, env(safe-area-inset-top, 0px) + 12px)
+             max(12px, env(safe-area-inset-right, 0px) + 12px)
+             0
+             max(12px, env(safe-area-inset-left, 0px) + 12px);
+  }
+
+  .place-search-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px 4px 14px;
+    background: rgba(22, 22, 24, 0.82);
+    -webkit-backdrop-filter: blur(24px) saturate(140%);
+    backdrop-filter: blur(24px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+    box-sizing: border-box;
+  }
+  .place-search-field > .material-icons {
+    font-size: 20px;
+    color: var(--dark-medium-emphasis-text-color);
+  }
+
+  #placeSearchInput {
+    /* No `all: unset` here — it strips WebKit's internal editability; see
+       the MMSI input notes above. Reset properties individually instead. */
+    appearance: none;
+    -webkit-appearance: none;
+    border: none;
+    outline: none;
+    margin: 0;
+    -webkit-user-select: text;
+    user-select: text;
+    box-sizing: border-box;
+    flex: 1;
+    min-width: 0;
+    padding: 10px 0;
+    background: transparent;
+    color: var(--dark-high-emphasis-text-color);
+    /* 16px minimum — anything smaller makes iOS Safari zoom the page on focus */
+    font-size: 16px;
+    font-family: 'Roboto', sans-serif;
+  }
+  #placeSearchInput::placeholder { color: var(--dark-medium-emphasis-text-color); }
+
+  #placeSearchClose {
+    all: unset;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.08);
+    cursor: pointer;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    color: var(--dark-high-emphasis-text-color);
+  }
+  #placeSearchClose .material-icons { font-size: 18px; }
+
+  #placeSearchResults {
+    list-style: none;
+    margin: 8px 0 0;
+    padding: 6px 0;
+    background: rgba(22, 22, 24, 0.82);
+    -webkit-backdrop-filter: blur(24px) saturate(140%);
+    backdrop-filter: blur(24px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+    box-sizing: border-box;
+    /* Stay above the iOS keyboard in portrait; scroll for the rest. */
+    max-height: calc(100dvh - 140px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  #placeSearchResults:empty { display: none; }
+
+  #placeSearchResults li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    height: 48px;
+    padding: 0 16px;
+    cursor: pointer;
+    color: var(--dark-high-emphasis-text-color);
+    font-size: 15px;
+  }
+  #placeSearchResults li .material-icons {
+    font-size: 20px;
+    color: var(--dark-medium-emphasis-text-color);
+  }
+  #placeSearchResults li .ps-name {
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #placeSearchResults li .ps-hint {
+    font-size: 12px;
+    color: var(--dark-medium-emphasis-text-color);
+  }
+  #placeSearchResults li[aria-selected="true"],
+  #placeSearchResults li:hover { background: var(--dark-primary-color-bg); }
+  #placeSearchResults li.ps-empty {
+    cursor: default;
+    color: var(--dark-medium-emphasis-text-color);
+    font-style: italic;
+  }
+  #placeSearchResults li.ps-empty:hover { background: transparent; }
 
   /* Small corner triangle marking this as a multi-tool group (Photoshop cue). */
   .tool-group-caret {
