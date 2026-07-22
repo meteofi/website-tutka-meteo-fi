@@ -199,7 +199,10 @@ body.split-4 #menuButton {
    in split, the top-left corner is free at every width. */
 body.split-2 #placeSearchButton,
 body.split-4 #placeSearchButton {
+  position: fixed;
   top: calc(env(safe-area-inset-top, 0px) + 8px);
+  left: max(16px, env(safe-area-inset-left, 0px) + 16px);
+  z-index: 100;
 }
 
 /* Common style for top and bottom toolbars. */
@@ -564,24 +567,33 @@ body.split-4 #placeSearchButton {
   }
   #shareButton .material-icons { font-size: 24px; }
 
-  /* Place-search FAB: top-left, mirroring the ⋯ menu button on the right.
-     Narrow 1-up phones have no corner room (the centered toolbar row leaves
-     ~40px margins on a 390px screen), so it sits one row below the toolbar —
-     the left-side mirror of where the overflow menu panel anchors. At ≥600px
-     it docks to the true top-left corner exactly like #menuButton docks
-     top-right (split-mode docking lives next to the #menuButton split rule). */
+  /* Place-search FAB: left bookend of the toolbar row, mirroring the ⋯
+     menu button on the right ([🔍][pill][⋯], flex-centered together).
+     The full row is 52+10+248+10+52 = 372px, so below 390px (iPhone
+     mini/SE, 360px Androids) it can't fit — there the FAB drops out of
+     the row to a fixed slot just below the toolbar's left side. At
+     ≥600px it docks to the true top-left corner exactly like #menuButton
+     docks top-right (split-mode docking lives next to the #menuButton
+     split rule). */
   #placeSearchButton {
-    position: fixed;
-    top: calc(env(safe-area-inset-top, 0px) + 8px + 52px + 10px);
-    left: max(16px, env(safe-area-inset-left, 0px) + 16px);
     width: 52px;
     height: 52px;
-    z-index: 100;
   }
   #placeSearchButton .material-icons { font-size: 24px; }
+  @media (max-width: 389px) {
+    #placeSearchButton {
+      position: fixed;
+      top: calc(env(safe-area-inset-top, 0px) + 8px + 52px + 10px);
+      left: max(16px, env(safe-area-inset-left, 0px) + 16px);
+      z-index: 100;
+    }
+  }
   @media (min-width: 600px) {
     #placeSearchButton {
+      position: fixed;
       top: calc(env(safe-area-inset-top, 0px) + 8px);
+      left: max(16px, env(safe-area-inset-left, 0px) + 16px);
+      z-index: 100;
     }
   }
 
