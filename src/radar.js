@@ -907,7 +907,7 @@ function updateCanonicalPage() {
   debug(`Set page: ${page}`);
 }
 
-function setTime(action = 'next') {
+function setTime(action = 'next', seekIndex = 0) {
   let resolution = 300000;
   let end = Math.floor(Date.now() / resolution) * resolution - resolution;
   let start = end - resolution * 12;
@@ -950,6 +950,12 @@ function setTime(action = 'next') {
     case 'last':
       startDate = new Date(end);
       break;
+    case 'seek': {
+      // Jump to an explicit frame index (0..12) within the current window.
+      const i = Math.max(0, Math.min(12, Math.round(seekIndex)));
+      startDate = new Date(start + i * resolution);
+      break;
+    }
     case 'previous':
       startDate.setMinutes(Math.floor(startDate.getMinutes() / (resolution / 60000)) * (resolution / 60000) - resolution / 60000);
       break;
@@ -2759,7 +2765,11 @@ function buildPanePools(pane) {
 // MAIN
 //
 const main = () => {
-  timeline = new Timeline(13, document.getElementById('timeline'));
+  timeline = new Timeline(13, document.getElementById('timeline'), {
+    // Tap/drag the strip to seek — pause playback (like the skip buttons) then
+    // jump to that frame within the current window.
+    onSeek: (index) => { stop(); setTime('seek', index); },
+  });
 
   setMapLayer(getEffectiveTheme());
 

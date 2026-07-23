@@ -1287,13 +1287,29 @@ body.split-4 #placeSearchButton {
     width: 100%;
     z-index: 100;
     border-radius: 10px;
+    position: relative;
+    touch-action: none;
+    cursor: pointer;
+  }
+
+  /* The colour strip is only 4 px tall; extend the pointer/tap target downward
+     (into the bar's own padding, never up onto the play controls) so tap and
+     drag scrubbing are finger-friendly. The proper 13 px track arrives with the
+     one-line-bar redesign. */
+  #timeline::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -4px;
+    bottom: -14px;
   }
 
   #timeline > div {
     flex: 1 1 0;
     height: 4px;
     margin: 0;
-    
+
   }
 
   /* Default: frame loaded AND flow ready for the current view —
