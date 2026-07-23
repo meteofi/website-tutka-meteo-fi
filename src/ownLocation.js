@@ -287,7 +287,11 @@ export default function initOwnLocation({
     } else {
       stopAisFeed();
     }
-    if (enabled) applyMarkerStyles(); // covers panes created while tracking was off
+    if (enabled) {
+      applyMarkerStyles(); // covers panes created while tracking was off
+    } else {
+      onSpeedChange(null); // stopping tracking emits no speed event — hide the dial explicitly
+    }
     setMarkersVisible(enabled);
   }
 
