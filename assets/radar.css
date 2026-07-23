@@ -765,6 +765,17 @@ body.split-4 #placeSearchButton {
     font-style: italic;
   }
   #placeSearchResults li.ps-empty:hover { background: transparent; }
+  #placeSearchResults li.ps-section {
+    height: auto;
+    padding: 8px 16px 4px;
+    cursor: default;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--dark-medium-emphasis-text-color);
+  }
+  #placeSearchResults li.ps-section:hover { background: transparent; }
 
   /* Small corner triangle marking this as a multi-tool group (Photoshop cue). */
   .tool-group-caret {

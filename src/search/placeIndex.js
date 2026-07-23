@@ -96,3 +96,14 @@ export function searchPlaces(index, query, limit = 8) {
 export function targetZoomForBand(band) {
   return ZOOM_BY_BAND[band] || 10;
 }
+
+// Prepend a freshly-selected place to the recents list, dropping any prior
+// entry for the same place (name + coordinate) so re-selecting bumps it to
+// the front rather than duplicating, then cap the length. Pure — the caller
+// owns persistence.
+export function mergeRecent(recents, entry, max) {
+  const deduped = recents.filter(
+    (r) => !(r.name === entry.name && r.lon === entry.lon && r.lat === entry.lat),
+  );
+  return [entry, ...deduped].slice(0, max);
+}
