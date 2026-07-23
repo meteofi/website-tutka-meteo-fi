@@ -259,17 +259,19 @@
   <div id="timecontrol" class="toolbar noselect">
     <div id="sectionPanel" hidden aria-hidden="true"></div>
     <div id="probeChart" hidden aria-hidden="true"></div>
-    <div class="playbar noselect">
+    <div class="bar-controls noselect">
       <button id="playlistButton" aria-label="Tasot"><i class="material-icons">layers</i></button>
-      <button id="speedButton" aria-label="Nopeus" style="font-size: 1em;">1×</button>
       <button id="skipPreviousButton" aria-label="Edellinen"><i class="material-icons">skip_previous</i></button>
-      <!--button id="previousButton"><i class="material-icons">navigate_before</i></button-->
       <button id="playButton" aria-label="Toista"><i id="playstopButton" class="material-icons">play_arrow</i></button>
-      <!--button id="nextButton"><i class="material-icons">navigate_next</i></button-->
       <button id="skipNextButton" aria-label="Seuraava"><i class="material-icons">skip_next</i></button>
-      <div><div id="currentMapTime"></div><div id="currentMapDate"></div><div id="currentMapEta" hidden><i class="material-icons" aria-hidden="true">update</i><span class="eta-value"></span></div></div>
+      <button id="speedButton" aria-label="Nopeus">1×</button>
     </div>
     <div id="timeline"></div>
+    <div class="bar-clock">
+      <div id="currentMapTime"></div>
+      <div id="currentMapDate"></div>
+      <div id="currentMapEta" hidden><i class="material-icons" aria-hidden="true">update</i><span class="eta-value"></span></div>
+    </div>
   </div>
 
   <div id="playListBackdrop"></div>

@@ -24,7 +24,12 @@
   --dark-theme-shadow-24dp: 0 9px 46px 8px rgba(0, 0, 0, 0.14),
                             0 11px 15px -7px rgba(0, 0, 0, 0.12),
                             0 24px 38px 3px rgba(0, 0, 0, 0.20);
-  --timecontrol-height: 84px;
+  /* Idle bar height → the floating action buttons anchor off this. The
+     one-line bar is a single ~56–65px row (was two rows / 84px); 72px keeps a
+     small safe gap above it without ever overlapping the FABs. The panel-open
+     overrides below stay as-is — they're generous now that the base shrank.
+     TODO: fine-tune against a real render (values are estimated). */
+  --timecontrol-height: 72px;
 }
 
 /* When the probe chart row is open, grow the time-control area so the
@@ -209,9 +214,13 @@ body.split-4 #placeSearchButton {
 .toolbar {
   position: fixed;
   left: 50%;
-  width: 450px;
+  /* Desktop bar width (mobile goes full-width in the max-width:768px override
+     below). Widened from 450px for the one-line bar: at a fixed width the
+     timeline is the scrub surface, and it's squeezed most exactly here — the
+     bar is narrowest and rev/fwd add buttons — so give the time column room. */
+  width: 600px;
   height: auto;
-  margin: 0px 0 0 -233px;
+  margin: 0px 0 0 -300px;
   padding: 8px;
   border-radius: 10px;
   z-index: 100;
@@ -1243,41 +1252,64 @@ body.split-4 #placeSearchButton {
   #coachmark .coach-hint[hidden] { display: none; }
 
 
+  /* One-line bar: a shared time-column grid.
+       col 1 (auto) = transport/controls gutter
+       col 2 (1fr)  = the time column — timeline, with the probe chart stacked
+                      directly above it so their 13-cell axes align cell-for-cell
+       col 3 (auto) = clock gutter
+     Grid auto-sizes col 1 & 3 from the transport row, so the time column has
+     identical edges in every row and the probe can't drift out of register with
+     the timeline. The cross-section (distance axis, not time) spans full width. */
   #timecontrol {
     top: auto;
     bottom: calc(env(safe-area-inset-bottom, 0px) + 2px);
     color: var(--dark-theme-on-surface);
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
     align-items: center;
+    column-gap: 8px;
   }
+  #sectionPanel { grid-column: 1 / -1; grid-row: 1; }
+  #probeChart   { grid-column: 2;      grid-row: 2; }
+  .bar-controls { grid-column: 1;      grid-row: 3; }
+  #timeline     { grid-column: 2;      grid-row: 3; min-width: 0; }
+  .bar-clock    { grid-column: 3;      grid-row: 3; }
 
-
-  .playbar {
-    width: 100%;
-    height: auto;
-    z-index: 100;
+  .bar-controls {
     display: flex;
-    justify-content: space-around;
     align-items: center;
-    flex-flow: row;
-    padding: 8px;
+    gap: 2px;
     touch-action: none;
   }
-
-  .playbar > div, .playbar > button {
-    flex-grow: 1;
-    text-align: center;
-    /**font-size: 2em;**/
-  }
-
-  .playbar > button {
+  .bar-controls > button {
     background: none;
     border: none;
     color: inherit;
-    font: inherit;
     cursor: pointer;
-    padding: 0;
+    padding: 5px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+  }
+  .bar-controls > button:hover { background: rgba(255, 255, 255, 0.08); }
+  .bar-controls .material-icons { font-size: 24px; }
+  #speedButton { font: 600 13px 'Roboto', sans-serif; min-width: 28px; }
+
+  /* Rev / fwd only where there's room — phones scrub the timeline instead
+     (drag/tap to seek). The "following newest frame" cue survives on mobile via
+     the clock's update/ETA chip, not the skip-next highlight. */
+  @media (max-width: 600px) {
+    #skipPreviousButton,
+    #skipNextButton { display: none; }
+  }
+
+  .bar-clock {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    line-height: 1.1;
+    padding-left: 4px;
+    font-variant-numeric: tabular-nums;
   }
 
   #timeline {
