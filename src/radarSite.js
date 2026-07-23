@@ -56,12 +56,18 @@ function pickQuantity(quantities) {
 //      LayerNotDefined 400 for all 13 frames. Return `{ unavailable: true }`
 //      instead so the card disables the toggle; the 60 s capabilities
 //      refresh re-enables it automatically when the radar comes back.
-function resolveProduct(feature, isLayerAdvertised, requestedQuantity) {
+function resolveProduct(feature, isLayerAdvertised, requestedQuantity, requestedElevation) {
   const collection = feature.get('collection');
   if (!collection) return null;
   const quantity = requestedQuantity || pickQuantity(feature.get('quantities'));
   const angles = feature.get('elevation_angles');
-  const elevation = Array.isArray(angles) && angles.length ? Math.min(...angles) : null;
+  const hasAngles = Array.isArray(angles) && angles.length;
+  let elevation = hasAngles ? Math.min(...angles) : null;
+  // Honour a requested sweep when the site advertises it; otherwise the lowest
+  // (the historical drill-in default).
+  if (hasAngles && requestedElevation != null && angles.includes(requestedElevation)) {
+    elevation = requestedElevation;
+  }
   const m = /^([a-z]{2})-radar-pvol-([a-z0-9]+)$/.exec(collection);
   if (m) {
     const single = `${m[1]}-radar-single-${m[2]}-pvol-${m[2]}`;
@@ -92,6 +98,10 @@ function buildCard() {
       <div class="radar-site-name"></div>
       <div class="radar-site-sub"></div>
       <div class="radar-site-moments" role="group" aria-label="Tutkasuure" hidden></div>
+      <div class="radar-site-angles" hidden>
+        <span class="radar-site-angle-label">Kulma</span>
+        <select class="radar-site-angle-select" aria-label="Korkeuskulma"></select>
+      </div>
       <button type="button" class="radar-site-toggle" aria-pressed="false">Näytä tämä tutka</button>
     </div>
   `;
@@ -139,6 +149,8 @@ export default function initRadarSite({
   const nameEl = card.querySelector('.radar-site-name');
   const subEl = card.querySelector('.radar-site-sub');
   const momentsEl = card.querySelector('.radar-site-moments');
+  const anglesEl = card.querySelector('.radar-site-angles');
+  const angleSelect = card.querySelector('.radar-site-angle-select');
   const toggleBtn = card.querySelector('.radar-site-toggle');
   const closeBtn = card.querySelector('.marker-card-close');
 
@@ -151,6 +163,9 @@ export default function initRadarSite({
   // per card open (to the active site's moment if that site is shown, else DBZH),
   // matching the no-persist convention for single-site drill-in.
   let selectedQuantity = 'DBZH';
+  // The elevation the card's angle selector points at. Session-ephemeral like
+  // selectedQuantity; null falls back to the site's lowest sweep.
+  let selectedElevation = null;
 
   // Moments this site advertises among the selectable set (catalog-driven).
   const availableMoments = (feature) => {
@@ -167,6 +182,32 @@ export default function initRadarSite({
     if (avail.includes(selectedQuantity)) return selectedQuantity;
     return pickQuantity(feature.get('quantities'));
   };
+
+  // The site's elevation sweeps, ascending. [] when the catalog lists none.
+  const availableAngles = (feature) => {
+    const angles = feature.get('elevation_angles');
+    if (!Array.isArray(angles)) return [];
+    return [...angles].sort((a, b) => a - b);
+  };
+
+  // The elevation to request: the selected sweep when this site offers it,
+  // otherwise the lowest — mirrors chosenQuantityFor.
+  const chosenElevationFor = (feature) => {
+    const angles = availableAngles(feature);
+    if (!angles.length) return null;
+    if (selectedElevation != null && angles.includes(selectedElevation)) return selectedElevation;
+    return angles[0];
+  };
+
+  // Resolve a feature to its product using the card's current moment + sweep
+  // selections. All call sites go through this so quantity and elevation stay
+  // coupled.
+  const resolveFor = (feature) => resolveProduct(
+    feature,
+    isLayerAdvertised,
+    chosenQuantityFor(feature),
+    chosenElevationFor(feature),
+  );
 
   const isSingleSiteActive = () => singleSite !== null;
   const getActiveWmsLayer = () => (singleSite ? singleSite.wmsLayer : null);
@@ -246,7 +287,7 @@ export default function initRadarSite({
   }
 
   function enterSingleSite(feature) {
-    const product = resolveProduct(feature, isLayerAdvertised, chosenQuantityFor(feature));
+    const product = resolveFor(feature);
     if (!product || product.unavailable) return;
     // Turning the radar on first means a drill-in from a hidden radar layer
     // shows the site rather than silently arming an invisible layer.
@@ -340,9 +381,41 @@ export default function initRadarSite({
     renderToggle();
   }
 
+  // Rebuild the elevation dropdown for the shown feature. Hidden unless the site
+  // advertises at least two sweeps; the selected option reflects the chosen
+  // elevation (the lowest when nothing is selected).
+  function renderAngles() {
+    angleSelect.textContent = '';
+    if (!cardFeature) { anglesEl.hidden = true; return; }
+    const angles = availableAngles(cardFeature);
+    if (angles.length < 2) { anglesEl.hidden = true; return; }
+    anglesEl.hidden = false;
+    const chosen = chosenElevationFor(cardFeature);
+    angles.forEach((a) => {
+      const opt = document.createElement('option');
+      opt.value = String(a);
+      opt.textContent = `${a}°`;
+      if (a === chosen) opt.selected = true;
+      angleSelect.appendChild(opt);
+    });
+  }
+
+  // Pick an elevation sweep. Live-swaps the displayed product when the shown
+  // site is the active one — re-entering re-arms the loading watch, and the
+  // FramePool refetches on the ELEVATION param change (invalidating stickies).
+  // When the site is off, this only arms the sweep the toggle will show.
+  function selectAngle(a) {
+    if (!cardFeature || a === chosenElevationFor(cardFeature)) return;
+    selectedElevation = a;
+    if (isSingleSiteActive() && singleSite.feature === cardFeature) {
+      enterSingleSite(cardFeature);
+    }
+    renderAngles();
+    renderToggle();
+  }
+
   function renderToggle() {
-    const product = cardFeature
-      ? resolveProduct(cardFeature, isLayerAdvertised, chosenQuantityFor(cardFeature)) : null;
+    const product = cardFeature ? resolveFor(cardFeature) : null;
     if (!product || product.unavailable) {
       toggleBtn.disabled = true;
       toggleBtn.setAttribute('aria-pressed', 'false');
@@ -379,24 +452,29 @@ export default function initRadarSite({
 
   function openCardForFeature(feature) {
     cardFeature = feature;
-    // Reset the selector to the shown site's live moment if it's the active
-    // one, otherwise to the DBZH default. The moment is now surfaced by the
-    // selector, so drop it from the sub-line (elevation + country remain).
-    selectedQuantity = (isSingleSiteActive() && singleSite.feature === feature)
-      ? singleSite.quantity : 'DBZH';
+    // Reset the selectors to the shown site's live picks if it's the active one,
+    // otherwise to the defaults (DBZH / lowest sweep). Both moment and sweep are
+    // now surfaced by their selectors, so they drop out of the sub-line — only
+    // country stays, plus the elevation for single-sweep sites (no dropdown).
+    const activeHere = isSingleSiteActive() && singleSite.feature === feature;
+    selectedQuantity = activeHere ? singleSite.quantity : 'DBZH';
+    selectedElevation = activeHere ? singleSite.elevation : null;
 
     const name = feature.get('name') || 'Tutka-asema';
     const nod = feature.get('nod');
     nameEl.textContent = nod ? `${name} (${nod})` : name;
 
-    const product = resolveProduct(feature, isLayerAdvertised, chosenQuantityFor(feature));
+    const product = resolveFor(feature);
     const country = (feature.get('country') || '').toUpperCase();
     const parts = [];
-    if (product && product.elevation != null) parts.push(`${product.elevation}°`);
+    if (availableAngles(feature).length < 2 && product && product.elevation != null) {
+      parts.push(`${product.elevation}°`);
+    }
     if (country) parts.push(country);
     subEl.textContent = parts.join(' · ');
 
     renderMoments();
+    renderAngles();
     renderToggle();
     overlay.setPosition(feature.getGeometry().getCoordinates());
   }
@@ -409,7 +487,7 @@ export default function initRadarSite({
   toggleBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     if (!cardFeature || toggleBtn.disabled) return;
-    const product = resolveProduct(cardFeature, isLayerAdvertised, chosenQuantityFor(cardFeature));
+    const product = resolveFor(cardFeature);
     const active = isSingleSiteActive() && getActiveWmsLayer() === product.wmsLayer;
     if (active) {
       exitSingleSite({ restore: true });
@@ -422,6 +500,11 @@ export default function initRadarSite({
   closeBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     hideCard();
+  });
+
+  angleSelect.addEventListener('change', (e) => {
+    e.stopPropagation();
+    selectAngle(Number(angleSelect.value));
   });
 
   return {

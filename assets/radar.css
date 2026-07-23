@@ -2098,6 +2098,43 @@ body.split-4 #placeSearchButton {
   color: #00131c;
 }
 
+/* Elevation-sweep selector — a compact dropdown (sites carry up to ~11 angles,
+   too many for a segmented row). Hidden for single-sweep sites. */
+.radar-site-angles {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.radar-site-angles[hidden] { display: none; }
+
+.radar-site-angle-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--dark-medium-emphasis-text-color);
+}
+
+.radar-site-angle-select {
+  appearance: none;
+  -webkit-appearance: none;
+  flex: 1;
+  border: none;
+  outline: none;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(18, 188, 250, 0.35);
+  color: var(--dark-primary-color);
+  font: 600 12px 'Roboto', sans-serif;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.radar-site-angle-select:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--dark-primary-color);
+}
+
 .radar-site-toggle {
   all: unset;
   display: block;
