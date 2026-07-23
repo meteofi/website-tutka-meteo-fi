@@ -41,6 +41,7 @@ import radarSitesFallbackUrl from './data/radars-finland.geojson';
 import initOwnLocation from './ownLocation';
 import initOwnLocationMenu from './ui/ownLocationMenu';
 import initPlaceSearch from './ui/placeSearch';
+import initSpeedDial from './ui/speedDial';
 import initSearchHighlight from './search/searchHighlight';
 import FramePool from './animation/framePool';
 import { canInterpolate, RadarInterpolator } from './animation/interpolation';
@@ -74,6 +75,7 @@ let ownPosition = [];
 let ownPosition4326 = [];
 let ownLocation;
 let ownLocationMenu;
+let speedDial = null;
 let placeSearch = null;
 let tools = null;
 let rangeCircle = null;
@@ -2863,8 +2865,12 @@ const main = () => {
   });
 
   window.__tutka = {
-    panes, map, framePools, tools, sharedView, share,
+    panes, map, framePools, tools, sharedView, share, speedDial,
   };
+
+  // Floating compass speed dial (top-right). Fed by ownLocation's speed events
+  // below; created first so the callback always has something to update.
+  speedDial = initSpeedDial();
 
   // GEOLOCATION — own-location controller owns the source and the per-pane
   // marker fan-out (src/ownLocation.js); radar.js keeps IS_TRACKING and the
@@ -2879,13 +2885,8 @@ const main = () => {
       localStorage.setItem('metPosition', JSON.stringify(ownPosition));
       if (tools) tools.refresh();
     },
-    onSpeedChange: (kmh) => {
-      if (kmh != null) {
-        document.getElementById('currentSpeed').style.display = 'block';
-        document.getElementById('currentSpeedValue').innerHTML = Math.round(kmh);
-      } else {
-        document.getElementById('currentSpeed').style.display = 'none';
-      }
+    onSpeedChange: (speed) => {
+      if (speedDial) speedDial.update(speed);
     },
     onStatusChange: (status) => {
       if (status === 'fixed') {

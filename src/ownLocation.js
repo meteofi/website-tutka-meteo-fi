@@ -30,7 +30,7 @@ export default function initOwnLocation({
   projection, // map view projection (shared View; never changes)
   getPanes, // () => current panes array (panes are created lazily)
   onPositionChange, // (coordinates, lonLat) — map projection + EPSG:4326
-  onSpeedChange, // (kmh | null) — null hides the speed chip
+  onSpeedChange, // ({ value, unit, headingDeg } | null) — null hides the dial
   onStatusChange, // ('fixed' | 'searching' | 'stale' | 'denied' | 'error')
   onVesselInfo = () => {}, // ({ mmsi, name, shipType } | null) — AIS metadata
   debug = () => {},
@@ -122,11 +122,32 @@ export default function initOwnLocation({
     onPositionChange(coordinates, transform(coordinates, projection, 'EPSG:4326'));
   });
 
+  // The compass dial needs speed AND heading together. Course-over-ground is
+  // often only defined while the device is actually moving, so read it
+  // opportunistically; a null heading degrades the dial to a plain speedo.
+  function emitGpsSpeed() {
+    if (source !== 'gps') return;
+    const speed = geolocation.getSpeed();
+    if (!Number.isFinite(speed)) {
+      onSpeedChange(null);
+      return;
+    }
+    let headingDeg = null;
+    const rad = geolocation.getHeading();
+    if (Number.isFinite(rad)) {
+      headingDeg = ((rad * 180) / Math.PI) % 360;
+      if (headingDeg < 0) headingDeg += 360;
+    }
+    onSpeedChange({ value: (speed * 3600) / 1000, unit: 'km/h', headingDeg });
+  }
+
   geolocation.on('change:speed', () => {
     if (source !== 'gps') return;
     debug('Speed changed.');
-    const speed = geolocation.getSpeed();
-    onSpeedChange(Number.isFinite(speed) ? (speed * 3600) / 1000 : null);
+    emitGpsSpeed();
+  });
+  geolocation.on('change:heading', () => {
+    emitGpsSpeed();
   });
 
   // ---------------------------------------------------------------- AIS ----
@@ -159,7 +180,10 @@ export default function initOwnLocation({
     }
     onStatusChange(stale ? 'stale' : 'fixed');
     onPositionChange(coordinates, [data.lon, data.lat]);
-    onSpeedChange(sogKn != null ? sogKn * 1.852 : null); // kn → km/h for the chip
+    // Marine mode reads in knots; true heading preferred over course-over-ground.
+    onSpeedChange(sogKn != null
+      ? { value: sogKn, unit: 'kn', headingDeg: heading != null ? heading : cog }
+      : null);
   }
 
   function handleAisMessage({ mmsi: msgMmsi, kind, data }) {
