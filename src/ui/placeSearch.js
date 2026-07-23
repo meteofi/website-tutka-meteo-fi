@@ -4,7 +4,9 @@
 // place. The overlay is app-level chrome (one instance above any pane grid);
 // the highlight pulse fans out to every pane via the onHighlight callback.
 import { fromLonLat } from 'ol/proj';
-import { buildIndex, searchPlaces, targetZoomForBand } from '../search/placeIndex';
+import {
+  buildIndex, searchPlaces, targetZoomForBand, mergeRecent,
+} from '../search/placeIndex';
 import { track } from '../analytics';
 // Same hashed asset placeNames.js imports — webpack emits it once; by boot
 // it is usually already in the HTTP cache (immutable) or the SW precache.
@@ -26,6 +28,12 @@ const CLASS_LABEL = {
 
 const FLY_MS = 600;
 
+// Recent selections persist locally so the empty-query state can offer
+// one-tap reuse of the handful of places people re-search (home, mökki).
+// Local-only: the list (names/coords) is never sent to analytics.
+const RECENT_KEY = 'PLACE_SEARCH_RECENT';
+const MAX_RECENT = 5;
+
 export default function initPlaceSearch({
   button, // the #placeSearchButton FAB
   view, // shared OL View (all panes pan/zoom in lockstep)
@@ -38,11 +46,43 @@ export default function initPlaceSearch({
 
   let index = null;
   let indexPromise = null;
+  let indexFailed = false;
   let results = [];
+  let resultsAreRecent = false;
   let activeIndex = -1;
   let hideTimer = 0;
+  let recents = [];
 
   const isOpen = () => overlay.classList.contains('open');
+
+  function loadRecents() {
+    try {
+      const stored = JSON.parse(localStorage.getItem(RECENT_KEY));
+      if (!Array.isArray(stored)) return [];
+      return stored
+        .filter((r) => r && typeof r.name === 'string'
+          && typeof r.lon === 'number' && typeof r.lat === 'number')
+        .slice(0, MAX_RECENT);
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveRecents() {
+    try {
+      localStorage.setItem(RECENT_KEY, JSON.stringify(recents));
+    } catch (e) {
+      // Private mode / quota — recents are best-effort, never block a search.
+    }
+  }
+
+  function rememberRecent(rec) {
+    const entry = {
+      name: rec.name, lon: rec.lon, lat: rec.lat, band: rec.band, cls: rec.cls,
+    };
+    recents = mergeRecent(recents, entry, MAX_RECENT);
+    saveRecents();
+  }
 
   function messageRow(text) {
     listEl.textContent = '';
@@ -70,8 +110,12 @@ export default function initPlaceSearch({
 
   function select(rec, rank) {
     const coord = fromLonLat([rec.lon, rec.lat]);
-    // Never the query text, name or coordinates (analytics privacy rule).
-    track('place-search-select', { class: rec.cls, band: rec.band, rank });
+    // Never the query text, name or coordinates (analytics privacy rule);
+    // `recent` is a privacy-safe boolean measuring empty-state reuse.
+    track('place-search-select', {
+      class: rec.cls, band: rec.band, rank, recent: resultsAreRecent,
+    });
+    rememberRecent(rec);
     close(); // blur first so the iOS keyboard starts dismissing
     // One frame of separation keeps the keyboard-dismissal repaint out of
     // the animation's first frame. The RAF playback clock is already gated
@@ -90,22 +134,28 @@ export default function initPlaceSearch({
     });
   }
 
-  function renderResults() {
-    if (!isOpen() || !index) return;
-    const query = input.value;
-    results = searchPlaces(index, query);
-    if (!results.length) {
-      if (query.trim()) messageRow('Ei tuloksia');
-      else {
-        listEl.textContent = '';
-        input.setAttribute('aria-expanded', 'false');
-        input.removeAttribute('aria-activedescendant');
-      }
-      activeIndex = -1;
+  // Build the listbox from a set of records (search hits or recents). The
+  // recent flag swaps each row's class icon for a history icon and adds a
+  // section header; option IDs and the `results` index count only place
+  // rows, so the presentation header leaves keyboard nav untouched.
+  function renderRows(recs, recent) {
+    results = recs;
+    resultsAreRecent = recent;
+    activeIndex = -1;
+    listEl.textContent = '';
+    if (!recs.length) {
+      input.setAttribute('aria-expanded', 'false');
+      input.removeAttribute('aria-activedescendant');
       return;
     }
-    listEl.textContent = '';
-    results.forEach((rec, i) => {
+    if (recent) {
+      const header = document.createElement('li');
+      header.className = 'ps-section';
+      header.setAttribute('role', 'presentation');
+      header.textContent = 'Viimeksi haetut';
+      listEl.appendChild(header);
+    }
+    recs.forEach((rec, i) => {
       const li = document.createElement('li');
       li.id = `ps-opt-${i}`;
       li.setAttribute('role', 'option');
@@ -113,7 +163,7 @@ export default function initPlaceSearch({
       const icon = document.createElement('i');
       icon.className = 'material-icons';
       icon.setAttribute('aria-hidden', 'true');
-      icon.textContent = CLASS_ICON[rec.cls] || 'place';
+      icon.textContent = recent ? 'history' : (CLASS_ICON[rec.cls] || 'place');
       const name = document.createElement('span');
       name.className = 'ps-name';
       name.textContent = rec.name;
@@ -130,8 +180,46 @@ export default function initPlaceSearch({
     setActive(-1);
   }
 
+  function renderResults() {
+    if (!isOpen()) return;
+    const query = input.value.trim();
+    // Empty query → recents, rendered straight from localStorage with no
+    // index fetch. An empty recents list clears the box, preserving the
+    // original blank empty-state for first-time users.
+    if (!query) {
+      renderRows(recents, true);
+      return;
+    }
+    if (!index) {
+      // A query was typed but the index isn't ready. Clear any recents still
+      // on screen so the "Viimeksi haetut" header doesn't linger over typed
+      // text; ensureIndex().then re-renders on success.
+      results = [];
+      resultsAreRecent = false;
+      activeIndex = -1;
+      if (indexFailed) {
+        messageRow('Haku ei ole käytettävissä');
+      } else {
+        listEl.textContent = '';
+        input.setAttribute('aria-expanded', 'false');
+        input.removeAttribute('aria-activedescendant');
+      }
+      return;
+    }
+    const hits = searchPlaces(index, query);
+    if (!hits.length) {
+      results = [];
+      resultsAreRecent = false;
+      activeIndex = -1;
+      messageRow('Ei tuloksia');
+      return;
+    }
+    renderRows(hits, false);
+  }
+
   function ensureIndex() {
     if (index || indexPromise) return;
+    indexFailed = false;
     indexPromise = fetch(placeNamesUrl)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -143,8 +231,9 @@ export default function initPlaceSearch({
       })
       .catch(() => {
         indexPromise = null; // next open retries
+        indexFailed = true;
         track('place-search-error');
-        if (isOpen()) messageRow('Haku ei ole käytettävissä');
+        if (isOpen()) renderResults();
       });
   }
 
@@ -157,6 +246,10 @@ export default function initPlaceSearch({
     // Synchronous focus inside the tap handler — iOS Safari only opens the
     // keyboard for focus() calls made within a user gesture.
     input.focus();
+    // Reload from storage each open so a selection made in another tab is
+    // reflected, then show recents right away (no index fetch needed).
+    recents = loadRecents();
+    renderResults();
     ensureIndex();
     track('place-search-open');
   }
