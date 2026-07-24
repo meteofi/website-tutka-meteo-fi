@@ -11,7 +11,7 @@ import sync from 'ol-hashed';
 import Feature from 'ol/Feature';
 import Polygon, { circular } from 'ol/geom/Polygon';
 import {
-  Circle as CircleStyle, Fill, Stroke, Style, Text,
+  Circle as CircleStyle, Fill, RegularShape, Stroke, Style, Text,
 } from 'ol/style';
 import LatLon from 'geodesy/latlon-spherical';
 import WMSCapabilities from 'ol/format/WMSCapabilities';
@@ -424,6 +424,26 @@ const icaoStyle = new Style({
   }),
 });
 
+// Gliding turnpoints (Purjelennon käännöspisteet) — an orange up-triangle so
+// they read distinctly from the airfields' purple ring. Shares the airfields'
+// per-theme label colours (updated together in applyIcaoTheme).
+const turnpointStyle = new Style({
+  image: new RegularShape({
+    points: 3,
+    radius: 5,
+    angle: 0,
+    fill: null,
+    stroke: new Stroke({ color: '#e08020', width: 2 }),
+  }),
+  text: new Text({
+    font: '12px Calibri,sans-serif',
+    fill: new Fill({ color: icaoTextColors.dark.fill }),
+    stroke: new Stroke({ color: icaoTextColors.dark.halo, width: 2.5 }),
+    offsetX: 0,
+    offsetY: -14,
+  }),
+});
+
 // Municipality polygons (Kunnat) — boundary-only stroke. No labels: every
 // municipality is a multipolygon (islands, exclaves) so the per-polygon
 // interior-point placement scatters the name across the map, often well
@@ -642,6 +662,7 @@ const paneDeps = {
   radarSiteSource,
   radarStyle,
   icaoStyle,
+  turnpointStyle,
   municipalityStyleLight,
   vesivaylatStyleFn,
   vesivaylaAreaStyle,
@@ -1246,7 +1267,12 @@ function applyIcaoTheme(theme) {
   const t = icaoTextColors[theme] || icaoTextColors.dark;
   icaoStyle.getText().getFill().setColor(t.fill);
   icaoStyle.getText().getStroke().setColor(t.halo);
-  for (const pane of panes) pane.icaoLayer.changed();
+  turnpointStyle.getText().getFill().setColor(t.fill);
+  turnpointStyle.getText().getStroke().setColor(t.halo);
+  for (const pane of panes) {
+    pane.icaoLayer.changed();
+    if (pane.turnpointLayer) pane.turnpointLayer.changed();
+  }
 }
 
 function applyVesivaylatTheme(theme) {
@@ -2324,6 +2350,13 @@ const poiRegistry = [
     icon: 'flight',
     defaultOn: false,
     layerKeys: ['icaoLayer'],
+  },
+  {
+    id: 'turnpoints',
+    label: 'Purjelennon käännöspisteet',
+    icon: 'flag',
+    defaultOn: false,
+    layerKeys: ['turnpointLayer'],
   },
   {
     id: 'municipalities',
