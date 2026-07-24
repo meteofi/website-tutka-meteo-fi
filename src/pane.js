@@ -31,6 +31,7 @@ import { gpsPositionStyle } from './ais/ownShipStyle';
 import { track } from './analytics';
 import { createGetMapSizeGuard } from './wms/requestShape';
 import airfieldsUrl from './data/airfields-finland.geojson';
+import turnpointsUrl from './data/turnpoints-finland.geojson';
 
 // The own-position marker + grey accuracy disc. One pair per pane so the
 // marker can render in every pane; the ownLocation controller updates each
@@ -60,6 +61,7 @@ export default function createPane(targetEl, sharedView, deps) {
     radarSiteSource,
     radarStyle,
     icaoStyle,
+    turnpointStyle,
     municipalityStyleLight,
     vesivaylatStyleFn,
     vesivaylaAreaStyle,
@@ -237,6 +239,21 @@ export default function createPane(targetEl, sharedView, deps) {
     },
   });
 
+  const turnpointLayer = new VectorLayer({
+    source: new Vector({
+      format: new GeoJSON(),
+      url: turnpointsUrl,
+    }),
+    visible: false,
+    // 423 points — declutter in their own group so labels thin out with zoom
+    // without fighting the other decluttered layers (place names, obs).
+    declutter: 'turnpoints',
+    style(feature) {
+      turnpointStyle.getText().setText(feature.get('name'));
+      return turnpointStyle;
+    },
+  });
+
   const municipalityLayer = new VectorTileLayer({
     visible: false,
     renderMode: 'vector',
@@ -314,6 +331,7 @@ export default function createPane(targetEl, sharedView, deps) {
     vesivaylatLayer,
     radarSiteLayer,
     icaoLayer,
+    turnpointLayer,
     ownPositionLayer,
     observationLayer,
     searchHighlightLayer,
@@ -345,6 +363,7 @@ export default function createPane(targetEl, sharedView, deps) {
     observationLayer,
     radarSiteLayer,
     icaoLayer,
+    turnpointLayer,
     municipalityLayer,
     vesivaylaAreaLayer,
     vesivaylatLayer,

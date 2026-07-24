@@ -1,0 +1,6773 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.09195,
+     60.741383
+    ]
+   },
+   "properties": {
+    "name": "F08_Rayskala",
+    "code": "F08_R",
+    "elev": 124,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.752217,
+     64.895283
+    ]
+   },
+   "properties": {
+    "name": "Ahmosuo",
+    "code": "EFAH",
+    "elev": 29,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.067217,
+     62.54695
+    ]
+   },
+   "properties": {
+    "name": "Ahtari",
+    "code": "AHTAR",
+    "elev": 157,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.356667,
+     60.201117
+    ]
+   },
+   "properties": {
+    "name": "Aijala",
+    "code": "AIJAL",
+    "elev": 47,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.445283,
+     60.417783
+    ]
+   },
+   "properties": {
+    "name": "Ajoniemi",
+    "code": "AJONI",
+    "elev": 80,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.856667,
+     63.24555
+    ]
+   },
+   "properties": {
+    "name": "Alaharma",
+    "code": "ALAHA",
+    "elev": 31,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.81695,
+     62.995833
+    ]
+   },
+   "properties": {
+    "name": "Alajarvi",
+    "code": "ALAJA",
+    "elev": 100,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.863883,
+     60.954167
+    ]
+   },
+   "properties": {
+    "name": "Alastaro",
+    "code": "ALAST",
+    "elev": 69,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.573333,
+     62.554717
+    ]
+   },
+   "properties": {
+    "name": "Alavus",
+    "code": "EFAL",
+    "elev": 124,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.592783,
+     60.172217
+    ]
+   },
+   "properties": {
+    "name": "Antskog",
+    "code": "ANTSK",
+    "elev": 53,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.82945,
+     61.065
+    ]
+   },
+   "properties": {
+    "name": "Anttila",
+    "code": "ANTTI",
+    "elev": 116,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.055833,
+     60.743617
+    ]
+   },
+   "properties": {
+    "name": "Artjarvi",
+    "code": "ARTJA",
+    "elev": 88,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.3775,
+     61.209167
+    ]
+   },
+   "properties": {
+    "name": "Asikkala",
+    "code": "ASIKK",
+    "elev": 140,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.088617,
+     61.303883
+    ]
+   },
+   "properties": {
+    "name": "Auttoinen",
+    "code": "AUTTO",
+    "elev": 139,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.645,
+     60.80195
+    ]
+   },
+   "properties": {
+    "name": "EFFO",
+    "code": "EFFO",
+    "elev": 99,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.716117,
+     61.778617
+    ]
+   },
+   "properties": {
+    "name": "EFJM",
+    "code": "EFJM",
+    "elev": 154,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.591667,
+     61.039717
+    ]
+   },
+   "properties": {
+    "name": "EFVP",
+    "code": "EFVP",
+    "elev": 90,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.868617,
+     62.171117
+    ]
+   },
+   "properties": {
+    "name": "EFVR",
+    "code": "EFVR",
+    "elev": 87,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.416383,
+     60.725283
+    ]
+   },
+   "properties": {
+    "name": "Elimaki",
+    "code": "ELIMA",
+    "elev": 43,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     30.156667,
+     62.803617
+    ]
+   },
+   "properties": {
+    "name": "Eno",
+    "code": "ENO",
+    "elev": 112,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.6325,
+     61.70945
+    ]
+   },
+   "properties": {
+    "name": "Eraslahti",
+    "code": "ERASL",
+    "elev": 141,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.201383,
+     61.116117
+    ]
+   },
+   "properties": {
+    "name": "Eura",
+    "code": "EFEU",
+    "elev": 79,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     21.726383,
+     61.202217
+    ]
+   },
+   "properties": {
+    "name": "Eurajoki",
+    "code": "EURAJ",
+    "elev": 8,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.46445,
+     63.36
+    ]
+   },
+   "properties": {
+    "name": "Evijarvi",
+    "code": "EVIJA",
+    "elev": 83,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.097783,
+     60.750833
+    ]
+   },
+   "properties": {
+    "name": "F12_Rayskala",
+    "code": "F12_R",
+    "elev": 124,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.584167,
+     60.825283
+    ]
+   },
+   "properties": {
+    "name": "Forssa",
+    "code": "FORSS",
+    "elev": 106,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.368333,
+     60.032217
+    ]
+   },
+   "properties": {
+    "name": "Grabbskog",
+    "code": "GRABB",
+    "elev": 33,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.395,
+     63.711667
+    ]
+   },
+   "properties": {
+    "name": "Haapajarvi",
+    "code": "HAAPJ",
+    "elev": 107,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.347783,
+     62.25445
+    ]
+   },
+   "properties": {
+    "name": "Haapamaki",
+    "code": "HAAPM",
+    "elev": 162,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.504167,
+     64.11305
+    ]
+   },
+   "properties": {
+    "name": "Haapavesi",
+    "code": "EFHP",
+    "elev": 96,
+    "style": 2
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.70445,
+     64.96695
+    ]
+   },
+   "properties": {
+    "name": "Hailuoto",
+    "code": "EFHL",
+    "elev": 2,
+    "style": 2
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.046667,
+     60.426667
+    ]
+   },
+   "properties": {
+    "name": "Halikko",
+    "code": "HALIK",
+    "elev": 26,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.8025,
+     61.85445
+    ]
+   },
+   "properties": {
+    "name": "Halli",
+    "code": "EFHA",
+    "elev": 146,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.178617,
+     61.296117
+    ]
+   },
+   "properties": {
+    "name": "Halmeniemi",
+    "code": "HALME",
+    "elev": 95,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.1675,
+     63.463333
+    ]
+   },
+   "properties": {
+    "name": "Halsua",
+    "code": "HALSU",
+    "elev": 129,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.33445,
+     61.117783
+    ]
+   },
+   "properties": {
+    "name": "Hamalainen",
+    "code": "HAMAL",
+    "elev": 119,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.171117,
+     61.012783
+    ]
+   },
+   "properties": {
+    "name": "Hameenkoski",
+    "code": "HKOSK",
+    "elev": 114,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.074167,
+     61.690283
+    ]
+   },
+   "properties": {
+    "name": "Hameenkyro",
+    "code": "EFHM",
+    "elev": 137,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.473333,
+     60.971117
+    ]
+   },
+   "properties": {
+    "name": "Hameenlinna",
+    "code": "HLINN",
+    "elev": 116,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.591383,
+     60.68055
+    ]
+   },
+   "properties": {
+    "name": "Hanhilammi",
+    "code": "HLAMM",
+    "elev": 129,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.08195,
+     63.602217
+    ]
+   },
+   "properties": {
+    "name": "Hanhisalo",
+    "code": "HSALO",
+    "elev": 117,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     28.463617,
+     63.342783
+    ]
+   },
+   "properties": {
+    "name": "Hankamaki",
+    "code": "HMAKI",
+    "elev": 123,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.565,
+     62.357217
+    ]
+   },
+   "properties": {
+    "name": "Hankasalmi",
+    "code": "HSALM",
+    "elev": 119,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.082217,
+     59.84555
+    ]
+   },
+   "properties": {
+    "name": "Hanko",
+    "code": "EFHN",
+    "elev": 6,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.190283,
+     61.668883
+    ]
+   },
+   "properties": {
+    "name": "Harjakoski",
+    "code": "HARJA",
+    "elev": 56,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.007217,
+     61.57945
+    ]
+   },
+   "properties": {
+    "name": "Hartola",
+    "code": "HARTO",
+    "elev": 131,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.392217,
+     61.063333
+    ]
+   },
+   "properties": {
+    "name": "Hattula",
+    "code": "HATTU",
+    "elev": 85,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.563617,
+     61.177217
+    ]
+   },
+   "properties": {
+    "name": "Hauho",
+    "code": "HAUHO",
+    "elev": 121,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.20445,
+     62.018617
+    ]
+   },
+   "properties": {
+    "name": "Haukivuori",
+    "code": "HAUKI",
+    "elev": 119,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.976117,
+     60.555283
+    ]
+   },
+   "properties": {
+    "name": "Heinaistenranta",
+    "code": "HRANT",
+    "elev": 117,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.819717,
+     60.87055
+    ]
+   },
+   "properties": {
+    "name": "Heinamaa",
+    "code": "HEINA",
+    "elev": 105,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     28.634717,
+     62.423883
+    ]
+   },
+   "properties": {
+    "name": "Heinavesi",
+    "code": "HVESI",
+    "elev": 102,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.953617,
+     60.337783
+    ]
+   },
+   "properties": {
+    "name": "Helsinki-Vantaa",
+    "code": "EFHK",
+    "elev": 55,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.471667,
+     60.895283
+    ]
+   },
+   "properties": {
+    "name": "Herrala",
+    "code": "HERRA",
+    "elev": 81,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.010833,
+     61.584167
+    ]
+   },
+   "properties": {
+    "name": "Hietanen",
+    "code": "HIETA",
+    "elev": 102,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.170283,
+     60.361667
+    ]
+   },
+   "properties": {
+    "name": "Hiidenvesi",
+    "code": "HIIDE",
+    "elev": 37,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.311383,
+     61.76445
+    ]
+   },
+   "properties": {
+    "name": "Hiirola",
+    "code": "HIIRO",
+    "elev": 99,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.32805,
+     61.73555
+    ]
+   },
+   "properties": {
+    "name": "Hirsila",
+    "code": "HIRSI",
+    "elev": 119,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.283883,
+     61.257783
+    ]
+   },
+   "properties": {
+    "name": "Hirvisalo",
+    "code": "HIRVI",
+    "elev": 90,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.8725,
+     63.032783
+    ]
+   },
+   "properties": {
+    "name": "Hoisko",
+    "code": "HOISK",
+    "elev": 111,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.486667,
+     60.981667
+    ]
+   },
+   "properties": {
+    "name": "Hollola",
+    "code": "HOLLO",
+    "elev": 112,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.256117,
+     61.993617
+    ]
+   },
+   "properties": {
+    "name": "Honkajoki",
+    "code": "HONKA",
+    "elev": 101,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.132783,
+     60.972783
+    ]
+   },
+   "properties": {
+    "name": "Honkilahti",
+    "code": "HONKI",
+    "elev": 64,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     21.867217,
+     60.7925
+    ]
+   },
+   "properties": {
+    "name": "Horma",
+    "code": "HORMA",
+    "elev": 40,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.221117,
+     60.095283
+    ]
+   },
+   "properties": {
+    "name": "Hulta",
+    "code": "HULTA",
+    "elev": 36,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.33945,
+     60.953617
+    ]
+   },
+   "properties": {
+    "name": "Humppila",
+    "code": "HUMPP",
+    "elev": 102,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.881383,
+     60.65305
+    ]
+   },
+   "properties": {
+    "name": "Hyvinkaa",
+    "code": "EFHV",
+    "elev": 131,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     21.587783,
+     60.985
+    ]
+   },
+   "properties": {
+    "name": "Ihode",
+    "code": "IHODE",
+    "elev": 20,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.122217,
+     63.63195
+    ]
+   },
+   "properties": {
+    "name": "Iisalmi",
+    "code": "EFII",
+    "elev": 117,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.13695,
+     61.082217
+    ]
+   },
+   "properties": {
+    "name": "Iittala",
+    "code": "IITTA",
+    "elev": 91,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.02,
+     61.776383
+    ]
+   },
+   "properties": {
+    "name": "Ikaalinen",
+    "code": "IKAAL",
+    "elev": 141,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.56305,
+     62.727217
+    ]
+   },
+   "properties": {
+    "name": "Ilmajoki",
+    "code": "ILMAJ",
+    "elev": 41,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     30.93945,
+     62.665833
+    ]
+   },
+   "properties": {
+    "name": "Ilomantsi",
+    "code": "ILOMA",
+    "elev": 145,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     28.903617,
+     61.249717
+    ]
+   },
+   "properties": {
+    "name": "Immola",
+    "code": "EFIM",
+    "elev": 103,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.107783,
+     61.19445
+    ]
+   },
+   "properties": {
+    "name": "Iso-Evo",
+    "code": "ISO-E",
+    "elev": 121,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     21.9525,
+     62.111667
+    ]
+   },
+   "properties": {
+    "name": "Isojoki",
+    "code": "ISOJO",
+    "elev": 105,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.230833,
+     61.034167
+    ]
+   },
+   "properties": {
+    "name": "Isosaari",
+    "code": "ISOSA",
+    "elev": 99,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.48945,
+     61.04945
+    ]
+   },
+   "properties": {
+    "name": "Jaala",
+    "code": "JAALA",
+    "elev": 133,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.72555,
+     62.508617
+    ]
+   },
+   "properties": {
+    "name": "Jalasjarvi",
+    "code": "JALAS",
+    "elev": 107,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.11195,
+     61.893883
+    ]
+   },
+   "properties": {
+    "name": "Jaminkipohja",
+    "code": "JAMIN",
+    "elev": 141,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.178617,
+     61.85195
+    ]
+   },
+   "properties": {
+    "name": "Jamsa",
+    "code": "JAMSA",
+    "elev": 140,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.54195,
+     60.9125
+    ]
+   },
+   "properties": {
+    "name": "Janakkala",
+    "code": "JANAK",
+    "elev": 100,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.439167,
+     62.37695
+    ]
+   },
+   "properties": {
+    "name": "Jappila",
+    "code": "JAPPI",
+    "elev": 111,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.268617,
+     60.88055
+    ]
+   },
+   "properties": {
+    "name": "Jarvela",
+    "code": "JARVE",
+    "elev": 112,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.705833,
+     61.82055
+    ]
+   },
+   "properties": {
+    "name": "Jami",
+    "code": "JAMI",
+    "elev": 145,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     29.61055,
+     62.66055
+    ]
+   },
+   "properties": {
+    "name": "Joensuu",
+    "code": "EFJO",
+    "elev": 121,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.202783,
+     60.434167
+    ]
+   },
+   "properties": {
+    "name": "Jokikunta",
+    "code": "JOKIK",
+    "elev": 37,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.108883,
+     61.749717
+    ]
+   },
+   "properties": {
+    "name": "Joutsa",
+    "code": "JOUTS",
+    "elev": 129,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.347783,
+     61.9325
+    ]
+   },
+   "properties": {
+    "name": "Juokslahti",
+    "code": "JUOKS",
+    "elev": 80,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.98445,
+     64.95555
+    ]
+   },
+   "properties": {
+    "name": "Juorkuna",
+    "code": "JUORK",
+    "elev": 107,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.934717,
+     65.498617
+    ]
+   },
+   "properties": {
+    "name": "Jurmu",
+    "code": "JURMU",
+    "elev": 155,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.703883,
+     60.938333
+    ]
+   },
+   "properties": {
+    "name": "Jurvala",
+    "code": "JURVL",
+    "elev": 64,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     21.98195,
+     62.675833
+    ]
+   },
+   "properties": {
+    "name": "Jurva",
+    "code": "JURVA",
+    "elev": 75,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     29.27055,
+     63.24805
+    ]
+   },
+   "properties": {
+    "name": "Juuka",
+    "code": "JUUKA",
+    "elev": 99,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.80305,
+     61.898333
+    ]
+   },
+   "properties": {
+    "name": "Juva",
+    "code": "JUVA",
+    "elev": 106,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.623333,
+     62.420833
+    ]
+   },
+   "properties": {
+    "name": "Jyvaskyla",
+    "code": "EFJY",
+    "elev": 140,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     28.496667,
+     62.975833
+    ]
+   },
+   "properties": {
+    "name": "Kaavi",
+    "code": "KAAVI",
+    "elev": 107,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.126667,
+     60.90055
+    ]
+   },
+   "properties": {
+    "name": "Kaipainen",
+    "code": "KAIPA",
+    "elev": 94,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.731117,
+     62.053883
+    ]
+   },
+   "properties": {
+    "name": "Kaitainen",
+    "code": "KAITA",
+    "elev": 135,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.350283,
+     60.91305
+    ]
+   },
+   "properties": {
+    "name": "Kaitjarvi",
+    "code": "KAITJ",
+    "elev": 106,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.655833,
+     64.2825
+    ]
+   },
+   "properties": {
+    "name": "Kajaani",
+    "code": "EFKI",
+    "elev": 147,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.826383,
+     64.228617
+    ]
+   },
+   "properties": {
+    "name": "Kalajoki",
+    "code": "EFKO",
+    "elev": 13,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.096383,
+     62.466667
+    ]
+   },
+   "properties": {
+    "name": "Kalakoski",
+    "code": "KALAK",
+    "elev": 129,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     21.543333,
+     60.818617
+    ]
+   },
+   "properties": {
+    "name": "Kalanti",
+    "code": "KALAN",
+    "elev": 11,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.672783,
+     61.291383
+    ]
+   },
+   "properties": {
+    "name": "Kalkkinen",
+    "code": "KALKK",
+    "elev": 132,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.286383,
+     61.90695
+    ]
+   },
+   "properties": {
+    "name": "Kalvitsa",
+    "code": "KALVI",
+    "elev": 124,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.071667,
+     61.463617
+    ]
+   },
+   "properties": {
+    "name": "Kangasala",
+    "code": "KANGA",
+    "elev": 96,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.648617,
+     61.998333
+    ]
+   },
+   "properties": {
+    "name": "Kangasniemi",
+    "code": "KNIEM",
+    "elev": 100,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.368333,
+     61.817783
+    ]
+   },
+   "properties": {
+    "name": "Kankaanpaa",
+    "code": "KANKA",
+    "elev": 136,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.086667,
+     63.92055
+    ]
+   },
+   "properties": {
+    "name": "Kannus",
+    "code": "EFKN",
+    "elev": 101,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.93695,
+     61.062217
+    ]
+   },
+   "properties": {
+    "name": "Kanteenmaa",
+    "code": "KANTE",
+    "elev": 94,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     21.706667,
+     62.307783
+    ]
+   },
+   "properties": {
+    "name": "Karijoki",
+    "code": "KARIJ",
+    "elev": 47,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.728333,
+     60.07805
+    ]
+   },
+   "properties": {
+    "name": "Karjaa",
+    "code": "KARJA",
+    "elev": 46,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.717783,
+     60.240283
+    ]
+   },
+   "properties": {
+    "name": "Karjalohja",
+    "code": "KLOHJ",
+    "elev": 63,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.175,
+     60.381383
+    ]
+   },
+   "properties": {
+    "name": "Karjaskyla",
+    "code": "KKYLA",
+    "elev": 39,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.458333,
+     60.501383
+    ]
+   },
+   "properties": {
+    "name": "Karkela",
+    "code": "KARKE",
+    "elev": 60,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.238883,
+     60.53305
+    ]
+   },
+   "properties": {
+    "name": "Karkkila",
+    "code": "KARKK",
+    "elev": 105,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.87305,
+     60.646117
+    ]
+   },
+   "properties": {
+    "name": "Karkola",
+    "code": "KARKO",
+    "elev": 109,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.743617,
+     63.989167
+    ]
+   },
+   "properties": {
+    "name": "Karsamaki",
+    "code": "EFKR",
+    "elev": 106,
+    "style": 2
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.799167,
+     62.87445
+    ]
+   },
+   "properties": {
+    "name": "Karstula",
+    "code": "KARST",
+    "elev": 131,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.557783,
+     62.13305
+    ]
+   },
+   "properties": {
+    "name": "Karvia",
+    "code": "KARVI",
+    "elev": 120,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.29805,
+     62.21305
+    ]
+   },
+   "properties": {
+    "name": "Kauhajarvi",
+    "code": "KAUHA",
+    "elev": 124,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.391117,
+     62.463333
+    ]
+   },
+   "properties": {
+    "name": "Kauhajoki",
+    "code": "EFKJ",
+    "elev": 124,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.055833,
+     63.1225
+    ]
+   },
+   "properties": {
+    "name": "Kauhava",
+    "code": "EFKA",
+    "elev": 46,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.8175,
+     60.744167
+    ]
+   },
+   "properties": {
+    "name": "Kaulanpera",
+    "code": "KAULA",
+    "elev": 80,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.10695,
+     61.95695
+    ]
+   },
+   "properties": {
+    "name": "Kautunvuolle",
+    "code": "KAUTU",
+    "elev": 137,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.5425,
+     61.309717
+    ]
+   },
+   "properties": {
+    "name": "Kauvatsa",
+    "code": "KAUVA",
+    "elev": 55,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.340833,
+     63.18805
+    ]
+   },
+   "properties": {
+    "name": "Keitele",
+    "code": "KEITE",
+    "elev": 99,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.584717,
+     65.779167
+    ]
+   },
+   "properties": {
+    "name": "Kemi",
+    "code": "EFKE",
+    "elev": 18,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.157217,
+     66.715833
+    ]
+   },
+   "properties": {
+    "name": "Kemijarvi",
+    "code": "EFKM",
+    "elev": 211,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.116667,
+     60.693333
+    ]
+   },
+   "properties": {
+    "name": "Keritty",
+    "code": "KERIT",
+    "elev": 123,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.675283,
+     62.257783
+    ]
+   },
+   "properties": {
+    "name": "Keuruu",
+    "code": "KEURU",
+    "elev": 101,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.175833,
+     62.197783
+    ]
+   },
+   "properties": {
+    "name": "Kihnio",
+    "code": "KIHNI",
+    "elev": 125,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.651383,
+     60.462217
+    ]
+   },
+   "properties": {
+    "name": "Kiikala",
+    "code": "EFIK",
+    "elev": 116,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.88,
+     62.39
+    ]
+   },
+   "properties": {
+    "name": "Killinkoski",
+    "code": "KILLI",
+    "elev": 148,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.66195,
+     61.839167
+    ]
+   },
+   "properties": {
+    "name": "Kilpola",
+    "code": "KILPO",
+    "elev": 95,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.74305,
+     60.164167
+    ]
+   },
+   "properties": {
+    "name": "Kimito",
+    "code": "KIMIT",
+    "elev": 10,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.355283,
+     61.036383
+    ]
+   },
+   "properties": {
+    "name": "Kimola",
+    "code": "KIMOL",
+    "elev": 65,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.94805,
+     63.375283
+    ]
+   },
+   "properties": {
+    "name": "Kinnula",
+    "code": "KINNU",
+    "elev": 149,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.553333,
+     65.268617
+    ]
+   },
+   "properties": {
+    "name": "Kipina",
+    "code": "KIPIN",
+    "elev": 110,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.379167,
+     60.119167
+    ]
+   },
+   "properties": {
+    "name": "Kisakeskus",
+    "code": "KISAK",
+    "elev": 50,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     30.073617,
+     62.166117
+    ]
+   },
+   "properties": {
+    "name": "Kitee",
+    "code": "EFIT",
+    "elev": 111,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.616383,
+     63.70555
+    ]
+   },
+   "properties": {
+    "name": "Kiuruvesi",
+    "code": "EFRV",
+    "elev": 157,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.124167,
+     63.125283
+    ]
+   },
+   "properties": {
+    "name": "Kivijarvi",
+    "code": "EFKV",
+    "elev": 153,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.65805,
+     60.94445
+    ]
+   },
+   "properties": {
+    "name": "Koijarvi",
+    "code": "KOIJA",
+    "elev": 117,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.223883,
+     61.517217
+    ]
+   },
+   "properties": {
+    "name": "Koitti",
+    "code": "KOITT",
+    "elev": 127,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.679167,
+     65.692217
+    ]
+   },
+   "properties": {
+    "name": "Kokkokyla",
+    "code": "KOKKO",
+    "elev": 128,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.139167,
+     63.720283
+    ]
+   },
+   "properties": {
+    "name": "Kokkola",
+    "code": "EFKK",
+    "elev": 26,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.503617,
+     62.130833
+    ]
+   },
+   "properties": {
+    "name": "Kolho",
+    "code": "KOLHO",
+    "elev": 102,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.702783,
+     61.002783
+    ]
+   },
+   "properties": {
+    "name": "Kontuvuori",
+    "code": "KONTU",
+    "elev": 121,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.377783,
+     61.809167
+    ]
+   },
+   "properties": {
+    "name": "Korkeakoski",
+    "code": "KORKE",
+    "elev": 124,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.598617,
+     62.032783
+    ]
+   },
+   "properties": {
+    "name": "Korpilahti",
+    "code": "KORPI",
+    "elev": 131,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.64055,
+     61.123333
+    ]
+   },
+   "properties": {
+    "name": "Korri",
+    "code": "KORRI",
+    "elev": 87,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.155833,
+     63.299717
+    ]
+   },
+   "properties": {
+    "name": "Kortesjarvi",
+    "code": "KORTE",
+    "elev": 60,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.18555,
+     61.082783
+    ]
+   },
+   "properties": {
+    "name": "Koskenniska",
+    "code": "KNISK",
+    "elev": 98,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.163617,
+     62.076117
+    ]
+   },
+   "properties": {
+    "name": "Koskenpaa",
+    "code": "KPAA",
+    "elev": 113,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.84055,
+     62.360283
+    ]
+   },
+   "properties": {
+    "name": "Koskue",
+    "code": "KOSKU",
+    "elev": 116,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.979717,
+     60.841383
+    ]
+   },
+   "properties": {
+    "name": "Koskunen",
+    "code": "KOSKN",
+    "elev": 80,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.693883,
+     60.86805
+    ]
+   },
+   "properties": {
+    "name": "Kouvola",
+    "code": "KOUVO",
+    "elev": 78,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.839717,
+     61.906383
+    ]
+   },
+   "properties": {
+    "name": "Kovenlahti",
+    "code": "KOVEN",
+    "elev": 137,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.316117,
+     61.09445
+    ]
+   },
+   "properties": {
+    "name": "Koylio",
+    "code": "KOYLI",
+    "elev": 49,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     29.438617,
+     64.1125
+    ]
+   },
+   "properties": {
+    "name": "Kuhmo",
+    "code": "EFKH",
+    "elev": 174,
+    "style": 2
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.183617,
+     61.557783
+    ]
+   },
+   "properties": {
+    "name": "Kuhmoinen",
+    "code": "KUHMO",
+    "elev": 100,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.165,
+     61.464167
+    ]
+   },
+   "properties": {
+    "name": "Kullaa",
+    "code": "KULLA",
+    "elev": 31,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     20.804717,
+     60.24695
+    ]
+   },
+   "properties": {
+    "name": "Kumlinge",
+    "code": "EFKG",
+    "elev": 2,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.79695,
+     61.30305
+    ]
+   },
+   "properties": {
+    "name": "Kuohijoki",
+    "code": "KUOHI",
+    "elev": 93,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.813883,
+     62.979717
+    ]
+   },
+   "properties": {
+    "name": "Kuopio",
+    "code": "EFKU",
+    "elev": 98,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.505,
+     62.81945
+    ]
+   },
+   "properties": {
+    "name": "Kuortane",
+    "code": "KTANE",
+    "elev": 96,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.43445,
+     61.419167
+    ]
+   },
+   "properties": {
+    "name": "Kuortti",
+    "code": "KUORT",
+    "elev": 91,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.40695,
+     62.620283
+    ]
+   },
+   "properties": {
+    "name": "Kurikka",
+    "code": "KURIK",
+    "elev": 50,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.73555,
+     61.885283
+    ]
+   },
+   "properties": {
+    "name": "Kuru",
+    "code": "KURU",
+    "elev": 100,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     29.23195,
+     65.990283
+    ]
+   },
+   "properties": {
+    "name": "Kuusamo",
+    "code": "EFKS",
+    "elev": 264,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.253883,
+     60.586667
+    ]
+   },
+   "properties": {
+    "name": "Kuusjoki",
+    "code": "KUUSJ",
+    "elev": 104,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.896117,
+     60.571383
+    ]
+   },
+   "properties": {
+    "name": "Kymi",
+    "code": "EFKY",
+    "elev": 68,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.56055,
+     63.04305
+    ]
+   },
+   "properties": {
+    "name": "Kyyjarvi",
+    "code": "KYYJA",
+    "elev": 122,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.09305,
+     60.851383
+    ]
+   },
+   "properties": {
+    "name": "Laajoki",
+    "code": "LAAJO",
+    "elev": 81,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.82055,
+     61.37695
+    ]
+   },
+   "properties": {
+    "name": "Lahdenpohja",
+    "code": "LAHDE",
+    "elev": 99,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.707783,
+     60.371383
+    ]
+   },
+   "properties": {
+    "name": "Lahnajarvi",
+    "code": "LAHNA",
+    "elev": 83,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.658883,
+     60.976383
+    ]
+   },
+   "properties": {
+    "name": "Lahti",
+    "code": "LAHTI",
+    "elev": 106,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     21.69805,
+     60.874167
+    ]
+   },
+   "properties": {
+    "name": "Laitila",
+    "code": "LAITI",
+    "elev": 16,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.024717,
+     61.07805
+    ]
+   },
+   "properties": {
+    "name": "Lammi",
+    "code": "LAMMI",
+    "elev": 117,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.044717,
+     62.090833
+    ]
+   },
+   "properties": {
+    "name": "Lamminkoski",
+    "code": "LKOSK",
+    "elev": 136,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.369167,
+     60.790833
+    ]
+   },
+   "properties": {
+    "name": "Lankila",
+    "code": "LANKI",
+    "elev": 49,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.358617,
+     61.979167
+    ]
+   },
+   "properties": {
+    "name": "Lansi-Aure",
+    "code": "LAURE",
+    "elev": 171,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.699167,
+     61.749717
+    ]
+   },
+   "properties": {
+    "name": "Lansi-Teisko",
+    "code": "LTEISK",
+    "elev": 110,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.199167,
+     60.618617
+    ]
+   },
+   "properties": {
+    "name": "Lapinjarvi",
+    "code": "LAPIN",
+    "elev": 22,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.478883,
+     63.39945
+    ]
+   },
+   "properties": {
+    "name": "Lapinlahti",
+    "code": "EFLL",
+    "elev": 100,
+    "style": 2
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     28.11805,
+     61.039167
+    ]
+   },
+   "properties": {
+    "name": "Lappeenranta",
+    "code": "EFLP",
+    "elev": 106,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.23305,
+     59.903617
+    ]
+   },
+   "properties": {
+    "name": "Lappohja",
+    "code": "LAPPO",
+    "elev": 24,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.566117,
+     60.736667
+    ]
+   },
+   "properties": {
+    "name": "Launonen",
+    "code": "LAUNO",
+    "elev": 120,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.863617,
+     60.909167
+    ]
+   },
+   "properties": {
+    "name": "Lautaporras",
+    "code": "LAUTA",
+    "elev": 107,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.67555,
+     61.16945
+    ]
+   },
+   "properties": {
+    "name": "Lauttakyla",
+    "code": "LAUTT",
+    "elev": 81,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.58555,
+     61.596667
+    ]
+   },
+   "properties": {
+    "name": "Lavia",
+    "code": "LAVIA",
+    "elev": 125,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.943333,
+     62.817783
+    ]
+   },
+   "properties": {
+    "name": "Lehtimaki",
+    "code": "LEHTI",
+    "elev": 96,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.187783,
+     61.8975
+    ]
+   },
+   "properties": {
+    "name": "Leivonmaki",
+    "code": "LEIVO",
+    "elev": 134,
+    "style": 2
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.804167,
+     61.061667
+    ]
+   },
+   "properties": {
+    "name": "Lemi",
+    "code": "LEMI",
+    "elev": 103,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.75555,
+     62.495
+    ]
+   },
+   "properties": {
+    "name": "Leppavirta",
+    "code": "LEPPA",
+    "elev": 102,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.773883,
+     60.703883
+    ]
+   },
+   "properties": {
+    "name": "Letku",
+    "code": "LETKU",
+    "elev": 120,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.64555,
+     62.37305
+    ]
+   },
+   "properties": {
+    "name": "Liedenpohja",
+    "code": "LIEDE",
+    "elev": 98,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     29.629167,
+     63.51195
+    ]
+   },
+   "properties": {
+    "name": "Lieksa-Nurmes",
+    "code": "EFLN",
+    "elev": 114,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.955833,
+     60.685
+    ]
+   },
+   "properties": {
+    "name": "Liesjarvi",
+    "code": "LIESJ",
+    "elev": 111,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.016667,
+     60.82805
+    ]
+   },
+   "properties": {
+    "name": "Lietsa",
+    "code": "LIETS",
+    "elev": 113,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.1725,
+     62.25055
+    ]
+   },
+   "properties": {
+    "name": "Lievestuore",
+    "code": "LIEVE",
+    "elev": 132,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.59695,
+     60.854717
+    ]
+   },
+   "properties": {
+    "name": "Linnatuuli",
+    "code": "LINNA",
+    "elev": 106,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     29.388617,
+     62.530283
+    ]
+   },
+   "properties": {
+    "name": "Liperi",
+    "code": "LIPER",
+    "elev": 116,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.001667,
+     60.204167
+    ]
+   },
+   "properties": {
+    "name": "Lohja",
+    "code": "LOHJA",
+    "elev": 99,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.07,
+     60.841383
+    ]
+   },
+   "properties": {
+    "name": "Loimaa",
+    "code": "LOIMA",
+    "elev": 99,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     21.46555,
+     60.68055
+    ]
+   },
+   "properties": {
+    "name": "Lokalahti",
+    "code": "LOKAL",
+    "elev": 9,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.1925,
+     60.46055
+    ]
+   },
+   "properties": {
+    "name": "Lovisa",
+    "code": "LOVIS",
+    "elev": 16,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.26,
+     61.776117
+    ]
+   },
+   "properties": {
+    "name": "Luhalahti",
+    "code": "LUHAL",
+    "elev": 92,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.07805,
+     61.300283
+    ]
+   },
+   "properties": {
+    "name": "Lusi",
+    "code": "LUSI",
+    "elev": 125,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.55945,
+     60.921117
+    ]
+   },
+   "properties": {
+    "name": "Luumaki",
+    "code": "LUUMA",
+    "elev": 97,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.934167,
+     62.00695
+    ]
+   },
+   "properties": {
+    "name": "Luusniemi",
+    "code": "LUUSN",
+    "elev": 104,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.292783,
+     60.94805
+    ]
+   },
+   "properties": {
+    "name": "Maavehmaa",
+    "code": "MAAVE",
+    "elev": 130,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.044167,
+     60.253883
+    ]
+   },
+   "properties": {
+    "name": "Malmi",
+    "code": "EFHF",
+    "elev": 18,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.214167,
+     60.913617
+    ]
+   },
+   "properties": {
+    "name": "Mankala",
+    "code": "MANKA",
+    "elev": 106,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.508883,
+     60.5725
+    ]
+   },
+   "properties": {
+    "name": "Mantsala",
+    "code": "EFMN",
+    "elev": 41,
+    "style": 2
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.628333,
+     62.026383
+    ]
+   },
+   "properties": {
+    "name": "Mantta",
+    "code": "MANTT",
+    "elev": 144,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.87945,
+     61.429717
+    ]
+   },
+   "properties": {
+    "name": "Mantyharju",
+    "code": "MANTY",
+    "elev": 82,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.211667,
+     60.71695
+    ]
+   },
+   "properties": {
+    "name": "Marski",
+    "code": "MARSK",
+    "elev": 111,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.898883,
+     60.813333
+    ]
+   },
+   "properties": {
+    "name": "Matto",
+    "code": "MATTO",
+    "elev": 55,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.527217,
+     62.769167
+    ]
+   },
+   "properties": {
+    "name": "Mayry",
+    "code": "MAYRY",
+    "elev": 84,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.904717,
+     60.793333
+    ]
+   },
+   "properties": {
+    "name": "Mellila",
+    "code": "MELLI",
+    "elev": 81,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.518883,
+     62.946667
+    ]
+   },
+   "properties": {
+    "name": "Menkijarvi",
+    "code": "EFME",
+    "elev": 101,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.155283,
+     60.937783
+    ]
+   },
+   "properties": {
+    "name": "Metsamaa",
+    "code": "METSA",
+    "elev": 90,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.13445,
+     64.175
+    ]
+   },
+   "properties": {
+    "name": "Mieluskyla",
+    "code": "MIELU",
+    "elev": 77,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.2,
+     61.686383
+    ]
+   },
+   "properties": {
+    "name": "Mikkeli",
+    "code": "EFMI",
+    "elev": 100,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.16695,
+     63.033617
+    ]
+   },
+   "properties": {
+    "name": "Moksy",
+    "code": "MOKSY",
+    "elev": 163,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.028617,
+     60.844167
+    ]
+   },
+   "properties": {
+    "name": "Mommila",
+    "code": "MOMMI",
+    "elev": 88,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.79055,
+     62.39945
+    ]
+   },
+   "properties": {
+    "name": "Multia",
+    "code": "MULTI",
+    "elev": 141,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.950833,
+     61.821383
+    ]
+   },
+   "properties": {
+    "name": "Murole",
+    "code": "MUROL",
+    "elev": 100,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.630833,
+     60.783617
+    ]
+   },
+   "properties": {
+    "name": "Muurola",
+    "code": "MUURO",
+    "elev": 46,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.14945,
+     60.84445
+    ]
+   },
+   "properties": {
+    "name": "Myllyla",
+    "code": "MYLLY",
+    "elev": 53,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     28.28305,
+     62.453617
+    ]
+   },
+   "properties": {
+    "name": "Naadanmaa",
+    "code": "NAADA",
+    "elev": 121,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.998333,
+     62.266117
+    ]
+   },
+   "properties": {
+    "name": "Naarajarvi",
+    "code": "EFPK",
+    "elev": 119,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.934717,
+     60.955283
+    ]
+   },
+   "properties": {
+    "name": "Nastola",
+    "code": "NASTO",
+    "elev": 92,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.890833,
+     60.861667
+    ]
+   },
+   "properties": {
+    "name": "Niinijoki",
+    "code": "NIINI",
+    "elev": 81,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.290283,
+     62.16805
+    ]
+   },
+   "properties": {
+    "name": "Niskos",
+    "code": "NISKO",
+    "elev": 145,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.296383,
+     60.333883
+    ]
+   },
+   "properties": {
+    "name": "Nummela",
+    "code": "EFNU",
+    "elev": 112,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.35055,
+     60.629717
+    ]
+   },
+   "properties": {
+    "name": "Nummensyrja",
+    "code": "NUMME",
+    "elev": 143,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.445833,
+     62.30695
+    ]
+   },
+   "properties": {
+    "name": "Nummijarvi",
+    "code": "NUMMI",
+    "elev": 163,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.440283,
+     61.04055
+    ]
+   },
+   "properties": {
+    "name": "Nuutajarvi",
+    "code": "NUUTA",
+    "elev": 99,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.027217,
+     60.786383
+    ]
+   },
+   "properties": {
+    "name": "Oitti",
+    "code": "OITTI",
+    "elev": 100,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     21.530833,
+     62.077783
+    ]
+   },
+   "properties": {
+    "name": "Omossa",
+    "code": "OMOSS",
+    "elev": 28,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.728617,
+     60.801667
+    ]
+   },
+   "properties": {
+    "name": "Orimattila",
+    "code": "ORIMA",
+    "elev": 71,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.743883,
+     60.872783
+    ]
+   },
+   "properties": {
+    "name": "Oripaa",
+    "code": "EFOP",
+    "elev": 101,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.507783,
+     60.75305
+    ]
+   },
+   "properties": {
+    "name": "Orissaari",
+    "code": "ORISS",
+    "elev": 74,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.6375,
+     60.8125
+    ]
+   },
+   "properties": {
+    "name": "Ortenoja",
+    "code": "ORTEN",
+    "elev": 70,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.988333,
+     61.446667
+    ]
+   },
+   "properties": {
+    "name": "Ositunkulma",
+    "code": "OSITU",
+    "elev": 120,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.095283,
+     64.113883
+    ]
+   },
+   "properties": {
+    "name": "Otanmaki",
+    "code": "OTANM",
+    "elev": 184,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.359167,
+     64.931667
+    ]
+   },
+   "properties": {
+    "name": "Oulu",
+    "code": "EFOU",
+    "elev": 14,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     29.009167,
+     62.731117
+    ]
+   },
+   "properties": {
+    "name": "Outokumpu",
+    "code": "OUTOK",
+    "elev": 113,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.256117,
+     61.365283
+    ]
+   },
+   "properties": {
+    "name": "Paaso",
+    "code": "PAASO",
+    "elev": 112,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.247783,
+     61.343617
+    ]
+   },
+   "properties": {
+    "name": "Padasjoki",
+    "code": "PADAS",
+    "elev": 127,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.587783,
+     61.252217
+    ]
+   },
+   "properties": {
+    "name": "Paljakka",
+    "code": "PALJA",
+    "elev": 82,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.012783,
+     61.994717
+    ]
+   },
+   "properties": {
+    "name": "Parkano",
+    "code": "PARKA",
+    "elev": 137,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.479167,
+     61.614167
+    ]
+   },
+   "properties": {
+    "name": "Parkkila",
+    "code": "PARKK",
+    "elev": 86,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.26445,
+     61.45305
+    ]
+   },
+   "properties": {
+    "name": "Pellosniemi",
+    "code": "PELLO",
+    "elev": 98,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     29.044717,
+     63.43695
+    ]
+   },
+   "properties": {
+    "name": "Penttilanvaara",
+    "code": "PENTT",
+    "elev": 116,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.212217,
+     60.739717
+    ]
+   },
+   "properties": {
+    "name": "Peranne",
+    "code": "PERAN",
+    "elev": 137,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.054717,
+     62.567783
+    ]
+   },
+   "properties": {
+    "name": "Peraseinajoki",
+    "code": "PERAS",
+    "elev": 95,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.415833,
+     63.215
+    ]
+   },
+   "properties": {
+    "name": "Perho",
+    "code": "PERHO",
+    "elev": 122,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.111667,
+     60.205283
+    ]
+   },
+   "properties": {
+    "name": "Pernio",
+    "code": "PERNI",
+    "elev": 9,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.223617,
+     60.4525
+    ]
+   },
+   "properties": {
+    "name": "Pertteli",
+    "code": "PERTT",
+    "elev": 57,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.484717,
+     61.510283
+    ]
+   },
+   "properties": {
+    "name": "Pertunmaa",
+    "code": "PERTU",
+    "elev": 105,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.002783,
+     60.74445
+    ]
+   },
+   "properties": {
+    "name": "Pesalammi",
+    "code": "PESAL",
+    "elev": 130,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.18195,
+     62.249717
+    ]
+   },
+   "properties": {
+    "name": "Petajavesi",
+    "code": "PETAJ",
+    "elev": 108,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.09945,
+     62.286667
+    ]
+   },
+   "properties": {
+    "name": "Pieksamaki",
+    "code": "PIEKS",
+    "elev": 114,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.585283,
+     63.371117
+    ]
+   },
+   "properties": {
+    "name": "Pihtipudas",
+    "code": "PIHTI",
+    "elev": 111,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.19305,
+     61.24555
+    ]
+   },
+   "properties": {
+    "name": "Piikajarvi",
+    "code": "EFPI",
+    "elev": 45,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.577783,
+     61.41
+    ]
+   },
+   "properties": {
+    "name": "Pirkkala",
+    "code": "EFTP",
+    "elev": 119,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.702783,
+     61.740833
+    ]
+   },
+   "properties": {
+    "name": "Pirttijarvi",
+    "code": "PIRTT",
+    "elev": 114,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.29195,
+     60.665833
+    ]
+   },
+   "properties": {
+    "name": "Pitkajarvi",
+    "code": "PJARV",
+    "elev": 88,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.584717,
+     60.673333
+    ]
+   },
+   "properties": {
+    "name": "Pitkakoski",
+    "code": "PITKO",
+    "elev": 35,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.705283,
+     61.482783
+    ]
+   },
+   "properties": {
+    "name": "Pohja",
+    "code": "POHJA",
+    "elev": 128,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.55695,
+     60.103617
+    ]
+   },
+   "properties": {
+    "name": "Pohjankuru",
+    "code": "PKURU",
+    "elev": 10,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.107217,
+     60.30555
+    ]
+   },
+   "properties": {
+    "name": "Pohjankyla",
+    "code": "PKYLA",
+    "elev": 18,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     21.775283,
+     61.63195
+    ]
+   },
+   "properties": {
+    "name": "Poikeljarvi",
+    "code": "POIJA",
+    "elev": 30,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.628333,
+     61.791667
+    ]
+   },
+   "properties": {
+    "name": "Poikelus",
+    "code": "POIKE",
+    "elev": 120,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     29.34055,
+     62.84945
+    ]
+   },
+   "properties": {
+    "name": "Polvijarvi",
+    "code": "POLVI",
+    "elev": 116,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     21.795833,
+     61.464717
+    ]
+   },
+   "properties": {
+    "name": "Pori",
+    "code": "EFPO",
+    "elev": 13,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.95,
+     61.24555
+    ]
+   },
+   "properties": {
+    "name": "Porraskoski",
+    "code": "PKOSK",
+    "elev": 90,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.909717,
+     60.752217
+    ]
+   },
+   "properties": {
+    "name": "Porras",
+    "code": "PORRA",
+    "elev": 113,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     28.027217,
+     60.924167
+    ]
+   },
+   "properties": {
+    "name": "Pottikyla",
+    "code": "POTTI",
+    "elev": 56,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.94695,
+     65.402217
+    ]
+   },
+   "properties": {
+    "name": "Pudasjarvi",
+    "code": "EFPU",
+    "elev": 121,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.675283,
+     61.047217
+    ]
+   },
+   "properties": {
+    "name": "Pukkila",
+    "code": "PUKKI",
+    "elev": 98,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.870283,
+     64.265833
+    ]
+   },
+   "properties": {
+    "name": "Pulkkila",
+    "code": "PULKK",
+    "elev": 91,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     29.393617,
+     61.728883
+    ]
+   },
+   "properties": {
+    "name": "Punkaharju",
+    "code": "EFPN",
+    "elev": 77,
+    "style": 2
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.01805,
+     63.47305
+    ]
+   },
+   "properties": {
+    "name": "Purmo",
+    "code": "PURMO",
+    "elev": 31,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.097783,
+     61.448617
+    ]
+   },
+   "properties": {
+    "name": "Pussivuori",
+    "code": "PUSSI",
+    "elev": 126,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.9825,
+     60.47305
+    ]
+   },
+   "properties": {
+    "name": "Pusula",
+    "code": "PUSUL",
+    "elev": 103,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.219717,
+     61.099167
+    ]
+   },
+   "properties": {
+    "name": "Putula",
+    "code": "PUTUL",
+    "elev": 118,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.342217,
+     64.098333
+    ]
+   },
+   "properties": {
+    "name": "Pyhanta",
+    "code": "PYHAN",
+    "elev": 126,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.93195,
+     63.729167
+    ]
+   },
+   "properties": {
+    "name": "Pyhasalmi",
+    "code": "EFPY",
+    "elev": 161,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.59305,
+     60.480283
+    ]
+   },
+   "properties": {
+    "name": "Pyhtaa",
+    "code": "EFPR",
+    "elev": 25,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.803333,
+     62.673333
+    ]
+   },
+   "properties": {
+    "name": "Pylkonmaki",
+    "code": "PYLKO",
+    "elev": 128,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.695833,
+     64.68805
+    ]
+   },
+   "properties": {
+    "name": "Raahe",
+    "code": "EFRH",
+    "elev": 36,
+    "style": 2
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.34945,
+     60.8025
+    ]
+   },
+   "properties": {
+    "name": "Raasinjarvi",
+    "code": "RAASI",
+    "elev": 76,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     28.356667,
+     62.06555
+    ]
+   },
+   "properties": {
+    "name": "Rantasalmi",
+    "code": "EFRN",
+    "elev": 89,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.653883,
+     64.507217
+    ]
+   },
+   "properties": {
+    "name": "Rantsila",
+    "code": "RANTS",
+    "elev": 64,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.365283,
+     65.97305
+    ]
+   },
+   "properties": {
+    "name": "Ranua",
+    "code": "EFRU",
+    "elev": 165,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     21.53445,
+     61.1325
+    ]
+   },
+   "properties": {
+    "name": "Rauma",
+    "code": "RAUMA",
+    "elev": 10,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.11805,
+     60.7425
+    ]
+   },
+   "properties": {
+    "name": "Rayskala",
+    "code": "EFRY",
+    "elev": 124,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.02445,
+     60.651383
+    ]
+   },
+   "properties": {
+    "name": "Raunio",
+    "code": "RAUNI",
+    "elev": 86,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.717217,
+     61.409717
+    ]
+   },
+   "properties": {
+    "name": "Rautajarvi",
+    "code": "RJARV",
+    "elev": 125,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.79555,
+     62.628883
+    ]
+   },
+   "properties": {
+    "name": "Rautalampi",
+    "code": "RLAMP",
+    "elev": 112,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.14695,
+     60.57445
+    ]
+   },
+   "properties": {
+    "name": "Rautamaki",
+    "code": "RMAKI",
+    "elev": 96,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     28.124167,
+     63.424167
+    ]
+   },
+   "properties": {
+    "name": "Rautavaara",
+    "code": "EFRA",
+    "elev": 145,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.95,
+     63.603617
+    ]
+   },
+   "properties": {
+    "name": "Reisjarvi",
+    "code": "REISJ",
+    "elev": 113,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.29055,
+     60.901667
+    ]
+   },
+   "properties": {
+    "name": "Renko",
+    "code": "RENKO",
+    "elev": 116,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.784717,
+     60.771117
+    ]
+   },
+   "properties": {
+    "name": "Riihimaki",
+    "code": "RIIHI",
+    "elev": 105,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.766383,
+     61.041383
+    ]
+   },
+   "properties": {
+    "name": "Riisikkala",
+    "code": "RIISI",
+    "elev": 103,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.0525,
+     60.986667
+    ]
+   },
+   "properties": {
+    "name": "Rimmila",
+    "code": "RIMMI",
+    "elev": 126,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.642783,
+     61.603883
+    ]
+   },
+   "properties": {
+    "name": "Ripatti",
+    "code": "RIPAT",
+    "elev": 99,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.41445,
+     61.26445
+    ]
+   },
+   "properties": {
+    "name": "Riste",
+    "code": "RISTE",
+    "elev": 66,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     28.183617,
+     61.957783
+    ]
+   },
+   "properties": {
+    "name": "Ronkala",
+    "code": "RONKA",
+    "elev": 114,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.82055,
+     66.5625
+    ]
+   },
+   "properties": {
+    "name": "Rovaniemi",
+    "code": "EFRO",
+    "elev": 197,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     21.88555,
+     61.035
+    ]
+   },
+   "properties": {
+    "name": "Ruona",
+    "code": "RUONA",
+    "elev": 43,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.464167,
+     60.613883
+    ]
+   },
+   "properties": {
+    "name": "Ruotsinkyla",
+    "code": "RUOTS",
+    "elev": 20,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.517217,
+     61.147783
+    ]
+   },
+   "properties": {
+    "name": "Ruuhasjarvi",
+    "code": "RUUHA",
+    "elev": 82,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.01695,
+     61.049167
+    ]
+   },
+   "properties": {
+    "name": "Ruuhijarvi",
+    "code": "RUUHI",
+    "elev": 96,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.3875,
+     61.527217
+    ]
+   },
+   "properties": {
+    "name": "Saarijarvi",
+    "code": "SAARI",
+    "elev": 84,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.87195,
+     60.961117
+    ]
+   },
+   "properties": {
+    "name": "Saloinen",
+    "code": "SALOI",
+    "elev": 116,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.048883,
+     60.78305
+    ]
+   },
+   "properties": {
+    "name": "Santastenmaki",
+    "code": "SANTA",
+    "elev": 120,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.986117,
+     61.515833
+    ]
+   },
+   "properties": {
+    "name": "Sappee",
+    "code": "SAPPE",
+    "elev": 132,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.957783,
+     60.380283
+    ]
+   },
+   "properties": {
+    "name": "Saukkola",
+    "code": "SAUKK",
+    "elev": 103,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.831667,
+     60.52
+    ]
+   },
+   "properties": {
+    "name": "Savikko",
+    "code": "SAVIK",
+    "elev": 71,
+    "style": 2
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.686383,
+     61.19945
+    ]
+   },
+   "properties": {
+    "name": "Savitaipale",
+    "code": "SAVIT",
+    "elev": 105,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     28.914167,
+     61.952783
+    ]
+   },
+   "properties": {
+    "name": "Savonlinna",
+    "code": "EFSA",
+    "elev": 95,
+    "style": 2
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.83195,
+     62.693617
+    ]
+   },
+   "properties": {
+    "name": "Seinajoki",
+    "code": "EFSI",
+    "elev": 91,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.893617,
+     60.726667
+    ]
+   },
+   "properties": {
+    "name": "Selanoja",
+    "code": "SELAN",
+    "elev": 106,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.795833,
+     61.064167
+    ]
+   },
+   "properties": {
+    "name": "Selanpaa",
+    "code": "EFSE",
+    "elev": 127,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     21.821667,
+     61.876667
+    ]
+   },
+   "properties": {
+    "name": "Siikainen",
+    "code": "SIIKA",
+    "elev": 51,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.199167,
+     61.843883
+    ]
+   },
+   "properties": {
+    "name": "Siikakangas",
+    "code": "SKANG",
+    "elev": 169,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.9525,
+     62.955833
+    ]
+   },
+   "properties": {
+    "name": "Simpsio",
+    "code": "SIMPS",
+    "elev": 123,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.7,
+     61.569167
+    ]
+   },
+   "properties": {
+    "name": "Sinijarvi",
+    "code": "SINIJ",
+    "elev": 204,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.032217,
+     60.933333
+    ]
+   },
+   "properties": {
+    "name": "Sipilanmaki",
+    "code": "SIPIL",
+    "elev": 99,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.046667,
+     60.692217
+    ]
+   },
+   "properties": {
+    "name": "Sippola",
+    "code": "SIPPO",
+    "elev": 72,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.34055,
+     61.836117
+    ]
+   },
+   "properties": {
+    "name": "Sisatonjarvi",
+    "code": "SISAT",
+    "elev": 120,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.948333,
+     60.65195
+    ]
+   },
+   "properties": {
+    "name": "Sistola",
+    "code": "SISTO",
+    "elev": 44,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.206383,
+     62.87305
+    ]
+   },
+   "properties": {
+    "name": "Soini",
+    "code": "SOINI",
+    "elev": 108,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.731383,
+     60.57055
+    ]
+   },
+   "properties": {
+    "name": "Somerniemi",
+    "code": "SNIEM",
+    "elev": 107,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.520283,
+     60.622217
+    ]
+   },
+   "properties": {
+    "name": "Somero",
+    "code": "SOMER",
+    "elev": 96,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.52555,
+     63.672783
+    ]
+   },
+   "properties": {
+    "name": "Sonkajarvi",
+    "code": "SONKA",
+    "elev": 144,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.444167,
+     63.87
+    ]
+   },
+   "properties": {
+    "name": "Sukeva",
+    "code": "SUKEV",
+    "elev": 157,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.03055,
+     63.397783
+    ]
+   },
+   "properties": {
+    "name": "Sulkaharju",
+    "code": "EFVT",
+    "elev": 122,
+    "style": 2
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.044167,
+     62.657783
+    ]
+   },
+   "properties": {
+    "name": "Sumiainen",
+    "code": "SUMIA",
+    "elev": 125,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.0125,
+     62.783883
+    ]
+   },
+   "properties": {
+    "name": "Suni",
+    "code": "SUNI",
+    "elev": 155,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.76305,
+     61.55195
+    ]
+   },
+   "properties": {
+    "name": "Suodenniemi",
+    "code": "SUODE",
+    "elev": 72,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.45055,
+     61.326117
+    ]
+   },
+   "properties": {
+    "name": "Suomenniemi",
+    "code": "SUOME",
+    "elev": 105,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     28.710283,
+     64.82195
+    ]
+   },
+   "properties": {
+    "name": "Suomussalmi",
+    "code": "EFSU",
+    "elev": 165,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.105,
+     62.631667
+    ]
+   },
+   "properties": {
+    "name": "Suonenjoki",
+    "code": "SUONE",
+    "elev": 109,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     21.825833,
+     60.94305
+    ]
+   },
+   "properties": {
+    "name": "Suontaka",
+    "code": "SUONT",
+    "elev": 51,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.592783,
+     61.89445
+    ]
+   },
+   "properties": {
+    "name": "Sydanmaa",
+    "code": "SYDAN",
+    "elev": 140,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.409167,
+     63.6175
+    ]
+   },
+   "properties": {
+    "name": "Sykarainen",
+    "code": "SYKAR",
+    "elev": 113,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.858617,
+     61.105283
+    ]
+   },
+   "properties": {
+    "name": "Syrjantaka",
+    "code": "SYRJA",
+    "elev": 122,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.686117,
+     61.505
+    ]
+   },
+   "properties": {
+    "name": "Sysma",
+    "code": "SYSMA",
+    "elev": 126,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.84,
+     60.829167
+    ]
+   },
+   "properties": {
+    "name": "Tammela",
+    "code": "TAMME",
+    "elev": 101,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.825283,
+     61.8325
+    ]
+   },
+   "properties": {
+    "name": "Tammijarvi",
+    "code": "TJARV",
+    "elev": 130,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.429717,
+     59.982783
+    ]
+   },
+   "properties": {
+    "name": "Tammisaari",
+    "code": "TSAAR",
+    "elev": 54,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     21.69195,
+     60.77445
+    ]
+   },
+   "properties": {
+    "name": "Tammisto",
+    "code": "TAMMI",
+    "elev": 17,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.023617,
+     61.772217
+    ]
+   },
+   "properties": {
+    "name": "Teisko",
+    "code": "EFTS",
+    "elev": 157,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.503883,
+     63.587217
+    ]
+   },
+   "properties": {
+    "name": "Terjarvi",
+    "code": "TERJA",
+    "elev": 56,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.557783,
+     61.475
+    ]
+   },
+   "properties": {
+    "name": "Tervahauta",
+    "code": "THAUT",
+    "elev": 115,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.667217,
+     60.823617
+    ]
+   },
+   "properties": {
+    "name": "Tervakoski",
+    "code": "TERVA",
+    "elev": 118,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     21.746383,
+     62.490833
+    ]
+   },
+   "properties": {
+    "name": "Teuva",
+    "code": "TEUVA",
+    "elev": 64,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.247783,
+     63.771667
+    ]
+   },
+   "properties": {
+    "name": "Toholampi",
+    "code": "TOHOL",
+    "elev": 94,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.889717,
+     61.182217
+    ]
+   },
+   "properties": {
+    "name": "Toijala",
+    "code": "TJALA",
+    "elev": 86,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.417783,
+     60.267783
+    ]
+   },
+   "properties": {
+    "name": "Toija",
+    "code": "TOIJA",
+    "elev": 84,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.750833,
+     61.479717
+    ]
+   },
+   "properties": {
+    "name": "Toivola",
+    "code": "TOIVO",
+    "elev": 121,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.28195,
+     60.761667
+    ]
+   },
+   "properties": {
+    "name": "Topeno",
+    "code": "TOPEN",
+    "elev": 117,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.172217,
+     60.079167
+    ]
+   },
+   "properties": {
+    "name": "Torbacka",
+    "code": "EFTO",
+    "elev": 5,
+    "style": 2
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.58195,
+     60.735833
+    ]
+   },
+   "properties": {
+    "name": "Torronsuo",
+    "code": "TORRO",
+    "elev": 109,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.8125,
+     62.6275
+    ]
+   },
+   "properties": {
+    "name": "Toysa",
+    "code": "TOYSA",
+    "elev": 111,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.061383,
+     61.08945
+    ]
+   },
+   "properties": {
+    "name": "Tuohikotti",
+    "code": "TUOHI",
+    "elev": 112,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.648883,
+     60.916117
+    ]
+   },
+   "properties": {
+    "name": "Turenki",
+    "code": "TUREN",
+    "elev": 117,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.256667,
+     60.515283
+    ]
+   },
+   "properties": {
+    "name": "Turku",
+    "code": "EFTU",
+    "elev": 49,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     28.49445,
+     62.808883
+    ]
+   },
+   "properties": {
+    "name": "Tuusniemi",
+    "code": "TUUSN",
+    "elev": 106,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.846117,
+     61.328883
+    ]
+   },
+   "properties": {
+    "name": "Tyrvaa",
+    "code": "TYRVA",
+    "elev": 59,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     29.804717,
+     63.09695
+    ]
+   },
+   "properties": {
+    "name": "Ukko-Koli",
+    "code": "UKKO",
+    "elev": 293,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.838333,
+     61.263883
+    ]
+   },
+   "properties": {
+    "name": "Ukkovuori",
+    "code": "UKKOV",
+    "elev": 137,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.739167,
+     60.757217
+    ]
+   },
+   "properties": {
+    "name": "Ummeljoki",
+    "code": "EFKW",
+    "elev": 41,
+    "style": 2
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.79305,
+     61.137217
+    ]
+   },
+   "properties": {
+    "name": "Urajarvi",
+    "code": "URAJA",
+    "elev": 115,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.122217,
+     60.6875
+    ]
+   },
+   "properties": {
+    "name": "Urmaankulma",
+    "code": "URMAA",
+    "elev": 83,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.418333,
+     64.76055
+    ]
+   },
+   "properties": {
+    "name": "Utajarvi",
+    "code": "UTAJA",
+    "elev": 76,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.92945,
+     60.897217
+    ]
+   },
+   "properties": {
+    "name": "Utti",
+    "code": "EFUT",
+    "elev": 103,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     21.471383,
+     60.747783
+    ]
+   },
+   "properties": {
+    "name": "Uusikaupunki",
+    "code": "UUSIK",
+    "elev": 1,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.12805,
+     63.033617
+    ]
+   },
+   "properties": {
+    "name": "Uusikyla",
+    "code": "UKYLA",
+    "elev": 110,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.536667,
+     61.176117
+    ]
+   },
+   "properties": {
+    "name": "Vaaksy",
+    "code": "VAAKS",
+    "elev": 92,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.76,
+     64.50195
+    ]
+   },
+   "properties": {
+    "name": "Vaala",
+    "code": "EFVL",
+    "elev": 135,
+    "style": 2
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     21.765,
+     63.041383
+    ]
+   },
+   "properties": {
+    "name": "Vaasa",
+    "code": "EFVA",
+    "elev": 6,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.40305,
+     62.086117
+    ]
+   },
+   "properties": {
+    "name": "Vaha Mustajarvi",
+    "code": "VAHA",
+    "elev": 160,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     28.797783,
+     63.688617
+    ]
+   },
+   "properties": {
+    "name": "Valtimo",
+    "code": "VALTI",
+    "elev": 131,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.676117,
+     61.036383
+    ]
+   },
+   "properties": {
+    "name": "Vampula",
+    "code": "VAMPU",
+    "elev": 59,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.95055,
+     61.1425
+    ]
+   },
+   "properties": {
+    "name": "Vanttila",
+    "code": "VANTT",
+    "elev": 78,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.86,
+     62.305
+    ]
+   },
+   "properties": {
+    "name": "Varkaus",
+    "code": "VARKA",
+    "elev": 84,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.1175,
+     60.543617
+    ]
+   },
+   "properties": {
+    "name": "Vaskio",
+    "code": "VASKI",
+    "elev": 79,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.39055,
+     60.8125
+    ]
+   },
+   "properties": {
+    "name": "Vehmainen",
+    "code": "VEHMA",
+    "elev": 110,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.925283,
+     61.7475
+    ]
+   },
+   "properties": {
+    "name": "Velaatta",
+    "code": "VELAA",
+    "elev": 112,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.475833,
+     61.115283
+    ]
+   },
+   "properties": {
+    "name": "Vellinkulma",
+    "code": "VELLI",
+    "elev": 99,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.198883,
+     61.820833
+    ]
+   },
+   "properties": {
+    "name": "Venesjarvi",
+    "code": "VENES",
+    "elev": 126,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.116383,
+     60.282783
+    ]
+   },
+   "properties": {
+    "name": "Ventela",
+    "code": "VENTE",
+    "elev": 77,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.689717,
+     61.143617
+    ]
+   },
+   "properties": {
+    "name": "Vesivehmaa",
+    "code": "EFLA",
+    "elev": 153,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.753883,
+     63.49195
+    ]
+   },
+   "properties": {
+    "name": "Veteli",
+    "code": "VETEL",
+    "elev": 67,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.80945,
+     63.87695
+    ]
+   },
+   "properties": {
+    "name": "Vierema",
+    "code": "VIERE",
+    "elev": 145,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.923883,
+     61.11305
+    ]
+   },
+   "properties": {
+    "name": "Vierumaki",
+    "code": "VIERU",
+    "elev": 146,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.258617,
+     60.380283
+    ]
+   },
+   "properties": {
+    "name": "Vihti",
+    "code": "VIHTI",
+    "elev": 103,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     28.484167,
+     63.135283
+    ]
+   },
+   "properties": {
+    "name": "Viitaniemi",
+    "code": "VIITA",
+    "elev": 113,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.816117,
+     63.1225
+    ]
+   },
+   "properties": {
+    "name": "Viitasaari",
+    "code": "EFVI",
+    "elev": 110,
+    "style": 2
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.561667,
+     60.85805
+    ]
+   },
+   "properties": {
+    "name": "Viljaniemi",
+    "code": "VILJA",
+    "elev": 101,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     25.823617,
+     60.943883
+    ]
+   },
+   "properties": {
+    "name": "Villahde",
+    "code": "VILLA",
+    "elev": 97,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.485833,
+     62.0125
+    ]
+   },
+   "properties": {
+    "name": "Vilppula",
+    "code": "VILPP",
+    "elev": 99,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.783617,
+     62.25055
+    ]
+   },
+   "properties": {
+    "name": "Virrat",
+    "code": "VIRRA",
+    "elev": 114,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     27.445283,
+     62.131117
+    ]
+   },
+   "properties": {
+    "name": "Virtasalmi",
+    "code": "VIRTA",
+    "elev": 100,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.92555,
+     62.117783
+    ]
+   },
+   "properties": {
+    "name": "Visuvesi",
+    "code": "VISUV",
+    "elev": 140,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.30305,
+     60.873617
+    ]
+   },
+   "properties": {
+    "name": "Vitikka",
+    "code": "VITIK",
+    "elev": 148,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.162783,
+     60.781383
+    ]
+   },
+   "properties": {
+    "name": "Vojakkala",
+    "code": "VOJAK",
+    "elev": 117,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.461667,
+     61.276117
+    ]
+   },
+   "properties": {
+    "name": "Vuolijoki",
+    "code": "VUOLI",
+    "elev": 100,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     26.745833,
+     60.663617
+    ]
+   },
+   "properties": {
+    "name": "Wredeby",
+    "code": "EFWB",
+    "elev": 25,
+    "style": 2
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.401667,
+     60.886667
+    ]
+   },
+   "properties": {
+    "name": "Ylane",
+    "code": "YLANE",
+    "elev": 49,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     22.514717,
+     62.942217
+    ]
+   },
+   "properties": {
+    "name": "Ylistaro",
+    "code": "YLIST",
+    "elev": 35,
+    "style": 1
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     24.725283,
+     64.054717
+    ]
+   },
+   "properties": {
+    "name": "Ylivieska",
+    "code": "EFYL",
+    "elev": 77,
+    "style": 5
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Point",
+    "coordinates": [
+     23.345283,
+     60.772217
+    ]
+   },
+   "properties": {
+    "name": "Ypaja",
+    "code": "YPAJA",
+    "elev": 100,
+    "style": 1
+   }
+  }
+ ]
+}
