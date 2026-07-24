@@ -266,7 +266,10 @@
       <button id="skipNextButton" aria-label="Seuraava"><i class="material-icons">skip_next</i></button>
       <button id="speedButton" aria-label="Nopeus">1×</button>
     </div>
-    <div id="timeline"></div>
+    <div class="time-column">
+      <div id="timeline"></div>
+      <div class="timeline-times" aria-hidden="true"><span id="timelineStart"></span><span id="timelineEnd"></span></div>
+    </div>
     <div class="bar-clock">
       <div id="currentMapTime"></div>
       <div id="currentMapDate"></div>

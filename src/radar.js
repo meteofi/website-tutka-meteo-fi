@@ -867,9 +867,15 @@ function bearingLine(layer, coordinates, range, direction) {
 // WMS
 const currentMapTimeDiv = document.getElementById('currentMapTime');
 const currentMapDateDiv = document.getElementById('currentMapDate');
-function updateMapTimeDisplay(time) {
+// showDate is a window-level decision (setTime): only shown when the animation
+// window includes a day other than today, and then for every frame in it.
+function updateMapTimeDisplay(time, showDate) {
   const t = dayjs(time);
-  if (t.isValid() && mapTime !== time) {
+  if (!t.isValid()) return;
+  // Apply the date visibility every call — the window can shift (following /
+  // capabilities refresh) without the displayed frame time changing.
+  currentMapDateDiv.classList.toggle('date-hidden', !showDate);
+  if (mapTime !== time) {
     currentMapDateDiv.textContent = t.format('l');
     currentMapTimeDiv.textContent = t.format('LT');
     mapTime = time;
@@ -885,6 +891,10 @@ function updateMapTimeDisplay(time) {
     if (appFullscreen) renderTimeChip();
   }
 }
+
+// First/last frame times printed under the scrub strip.
+const timelineStartEl = document.getElementById('timelineStart');
+const timelineEndEl = document.getElementById('timelineEnd');
 
 function updateCanonicalPage() {
   let page = '';
@@ -1086,7 +1096,17 @@ function setTime(action = 'next', seekIndex = 0) {
   // restyle client-side.
   if (obsController) obsController.route(start, resolution, tNow);
   lightningController.route(start, resolution, tNow);
-  updateMapTimeDisplay(timeISO);
+
+  // First/last frame times under the strip, and the clock's date visibility.
+  // Show the date only when the window spans a day other than today — either
+  // stale data (whole window in the past) or a window straddling midnight; a
+  // ≤1 h window has at most two dates, so start + end cover every frame. When
+  // shown, it stays on for the whole window (incl. the today-side frames).
+  timelineStartEl.textContent = dayjs(start).format('LT');
+  timelineEndEl.textContent = dayjs(end).format('LT');
+  const today = dayjs();
+  const showDate = !dayjs(start).isSame(today, 'day') || !dayjs(end).isSame(today, 'day');
+  updateMapTimeDisplay(timeISO, showDate);
 }
 
 //
