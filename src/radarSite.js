@@ -116,6 +116,10 @@ export default function initRadarSite({
   // single-variant preference in resolveProduct; defaulting to false keeps
   // the pvol behavior when the capability data isn't available.
   isLayerAdvertised = () => false,
+  // Fired whenever the active single-site product changes (enter / exit /
+  // quantity / sweep) with an activeState() snapshot, or null in composite mode.
+  // Only pane 0 wires this — it drives the bottom single-radar strip.
+  onSingleSiteChange = () => {},
 }) {
   const card = buildCard();
   document.body.appendChild(card);
@@ -286,8 +290,12 @@ export default function initRadarSite({
     };
   }
 
-  function enterSingleSite(feature) {
-    const product = resolveFor(feature);
+  // Enter/switch to a site with an explicit quantity + elevation. The card path
+  // passes the card's chosen selection; the strip passes the active site's
+  // current values with one field changed — so a strip edit never picks up the
+  // card's pending selection for some other feature.
+  function enterSingleSiteResolved(feature, quantity, elevation) {
+    const product = resolveProduct(feature, isLayerAdvertised, quantity, elevation);
     if (!product || product.unavailable) return;
     // Turning the radar on first means a drill-in from a hidden radar layer
     // shows the site rather than silently arming an invisible layer.
@@ -296,7 +304,7 @@ export default function initRadarSite({
     // switch — never capture a site layer as the composite.
     const savedComposite = singleSite ? singleSite.savedComposite : getRadarParams().LAYERS;
     // Pass ELEVATION through updateLayer so the very first site request
-    // carries the lowest sweep in the same params update as LAYERS.
+    // carries the sweep in the same params update as LAYERS.
     updateLayer(radarLayer, product.wmsLayer, {
       skipPersist: true, skipTracking: true, elevation: product.elevation,
     });
@@ -313,6 +321,11 @@ export default function initRadarSite({
     // Coverage rings are part of "showing this radar": redraw for the active
     // site (this also handles a site→site switch).
     drawCoverage(feature);
+    notifyChange();
+  }
+
+  function enterSingleSite(feature) {
+    enterSingleSiteResolved(feature, chosenQuantityFor(feature), chosenElevationFor(feature));
   }
 
   // restore=true swaps back to the saved composite; restore=false only clears
@@ -339,6 +352,43 @@ export default function initRadarSite({
     updateActiveIndicator();
     clearCoverage();
     renderToggle();
+    notifyChange();
+  }
+
+  // Snapshot of the active single-site product for the bottom strip (null in
+  // composite mode).
+  function activeState() {
+    if (!singleSite) return null;
+    const f = singleSite.feature;
+    return {
+      name: f.get('name') || 'Tutka-asema',
+      nod: f.get('nod'),
+      quantity: singleSite.quantity,
+      elevation: singleSite.elevation,
+      moments: availableMoments(f),
+      angles: availableAngles(f),
+    };
+  }
+
+  function notifyChange() {
+    onSingleSiteChange(activeState());
+  }
+
+  // Strip-driven edits of the ACTIVE site: change one of (quantity, elevation)
+  // and keep the other. Re-enters via the same path as the card so the
+  // FramePool refetches; keeps the card's selectors in sync when it happens to
+  // be open on this same site.
+  function setActiveQuantity(q) {
+    if (!singleSite || q === singleSite.quantity) return;
+    const { feature } = singleSite;
+    enterSingleSiteResolved(feature, q, singleSite.elevation);
+    if (cardFeature === feature) { selectedQuantity = q; renderMoments(); renderToggle(); }
+  }
+  function setActiveElevation(a) {
+    if (!singleSite || a === singleSite.elevation) return;
+    const { feature } = singleSite;
+    enterSingleSiteResolved(feature, singleSite.quantity, a);
+    if (cardFeature === feature) { selectedElevation = a; renderAngles(); renderToggle(); }
   }
 
   // Rebuild the moment segmented control for the shown feature. Hidden unless
@@ -516,5 +566,7 @@ export default function initRadarSite({
     getActiveWmsLayer,
     getSavedComposite,
     getActiveSiteLonLat,
+    setActiveQuantity,
+    setActiveElevation,
   };
 }

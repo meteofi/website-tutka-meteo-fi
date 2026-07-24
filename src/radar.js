@@ -42,6 +42,7 @@ import initOwnLocation from './ownLocation';
 import initOwnLocationMenu from './ui/ownLocationMenu';
 import initPlaceSearch from './ui/placeSearch';
 import initSpeedDial from './ui/speedDial';
+import initRadarStrip from './ui/radarStrip';
 import initSearchHighlight from './search/searchHighlight';
 import FramePool from './animation/framePool';
 import { canInterpolate, RadarInterpolator } from './animation/interpolation';
@@ -76,6 +77,7 @@ let ownPosition4326 = [];
 let ownLocation;
 let ownLocationMenu;
 let speedDial = null;
+let radarStrip = null;
 let placeSearch = null;
 let tools = null;
 let rangeCircle = null;
@@ -1534,6 +1536,10 @@ function initPaneRadarSite(pane) {
     drawCoverage: (feature) => drawRadarCoverage(pane, feature),
     clearCoverage: () => clearRadarCoverage(pane),
     isLayerAdvertised: isRadarLayerAdvertised,
+    // Only pane 0 drives the shared bottom single-radar strip.
+    onSingleSiteChange: pane.index === 0
+      ? (state) => { if (radarStrip) radarStrip.update(state); }
+      : undefined,
   });
 }
 
@@ -2866,6 +2872,15 @@ const main = () => {
     rangeCircle,
     freehand,
     sectionLine,
+  });
+  // Bottom single-radar strip (site · sweep · quantity · close). Created before
+  // pane 0's radarSite so its onSingleSiteChange has something to update; the
+  // strip's edits route back into pane 0's radarSite (set on the next line).
+  radarStrip = initRadarStrip({
+    element: document.getElementById('radarStrip'),
+    onSelectElevation: (a) => { if (radarSite) radarSite.setActiveElevation(a); },
+    onSelectQuantity: (q) => { if (radarSite) radarSite.setActiveQuantity(q); },
+    onExit: () => { if (radarSite) radarSite.exitSingleSite({ restore: true }); },
   });
   initPaneRadarSite(pane0);
   radarSite = pane0.radarSite;
