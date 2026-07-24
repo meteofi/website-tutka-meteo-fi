@@ -1293,7 +1293,29 @@ body.split-4 #placeSearchButton {
   }
   .bar-controls > button:hover { background: rgba(255, 255, 255, 0.08); }
   .bar-controls .material-icons { font-size: 24px; }
-  #speedButton { font: 600 13px 'Roboto', sans-serif; min-width: 28px; }
+
+  /* Play is the transport anchor — a filled accent disc (per the mockup). */
+  #playButton {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border-radius: 50%;
+    background: var(--dark-primary-color-bg);
+  }
+  #playButton:hover { background: rgba(18, 188, 250, 0.22); }
+  #playButton .material-icons { color: var(--dark-primary-color); font-size: 26px; }
+
+  /* Playback-rate pill (1× / 2× / 0.5×). */
+  #speedButton {
+    min-width: 30px;
+    padding: 5px 9px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.07);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.10);
+    color: var(--dark-medium-emphasis-text-color);
+    font: 600 12px 'Roboto', sans-serif;
+  }
+  #speedButton:hover { background: rgba(255, 255, 255, 0.12); color: var(--dark-theme-on-surface); }
 
   /* Rev / fwd only where there's room — phones scrub the timeline instead
      (drag/tap to seek). The "following newest frame" cue survives on mobile via
@@ -1324,25 +1346,25 @@ body.split-4 #placeSearchButton {
     cursor: pointer;
   }
 
-  /* The colour strip is only 4 px tall; extend the pointer/tap target downward
-     (into the bar's own padding, never up onto the play controls) so tap and
-     drag scrubbing are finger-friendly. The proper 13 px track arrives with the
-     one-line-bar redesign. */
+  /* Extend the pointer/tap target a little beyond the 13 px track so tap and
+     drag scrubbing stay finger-friendly, without reaching up onto the controls. */
   #timeline::before {
     content: '';
     position: absolute;
     left: 0;
     right: 0;
-    top: -4px;
-    bottom: -14px;
+    top: -6px;
+    bottom: -8px;
   }
 
   #timeline > div {
     flex: 1 1 0;
-    height: 4px;
+    height: 13px;
     margin: 0;
-
+    position: relative;
   }
+  #timeline > div:first-child { border-radius: 6px 0 0 6px; }
+  #timeline > div:last-child { border-radius: 0 6px 6px 0; }
 
   /* Default: frame loaded AND flow ready for the current view —
      neutral dark gray. Interpolation will animate through this
@@ -1366,6 +1388,19 @@ body.split-4 #placeSearchButton {
   #timeline > div.timeline-current {
     background-color: var(--dark-primary-color);
     border-left: 1px solid rgb(0, 84, 99);
+  }
+  /* Playhead cap over the current cell (per the mockup). */
+  #timeline > div.timeline-current::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: -3px;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border: 4px solid transparent;
+    border-top-color: var(--dark-primary-color);
+    filter: drop-shadow(0 0 2px rgba(18, 188, 250, 0.6));
   }
 
   /* Probe chart row — collapses to height 0 when no pin / unsupported layer.
