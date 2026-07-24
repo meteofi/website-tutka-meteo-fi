@@ -225,10 +225,11 @@ export default function initProbe({ container, onValueChange }) {
   const NO_EMIT = Symbol('no-emit');
   let lastEmittedValue = NO_EMIT;
 
-  // The load-state strip below has 13 equal-flex cells. To keep the chart's
-  // bends and the vertical cursor visually centered on each cell, we anchor
-  // every frame point at its cell midpoint: x = (frameIdx + 0.5) / 13 * W.
+  // The load-state strip below has 13 equal-flex cells separated by a 2px gap.
+  // To keep each bar centered on its cell, mirror that gap here and anchor every
+  // bar at its cell midpoint.
   const STRIP_CELLS = 13;
+  const CELL_GAP = 2; // px — must match #timeline's flex gap in radar.css
 
   function showMessage(text) {
     message.textContent = text || '';
@@ -278,7 +279,7 @@ export default function initProbe({ container, onValueChange }) {
 
     const padY = 4;
     const innerH = H - padY * 2;
-    const cellW = W / STRIP_CELLS;
+    const cellW = (W - (STRIP_CELLS - 1) * CELL_GAP) / STRIP_CELLS;
     const barW = Math.max(2, cellW * 0.7);
 
     const visible = series.filter((p) => p.t >= startMs - 1 && p.t <= endMs + 1);
@@ -321,7 +322,7 @@ export default function initProbe({ container, onValueChange }) {
     for (let idx = 0; idx < STRIP_CELLS; idx += 1) {
       const cell = peakByCell[idx];
       if (cell == null) continue; // eslint-disable-line no-continue
-      const cx = (idx + 0.5) * cellW;
+      const cx = idx * (cellW + CELL_GAP) + cellW / 2;
       // Bars grow from the value-0 baseline (bottom for dBZ, mid-axis for a
       // signed moment) to the sample's value.
       const f = barFractions(cell.val, spec);

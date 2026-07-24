@@ -1336,6 +1336,7 @@ body.split-4 #placeSearchButton {
 
   #timeline {
     display: flex;
+    gap: 2px; /* segmented cells; probe.js mirrors this gap so bars stay aligned */
     margin: 0;
     padding: 0;
     width: 100%;
@@ -1361,7 +1362,6 @@ body.split-4 #placeSearchButton {
     flex: 1 1 0;
     height: 13px;
     margin: 0;
-    position: relative;
   }
   #timeline > div:first-child { border-radius: 6px 0 0 6px; }
   #timeline > div:last-child { border-radius: 0 6px 6px 0; }
@@ -1387,20 +1387,6 @@ body.split-4 #placeSearchButton {
   /* Current cursor — bright primary, wins over everything. */
   #timeline > div.timeline-current {
     background-color: var(--dark-primary-color);
-    border-left: 1px solid rgb(0, 84, 99);
-  }
-  /* Playhead cap over the current cell (per the mockup). */
-  #timeline > div.timeline-current::after {
-    content: '';
-    position: absolute;
-    left: 50%;
-    top: -3px;
-    transform: translateX(-50%);
-    width: 0;
-    height: 0;
-    border: 4px solid transparent;
-    border-top-color: var(--dark-primary-color);
-    filter: drop-shadow(0 0 2px rgba(18, 188, 250, 0.6));
   }
 
   /* Probe chart row — collapses to height 0 when no pin / unsupported layer.
