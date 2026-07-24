@@ -50,6 +50,21 @@
   }
 }
 
+/* The single-radar strip adds a row at the top of the time control, so the
+   floating buttons must clear it too. Combined selectors compose with the
+   panel-open overrides via :has() specificity (two :has() beat one), and the
+   desktop-sized values are safely generous on mobile (panels are shorter).
+   TODO: estimated like the base height — fine-tune against a real render. */
+:root:has(#radarStrip:not([hidden])) {
+  --timecontrol-height: 112px;
+}
+:root:has(#radarStrip:not([hidden])):has(#probeChart.open) {
+  --timecontrol-height: 176px;
+}
+:root:has(#radarStrip:not([hidden])):has(#sectionPanel.open) {
+  --timecontrol-height: 320px;
+}
+
 html, body {
     width: 100vw;
     height: 100vh;
@@ -1269,11 +1284,82 @@ body.split-4 #placeSearchButton {
     align-items: center;
     column-gap: 8px;
   }
-  #sectionPanel { grid-column: 1 / -1; grid-row: 1; }
-  #probeChart   { grid-column: 2;      grid-row: 2; }
-  .bar-controls { grid-column: 1;      grid-row: 3; }
-  .time-column  { grid-column: 2;      grid-row: 3; min-width: 0; }
-  .bar-clock    { grid-column: 3;      grid-row: 3; }
+  #radarStrip   { grid-column: 1 / -1; grid-row: 1; }
+  #sectionPanel { grid-column: 1 / -1; grid-row: 2; }
+  #probeChart   { grid-column: 2;      grid-row: 3; }
+  .bar-controls { grid-column: 1;      grid-row: 4; }
+  .time-column  { grid-column: 2;      grid-row: 4; min-width: 0; }
+  .bar-clock    { grid-column: 3;      grid-row: 4; }
+
+  /* Single-radar strip — flat segmented bar, topmost in the time control. The
+     bar's own border doubles as the segment dividers (border-left per segment);
+     kept short so it adds little height. Shown only in single-radar mode. */
+  #radarStrip {
+    display: flex;
+    align-items: stretch;
+    height: 30px;
+    margin-bottom: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 9px;
+    color: var(--dark-theme-on-surface);
+    font-family: 'Roboto', sans-serif;
+    overflow: hidden;
+  }
+  #radarStrip[hidden] { display: none; }
+  #radarStrip .rs-site {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0 12px;
+    color: var(--dark-primary-color);
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+  #radarStrip .rs-site .material-icons { font-size: 16px; flex: none; }
+  #radarStrip .rs-site-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #radarStrip .rs-seg {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 12px;
+    border-left: 1px solid rgba(255, 255, 255, 0.16);
+  }
+  #radarStrip .rs-seg[hidden] { display: none; }
+  #radarStrip .rs-label {
+    font-size: 9.5px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--dark-medium-emphasis-text-color);
+  }
+  #radarStrip .rs-select {
+    appearance: none;
+    -webkit-appearance: none;
+    border: none;
+    outline: none;
+    padding: 4px 8px;
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: inset 0 0 0 1px rgba(18, 188, 250, 0.35);
+    color: var(--dark-primary-color);
+    font: 600 12px 'Roboto', sans-serif;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+  }
+  #radarStrip .rs-select:focus-visible { box-shadow: inset 0 0 0 1px var(--dark-primary-color); }
+  #radarStrip .rs-exit {
+    all: unset;
+    display: grid;
+    place-items: center;
+    padding: 0 10px;
+    border-left: 1px solid rgba(255, 255, 255, 0.16);
+    color: var(--dark-medium-emphasis-text-color);
+    cursor: pointer;
+  }
+  #radarStrip .rs-exit:hover { color: var(--dark-theme-on-surface); }
+  #radarStrip .rs-exit .material-icons { font-size: 18px; }
 
   /* The time column stacks the scrub track over its first/last-frame labels;
      the track stays full-column-width so the probe (col 2) aligns with it. */
