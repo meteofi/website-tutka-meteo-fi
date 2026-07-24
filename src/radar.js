@@ -2128,12 +2128,18 @@ function closeOverflowIfOutside(e) {
   if (!overflowMenuEl.classList.contains('open')) return;
   if (overflowMenuEl.contains(e.target)) return;
   if (menuButtonEl.contains(e.target)) return;
+  // The open backdrop (z 110) covers the whole screen, including the menu
+  // button (z 100). On touch, closing here removes the backdrop, so the
+  // synthesized mouseup for this same tap would then land on the now-exposed
+  // button and reopen the menu. Suppress the compatibility mouse events for the
+  // closing tap so the button's mouseup toggle never fires.
+  if (e.cancelable) e.preventDefault();
   closeOverflowMenu();
 }
 window.addEventListener('mouseup', closeOverflowIfOutside);
 // Mirror on touchend for touch-only devices where upstream preventDefault
 // can swallow the synthesized mouseup (same pattern the long-press menus use).
-window.addEventListener('touchend', closeOverflowIfOutside);
+window.addEventListener('touchend', closeOverflowIfOutside, { passive: false });
 
 // Tool group (Mittaa + Pistemittaus) — the FAB doubles as a Photoshop-style
 // tool group. Tapping it opens a sideways flyout AND re-arms the last-used

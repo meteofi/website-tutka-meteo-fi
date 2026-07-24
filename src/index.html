@@ -82,13 +82,13 @@
         <span class="indicator" aria-hidden="true"></span>
       </button>
     </div>
-    <button id="menuButton" class="glass-fab" aria-haspopup="menu" aria-expanded="false" aria-controls="overflowMenu" aria-label="Valikko">
+    <button id="menuButton" class="glass-fab noselect" aria-haspopup="menu" aria-expanded="false" aria-controls="overflowMenu" aria-label="Valikko">
       <i class="material-icons" aria-hidden="true">more_horiz</i>
     </button>
   </nav>
 
-  <div id="overflowMenuBackdrop"></div>
-  <div id="overflowMenu" role="menu" hidden>
+  <div id="overflowMenuBackdrop" class="noselect"></div>
+  <div id="overflowMenu" class="noselect" role="menu" hidden>
     <div class="menu-header">Näkymä</div>
     <div class="theme-chips" role="radiogroup" aria-label="Näkymä">
       <button class="chip" role="radio" aria-checked="true" data-layout="1-up" aria-label="Yksi ruutu">1</button>
@@ -166,7 +166,7 @@
       </button>
     </div>
   </div>
-  <div id="toolFlyoutBackdrop"></div>
+  <div id="toolFlyoutBackdrop" class="noselect"></div>
 
   <button id="locationLayerButton" class="location-fab noselect" aria-pressed="false" aria-label="Paikannus">
     <i id="gpsStatus" class="material-icons" aria-hidden="true">gps_not_fixed</i>
@@ -278,7 +278,7 @@
     </div>
   </div>
 
-  <div id="playListBackdrop"></div>
+  <div id="playListBackdrop" class="noselect"></div>
   <div id="playList">
     <div class="playlist-handle"></div>
     <div class="playlist-header">
