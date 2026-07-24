@@ -1358,17 +1358,11 @@ body.split-4 #placeSearchButton {
   #radarStrip .rs-exit:hover { color: var(--dark-theme-on-surface); }
   #radarStrip .rs-exit .material-icons { font-size: 18px; }
 
-  /* Site identity scales with width: symbol + name + code (wide) →
-     symbol + name (large phones, e.g. Pro Max) → symbol + code (small phones,
-     where a truncated name is useless — the short code always fits). */
+  /* The name shows at every width now that the Kulma/Suure labels are gone
+     (it ellipsizes if a long one ever overflows); the code is the wide-screen
+     extra, dropped on phones to keep the name roomy. */
   @media (max-width: 600px) {
     #radarStrip .rs-site-code { display: none; }
-  }
-  @media (max-width: 420px) {
-    #radarStrip .rs-site-name { display: none; }
-    #radarStrip .rs-site-code { display: inline; }
-    #radarStrip .rs-site-code::before,
-    #radarStrip .rs-site-code::after { content: none; }
   }
 
   /* The time column stacks the scrub track over its first/last-frame labels;
