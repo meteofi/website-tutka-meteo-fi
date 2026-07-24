@@ -1272,8 +1272,25 @@ body.split-4 #placeSearchButton {
   #sectionPanel { grid-column: 1 / -1; grid-row: 1; }
   #probeChart   { grid-column: 2;      grid-row: 2; }
   .bar-controls { grid-column: 1;      grid-row: 3; }
-  #timeline     { grid-column: 2;      grid-row: 3; min-width: 0; }
+  .time-column  { grid-column: 2;      grid-row: 3; min-width: 0; }
   .bar-clock    { grid-column: 3;      grid-row: 3; }
+
+  /* The time column stacks the scrub track over its first/last-frame labels;
+     the track stays full-column-width so the probe (col 2) aligns with it. */
+  .time-column {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .timeline-times {
+    display: flex;
+    justify-content: space-between;
+    padding: 0 1px;
+    font-size: 9px;
+    line-height: 1;
+    color: var(--dark-medium-emphasis-text-color);
+    font-variant-numeric: tabular-nums;
+  }
 
   .bar-controls {
     display: flex;
@@ -1360,7 +1377,7 @@ body.split-4 #placeSearchButton {
 
   #timeline > div {
     flex: 1 1 0;
-    height: 13px;
+    height: 10px;
     margin: 0;
   }
   #timeline > div:first-child { border-radius: 6px 0 0 6px; }
@@ -1548,6 +1565,9 @@ body.split-4 #placeSearchButton {
   font-size: 0.8em;
   color: var(--dark-theme-on-surface);
 }
+/* The date is shown only when the animation window includes a day other than
+   today (stale data, or a window straddling midnight) — see setTime. */
+#currentMapDate.date-hidden { display: none; }
 
 /* ETA — small countdown to the next image arrival. Shown below the
    map time/date when at least one visible layer has a known
