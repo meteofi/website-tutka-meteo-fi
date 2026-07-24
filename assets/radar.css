@@ -1319,6 +1319,10 @@ body.split-4 #placeSearchButton {
   }
   #radarStrip .rs-site .material-icons { font-size: 16px; flex: none; }
   #radarStrip .rs-site-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* Code wears parens only alongside the name; hidden when the site has no code. */
+  #radarStrip .rs-site-code::before { content: '('; }
+  #radarStrip .rs-site-code::after { content: ')'; }
+  #radarStrip .rs-site-code:empty { display: none; }
   #radarStrip .rs-seg {
     display: flex;
     align-items: center;
@@ -1327,13 +1331,6 @@ body.split-4 #placeSearchButton {
     border-left: 1px solid rgba(255, 255, 255, 0.16);
   }
   #radarStrip .rs-seg[hidden] { display: none; }
-  #radarStrip .rs-label {
-    font-size: 9.5px;
-    font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--dark-medium-emphasis-text-color);
-  }
   #radarStrip .rs-select {
     appearance: none;
     -webkit-appearance: none;
@@ -1360,6 +1357,19 @@ body.split-4 #placeSearchButton {
   }
   #radarStrip .rs-exit:hover { color: var(--dark-theme-on-surface); }
   #radarStrip .rs-exit .material-icons { font-size: 18px; }
+
+  /* Site identity scales with width: symbol + name + code (wide) →
+     symbol + name (large phones, e.g. Pro Max) → symbol + code (small phones,
+     where a truncated name is useless — the short code always fits). */
+  @media (max-width: 600px) {
+    #radarStrip .rs-site-code { display: none; }
+  }
+  @media (max-width: 420px) {
+    #radarStrip .rs-site-name { display: none; }
+    #radarStrip .rs-site-code { display: inline; }
+    #radarStrip .rs-site-code::before,
+    #radarStrip .rs-site-code::after { content: none; }
+  }
 
   /* The time column stacks the scrub track over its first/last-frame labels;
      the track stays full-column-width so the probe (col 2) aligns with it. */

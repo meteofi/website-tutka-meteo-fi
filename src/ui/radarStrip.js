@@ -12,17 +12,20 @@ export default function initRadarStrip({
   onSelectQuantity, // (string) — chosen moment code (DBZH / VRADH / …)
   onExit, // () — back to the composite
 }) {
+  // Name and code are separate spans so CSS can drop one by width: name+code on
+  // wide, name on large phones, code only on small ones (a truncated name is
+  // useless). No Kulma/Suure labels — the values (0.5° / DBZH) speak for
+  // themselves and the space is better spent on the site name.
   element.innerHTML = `
     <span class="rs-site">
       <i class="material-icons" aria-hidden="true">cell_tower</i>
       <span class="rs-site-name"></span>
+      <span class="rs-site-code"></span>
     </span>
     <span class="rs-seg rs-angle" hidden>
-      <span class="rs-label">Kulma</span>
       <select class="rs-select rs-angle-select" aria-label="Korkeuskulma"></select>
     </span>
     <span class="rs-seg rs-quantity" hidden>
-      <span class="rs-label">Suure</span>
       <select class="rs-select rs-quantity-select" aria-label="Tutkasuure"></select>
     </span>
     <button type="button" class="rs-exit" aria-label="Näytä koostekuva">
@@ -31,6 +34,7 @@ export default function initRadarStrip({
   `;
 
   const siteName = element.querySelector('.rs-site-name');
+  const siteCode = element.querySelector('.rs-site-code');
   const angleSeg = element.querySelector('.rs-angle');
   const angleSelect = element.querySelector('.rs-angle-select');
   const quantitySeg = element.querySelector('.rs-quantity');
@@ -51,7 +55,8 @@ export default function initRadarStrip({
   function update(state) {
     if (!state) { element.hidden = true; return; }
     element.hidden = false;
-    siteName.textContent = state.nod ? `${state.name} (${state.nod})` : state.name;
+    siteName.textContent = state.name;
+    siteCode.textContent = state.nod || '';
 
     // A selector only earns its place when there's a real choice (≥2 options);
     // a single-sweep / single-moment site just shows the site name.
