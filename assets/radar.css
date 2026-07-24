@@ -1071,6 +1071,15 @@ body.split-4 #placeSearchButton {
     transition: opacity 180ms ease, transform 180ms ease;
     pointer-events: none;
     box-sizing: border-box;
+    /* Cap to the viewport (below the button, above the safe-area bottom) and
+       scroll inside itself; overscroll-behavior keeps a scroll at the menu's
+       edge from chaining out to pan the map. dvh where supported (falls back
+       to vh) so the mobile URL bar doesn't push the bottom off-screen. */
+    max-height: calc(100vh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 82px);
+    max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 82px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
   }
   #overflowMenu.open {
     opacity: 1;
