@@ -155,14 +155,29 @@ const SEVERITY_RANK = {
   very_severe: 3,
 };
 
-// `volume_trend` as a one-character badge after the reflectivity: a growing
-// cell is the one worth watching, and a word ("kasvaa") would double the label
-// width for every marker. Anything else — including the null a newborn carries
-// and the property being absent on older servers — gets no badge.
-const TREND_MARKS = {
-  growing: ' ▲',
-  decaying: ' ▼',
-};
+// Trend badge after the reflectivity: ▲ intensifying, ▼ weakening, nothing
+// while a cell is holding steady. A word ("voimistuu") would double the label
+// width on every marker, so it stays one character.
+//
+// Driven by `intensity_trend_dbz_min` — the EMA'd mean-intensity trend — rather
+// than `volume_trend`: what the label already reports is reflectivity, so a
+// badge on the same quantity reads as "and it is rising", while a footprint
+// growing on the volume trend can mean the storm merely spread out. The two
+// disagree often enough to matter: on a live sample of 97 tracked cells, 27 of
+// the volume-growing ones were flat or falling in intensity.
+//
+// The deadband keeps the badge off noise. Measured live, the trend spans about
+// ±0.25 dBZ/min (median -0.03), so ±0.1 — half a dBZ over a 5-minute analysis
+// step — marks the cells that are genuinely moving and leaves the middle half
+// unbadged. `null` (newborn, or the property missing) never badges.
+const INTENSITY_TREND_DEADBAND = 0.1;
+
+function trendMark(trend) {
+  if (!Number.isFinite(trend)) return '';
+  if (trend > INTENSITY_TREND_DEADBAND) return ' ▲';
+  if (trend < -INTENSITY_TREND_DEADBAND) return ' ▼';
+  return '';
+}
 
 // Severity ramp + halo per theme, same inversion rationale as icaoTextColors in
 // radar.js — and it matters more here, because these marks are only sometimes
@@ -307,9 +322,10 @@ export default function initStormCells() {
       areaKm2: Number.isFinite(p.area_km2) ? p.area_km2 : 0,
       trackAge: age,
       deviant: !!p.deviant_mover,
-      // Volume trend over the last interval. Absent on servers before the
-      // property existed, and null on newborns — both mean "no badge".
-      trend: TREND_MARKS[p.volume_trend] || '',
+      // Intensity trend as a badge. Absent on servers before the property
+      // existed, and null until the tracker has two analyses of the cell —
+      // both mean "no badge".
+      trend: trendMark(p.intensity_trend_dbz_min),
       // Motion is only meaningful once the tracker has two analyses of the
       // cell; before that the server sends nulls rather than zeros. `tracked`
       // is the stronger test the arrows use — the velocity is EMA-smoothed only
