@@ -1047,9 +1047,11 @@ function setTime(action = 'next', seekIndex = 0) {
   timeline.update((startDate.getTime() - start) / resolution);
   if (probe) probe.setCursor(startDate.getTime(), start, resolution);
   if (crossSection) crossSection.setCursor(startDate.getTime(), start, resolution);
-  // Storm cells are advected from their analysis time to the displayed frame,
-  // so the markers stay on the echoes they describe throughout playback.
-  stormCells.setCursor(startDate.getTime());
+  // Storm cells fetch one snapshot per frame where the server retains them and
+  // fall back to advecting the newest analysis; either way the markers stay on
+  // the echoes they describe throughout playback. The window is passed so the
+  // controller knows which frames to prefetch.
+  stormCells.setCursor(startDate.getTime(), start, resolution);
   // Per-pane crosshairs: only active panes get the cursor — inactive panes'
   // reticles are hidden and must not refetch; they pick up the current window
   // on reactivation (setLayout runs setTime before syncCrosshairVisibility).
