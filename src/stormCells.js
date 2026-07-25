@@ -64,11 +64,23 @@
 // but reads as detached from the echo at map zooms — 61% of the collection on a
 // live check), motion arrows only for `track_age >= 3` (age-2 velocities are
 // single-displacement estimates that jitter), and no extra hysteresis on
-// `deviant_mover` (it already encodes 2+ generations of persistence). The same
-// note warns that velocities and `deviant_mover` from before 2026-07-25 could
-// point against the flow; a nearest-neighbour check across two consecutive
-// analyses on 2026-07-25 came out clearly forward (median 2.46 km to the next
-// analysis's nearest cell, vs 4.62 km reversed and 2.99 km static), so the
+// `deviant_mover` (it already encodes 2+ generations of persistence).
+//
+// Lightning (`flash_rate_per_min` / `lightning_jump`) is feature-detected: the
+// properties appear only once a lightning source is wired to the collection,
+// and while they are absent the layer renders no lightning UI whatsoever. When
+// present they are TRI-STATE, and the guide is emphatic that the states differ:
+// a number is measured, `null` is a data gap that must read as "–" rather than
+// as zero, and only `lightning_jump === true` escalates. A jump already means
+// the rate broke 2σ over the cell's own baseline at >= 10 flashes/min — rare,
+// and typically 10-20 min ahead of severe weather — so it gets the violet ring
+// and a bold chip that ignores the zoom gate, while an ordinary nonzero rate
+// gets a plain chip and nothing more.
+//
+// The guide also warns that velocities and `deviant_mover` from before
+// 2026-07-25 could point against the flow. A nearest-neighbour check across two
+// consecutive analyses that day came out clearly forward (median 2.46 km to the
+// next analysis's nearest cell, vs 4.62 km reversed and 2.99 km static), so the
 // arrows point the way the storms are actually going.
 
 import Feature from 'ol/Feature';
@@ -129,6 +141,8 @@ const LABEL_MAX_RESOLUTION = 700;
 const MIN_RADIUS_PX = 5;
 // Arrowhead barbs are a constant screen size, so the vector reads the same at
 // every zoom.
+// Gap between the footprint ring and the lightning-jump ring drawn around it.
+const JUMP_RING_GAP_PX = 5;
 const ARROW_HEAD_PX = 9;
 const MIN_VECTOR_PX = 2.5 * ARROW_HEAD_PX;
 const MAX_LABEL_OFFSET_PX = 48;
@@ -175,6 +189,10 @@ const PALETTES = {
     },
     textFill: '#222222',
     textHalo: '#ffffff',
+    // Lightning jump. Deliberately outside the severity ramp — violet cannot be
+    // mistaken for "one step more severe", which is exactly what an electric
+    // yellow next to the amber/orange tiers would look like.
+    jump: '#7b1fd6',
   },
   dark: {
     halo: 'rgba(0,0,0,0.6)',
@@ -186,12 +204,24 @@ const PALETTES = {
     },
     textFill: '#e8e8e8',
     textHalo: '#000000',
+    jump: '#c77dff',
   },
 };
 
 const EARTH_RADIUS_M = 6371008.8;
 const toRad = (deg) => (deg * Math.PI) / 180;
 const toDeg = (rad) => (rad * 180) / Math.PI;
+
+// Property presence, not truthiness: the lightning fields are absent when the
+// feature is off but null when the data is momentarily missing, and the two
+// must render differently.
+const has = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key);
+
+// Flash rate as shown on the chip: whole numbers once the storm is busy, one
+// decimal while it is still ticking over, so "0.4/min" does not round to "0".
+function formatRate(rate) {
+  return rate >= 10 ? String(Math.round(rate)) : String(Math.round(rate * 10) / 10);
+}
 
 // Great-circle destination from [lon, lat] along `bearingDeg` (degrees
 // clockwise from north = the direction the cell travels). A negative
@@ -287,6 +317,20 @@ export default function initStormCells() {
       speedMs: speed,
       bearingDeg: bearing,
       tracked: speed !== null && bearing !== null && age >= MIN_TRACKED_AGE,
+      // Lightning is tri-state and the three states mean different things:
+      //   ABSENT — no lightning source wired to the collection. Render no
+      //            lightning UI at all, which is why presence is captured
+      //            separately instead of collapsing to a number.
+      //   null   — the lightning DB was unreachable for this snapshot. A data
+      //            gap, NOT quiet: it shows as "–", never as 0.
+      //   0      — measured, and the cell is quiet. Shows nothing.
+      hasLightning: has(p, 'flash_rate_per_min'),
+      flashRate: Number.isFinite(p.flash_rate_per_min) ? p.flash_rate_per_min : null,
+      // Same tri-state. `null` is unknown-this-snapshot and must never be read
+      // as "no jump", so the escalation tests `=== true` rather than truthiness.
+      jump: has(p, 'lightning_jump') && typeof p.lightning_jump === 'boolean'
+        ? p.lightning_jump
+        : null,
     });
     return feature;
   }
@@ -502,6 +546,26 @@ export default function initStormCells() {
       return entry;
     };
 
+    // Lightning styles are severity-independent, so they live here rather than
+    // in the per-severity cache. The jump ring is a second, wider circle around
+    // the footprint: an outline the eye catches at any zoom, and it survives
+    // declutter because it is geometry rather than a symbol.
+    const jumpHalo = new Style({ stroke: new Stroke({ color: palette.halo, width: 5 }) });
+    const jumpRing = new Style({ stroke: new Stroke({ color: palette.jump, width: 2.5 }) });
+    const chipText = (color, weight) => new Style({
+      text: new Text({
+        font: `${weight}11px Roboto, sans-serif`,
+        fill: new Fill({ color }),
+        stroke: new Stroke({ color: palette.textHalo, width: 2.5 }),
+        textBaseline: 'bottom',
+      }),
+    });
+    // Plain rate reads like the other numbers; only a jump escalates (rule 5 —
+    // a jump means the rate broke 2σ over the cell's own baseline, so it must
+    // not look like every thundery cell on the map).
+    const chip = chipText(palette.textFill, '');
+    const chipJump = chipText(palette.jump, '700 ');
+
     return (feature, resolution) => {
       const severity = feature.get('severity');
       const rank = SEVERITY_RANK[severity] ?? 0;
@@ -551,6 +615,17 @@ export default function initStormCells() {
         out.push(entry.vectorHalo, entry.vector);
       }
 
+      // Lightning. Nothing at all when the server sends no lightning fields —
+      // an absent feature must not leave a hole in the UI where a chip would be.
+      const isJump = feature.get('jump') === true;
+      const ringEdgePx = Math.min(radiusUnits / resolution, MAX_LABEL_OFFSET_PX);
+      if (isJump) {
+        const jumpGeom = new CircleGeom(center, radiusUnits + JUMP_RING_GAP_PX * resolution);
+        jumpHalo.setGeometry(jumpGeom);
+        jumpRing.setGeometry(jumpGeom);
+        out.push(jumpHalo, jumpRing);
+      }
+
       if (resolution <= LABEL_MAX_RESOLUTION || rank >= SEVERITY_RANK.severe) {
         const dbz = feature.get('maxDbz');
         const lines = [dbz === null ? '' : `${Math.round(dbz)} dBZ${feature.get('trend')}`];
@@ -560,8 +635,25 @@ export default function initStormCells() {
         // Hug the bottom of the ring — the ring grows with the map, the label
         // offset is in pixels. Capped so a zoomed-in giant cell keeps its label
         // near the marker instead of parking it hundreds of pixels away.
-        entry.label.getText().setOffsetY(Math.min(radiusUnits / resolution, MAX_LABEL_OFFSET_PX) + 4);
+        entry.label.getText().setOffsetY(ringEdgePx + 4);
         out.push(entry.label);
+      }
+
+      if (feature.get('hasLightning')) {
+        const rate = feature.get('flashRate');
+        // A measured zero renders nothing; an unknown renders a dash, so a
+        // lightning outage never reads as "no thunder here".
+        const text = rate === null ? '⚡ –' : (rate > 0 ? `⚡ ${formatRate(rate)}/min` : '');
+        // A jump is rare and time-critical, so its chip ignores the zoom gate
+        // the other labels obey — it is the one thing worth seeing at synoptic
+        // zoom. Sits above the ring, clear of the dBZ/speed lines below it.
+        if (text && (isJump || resolution <= LABEL_MAX_RESOLUTION)) {
+          const style = isJump ? chipJump : chip;
+          style.setGeometry(new Point(center));
+          style.getText().setText(text);
+          style.getText().setOffsetY(-(ringEdgePx + (isJump ? JUMP_RING_GAP_PX : 0) + 4));
+          out.push(style);
+        }
       }
       return out;
     };
