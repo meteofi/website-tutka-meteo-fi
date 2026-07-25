@@ -15,6 +15,10 @@
  * @param {Function} getActiveLayer - returns the current active WMS layer name for highlighting
  * @param {Function} isLayerVisible - returns whether the layer is currently visible
  * @param {Function} [onMenuShown] - called whenever the long-press menu opens
+ * @param {Function} [onBeforeShow] - called with the menu element right before it
+ *   is measured and positioned, so the opener can populate variable-height
+ *   content (the layer-control panel) and have the flip-up / scroll math see the
+ *   final height
  * @returns {{ show: Function, hide: Function }}
  */
 // Per-menu state, kept off the DOM. A shared sublayer menu may be driven by
@@ -31,7 +35,7 @@ export function longPressMenuOpener(menuEl) {
   return (state && state.opener) || null;
 }
 
-function createLongPressHandler(button, menuId, onTap, onSelect, getActiveLayer, isLayerVisible, onMenuShown) {
+function createLongPressHandler(button, menuId, onTap, onSelect, getActiveLayer, isLayerVisible, onMenuShown, onBeforeShow) {
   let timer = null;
   let triggered = false;
   let startTime = 0;
@@ -50,6 +54,10 @@ function createLongPressHandler(button, menuId, onTap, onSelect, getActiveLayer,
     menuItems.forEach((item) => {
       item.classList.toggle('selected', visible && item.getAttribute('data-layer') === currentLayer);
     });
+
+    // Populate the layer-control panel (style/opacity/info) before measuring, so
+    // the flip-up + max-height/scroll math below sees the menu's final height.
+    if (onBeforeShow) onBeforeShow(menu);
 
     const vw = window.innerWidth;
     const vh = window.innerHeight;
