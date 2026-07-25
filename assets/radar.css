@@ -1969,7 +1969,12 @@ body.split-4 #placeSearchButton {
 }
 
 .lp-styles {
-  /* reuses .card-styles chip styling; scrolls horizontally when many */
+  /* Reuses .card-styles chip styling, but wraps instead of scrolling: the panel
+     has vertical room and a horizontal scrollbar was ugly in Chrome and
+     unreachable in desktop Safari (no h-scroll without the right mouse). All 5
+     radar styles stay visible and tappable. */
+  flex-wrap: wrap;
+  overflow-x: visible;
   margin-bottom: 4px;
 }
 
