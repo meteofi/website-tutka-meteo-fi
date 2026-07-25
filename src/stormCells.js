@@ -10,54 +10,44 @@
 //
 // Unlike the other POI layers this one is NOT wall-clock static — it is
 // clock-coupled, but through `setCursor` (like crossSection.js), never through
-// a FramePool. Cells must match the frame under them: the analysis lags the
-// newest radar frame by ~5-10 min, and playback sweeps a 1 h window, so one
-// "now" snapshot held across the loop puts markers nowhere near their echoes.
+// a FramePool. Every animation frame shows the snapshot the server holds for
+// that frame's instant (`?datetime=<frame instant>`), fetched per frame and
+// cached; the window is prefetched displayed-frame-first, then outward (the
+// crossSection.js ordering), <= 3 in flight.
 //
-// Two paths, picked per frame by what the server actually holds — read from
-// `extent.temporal` on every poll by `refreshRetention`, never assumed:
+// NOTHING IS EXTRAPOLATED. Earlier revisions advected cells along their motion
+// vectors to fill frames the server had no snapshot for; that is gone by
+// explicit choice. What the collection reports for a frame is what the layer
+// draws, and a frame the server has nothing for — older than the retained
+// range, or ahead of the newest analysis, since there are no forecast cells —
+// draws empty. Only frames inside the advertised retained range are requested
+// at all, so the empty ones cost no traffic. The single stale-tolerating step
+// is holding the previous frame's cells while a fetch is in flight rather than
+// blanking mid-playback (the StickyImageWMS rule); the moment the response
+// lands the display is exactly that response.
 //
-//   1. PER-FRAME SNAPSHOTS (server >= 2026-07-25, ~4 h / 48 snapshots
-//      retained). `?datetime=<frame instant>` returns the snapshot for that
-//      frame, so every frame of the window shows the cells that were actually
-//      there. Only frames inside the advertised retained range are requested:
-//      right after a deploy that range grows one snapshot at a time, and
-//      asking for the rest would be a dozen requests answered with 0 features.
-//      The window is prefetched displayed-frame-first, then outward (the
-//      crossSection.js ordering), <= 3 in flight, and the last good set stays
-//      on screen while a frame loads (StickyImageWMS philosophy).
-//   2. ADVECTION FALLBACK. Used wherever a snapshot cannot exist: a server
-//      without retention, and the leading frames that run past the newest
-//      analysis (there are no forecast cells — a future instant returns 0
-//      features). The newest snapshot's cells are then extrapolated along
-//      their own motion vectors to the frame time.
-//
-// The fallback follows the server author's reliability rules: only tracks with
-// `track_age >= 3` carry an EMA-smoothed velocity, so younger cells are never
-// advected — they are pinned to their analysis frame and hidden elsewhere — and
-// no cell is extrapolated back past its own track length, where it would invent
-// a cell that had not formed yet. The layer also fades with distance from the
-// snapshot it is showing, so an extrapolated position never reads as an
-// observation. On path 1 that distance is zero and the fade never engages.
+// The motion arrows are not extrapolation either: they draw `speed_ms` and
+// `bearing_deg` as the server reports them, projected 30 min ahead as an
+// annotation, and only for tracks old enough to carry a smoothed velocity.
 //
 // Server contract notes (measured against the live API on 2026-07-25):
-//   * retention is the one thing this module reads rather than assumes, because
-//     it changed under the client: the server first held ONE analysis instant
-//     (any other `datetime=` returned numberMatched 0, in every spelling), then
-//     gained ~4 h of snapshots — starting from empty and filling one analysis at
-//     a time. `refreshRetention` therefore re-reads `extent.temporal` on every
-//     poll instead of latching a mode once. No coordinated deploy, correct
-//     behaviour while the history fills, and a rollback degrades to advection
-//     instead of an empty layer;
+//   * retention is read, never assumed, because it changed under the client:
+//     the server first held ONE analysis instant (any other `datetime=`
+//     returned numberMatched 0, in every spelling), then gained ~4 h of
+//     snapshots — starting from empty and filling one analysis at a time. The
+//     poll re-reads `extent.temporal` every minute instead of latching a mode
+//     once, which is also how a new analysis is detected: the range moving is
+//     the signal to clear misses and refill. That range decides which frames
+//     are requested, so the layer needs no coordinated deploy and behaves
+//     correctly while the history fills;
 //   * `datetime=` takes the frame instant in any ISO spelling (`.000Z` included)
 //     and answers with the newest snapshot at or before it; future instants have
 //     no cells at all, since the collection carries no forecast;
 //   * property filters (`severity=`, `observed=`, …) are silently IGNORED — the
 //     server advertises only the OGC API Features core conformance classes and
 //     its /queryables response is empty. Filtering is the client's job;
-//   * the whole collection is ~200 features / ~13 kB gzipped — fetched in one
-//     unfiltered request, no bbox slicing (bbox would defeat cache reuse for no
-//     real gain);
+//   * a snapshot is ~200 features / ~13 kB gzipped, requested whole — no bbox
+//     slicing, which would defeat cache reuse for no real gain;
 //   * responses carry NO ETag/Cache-Control, so a refresh is always a full
 //     transfer — poll only while the layer is actually on and the tab visible;
 //   * `id` is a persistent track id (same storm keeps it across refreshes,
@@ -79,7 +69,7 @@
 // point against the flow; a nearest-neighbour check across two consecutive
 // analyses on 2026-07-25 came out clearly forward (median 2.46 km to the next
 // analysis's nearest cell, vs 4.62 km reversed and 2.99 km static), so the
-// advection above is sound on current data.
+// arrows point the way the storms are actually going.
 
 import Feature from 'ol/Feature';
 import Point from 'ol/geom/Point';
@@ -95,14 +85,6 @@ import {
 const COLLECTION_URL = 'https://meteocore.app.meteo.fi/features/collections/fmi-radar-nowcast';
 const ITEMS_URL = `${COLLECTION_URL}/items?f=application/geo%2Bjson&limit=1000`;
 const META_URL = COLLECTION_URL;
-
-// Retention span (from `extent.temporal`) at which per-frame snapshots become
-// worth requesting: one analysis step, i.e. the moment the collection holds
-// more than the single newest instant. Which frames actually get requested is
-// then decided per frame against the advertised range, so a server whose
-// history is still filling after a deploy serves the frames it has and the
-// rest fall back to advection — no threshold to wait out.
-const MIN_RETENTION_MS = 5 * 60 * 1000;
 
 // Per-frame fetches in flight. The window is 13 frames of ~13 kB gzipped; a
 // small cap keeps the displayed frame's request from queueing behind a dozen
@@ -120,19 +102,9 @@ const FRAME_COUNT = 13;
 // simple fixed interval beats trying to predict the publish moment.
 const REFRESH_MS = 60000;
 
-// Cell lifetime guards for the advection, in seconds of cursor offset from the
-// analysis time. Backwards: never further than the cell's own track length.
-// Forwards: the cursor only ever runs ~10 min past the analysis (newest radar
-// frame vs. cell analysis lag), so 30 min is a safety cap, not a nowcast.
-const TRACK_STEP_S = 300;
-const MAX_FORWARD_S = 1800;
-// Cells whose velocity is not trustworthy yet can only be drawn where they were
-// seen — show them on frames within one radar step of the analysis instead.
-const STATIC_CELL_TOLERANCE_S = 600;
-
 // Velocities are EMA-smoothed only from the third generation on; age-2 is a
-// single-displacement estimate that jitters. Below this age a cell neither
-// advects nor draws an arrow.
+// single-displacement estimate that jitters, so below this age a cell draws no
+// motion arrow — its position is still exactly where the server put it.
 const MIN_TRACKED_AGE = 3;
 
 // Noise tier (client-guide rule): weak cells under this footprint are real
@@ -143,13 +115,6 @@ const NOISE_TIER_MAX_AREA_KM2 = 10;
 const VECTOR_MINUTES = 30;
 // Below this the motion solution is noise, not a direction worth drawing.
 const MIN_VECTOR_SPEED_MS = 1;
-
-// Extrapolation fade (client-guide rule 1): markers are positioned for the
-// analysis frame, so the further the cursor sits from it the less they should
-// assert. Full strength within one radar step, floor at the window edge.
-const FADE_FULL_S = 600;
-const FADE_MAX_S = 2700;
-const FADE_MIN_OPACITY = 0.45;
 
 // Resolutions are map units per pixel in EPSG:3857 (inflated by 1/cos(lat) —
 // ~2.4x at 65°N), the same scale placeNames.js bands against.
@@ -263,7 +228,6 @@ export default function initStormCells() {
     attributions: 'Myrskysolut © FMI (CC BY 4.0)',
   });
 
-  const paneLayers = [];
   // frame instant (ISO) -> snapshot, PENDING while a request is in flight, or
   // MISS when the server has no snapshot for that frame. The three states must
   // stay distinct: misses are cleared when a new analysis lands (the frame may
@@ -275,81 +239,23 @@ export default function initStormCells() {
   let queue = [];
   let windowFrames = [];
   let inFlight = 0;
-  let latest = null;
   let shown = null;
-  let perFrameMode = false;
   // Bounds of the server's retained snapshot range, refreshed on every poll:
   // the window slides, and after a deploy the range grows one snapshot at a
   // time until it reaches its full depth.
   let retainedStartMs = 0;
   let retainedEndMs = 0;
   let cursorMs = Date.now();
-  let analysisMs = 0;
   let enabled = false;
   let timerId = 0;
-  let latestInFlight = null;
-  let lastLoadMs = 0;
+  let refreshInFlight = null;
+  let lastRefreshMs = 0;
 
   // Frame instants are the request key, so they must round-trip exactly: the
   // clock hands out 5-minute steps, and `toISOString` gives the millisecond
   // form the server accepts (the `Z` spelling is honoured alongside the
   // collection's own `+00:00`).
   const isoOf = (ms) => new Date(ms).toISOString();
-
-  //
-  // ADVECTION
-  //
-  // Positions are recomputed on the shared source, so every pane's layer picks
-  // the move up from one mutation. `hidden` is a plain feature property the
-  // style function reads — cheaper than adding/removing features per tick.
-  function advectFeature(feature) {
-    const lon = feature.get('lon');
-    const lat = feature.get('lat');
-    const speed = feature.get('speedMs');
-    const bearing = feature.get('bearingDeg');
-    const dt = (cursorMs - feature.get('observedMs')) / 1000;
-
-    // No trustworthy motion solution (newborn, or a single-displacement age-2
-    // estimate) — the cell can only be drawn where it was seen, so nothing to
-    // move; only its visibility window changes.
-    if (!feature.get('tracked')) {
-      feature.set('hidden', Math.abs(dt) > STATIC_CELL_TOLERANCE_S, true);
-      return;
-    }
-
-    // track_age is in analysis steps; a cell tracked for 4 steps has existed
-    // for 4 * 5 min. Older than that and we would be drawing a cell that had
-    // not formed yet.
-    const maxBackS = Math.max(feature.get('trackAge'), 1) * TRACK_STEP_S;
-    if (dt < -maxBackS || dt > MAX_FORWARD_S) {
-      feature.set('hidden', true, true);
-      return;
-    }
-
-    const [curLon, curLat] = destination(lon, lat, bearing, speed * dt);
-    feature.set('hidden', false, true);
-    feature.setProperties({ curLon, curLat }, true);
-    feature.getGeometry().setCoordinates(fromLonLat([curLon, curLat]));
-  }
-
-  function advectAll() {
-    const features = source.getFeatures();
-    if (!features.length) return;
-    features.forEach(advectFeature);
-    source.changed();
-  }
-
-  // Client-guide rule 1: the markers describe the analysis frame, so the
-  // further the cursor is from it the more they are extrapolation rather than
-  // observation. Fading the whole layer says that without hiding information
-  // the user scrubbed to on purpose.
-  function applyFade() {
-    if (!analysisMs) return;
-    const dt = Math.abs(cursorMs - analysisMs) / 1000;
-    const t = Math.min(Math.max((dt - FADE_FULL_S) / (FADE_MAX_S - FADE_FULL_S), 0), 1);
-    const opacity = 1 - (1 - FADE_MIN_OPACITY) * t;
-    paneLayers.forEach((layer) => layer.setOpacity(opacity));
-  }
 
   //
   // DATA
@@ -366,9 +272,6 @@ export default function initStormCells() {
     feature.setProperties({
       lon,
       lat,
-      curLon: lon,
-      curLat: lat,
-      observedMs: Date.parse(p.observed),
       severity: p.severity || 'weak',
       maxDbz: Number.isFinite(p.max_dbz) ? p.max_dbz : null,
       areaKm2: Number.isFinite(p.area_km2) ? p.area_km2 : 0,
@@ -379,12 +282,11 @@ export default function initStormCells() {
       trend: TREND_MARKS[p.volume_trend] || '',
       // Motion is only meaningful once the tracker has two analyses of the
       // cell; before that the server sends nulls rather than zeros. `tracked`
-      // is the stronger test the arrows and the advection both use — the
-      // velocity is EMA-smoothed only from the third generation on.
+      // is the stronger test the arrows use — the velocity is EMA-smoothed only
+      // from the third generation on.
       speedMs: speed,
       bearingDeg: bearing,
       tracked: speed !== null && bearing !== null && age >= MIN_TRACKED_AGE,
-      hidden: false,
     });
     return feature;
   }
@@ -422,22 +324,23 @@ export default function initStormCells() {
       .then(toSnapshot);
   }
 
-  // Show the snapshot that belongs to the cursor's frame. Exact snapshot when
-  // the server has one; otherwise the latest, advected across the residual gap
-  // and faded — which is also the whole behaviour on a server without history.
+  // Show the snapshot the server holds for the cursor's frame, and nothing
+  // else: no extrapolation, no borrowing a neighbouring frame's cells. A frame
+  // the server has nothing for — older than retention, or ahead of the newest
+  // analysis, where there are no forecast cells — draws empty.
+  //
+  // The one exception is a request still in flight: the previous frame's cells
+  // stay up rather than blanking for the length of a fetch (the StickyImageWMS
+  // rule the raster layers follow). Nothing stale ever *settles* on screen —
+  // the moment the answer arrives the display is exactly that answer.
   function render() {
-    const exact = snapshots.get(isoOf(cursorMs));
-    const usable = exact && exact !== PENDING && exact !== MISS ? exact : null;
-    const snapshot = usable || latest;
-    if (!snapshot) return;
-    if (snapshot !== shown) {
-      shown = snapshot;
-      source.clear(true);
-      source.addFeatures(snapshot.features);
-    }
-    analysisMs = snapshot.observedMs;
-    advectAll();
-    applyFade();
+    const entry = snapshots.get(isoOf(cursorMs));
+    if (entry === PENDING) return;
+    const snapshot = entry && entry !== MISS ? entry : null;
+    if (snapshot === shown) return;
+    shown = snapshot;
+    source.clear(true);
+    if (snapshot) source.addFeatures(snapshot.features);
   }
 
   // Fetch queue: the displayed frame first, then the rest of the window
@@ -479,7 +382,7 @@ export default function initStormCells() {
   }
 
   function requestWindow() {
-    if (!perFrameMode || !windowFrames.length) return;
+    if (!windowFrames.length) return;
     // Drop frames that scrolled out of the window, but never the misses of the
     // current window — those are re-tried by the poll below.
     for (const key of [...snapshots.keys()]) {
@@ -500,15 +403,18 @@ export default function initStormCells() {
     pump();
   }
 
-  // Retention probe, run on every poll rather than once: the retained range
-  // slides with each new analysis, and right after a server deploy it grows one
-  // snapshot at a time from nothing. Reading it (instead of assuming a server
-  // version) means the client needs no redeploy when retention appears, keeps
-  // requesting only frames that exist while the range fills, and falls back to
-  // advection untouched if retention is rolled back.
-  function refreshRetention() {
-    return fetch(META_URL)
-      .then((res) => (res.ok ? res.json() : null))
+  // The one poll: re-read the retained range. It slides with every new analysis
+  // and, right after a server deploy, grows one snapshot at a time from nothing,
+  // so it is read fresh rather than latched — and it doubles as the "a new
+  // analysis landed" signal, which is why no separate unfiltered fetch of the
+  // newest snapshot exists any more. ~1 kB per poll against 13 kB.
+  function refresh() {
+    if (refreshInFlight) return refreshInFlight;
+    refreshInFlight = fetch(META_URL)
+      .then((res) => {
+        if (!res.ok) throw new Error(`storm cells: HTTP ${res.status}`);
+        return res.json();
+      })
       .then((meta) => {
         const interval = meta && meta.extent && meta.extent.temporal
           && meta.extent.temporal.interval && meta.extent.temporal.interval[0];
@@ -519,46 +425,23 @@ export default function initStormCells() {
         const changed = startMs !== retainedStartMs || endMs !== retainedEndMs;
         retainedStartMs = startMs;
         retainedEndMs = endMs;
-        // A collection without history advertises one instant (span 0) and
-        // stays on the advection path; anything wider has real snapshots to
-        // ask for, even if only a couple of frames' worth so far.
-        perFrameMode = endMs - startMs >= MIN_RETENTION_MS;
-        if (changed) requestWindow();
-      })
-      .catch(() => { /* probe again on the next poll */ });
-  }
-
-  function load() {
-    if (latestInFlight) return latestInFlight;
-    latestInFlight = fetchSnapshot(null)
-      .then((snapshot) => {
-        if (!snapshot) return;
-        if (!latest || snapshot.observedMs !== latest.observedMs) {
-          latest = snapshot;
-          // A new analysis landed: frames the server had nothing for may have a
-          // snapshot now, so clear the misses and refill. Requests still in
-          // flight (PENDING) are deliberately left alone — clearing those
-          // re-queued them and fetched the same frame twice.
-          for (const [key, value] of [...snapshots.entries()]) {
-            if (value === MISS) snapshots.delete(key);
-          }
-          requestWindow();
+        lastRefreshMs = Date.now();
+        if (!changed) return;
+        // Frames the server had nothing for may have a snapshot now. Requests
+        // still in flight (PENDING) are deliberately left alone — clearing
+        // those re-queued them and fetched the same frame twice.
+        for (const [key, value] of [...snapshots.entries()]) {
+          if (value === MISS) snapshots.delete(key);
         }
-        lastLoadMs = Date.now();
-        render();
+        requestWindow();
       })
       .catch((err) => {
-        // Offline / server hiccup: keep whatever is on screen (StickyImageWMS
-        // philosophy) and try again on the next tick.
+        // Offline / server hiccup: keep whatever is on screen and try again on
+        // the next tick.
         console.warn(`Storm cells unavailable: ${err}`); // eslint-disable-line no-console
       })
-      .finally(() => { latestInFlight = null; });
-    return latestInFlight;
-  }
-
-  function refresh() {
-    refreshRetention();
-    load();
+      .finally(() => { refreshInFlight = null; });
+    return refreshInFlight;
   }
 
   function stopPolling() {
@@ -577,7 +460,7 @@ export default function initStormCells() {
 
   document.addEventListener('visibilitychange', () => {
     if (!enabled || document.visibilityState !== 'visible') return;
-    if (Date.now() - lastLoadMs >= REFRESH_MS) refresh();
+    if (Date.now() - lastRefreshMs >= REFRESH_MS) refresh();
   });
 
   //
@@ -620,11 +503,10 @@ export default function initStormCells() {
     };
 
     return (feature, resolution) => {
-      if (feature.get('hidden')) return null;
       const severity = feature.get('severity');
       const rank = SEVERITY_RANK[severity] ?? 0;
-      const lon = feature.get('curLon');
-      const lat = feature.get('curLat');
+      const lon = feature.get('lon');
+      const lat = feature.get('lat');
       const center = feature.getGeometry().getCoordinates();
       const entry = styles(severity, feature.get('deviant'));
 
@@ -706,10 +588,6 @@ export default function initStormCells() {
         renderOrder: (a, b) => (SEVERITY_RANK[b.get('severity')] ?? 0) - (SEVERITY_RANK[a.get('severity')] ?? 0),
         style: styleLight,
       });
-      // Kept so the extrapolation fade can reach every pane's layer. Panes are
-      // never destroyed — setLayout hides them — so this never leaks.
-      paneLayers.push(layer);
-      applyFade();
       return layer;
     },
 
@@ -722,7 +600,7 @@ export default function initStormCells() {
         stopPolling();
         return;
       }
-      if (Date.now() - lastLoadMs >= REFRESH_MS) refresh();
+      if (Date.now() - lastRefreshMs >= REFRESH_MS) refresh();
       // The clock may not tick again on its own (paused playback), so seed the
       // window prefetch here too rather than waiting for the next setCursor.
       requestWindow();
@@ -741,8 +619,7 @@ export default function initStormCells() {
       cursorMs = timeMs;
       windowFrames = frames;
       if (!enabled) return;
-      if (windowChanged) requestWindow();
-      else if (perFrameMode && !snapshots.has(isoOf(timeMs))) requestWindow();
+      if (windowChanged || !snapshots.has(isoOf(timeMs))) requestWindow();
       render();
     },
 

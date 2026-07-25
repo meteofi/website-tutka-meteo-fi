@@ -1047,10 +1047,9 @@ function setTime(action = 'next', seekIndex = 0) {
   timeline.update((startDate.getTime() - start) / resolution);
   if (probe) probe.setCursor(startDate.getTime(), start, resolution);
   if (crossSection) crossSection.setCursor(startDate.getTime(), start, resolution);
-  // Storm cells fetch one snapshot per frame where the server retains them and
-  // fall back to advecting the newest analysis; either way the markers stay on
-  // the echoes they describe throughout playback. The window is passed so the
-  // controller knows which frames to prefetch.
+  // Storm cells show the server's snapshot for the displayed frame — nothing
+  // extrapolated, and empty on frames it has none for. The window is passed so
+  // the controller knows which frames to prefetch.
   stormCells.setCursor(startDate.getTime(), start, resolution);
   // Per-pane crosshairs: only active panes get the cursor — inactive panes'
   // reticles are hidden and must not refetch; they pick up the current window
