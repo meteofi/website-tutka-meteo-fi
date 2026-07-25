@@ -43,6 +43,7 @@ import initOwnLocationMenu from './ui/ownLocationMenu';
 import initPlaceSearch from './ui/placeSearch';
 import initSpeedDial from './ui/speedDial';
 import initRadarStrip from './ui/radarStrip';
+import createLayerPanel from './ui/layerPanel';
 import initSearchHighlight from './search/searchHighlight';
 import FramePool from './animation/framePool';
 import { canInterpolate, RadarInterpolator } from './animation/interpolation';
@@ -630,8 +631,8 @@ const sharedView = new View({
 // (src/obs/obsLayer.js) — the wms-obs GeoServer that served the raster is
 // permanently offline and the WMS fallback path (localStorage.OBS_WMS) has
 // been removed. The vector layer's source impersonates the WMS param
-// surface (getParams/updateParams LAYERS), so menus, persistence, playlist
-// and share attributions work unchanged.
+// surface (getParams/updateParams LAYERS), so menus, persistence, the layer
+// panel and share attributions work unchanged.
 const obsController = initObsLayer({ defaultProduct: options.defaultObservationLayer });
 
 // FMI lightning is EDR-backed (the wms-obs GeoServer that rendered
@@ -653,6 +654,12 @@ const lightningController = initLightningLayer({
 // lightning controllers) so its per-pane layer factory can join paneDeps
 // before pane 0 is built; the search UI itself is wired later in main().
 const searchHighlight = initSearchHighlight();
+
+// Layer-control panel (style / opacity / info) folded into each category's
+// long-press menu. Populated on open via createLongPressHandler's onBeforeShow;
+// acts on whichever pane's layer opened the menu. Declared here so buildPanePill
+// (called during pane creation below) can reference it.
+const layerPanel = createLayerPanel();
 
 // Shared dependencies every pane's layers reference — Style objects/functions
 // and the radar-site VectorSource. Passed into createPane so src/pane.js stays
@@ -691,7 +698,7 @@ lightningController.bindMap(0, pane0.map, pane0.lightningWmsLayer);
 // Only the handles still referenced directly by radar.js are aliased; the
 // basemaps, municipality and fairway layers are now reached via `pane.*` in the
 // theme/POI fan-outs.
-const { map, layerss } = pane0;
+const { map } = pane0;
 const {
   satelliteLayer,
   radarLayer,
@@ -785,8 +792,7 @@ function initNewPane(pane) {
   buildPanePools(pane);
   clonePaneDisplay(pane0, pane);
   // Attach the per-pane visibility listener AFTER mirroring (so the clone
-  // doesn't fire a burst of change events before the pane is ready). The
-  // playlist propertychange listener is pane-0 only, so it's not attached here.
+  // doesn't fire a burst of change events before the pane is ready).
   for (const name of PILL_CATEGORIES) {
     pane.layerss[name].on('change:visible', onChangeVisible);
   }
@@ -1602,162 +1608,6 @@ function initPaneCrosshair(pane) {
   }
 }
 
-const _playlistSliderHandlers = {};
-
-function layerInfoPlaylist(event) {
-  const layer = event.target;
-  // The playlist reflects the primary pane only; ignore background panes'
-  // property changes entirely (FIRST check — this fires on every source swap
-  // during playback, so it must stay cheap for non-pane-0 layers).
-  if (layer.get('_paneIndex')) return;
-  const name = layer.get('name');
-  const info = layer.get('info');
-  // Prefer the user-chosen opacity when the interpolator has zeroed
-  // the layer's actual opacity for its transparent swap. Falls back
-  // to layer.opacity for non-interp layers (lightning, observation,
-  // or any layer when interp is off).
-  const baseOp = layer.get('_baseOpacity');
-  const userOp = baseOp !== undefined ? baseOp : layer.get('_userOpacity');
-  const effectiveOpacity = userOp !== undefined ? userOp : layer.get('opacity');
-  const opacity = effectiveOpacity * 100;
-
-  if (typeof info === 'undefined') return;
-
-  // FramePool.showTime swaps primary.setSource(slot.source) every
-  // discrete frame advance during playback. That fires propertychange
-  // with key='source'. Without this guard the whole playlist DOM
-  // rebuilds 2× per second during playback (visible as a pulsing
-  // hover state on style chips), churning CPU for no user-visible
-  // reason — source swaps within the pool never change which WMS
-  // layer/style/URL the user selected.
-  if (event.key === 'source') return;
-
-  // If only opacity changed, update slider value without full DOM rebuild.
-  // Skip updates triggered by the interpolator's internal transparent
-  // swap (framepool._setPrimaryTransparent), which marks the layer
-  // with `_interpHiding` before writing opacity — otherwise the slider
-  // would jump to 0 whenever the warp takes over.
-  if (event.key === 'opacity') {
-    if (layer.get('_interpHiding') !== undefined && layer.get('_interpHiding') !== false) {
-      return;
-    }
-    const existingSlider = document.getElementById(`${name}Slider`);
-    if (existingSlider) {
-      existingSlider.value = opacity;
-      existingSlider.style.background = `linear-gradient(to right, var(--dark-primary-color) ${opacity}%, var(--dark-theme-overlay-06dp) ${opacity}%)`;
-      const valEl = document.getElementById(`${name}OpacityValue`);
-      if (valEl) valEl.textContent = `${Math.round(opacity)}%`;
-    }
-    return;
-  }
-
-  // Always update text content and visibility state (cheap DOM updates)
-  document.getElementById(`${name}Title`).textContent = info.title || '';
-  document.getElementById(`${name}Abstract`).textContent = info.abstract || '';
-  let attributionText = (info.attribution && info.attribution.Title) || '';
-  if (info.license) {
-    attributionText += (attributionText ? ` (${info.license})` : info.license);
-  }
-  document.getElementById(`${name}Attribution`).textContent = attributionText;
-  if (layer.getVisible()) {
-    document.getElementById(`${name}Info`).classList.remove('playListDisabled');
-    const ti = document.querySelector(`#${name}Info .card-visibility-toggle .material-icons`);
-    if (ti) ti.textContent = 'visibility';
-  } else {
-    document.getElementById(`${name}Info`).classList.add('playListDisabled');
-    const ti = document.querySelector(`#${name}Info .card-visibility-toggle .material-icons`);
-    if (ti) ti.textContent = 'visibility_off';
-  }
-
-  // Only do full DOM rebuild (slider, style chips) when playlist is visible
-  const playList = document.getElementById('playList');
-  if (!playList.classList.contains('open')) {
-    return;
-  }
-
-  debug(`Updating playlist for ${name}`);
-
-  const activeStyleParam = layer.getSource().getParams().STYLES || '';
-  if (typeof info.style !== 'undefined') {
-    if (info.style.length > 1) {
-      // If no explicit style set, first style is the WMS default
-      const activeStyleName = activeStyleParam || (info.style[0] && info.style[0].Name) || '';
-      const parent = document.getElementById(`${name}Styles`);
-      while (parent.firstChild) parent.removeChild(parent.firstChild);
-      info.style.forEach((layerStyle) => {
-        const div = document.createElement('div');
-        div.textContent = layerStyle.Title;
-        div.id = layerStyle.Name;
-        if (layerStyle.Name === activeStyleName) {
-          div.classList.add('activeStyle');
-        }
-        div.addEventListener('mouseup', () => {
-          layer.setLayerStyle(layerStyle.Name, 'playlist');
-          // Update active chip immediately
-          parent.querySelectorAll('.activeStyle').forEach((el) => { el.classList.remove('activeStyle'); });
-          div.classList.add('activeStyle');
-        });
-        parent.appendChild(div);
-      });
-    } else {
-      document.getElementById(`${name}Styles`).textContent = '';
-    }
-  } else {
-    document.getElementById(`${name}Styles`).textContent = '';
-  }
-
-  // Build opacity control with label row + slider
-  const opacityContainer = document.getElementById(`${name}Opacity`);
-  opacityContainer.textContent = '';
-
-  const labelRow = document.createElement('div');
-  labelRow.className = 'opacity-label-row';
-
-  const label = document.createElement('label');
-  label.setAttribute('for', `${name}Slider`);
-  label.className = 'opacity-label';
-  label.textContent = 'Läpikuultavuus';
-
-  const valueSpan = document.createElement('span');
-  valueSpan.className = 'opacity-value';
-  valueSpan.id = `${name}OpacityValue`;
-  valueSpan.textContent = `${Math.round(opacity)}%`;
-
-  labelRow.appendChild(label);
-  labelRow.appendChild(valueSpan);
-
-  const slider = document.createElement('input');
-  slider.type = 'range';
-  slider.min = '1';
-  slider.max = '100';
-  slider.value = opacity;
-  slider.className = 'slider';
-  slider.id = `${name}Slider`;
-  slider.style.background = `linear-gradient(to right, var(--dark-primary-color) ${opacity}%, var(--dark-theme-overlay-06dp) ${opacity}%)`;
-
-  opacityContainer.appendChild(labelRow);
-  opacityContainer.appendChild(slider);
-
-  // Remove previous slider listener to prevent leaks
-  const oldSlider = document.getElementById(`${name}Slider`);
-  if (oldSlider && _playlistSliderHandlers[name]) {
-    oldSlider.removeEventListener('input', _playlistSliderHandlers[name]);
-  }
-  _playlistSliderHandlers[name] = function (e) {
-    const val = e.target.value;
-    // _baseOpacity is the persistent source of truth routeLayer respects; silent
-    // set (no playlist rebuild), then setOpacity applies it now and notifies the
-    // interpolator's opacity listener.
-    layer.set('_baseOpacity', val / 100, true);
-    layer.setOpacity(val / 100);
-    const valEl = document.getElementById(`${name}OpacityValue`);
-    if (valEl) valEl.textContent = `${Math.round(val)}%`;
-    e.target.style.background = `linear-gradient(to right, var(--dark-primary-color) ${val}%, var(--dark-theme-overlay-06dp) ${val}%)`;
-    e.stopPropagation();
-  };
-  slider.addEventListener('input', _playlistSliderHandlers[name]);
-}
-
 function onChangeVisible(event) {
   const layer = event.target;
   const wmslayer = layer.getSource().getParams().LAYERS;
@@ -1769,15 +1619,11 @@ function onChangeVisible(event) {
   if (isVisible) pane.VISIBLE.add(name); else pane.VISIBLE.delete(name);
   debug(`${isVisible ? 'Activated' : 'Deactivated'} ${name} (pane ${pane.index})`);
 
-  // The global toolbar and the playlist card reflect the primary pane
-  // (pane 0). Per-pane state lives on the pill.
+  // The global toolbar reflects the primary pane (pane 0). Per-pane state lives
+  // on the pill.
   if (isPane0) {
     localStorage.setItem('VISIBLE', JSON.stringify([...pane.VISIBLE]));
     setButtonState(`${name}Button`, isVisible);
-    const info = document.getElementById(`${name}Info`);
-    if (info) info.classList.toggle('playListDisabled', !isVisible);
-    const toggleIcon = document.querySelector(`#${name}Info .card-visibility-toggle .material-icons`);
-    if (toggleIcon) toggleIcon.textContent = isVisible ? 'visibility' : 'visibility_off';
     updateCanonicalPage();
   }
 
@@ -1826,8 +1672,8 @@ let longPressDiscovered = safeParseJSON('LP_HINT_SEEN', false);
 
 // Toggle wrapper for segment-originated actions (button taps + keyboard
 // shortcuts). Announces the Finnish layer name via coachmark only when the
-// toggle turned the layer on. Deliberately not used by the playlist eye icon
-// or long-press variant selection so those paths stay quiet.
+// toggle turned the layer on. Deliberately not used by long-press variant
+// selection so that path stays quiet.
 function toggleAndAnnounce(layer, segId, source) {
   toggleLayerVisibility(layer, source);
   if (layer.getVisible()) {
@@ -1914,6 +1760,7 @@ function buildPanePill(pane) {
       () => pane.layerss[category].getSource().getParams().LAYERS,
       () => pane.layerss[category].getVisible(),
       () => { hideCoachmarkNow(); markLongPressDiscovered(); },
+      (menu) => layerPanel.populate(menu, pane.layerss[category]),
     );
   });
   pane.el.appendChild(pill);
@@ -1954,45 +1801,6 @@ document.getElementById('skipPreviousButton').addEventListener('mouseup', () => 
   skipPrevious();
 });
 
-function openPlaylist() {
-  document.getElementById('playList').classList.add('open');
-  document.getElementById('playListBackdrop').classList.add('open');
-  // Force full rebuild of all layer cards (slider, style chips)
-  [satelliteLayer, radarLayer, lightningLayer, observationLayer].forEach((layer) => {
-    layerInfoPlaylist({ target: layer, key: 'info' });
-  });
-}
-
-function closePlaylist() {
-  document.getElementById('playList').classList.remove('open');
-  document.getElementById('playListBackdrop').classList.remove('open');
-}
-
-function togglePlaylist() {
-  debug('playlist');
-  if (document.getElementById('playList').classList.contains('open')) {
-    closePlaylist();
-  } else {
-    openPlaylist();
-  }
-}
-
-document.getElementById('playlistButton').addEventListener('mouseup', togglePlaylist);
-
-document.getElementById('playlistCloseButton').addEventListener('mouseup', closePlaylist);
-
-document.getElementById('playListBackdrop').addEventListener('mouseup', closePlaylist);
-
-// Visibility toggle buttons inside layer cards
-document.querySelectorAll('.card-visibility-toggle').forEach((toggle) => {
-  toggle.addEventListener('mouseup', (e) => {
-    const layerName = toggle.getAttribute('data-layer');
-    const layerObj = layerss[layerName];
-    if (layerObj) toggleLayerVisibility(layerObj, 'playlist');
-    e.stopPropagation();
-  });
-});
-
 // The four shared sublayer menus, opened from the global toolbar (1-up) OR any
 // pane's mini pill (split). longPressMenuOpener() reports which button owns each
 // open menu, so the outside-click closer below doesn't dismiss it when that very
@@ -2015,16 +1823,7 @@ function closeLongPressMenusOutside(e) {
   });
 }
 
-// Close playlist if clicked outside of playlist
-window.addEventListener('mouseup', (e) => {
-  // playlist
-  if (!document.getElementById('playList').contains(e.target)) {
-    if (document.getElementById('playlistButton').contains(e.target)) return;
-    closePlaylist();
-  }
-  closeLongPressMenusOutside(e);
-});
-
+window.addEventListener('mouseup', closeLongPressMenusOutside);
 window.addEventListener('touchend', closeLongPressMenusOutside);
 
 function setButtonState(id, active) {
@@ -2072,14 +1871,6 @@ document.getElementById('locationLayerButton').addEventListener('mouseup', () =>
   setButtonStates();
 });
 
-document.getElementById('radarLayerTitle').addEventListener('mouseup', () => {
-  toggleLayerVisibility(radarLayer, 'playlist');
-});
-
-document.getElementById('lightningLayerTitle').addEventListener('mouseup', () => {
-  toggleLayerVisibility(lightningLayer, 'playlist');
-});
-
 // Long press menus for layer buttons. Opening any menu dismisses a lingering
 // discovery hint and records that the gesture has been learned.
 const onLongPressDiscovered = () => { hideCoachmarkNow(); markLongPressDiscovered(); };
@@ -2092,6 +1883,7 @@ const observationMenu = createLongPressHandler(
   () => observationLayer.getSource().getParams().LAYERS,
   () => observationLayer.getVisible(),
   onLongPressDiscovered,
+  (menu) => layerPanel.populate(menu, observationLayer),
 );
 
 const satelliteMenu = createLongPressHandler(
@@ -2102,6 +1894,7 @@ const satelliteMenu = createLongPressHandler(
   () => satelliteLayer.getSource().getParams().LAYERS,
   () => satelliteLayer.getVisible(),
   onLongPressDiscovered,
+  (menu) => layerPanel.populate(menu, satelliteLayer),
 );
 
 const radarMenu = createLongPressHandler(
@@ -2120,6 +1913,7 @@ const radarMenu = createLongPressHandler(
   () => radarLayer.getSource().getParams().LAYERS,
   () => radarLayer.getVisible(),
   onLongPressDiscovered,
+  (menu) => layerPanel.populate(menu, radarLayer),
 );
 
 const lightningMenu = createLongPressHandler(
@@ -2130,6 +1924,7 @@ const lightningMenu = createLongPressHandler(
   () => lightningLayer.getSource().getParams().LAYERS,
   () => lightningLayer.getVisible(),
   onLongPressDiscovered,
+  (menu) => layerPanel.populate(menu, lightningLayer),
 );
 
 // Overflow menu (three-dots) — open/close + theme chip wiring
@@ -3025,13 +2820,9 @@ const main = () => {
 
   // Layers
   satelliteLayer.on('change:visible', onChangeVisible);
-  satelliteLayer.on('propertychange', layerInfoPlaylist);
   radarLayer.on('change:visible', onChangeVisible);
-  radarLayer.on('propertychange', layerInfoPlaylist);
   lightningLayer.on('change:visible', onChangeVisible);
-  lightningLayer.on('propertychange', layerInfoPlaylist);
   observationLayer.on('change:visible', onChangeVisible);
-  observationLayer.on('propertychange', layerInfoPlaylist);
 
   // Pane 0's own mini pill — hidden in 1-up (the global toolbar drives pane 0),
   // shown when a split layout is active.
@@ -3295,7 +3086,6 @@ function setAppFullscreen(on) {
   document.body.classList.toggle('app-fullscreen', on);
   if (on) {
     closeOverflowMenu();
-    closePlaylist();
     closeToolFlyout();
   }
   renderTimeChip(); // swap now ⇄ data time immediately

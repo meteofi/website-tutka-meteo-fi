@@ -261,7 +261,6 @@
     <div id="sectionPanel" hidden aria-hidden="true"></div>
     <div id="probeChart" hidden aria-hidden="true"></div>
     <div class="bar-controls noselect">
-      <button id="playlistButton" aria-label="Tasot"><i class="material-icons">layers</i></button>
       <button id="skipPreviousButton" aria-label="Edellinen"><i class="material-icons">skip_previous</i></button>
       <button id="playButton" aria-label="Toista"><i id="playstopButton" class="material-icons">play_arrow</i></button>
       <button id="skipNextButton" aria-label="Seuraava"><i class="material-icons">skip_next</i></button>
@@ -275,63 +274,6 @@
       <div id="currentMapTime"></div>
       <div id="currentMapDate"></div>
       <div id="currentMapEta" hidden><i class="material-icons" aria-hidden="true">update</i><span class="eta-value"></span></div>
-    </div>
-  </div>
-
-  <div id="playListBackdrop" class="noselect"></div>
-  <div id="playList">
-    <div class="playlist-handle"></div>
-    <div class="playlist-header">
-      <h2>Tasot</h2>
-      <div id="playlistCloseButton"><i class="material-icons">close</i></div>
-    </div>
-    <div id="satelliteLayerInfo" class="layer-card">
-      <div class="card-header">
-        <i class="material-icons card-category-icon">satellite_alt</i>
-        <span id="satelliteLayerName" class="card-category-name">Sääsatelliitti</span>
-        <button class="card-visibility-toggle" data-layer="satelliteLayer" aria-label="Näytä/piilota satelliittitaso"><i class="material-icons">visibility</i></button>
-      </div>
-      <div id="satelliteLayerTitle" class="card-title">Sääsatelliitti</div>
-      <div id="satelliteLayerAbstract" class="card-abstract"></div>
-      <div id="satelliteLayerOpacity" class="card-opacity"></div>
-      <div id="satelliteLayerStyles" class="card-styles"></div>
-      <div id="satelliteLayerAttribution" class="card-attribution">EUMETSAT</div>
-    </div>
-    <div id="radarLayerInfo" class="layer-card">
-      <div class="card-header">
-        <i class="material-icons card-category-icon">radar</i>
-        <span id="radarLayerName" class="card-category-name">Säätutka</span>
-        <button class="card-visibility-toggle" data-layer="radarLayer" aria-label="Näytä/piilota säätutka"><i class="material-icons">visibility</i></button>
-      </div>
-      <div id="radarLayerTitle" class="card-title">Säätutka</div>
-      <div id="radarLayerAbstract" class="card-abstract"></div>
-      <div id="radarLayerOpacity" class="card-opacity"></div>
-      <div id="radarLayerStyles" class="card-styles"></div>
-      <div id="radarLayerAttribution" class="card-attribution">FMI (CC-BY-4.0)</div>
-    </div>
-    <div id="lightningLayerInfo" class="layer-card">
-      <div class="card-header">
-        <i class="material-icons card-category-icon">flash_on</i>
-        <span id="lightningLayerName" class="card-category-name">Salamapaikannus</span>
-        <button class="card-visibility-toggle" data-layer="lightningLayer" aria-label="Näytä/piilota salamat"><i class="material-icons">visibility</i></button>
-      </div>
-      <div id="lightningLayerTitle" class="card-title">Salamapaikannus</div>
-      <div id="lightningLayerAbstract" class="card-abstract"></div>
-      <div id="lightningLayerOpacity" class="card-opacity"></div>
-      <div id="lightningLayerStyles" class="card-styles"></div>
-      <div id="lightningLayerAttribution" class="card-attribution">FMI (CC-BY-4.0)</div>
-    </div>
-    <div id="observationLayerInfo" class="layer-card">
-      <div class="card-header">
-        <i class="material-icons card-category-icon">thermostat</i>
-        <span id="observationLayerName" class="card-category-name">Säähavainto</span>
-        <button class="card-visibility-toggle" data-layer="observationLayer" aria-label="Näytä/piilota havainnot"><i class="material-icons">visibility</i></button>
-      </div>
-      <div id="observationLayerTitle" class="card-title">Säähavainto</div>
-      <div id="observationLayerAbstract" class="card-abstract"></div>
-      <div id="observationLayerOpacity" class="card-opacity"></div>
-      <div id="observationLayerStyles" class="card-styles"></div>
-      <div id="observationLayerAttribution" class="card-attribution">FMI (CC-BY-4.0)</div>
     </div>
   </div>
 
@@ -373,6 +315,15 @@
     <div class="menu-item" data-layer="observation:wind_speed_of_gust">
       <span class="menu-label">Puuskat</span>
     </div>
+    <div class="lp-controls">
+      <div class="lp-styles card-styles" hidden></div>
+      <div class="lp-opacity"></div>
+      <div class="lp-info" hidden>
+        <div class="lp-info-title"></div>
+        <div class="lp-info-text"></div>
+        <div class="lp-info-attr"></div>
+      </div>
+    </div>
   </div>
   
   <!-- Long press satellite parameter menu -->
@@ -388,6 +339,15 @@
     </div>
     <div class="menu-item" data-layer="rgb_geocolour">
       <span class="menu-label">Geo Colour</span>
+    </div>
+    <div class="lp-controls">
+      <div class="lp-styles card-styles" hidden></div>
+      <div class="lp-opacity"></div>
+      <div class="lp-info" hidden>
+        <div class="lp-info-title"></div>
+        <div class="lp-info-text"></div>
+        <div class="lp-info-attr"></div>
+      </div>
     </div>
   </div>
 
@@ -420,6 +380,15 @@
     <div class="menu-item" data-layer="h60b">
       <span class="menu-label">MSG sade</span>
     </div>
+    <div class="lp-controls">
+      <div class="lp-styles card-styles" hidden></div>
+      <div class="lp-opacity"></div>
+      <div class="lp-info" hidden>
+        <div class="lp-info-title"></div>
+        <div class="lp-info-text"></div>
+        <div class="lp-info-attr"></div>
+      </div>
+    </div>
   </div>
 
   <!-- Long press lightning parameter menu -->
@@ -432,6 +401,15 @@
     </div>
     <div class="menu-item" data-layer="rdt">
       <span class="menu-label">RDT</span>
+    </div>
+    <div class="lp-controls">
+      <div class="lp-styles card-styles" hidden></div>
+      <div class="lp-opacity"></div>
+      <div class="lp-info" hidden>
+        <div class="lp-info-title"></div>
+        <div class="lp-info-text"></div>
+        <div class="lp-info-attr"></div>
+      </div>
     </div>
   </div>
 

@@ -714,8 +714,6 @@ body.split-4 #placeSearchButton {
   body.app-fullscreen #coachmark,
   body.app-fullscreen #overflowMenu,
   body.app-fullscreen #overflowMenuBackdrop,
-  body.app-fullscreen #playList,
-  body.app-fullscreen #playListBackdrop,
   body.app-fullscreen .pane-pill { display: none !important; }
 
   /* No timebar underneath, so the chip drops to the screen bottom. */
@@ -1680,209 +1678,10 @@ body.split-4 #placeSearchButton {
     color: var(--dark-theme-on-surface);
 }
 
-/* Playlist backdrop — invisible, catches taps to close panel */
-#playListBackdrop {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 98;
-  display: none;
-}
-
-#playListBackdrop.open {
-  display: block;
-}
-
-/* Layer manager panel — fixed, slides up from behind timecontrol */
-#playList {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  top: auto;
-  z-index: 99; /* below timecontrol (100) so it slides behind it */
-  display: flex;
-  flex-direction: column;
-  background-color: rgba(18, 18, 18, 0.7);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  color: var(--dark-theme-on-surface);
-  border-radius: 16px 16px 0 0;
-  transform: translateY(100%);
-  transition: transform 300ms cubic-bezier(0.17, 0.04, 0.03, 0.94);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  max-height: calc(80vh - 56px);
-  padding-bottom: calc(56px + 8px + max(8px, env(safe-area-inset-bottom)));
-  box-sizing: border-box;
-}
-
-@media all and (min-width: 769px) {
-  #playList {
-    left: 50%;
-    right: auto;
-    width: 450px;
-    margin-left: -233px;
-  }
-}
-
-#playList.open {
-  transform: translateY(0);
-}
-
-/* Drag handle */
-.playlist-handle {
-  width: 36px;
-  height: 4px;
-  background: var(--dark-medium-emphasis-text-color);
-  border-radius: 2px;
-  margin: 10px auto 6px;
-}
-
-/* Panel header */
-.playlist-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 4px 16px 8px;
-  border-bottom: 1px solid var(--dark-theme-overlay-04dp);
-  margin-bottom: 4px;
-}
-
-.playlist-header h2 {
-  font-size: 1em;
-  font-weight: 500;
-  color: var(--dark-high-emphasis-text-color);
-  margin: 0;
-}
-
-#playlistCloseButton {
-  cursor: pointer;
-  color: var(--dark-medium-emphasis-text-color);
-  padding: 4px;
-}
-
-/* Layer cards */
-.layer-card {
-  margin: 6px 12px;
-  padding: 12px;
-  background: var(--dark-theme-overlay-02dp);
-  border-radius: 12px;
-  border-left: 3px solid var(--dark-primary-color);
-  transition: background 0.2s;
-}
-
-.layer-card:hover {
-  background: var(--dark-theme-overlay-04dp);
-}
-
-.layer-card.playListDisabled {
-  border-left-color: transparent;
-  background: var(--dark-theme-overlay-01dp);
-}
-
-.layer-card.playListDisabled:hover {
-  background: var(--dark-theme-overlay-02dp);
-}
-
-/* Card header */
-.card-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-}
-
-.card-category-icon {
-  font-size: 18px;
-  color: var(--dark-primary-color);
-}
-
-.layer-card.playListDisabled .card-category-icon {
-  color: var(--dark-disabled-label-color);
-}
-
-.card-category-name {
-  font-size: 0.7em;
-  color: var(--dark-medium-emphasis-text-color);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  flex: 1;
-}
-
-.card-visibility-toggle {
-  cursor: pointer;
-  color: var(--dark-medium-emphasis-text-color);
-  padding: 4px;
-  border-radius: 50%;
-  transition: background 0.15s;
-  background: none;
-  border: none;
-  font: inherit;
-}
-
-.card-visibility-toggle:hover {
-  background: var(--dark-theme-overlay-04dp);
-}
-
-/* Card title */
-.card-title {
-  font-size: 1.05em;
-  font-weight: 400;
-  color: var(--dark-high-emphasis-text-color);
-  margin-bottom: 2px;
-}
-
-.layer-card.playListDisabled .card-title {
-  color: var(--dark-medium-emphasis-text-color);
-}
-
-#layers > div > .card-title {
-  height: 3em;
-}
-
-/* Card abstract */
-.card-abstract {
-  font-size: 0.8em;
-  color: var(--dark-high-emphasis-text-color);
-  line-height: 1.4;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  margin-bottom: 8px;
-}
-
-.layer-card.playListDisabled .card-abstract {
-  color: var(--dark-medium-emphasis-text-color);
-}
-
-/* Card attribution */
-.card-attribution {
-  font-size: 0.75em;
-  color: var(--dark-medium-emphasis-text-color);
-  margin-top: 6px;
-  padding-top: 6px;
-  border-top: 1px solid var(--dark-theme-overlay-04dp);
-}
-
-.layer-card.playListDisabled .card-attribution {
-  border-top-color: transparent;
-}
-
-/* Disabled cards: hide controls only, keep text readable */
-.layer-card.playListDisabled .card-opacity,
-.layer-card.playListDisabled .card-styles {
-  display: none;
-}
-
-/* Opacity control */
-.card-opacity {
-  margin: 8px 0;
-}
-
+/* Layer-control widgets (opacity slider + style chips). Shared by the
+   layer-control panel folded into each category's long-press menu
+   (src/ui/layerPanel.js); the `.lp-*` wrappers are further down with the
+   long-press menu rules. */
 .opacity-label-row {
   display: flex;
   justify-content: space-between;
@@ -2082,8 +1881,17 @@ body.split-4 #placeSearchButton {
   box-shadow: var(--dark-theme-shadow-24dp);
   z-index: 1000;
   border: 1px solid var(--dark-theme-overlay-08dp);
-  min-width: 200px;
-  max-width: calc(100vw - 20px); /* Ensure menu doesn't exceed viewport width */
+  min-width: 220px;
+  /* Cap width so the info abstract stays readable on desktop; still shrinks to
+     the viewport on phones. */
+  max-width: min(320px, calc(100vw - 20px));
+  /* The panel (sublayers + styles + opacity + info) can be tall — radar is the
+     worst case (9 sublayers + 5 styles). Cap to the viewport and scroll rather
+     than overflow off-screen; longpress.js measures the capped height so the
+     flip-up positioning stays correct. */
+  max-height: calc(100vh - 20px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   box-sizing: border-box;
 }
 
@@ -2146,6 +1954,72 @@ body.split-4 #placeSearchButton {
 #observationLongPressMenu .menu-item .menu-label {
   flex: 1;
   font-weight: 500;
+}
+
+/* ------------------------------------------------------------------------
+   Layer-control panel — style / opacity / info folded into each category's
+   long-press menu below its sublayer list (src/ui/layerPanel.js). Replaces
+   the retired #playList bottom sheet. Only radar advertises >1 style, so the
+   `.lp-styles` row hides itself (empty [hidden]) for every other category.
+   ------------------------------------------------------------------------ */
+.lp-controls {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--dark-theme-overlay-08dp);
+}
+
+.lp-styles {
+  /* reuses .card-styles chip styling; scrolls horizontally when many */
+  margin-bottom: 4px;
+}
+
+.lp-styles[hidden] {
+  display: none;
+}
+
+.lp-opacity {
+  padding: 4px 4px 6px;
+}
+
+.lp-info {
+  padding: 6px 4px 2px;
+  border-top: 1px solid var(--dark-theme-overlay-04dp);
+}
+
+.lp-info[hidden] {
+  display: none;
+}
+
+.lp-info-title {
+  font-size: 0.82em;
+  font-weight: 500;
+  color: var(--dark-high-emphasis-text-color);
+  margin-bottom: 2px;
+}
+
+.lp-info-title:empty {
+  display: none;
+}
+
+.lp-info-text {
+  font-size: 0.78em;
+  line-height: 1.4;
+  color: var(--dark-medium-emphasis-text-color);
+  /* Keep the abstract to two lines so the panel stays compact. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.lp-info-attr {
+  font-size: 0.72em;
+  color: var(--dark-medium-emphasis-text-color);
+  margin-top: 4px;
+}
+
+.lp-info-attr:empty {
+  display: none;
 }
 
 /* ========================================================================
