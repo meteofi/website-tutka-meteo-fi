@@ -755,7 +755,11 @@ function clonePaneDisplay(src, dst) {
     // the warp renders; _userOpacity carries the user's chosen value (and is
     // undefined whenever no interpolator is attached). Cloning getOpacity()
     // here would capture the swap state and leave the new pane invisible.
-    const srcUserOpacity = s.get('_userOpacity');
+    // Carry the user's chosen opacity so the clone's routeLayer doesn't reset it
+    // to 1: the persistent _baseOpacity, else the interpolator's live _userOpacity.
+    const srcBase = s.get('_baseOpacity');
+    if (srcBase !== undefined) d.set('_baseOpacity', srcBase, true);
+    const srcUserOpacity = srcBase !== undefined ? srcBase : s.get('_userOpacity');
     d.setOpacity(srcUserOpacity !== undefined ? srcUserOpacity : s.getOpacity());
     d.setVisible(s.getVisible());
     if (s.getVisible()) dst.VISIBLE.add(name); else dst.VISIBLE.delete(name);
@@ -1091,7 +1095,14 @@ function setTime(action = 'next', seekIndex = 0) {
     const inRange = name === 'observationLayer'
       || !info || !info.start || !info.end
       || (tNow >= info.start && tNow <= info.end);
-    olLayer.setOpacity(inRange ? 1 : 0);
+    // Respect the user's chosen opacity (persistent _baseOpacity) instead of
+    // forcing 1 — otherwise every frame swap during playback resets it to 100%.
+    // Don't touch it while the interpolator is parking the layer transparent
+    // (Hard rule 7); its own change:opacity listener re-applies the user value.
+    if (!olLayer.get('_interpHiding')) {
+      const base = olLayer.get('_baseOpacity');
+      olLayer.setOpacity(inRange ? (base !== undefined ? base : 1) : 0);
+    }
     pane.LAYER_IN_RANGE[name] = inRange;
 
     if (!inRange) return;
@@ -1605,7 +1616,8 @@ function layerInfoPlaylist(event) {
   // the layer's actual opacity for its transparent swap. Falls back
   // to layer.opacity for non-interp layers (lightning, observation,
   // or any layer when interp is off).
-  const userOp = layer.get('_userOpacity');
+  const baseOp = layer.get('_baseOpacity');
+  const userOp = baseOp !== undefined ? baseOp : layer.get('_userOpacity');
   const effectiveOpacity = userOp !== undefined ? userOp : layer.get('opacity');
   const opacity = effectiveOpacity * 100;
 
@@ -1733,6 +1745,10 @@ function layerInfoPlaylist(event) {
   }
   _playlistSliderHandlers[name] = function (e) {
     const val = e.target.value;
+    // _baseOpacity is the persistent source of truth routeLayer respects; silent
+    // set (no playlist rebuild), then setOpacity applies it now and notifies the
+    // interpolator's opacity listener.
+    layer.set('_baseOpacity', val / 100, true);
     layer.setOpacity(val / 100);
     const valEl = document.getElementById(`${name}OpacityValue`);
     if (valEl) valEl.textContent = `${Math.round(val)}%`;
