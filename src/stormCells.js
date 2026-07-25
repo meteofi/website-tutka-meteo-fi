@@ -14,15 +14,18 @@
 // newest radar frame by ~5-10 min, and playback sweeps a 1 h window, so one
 // "now" snapshot held across the loop puts markers nowhere near their echoes.
 //
-// Two paths, picked by what the server can serve (probed, not assumed —
-// `probeRetention` reads the retained span out of `extent.temporal`):
+// Two paths, picked per frame by what the server actually holds — read from
+// `extent.temporal` on every poll by `refreshRetention`, never assumed:
 //
 //   1. PER-FRAME SNAPSHOTS (server >= 2026-07-25, ~4 h / 48 snapshots
 //      retained). `?datetime=<frame instant>` returns the snapshot for that
 //      frame, so every frame of the window shows the cells that were actually
-//      there. The window is prefetched displayed-frame-first, then outward
-//      (the crossSection.js ordering), <= 3 in flight, and the last good set
-//      stays on screen while a frame loads (StickyImageWMS philosophy).
+//      there. Only frames inside the advertised retained range are requested:
+//      right after a deploy that range grows one snapshot at a time, and
+//      asking for the rest would be a dozen requests answered with 0 features.
+//      The window is prefetched displayed-frame-first, then outward (the
+//      crossSection.js ordering), <= 3 in flight, and the last good set stays
+//      on screen while a frame loads (StickyImageWMS philosophy).
 //   2. ADVECTION FALLBACK. Used wherever a snapshot cannot exist: a server
 //      without retention, and the leading frames that run past the newest
 //      analysis (there are no forecast cells — a future instant returns 0
@@ -38,15 +41,17 @@
 // observation. On path 1 that distance is zero and the fade never engages.
 //
 // Server contract notes (measured against the live API on 2026-07-25):
-//   * retention is the one thing this module probes rather than assumes. The
-//     deployed server at the time of writing held ONE analysis instant: the
-//     advertised value returned the full set (verbatim `+00:00` or the `Z`
-//     spelling both work) and every other instant returned numberMatched 0 —
-//     five minutes old or any lead time alike. The next server version retains
-//     ~4 h. Rather than pin the client to either, `probeRetention` reads
-//     `extent.temporal`'s span each poll until it is wide enough, then switches
-//     to per-frame requests. No coordinated deploy, and a rollback degrades to
-//     advection instead of an empty layer;
+//   * retention is the one thing this module reads rather than assumes, because
+//     it changed under the client: the server first held ONE analysis instant
+//     (any other `datetime=` returned numberMatched 0, in every spelling), then
+//     gained ~4 h of snapshots — starting from empty and filling one analysis at
+//     a time. `refreshRetention` therefore re-reads `extent.temporal` on every
+//     poll instead of latching a mode once. No coordinated deploy, correct
+//     behaviour while the history fills, and a rollback degrades to advection
+//     instead of an empty layer;
+//   * `datetime=` takes the frame instant in any ISO spelling (`.000Z` included)
+//     and answers with the newest snapshot at or before it; future instants have
+//     no cells at all, since the collection carries no forecast;
 //   * property filters (`severity=`, `observed=`, …) are silently IGNORED — the
 //     server advertises only the OGC API Features core conformance classes and
 //     its /queryables response is empty. Filtering is the client's job;
@@ -91,11 +96,13 @@ const COLLECTION_URL = 'https://meteocore.app.meteo.fi/features/collections/fmi-
 const ITEMS_URL = `${COLLECTION_URL}/items?f=application/geo%2Bjson&limit=1000`;
 const META_URL = COLLECTION_URL;
 
-// Retention advertised in `extent.temporal` above which per-frame snapshots are
-// worth requesting. A server without history advertises a single instant (span
-// 0); the one with ~4 h of snapshots advertises hours. Half the animation
-// window is the useful threshold — below it most frames would miss anyway.
-const MIN_RETENTION_MS = 30 * 60 * 1000;
+// Retention span (from `extent.temporal`) at which per-frame snapshots become
+// worth requesting: one analysis step, i.e. the moment the collection holds
+// more than the single newest instant. Which frames actually get requested is
+// then decided per frame against the advertised range, so a server whose
+// history is still filling after a deploy serves the frames it has and the
+// rest fall back to advection — no threshold to wait out.
+const MIN_RETENTION_MS = 5 * 60 * 1000;
 
 // Per-frame fetches in flight. The window is 13 frames of ~13 kB gzipped; a
 // small cap keeps the displayed frame's request from queueing behind a dozen
@@ -257,7 +264,13 @@ export default function initStormCells() {
   });
 
   const paneLayers = [];
-  // frame instant (ISO) -> snapshot, or null while in flight / known missing.
+  // frame instant (ISO) -> snapshot, PENDING while a request is in flight, or
+  // MISS when the server has no snapshot for that frame. The three states must
+  // stay distinct: misses are cleared when a new analysis lands (the frame may
+  // exist now), while pending requests must survive that sweep — folding them
+  // together re-queued in-flight frames and fetched them twice.
+  const PENDING = Symbol('pending');
+  const MISS = Symbol('miss');
   const snapshots = new Map();
   let queue = [];
   let windowFrames = [];
@@ -265,6 +278,11 @@ export default function initStormCells() {
   let latest = null;
   let shown = null;
   let perFrameMode = false;
+  // Bounds of the server's retained snapshot range, refreshed on every poll:
+  // the window slides, and after a deploy the range grows one snapshot at a
+  // time until it reaches its full depth.
+  let retainedStartMs = 0;
+  let retainedEndMs = 0;
   let cursorMs = Date.now();
   let analysisMs = 0;
   let enabled = false;
@@ -408,7 +426,9 @@ export default function initStormCells() {
   // the server has one; otherwise the latest, advected across the residual gap
   // and faded — which is also the whole behaviour on a server without history.
   function render() {
-    const snapshot = snapshots.get(isoOf(cursorMs)) || latest;
+    const exact = snapshots.get(isoOf(cursorMs));
+    const usable = exact && exact !== PENDING && exact !== MISS ? exact : null;
+    const snapshot = usable || latest;
     if (!snapshot) return;
     if (snapshot !== shown) {
       shown = snapshot;
@@ -426,13 +446,12 @@ export default function initStormCells() {
   // a queued frame that scrolled out of the window is dropped when it surfaces.
   function startFetch(frameIso) {
     inFlight += 1;
-    snapshots.set(frameIso, null); // reserve, so it is not queued twice
+    snapshots.set(frameIso, PENDING); // reserve, so it is not queued twice
     fetchSnapshot(frameIso)
       .then((snapshot) => {
-        // A frame ahead of the newest analysis legitimately has no cells; keep
-        // the null reservation so it is not refetched until the next successful
-        // poll clears the misses.
-        if (snapshot) snapshots.set(frameIso, snapshot);
+        // A frame the server has nothing for is recorded as a miss rather than
+        // dropped, so it is not asked for again until a new analysis lands.
+        snapshots.set(frameIso, snapshot || MISS);
         if (frameIso === isoOf(cursorMs)) render();
       })
       .catch((err) => {
@@ -449,39 +468,62 @@ export default function initStormCells() {
     }
   }
 
+  // A frame is worth requesting only if the server says it still holds that
+  // instant. Retention starts empty after a deploy and fills one snapshot per
+  // analysis, so early on most of the window is outside it — and the leading
+  // frames are always outside it, since there are no forecast cells. Asking
+  // anyway would be 10+ requests per window answered with 0 features.
+  function isRetained(frameIso) {
+    const t = Date.parse(frameIso);
+    return t >= retainedStartMs && t <= retainedEndMs;
+  }
+
   function requestWindow() {
     if (!perFrameMode || !windowFrames.length) return;
-    const cursorIso = isoOf(cursorMs);
     // Drop frames that scrolled out of the window, but never the misses of the
     // current window — those are re-tried by the poll below.
     for (const key of [...snapshots.keys()]) {
       if (!windowFrames.includes(key)) snapshots.delete(key);
     }
-    const byDistance = [...windowFrames]
+    const wanted = windowFrames.filter(isRetained);
+    if (!wanted.length) return;
+    const cursorIso = isoOf(cursorMs);
+    const byDistance = [...wanted]
       .sort((a, b) => Math.abs(Date.parse(a) - cursorMs) - Math.abs(Date.parse(b) - cursorMs));
-    queue = [cursorIso, ...byDistance].filter((iso, i, all) => all.indexOf(iso) === i
-      && !snapshots.has(iso) && !queue.includes(iso));
+    // Displayed frame first when the server has it, then outward from it. The
+    // queue is rebuilt wholesale rather than appended to, so priority follows
+    // the cursor; anything already fetched or in flight is in `snapshots` and
+    // filtered out here. (Testing against the old `!queue.includes` guard: it
+    // dropped frames that were queued but not yet started.)
+    const ordered = isRetained(cursorIso) ? [cursorIso, ...byDistance] : byDistance;
+    queue = ordered.filter((iso, i, all) => all.indexOf(iso) === i && !snapshots.has(iso));
     pump();
   }
 
-  // Capability probe. The collection advertises how much history it retains in
-  // `extent.temporal`; a span wider than a few frames means `datetime=` can
-  // serve per-frame snapshots. Probing (rather than assuming) means the client
-  // needs no redeploy when the server gains retention — and no broken layer if
-  // it is rolled back. Once per-frame mode is on it never turns off.
-  function probeRetention() {
-    if (perFrameMode) return Promise.resolve();
+  // Retention probe, run on every poll rather than once: the retained range
+  // slides with each new analysis, and right after a server deploy it grows one
+  // snapshot at a time from nothing. Reading it (instead of assuming a server
+  // version) means the client needs no redeploy when retention appears, keeps
+  // requesting only frames that exist while the range fills, and falls back to
+  // advection untouched if retention is rolled back.
+  function refreshRetention() {
     return fetch(META_URL)
       .then((res) => (res.ok ? res.json() : null))
       .then((meta) => {
         const interval = meta && meta.extent && meta.extent.temporal
           && meta.extent.temporal.interval && meta.extent.temporal.interval[0];
         if (!interval) return;
-        const span = Date.parse(interval[1]) - Date.parse(interval[0]);
-        if (span >= MIN_RETENTION_MS) {
-          perFrameMode = true;
-          requestWindow();
-        }
+        const startMs = Date.parse(interval[0]);
+        const endMs = Date.parse(interval[1]);
+        if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return;
+        const changed = startMs !== retainedStartMs || endMs !== retainedEndMs;
+        retainedStartMs = startMs;
+        retainedEndMs = endMs;
+        // A collection without history advertises one instant (span 0) and
+        // stays on the advection path; anything wider has real snapshots to
+        // ask for, even if only a couple of frames' worth so far.
+        perFrameMode = endMs - startMs >= MIN_RETENTION_MS;
+        if (changed) requestWindow();
       })
       .catch(() => { /* probe again on the next poll */ });
   }
@@ -493,10 +535,12 @@ export default function initStormCells() {
         if (!snapshot) return;
         if (!latest || snapshot.observedMs !== latest.observedMs) {
           latest = snapshot;
-          // A new analysis landed: frames that had no snapshot yet may have one
-          // now, so clear the misses and refill.
+          // A new analysis landed: frames the server had nothing for may have a
+          // snapshot now, so clear the misses and refill. Requests still in
+          // flight (PENDING) are deliberately left alone — clearing those
+          // re-queued them and fetched the same frame twice.
           for (const [key, value] of [...snapshots.entries()]) {
-            if (value === null) snapshots.delete(key);
+            if (value === MISS) snapshots.delete(key);
           }
           requestWindow();
         }
@@ -513,7 +557,7 @@ export default function initStormCells() {
   }
 
   function refresh() {
-    probeRetention();
+    refreshRetention();
     load();
   }
 
