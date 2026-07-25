@@ -3198,6 +3198,8 @@ function shareAttributions() {
       }
     }
   }
+  // POI vector layers carry no layerInfo — credit the ones that need it while on.
+  if (POI_STATE.turnpoints) parts.add('Käännöspisteet © Ilmailuliitto');
   return [...parts];
 }
 

@@ -243,6 +243,7 @@ export default function createPane(targetEl, sharedView, deps) {
     source: new Vector({
       format: new GeoJSON(),
       url: turnpointsUrl,
+      attributions: 'Käännöspisteet © Ilmailuliitto',
     }),
     visible: false,
     // 423 points — declutter in their own group so labels thin out with zoom
