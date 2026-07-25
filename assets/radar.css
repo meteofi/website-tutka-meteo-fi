@@ -24,45 +24,30 @@
   --dark-theme-shadow-24dp: 0 9px 46px 8px rgba(0, 0, 0, 0.14),
                             0 11px 15px -7px rgba(0, 0, 0, 0.12),
                             0 24px 38px 3px rgba(0, 0, 0, 0.20);
-  /* Idle bar height → the floating action buttons anchor off this. The
-     one-line bar is a single ~56–65px row (was two rows / 84px); 72px keeps a
-     small safe gap above it without ever overlapping the FABs. The panel-open
-     overrides below stay as-is — they're generous now that the base shrank.
-     TODO: fine-tune against a real render (values are estimated). */
-  --timecontrol-height: 72px;
+  /* Floating action buttons anchor off this, so it tracks the time-control's
+     real rendered height (measured in-browser). The base transport row is
+     width-independent (~56px); each panel/strip override adds that element's
+     height. FABs then sit ~14px above the bar (their +16 offset minus the
+     bar's 2px bottom inset), matching the original design's gap. */
+  --timecontrol-height: 56px;
 }
 
-/* When the probe chart row is open, grow the time-control area so the
-   floating action buttons (which anchor off --timecontrol-height) move
-   up with it. */
-:root:has(#probeChart.open) {
-  --timecontrol-height: 148px;
-}
+/* Grow so the FABs move up with an open panel / the single-radar strip. */
+:root:has(#probeChart.open)   { --timecontrol-height: 120px; } /* 56 + 64 probe */
+:root:has(#sectionPanel.open) { --timecontrol-height: 264px; } /* 56 + 208 section */
 
-/* Same for the cross-section panel (84px base + 208px panel; the two are
-   never open together — the tools are mutually exclusive). */
-:root:has(#sectionPanel.open) {
-  --timecontrol-height: 292px;
-}
+/* The strip adds a 38px row at the top; combined selectors compose with the
+   panel overrides via :has() specificity (two :has() beat one). */
+:root:has(#radarStrip:not([hidden]))                          { --timecontrol-height: 94px; }
+:root:has(#radarStrip:not([hidden])):has(#probeChart.open)    { --timecontrol-height: 158px; }
+:root:has(#radarStrip:not([hidden])):has(#sectionPanel.open)  { --timecontrol-height: 302px; }
+
+/* ≤480px the panels shrink (probe 54, section 176), so the bar does too. */
 @media (max-width: 480px) {
-  :root:has(#sectionPanel.open) {
-    --timecontrol-height: 260px;
-  }
-}
-
-/* The single-radar strip adds a row at the top of the time control, so the
-   floating buttons must clear it too. Combined selectors compose with the
-   panel-open overrides via :has() specificity (two :has() beat one), and the
-   desktop-sized values are safely generous on mobile (panels are shorter).
-   TODO: estimated like the base height — fine-tune against a real render. */
-:root:has(#radarStrip:not([hidden])) {
-  --timecontrol-height: 112px;
-}
-:root:has(#radarStrip:not([hidden])):has(#probeChart.open) {
-  --timecontrol-height: 176px;
-}
-:root:has(#radarStrip:not([hidden])):has(#sectionPanel.open) {
-  --timecontrol-height: 320px;
+  :root:has(#probeChart.open)                                  { --timecontrol-height: 110px; }
+  :root:has(#sectionPanel.open)                                { --timecontrol-height: 232px; }
+  :root:has(#radarStrip:not([hidden])):has(#probeChart.open)   { --timecontrol-height: 148px; }
+  :root:has(#radarStrip:not([hidden])):has(#sectionPanel.open) { --timecontrol-height: 250px; }
 }
 
 html, body {
@@ -1518,7 +1503,6 @@ body.split-4 #placeSearchButton {
   }
   #probeChart.open { height: 64px; }
   @media (max-width: 480px) {
-    :root:has(#probeChart.open) { --timecontrol-height: 138px; }
     #probeChart.open { height: 54px; }
   }
   .probe-svg {
