@@ -72,6 +72,9 @@ export default function createPane(targetEl, sharedView, deps) {
     createLightningLayer,
     // Place-name labels (src/placeNames.js) — panes share one VectorSource.
     createPlaceNamesLayer,
+    // Storm cells (src/stormCells.js) — panes share one VectorSource; the
+    // controller in radar.js owns fetching and the clock-driven advection.
+    createStormCellsLayer,
     // Place-search highlight pulse (src/search/searchHighlight.js) — panes
     // share one VectorSource so the pulse shows in every split-screen pane.
     createSearchHighlightLayer,
@@ -288,6 +291,12 @@ export default function createPane(targetEl, sharedView, deps) {
     style: vesivaylatStyleFn,
   });
 
+  // Storm cells are data about the radar image, not map context, so they sit
+  // above the context overlays (place names, sites, airfields, turnpoints) in
+  // the `layers` array below — but still under the observation symbols and the
+  // own-position marker, which the user is usually looking for specifically.
+  const stormCellsLayer = createStormCellsLayer();
+
   const guideLayer = new VectorLayer({
     source: new Vector(),
     style: rangeStyle,
@@ -333,6 +342,7 @@ export default function createPane(targetEl, sharedView, deps) {
     radarSiteLayer,
     icaoLayer,
     turnpointLayer,
+    stormCellsLayer,
     ownPositionLayer,
     observationLayer,
     searchHighlightLayer,
@@ -365,6 +375,7 @@ export default function createPane(targetEl, sharedView, deps) {
     radarSiteLayer,
     icaoLayer,
     turnpointLayer,
+    stormCellsLayer,
     municipalityLayer,
     vesivaylaAreaLayer,
     vesivaylatLayer,
