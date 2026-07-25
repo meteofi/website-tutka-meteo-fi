@@ -1969,13 +1969,40 @@ body.split-4 #placeSearchButton {
 }
 
 .lp-styles {
-  /* Reuses .card-styles chip styling, but wraps instead of scrolling: the panel
+  /* Reuses the .card-styles flex row, but wraps instead of scrolling: the panel
      has vertical room and a horizontal scrollbar was ugly in Chrome and
-     unreachable in desktop Safari (no h-scroll without the right mouse). All 5
-     radar styles stay visible and tappable. */
+     unreachable in desktop Safari (no h-scroll without the right mouse). */
   flex-wrap: wrap;
   overflow-x: visible;
-  margin-bottom: 4px;
+  gap: 5px;
+  padding: 2px 0;
+  margin: 0 0 2px;
+}
+
+/* Compact, quiet chips — small outlined pills rather than the bottom-sheet's
+   chunky filled ones. The active style mirrors the selected-sublayer look
+   (subtle cyan tint + cyan border/text) so the panel reads as one control. */
+.lp-styles > div {
+  min-height: 0;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-size: 0.72em;
+  font-weight: 400;
+  background: transparent;
+  color: var(--dark-medium-emphasis-text-color);
+  border: 1px solid var(--dark-theme-overlay-08dp);
+}
+
+.lp-styles > div:hover {
+  border-color: var(--dark-primary-color);
+  color: var(--dark-high-emphasis-text-color);
+}
+
+.lp-styles > div.activeStyle {
+  background: var(--dark-primary-color-bg);
+  border-color: var(--dark-primary-color);
+  color: var(--dark-primary-color);
+  font-weight: 500;
 }
 
 .lp-styles[hidden] {
