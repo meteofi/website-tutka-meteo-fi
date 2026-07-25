@@ -16,9 +16,14 @@
 //   * playback sweeps a 1 h window, and "now" cells over a 55-min-old frame
 //     read as plain wrong.
 // So each cell is advected along its own motion vector to the displayed frame
-// time — exactly the extrapolation the collection is built on. Cells are
-// suppressed on frames older than their track (`track_age` frames back), where
-// backwards extrapolation would invent a cell that did not exist yet.
+// time — exactly the extrapolation the collection is built on. Guards, all of
+// them the server author's reliability rules (see the client guide notes
+// below): only tracks with `track_age >= 3` carry an EMA-smoothed velocity, so
+// younger cells are never advected — they are pinned to the analysis frame and
+// hidden elsewhere; and no cell is extrapolated back past its own track length,
+// where the extrapolation would invent a cell that had not formed yet. The
+// whole layer also fades as the cursor leaves the analysis instant, so an
+// extrapolated position never reads as an observation.
 //
 // Server contract notes (measured against the live API on 2026-07-25):
 //   * the collection holds ONE analysis instant — the newest. `datetime=` is
@@ -33,11 +38,31 @@
 //   * property filters (`severity=`, `observed=`, …) are silently IGNORED — the
 //     server advertises only the OGC API Features core conformance classes and
 //     its /queryables response is empty. Filtering is the client's job;
-//   * the whole collection is ~180 features / ~13 kB gzipped — fetched in one
+//   * the whole collection is ~200 features / ~13 kB gzipped — fetched in one
 //     unfiltered request, no bbox slicing (bbox would defeat cache reuse for no
 //     real gain);
 //   * responses carry NO ETag/Cache-Control, so a refresh is always a full
-//     transfer — poll only while the layer is actually on and the tab visible.
+//     transfer — poll only while the layer is actually on and the tab visible;
+//   * `id` is a persistent track id (same storm keeps it across refreshes,
+//     never reused). Verified after the 2026-07-25 track-association fix: of
+//     190 ids common to two consecutive analyses, every single one advanced
+//     `track_age` by exactly 1 and the id-matched displacement matched the
+//     advertised speed (median 11.3 vs 10.1 m/s). Before that fix the same test
+//     gave implausible 30-70 m/s, so treat pre-fix behaviour as unrelated.
+//     Nothing here depends on id stability yet — it is the seam for in-place
+//     marker animation and client-side track trails.
+//
+// Client-guide rules from the server author, followed below: draw markers only
+// for `severity != weak || area_km2 >= 10` (the weak tier is real 35 dBZ specks
+// but reads as detached from the echo at map zooms — 61% of the collection on a
+// live check), motion arrows only for `track_age >= 3` (age-2 velocities are
+// single-displacement estimates that jitter), and no extra hysteresis on
+// `deviant_mover` (it already encodes 2+ generations of persistence). The same
+// note warns that velocities and `deviant_mover` from before 2026-07-25 could
+// point against the flow; a nearest-neighbour check across two consecutive
+// analyses on 2026-07-25 came out clearly forward (median 2.46 km to the next
+// analysis's nearest cell, vs 4.62 km reversed and 2.99 km static), so the
+// advection above is sound on current data.
 
 import Feature from 'ol/Feature';
 import Point from 'ol/geom/Point';
@@ -63,20 +88,33 @@ const REFRESH_MS = 60000;
 // frame vs. cell analysis lag), so 30 min is a safety cap, not a nowcast.
 const TRACK_STEP_S = 300;
 const MAX_FORWARD_S = 1800;
-// Cells with no motion solution yet (track_age 1) can only be drawn where they
-// were seen — show them on frames within one radar step of the analysis.
+// Cells whose velocity is not trustworthy yet can only be drawn where they were
+// seen — show them on frames within one radar step of the analysis instead.
 const STATIC_CELL_TOLERANCE_S = 600;
+
+// Velocities are EMA-smoothed only from the third generation on; age-2 is a
+// single-displacement estimate that jitters. Below this age a cell neither
+// advects nor draws an arrow.
+const MIN_TRACKED_AGE = 3;
+
+// Noise tier (client-guide rule): weak cells under this footprint are real
+// 35 dBZ specks, but at map zooms they read as markers detached from any echo.
+const NOISE_TIER_MAX_AREA_KM2 = 10;
 
 // How far ahead the motion vector is drawn.
 const VECTOR_MINUTES = 30;
 // Below this the motion solution is noise, not a direction worth drawing.
 const MIN_VECTOR_SPEED_MS = 1;
 
+// Extrapolation fade (client-guide rule 1): markers are positioned for the
+// analysis frame, so the further the cursor sits from it the less they should
+// assert. Full strength within one radar step, floor at the window edge.
+const FADE_FULL_S = 600;
+const FADE_MAX_S = 2700;
+const FADE_MIN_OPACITY = 0.45;
+
 // Resolutions are map units per pixel in EPSG:3857 (inflated by 1/cos(lat) —
 // ~2.4x at 65°N), the same scale placeNames.js bands against.
-// Weak cells are two thirds of the collection; at synoptic zoom they turn the
-// map into confetti, so they only appear from z8 in.
-const WEAK_MAX_RESOLUTION = 1200;
 // Labels for everything once zoomed in; severe cells stay labelled at any zoom.
 // The cut sits just above z8 (res ~611), the zoom where a handful of cells fill
 // the screen and their numbers are the point — z7 and out would be a wall of
@@ -178,7 +216,9 @@ export default function initStormCells() {
     attributions: 'Myrskysolut © FMI (CC BY 4.0)',
   });
 
+  const paneLayers = [];
   let cursorMs = Date.now();
+  let analysisMs = 0;
   let enabled = false;
   let timerId = 0;
   let inFlight = null;
@@ -197,9 +237,10 @@ export default function initStormCells() {
     const bearing = feature.get('bearingDeg');
     const dt = (cursorMs - feature.get('observedMs')) / 1000;
 
-    // No motion solution yet — the cell can only be drawn where it was seen,
-    // so nothing to move; only its visibility window changes.
-    if (speed === null || bearing === null) {
+    // No trustworthy motion solution (newborn, or a single-displacement age-2
+    // estimate) — the cell can only be drawn where it was seen, so nothing to
+    // move; only its visibility window changes.
+    if (!feature.get('tracked')) {
       feature.set('hidden', Math.abs(dt) > STATIC_CELL_TOLERANCE_S, true);
       return;
     }
@@ -226,6 +267,18 @@ export default function initStormCells() {
     source.changed();
   }
 
+  // Client-guide rule 1: the markers describe the analysis frame, so the
+  // further the cursor is from it the more they are extrapolation rather than
+  // observation. Fading the whole layer says that without hiding information
+  // the user scrubbed to on purpose.
+  function applyFade() {
+    if (!analysisMs) return;
+    const dt = Math.abs(cursorMs - analysisMs) / 1000;
+    const t = Math.min(Math.max((dt - FADE_FULL_S) / (FADE_MAX_S - FADE_FULL_S), 0), 1);
+    const opacity = 1 - (1 - FADE_MIN_OPACITY) * t;
+    paneLayers.forEach((layer) => layer.setOpacity(opacity));
+  }
+
   //
   // DATA
   //
@@ -234,6 +287,7 @@ export default function initStormCells() {
     const p = json.properties || {};
     const speed = Number.isFinite(p.speed_ms) ? p.speed_ms : null;
     const bearing = Number.isFinite(p.bearing_deg) ? p.bearing_deg : null;
+    const age = Number.isFinite(p.track_age) ? p.track_age : 1;
     const feature = new Feature({
       geometry: new Point(fromLonLat([lon, lat])),
     });
@@ -246,15 +300,25 @@ export default function initStormCells() {
       severity: p.severity || 'weak',
       maxDbz: Number.isFinite(p.max_dbz) ? p.max_dbz : null,
       areaKm2: Number.isFinite(p.area_km2) ? p.area_km2 : 0,
-      trackAge: Number.isFinite(p.track_age) ? p.track_age : 1,
+      trackAge: age,
       deviant: !!p.deviant_mover,
       // Motion is only meaningful once the tracker has two analyses of the
-      // cell; before that the server sends nulls rather than zeros.
+      // cell; before that the server sends nulls rather than zeros. `tracked`
+      // is the stronger test the arrows and the advection both use — the
+      // velocity is EMA-smoothed only from the third generation on.
       speedMs: speed,
       bearingDeg: bearing,
+      tracked: speed !== null && bearing !== null && age >= MIN_TRACKED_AGE,
       hidden: false,
     });
     return feature;
+  }
+
+  // Client-guide rule 2: the weak tier under ~10 km² is real 35 dBZ pixels but
+  // renders as markers with no visible echo under them — 60% of the collection,
+  // all of it noise at map zooms.
+  function isNoiseTier(p) {
+    return p.severity === 'weak' && (p.area_km2 || 0) < NOISE_TIER_MAX_AREA_KM2;
   }
 
   function load() {
@@ -266,14 +330,20 @@ export default function initStormCells() {
         return res.json();
       })
       .then((geojson) => {
-        const features = (geojson.features || [])
+        const items = (geojson.features || [])
           .filter((f) => f.geometry && f.geometry.type === 'Point'
-            && Number.isFinite(Date.parse((f.properties || {}).observed)))
-          .map(toFeature);
+            && Number.isFinite(Date.parse((f.properties || {}).observed)));
+        // The noise tier is dropped here rather than in the style function so
+        // it costs nothing per render, and never enters the spatial index.
+        const features = items.filter((f) => !isNoiseTier(f.properties)).map(toFeature);
         source.clear(true);
         source.addFeatures(features);
+        // All features of a response share one analysis instant; take it from
+        // the unfiltered set so the fade still works if every cell was noise.
+        analysisMs = items.length ? Date.parse(items[0].properties.observed) : 0;
         lastLoadMs = Date.now();
         advectAll();
+        applyFade();
       })
       .catch((err) => {
         // Offline / server hiccup: keep whatever is on screen (StickyImageWMS
@@ -346,8 +416,6 @@ export default function initStormCells() {
       if (feature.get('hidden')) return null;
       const severity = feature.get('severity');
       const rank = SEVERITY_RANK[severity] ?? 0;
-      if (rank === 0 && resolution > WEAK_MAX_RESOLUTION) return null;
-
       const lon = feature.get('curLon');
       const lat = feature.get('curLat');
       const center = feature.getGeometry().getCoordinates();
@@ -364,7 +432,10 @@ export default function initStormCells() {
 
       const speed = feature.get('speedMs');
       const bearing = feature.get('bearingDeg');
-      const head = speed !== null && bearing !== null && speed >= MIN_VECTOR_SPEED_MS
+      // `tracked` (track_age >= 3) is the client-guide gate on drawing motion
+      // at all: younger tracks have a velocity, but it jitters generation to
+      // generation and an arrow states more confidence than the number carries.
+      const head = feature.get('tracked') && speed >= MIN_VECTOR_SPEED_MS
         ? fromLonLat(destination(lon, lat, bearing, speed * VECTOR_MINUTES * 60))
         : null;
       // A shaft shorter than its own arrowhead renders as a bare chevron stuck
@@ -417,7 +488,7 @@ export default function initStormCells() {
     // Pane factory for paneDeps. Starts hidden and on the light style; POI
     // visibility and setMapLayer take over immediately after pane creation.
     createPaneLayer() {
-      return new VectorLayer({
+      const layer = new VectorLayer({
         source,
         visible: false,
         // Labels only — see the style function. Own group so cell labels never
@@ -428,6 +499,11 @@ export default function initStormCells() {
         renderOrder: (a, b) => (SEVERITY_RANK[b.get('severity')] ?? 0) - (SEVERITY_RANK[a.get('severity')] ?? 0),
         style: styleLight,
       });
+      // Kept so the extrapolation fade can reach every pane's layer. Panes are
+      // never destroyed — setLayout hides them — so this never leaks.
+      paneLayers.push(layer);
+      applyFade();
+      return layer;
     },
 
     // Called from the POI toggle: fetching and polling only run while the
@@ -449,6 +525,7 @@ export default function initStormCells() {
       cursorMs = timeMs;
       if (!enabled) return;
       advectAll();
+      applyFade();
     },
 
   };
