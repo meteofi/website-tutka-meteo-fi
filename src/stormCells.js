@@ -1,4 +1,4 @@
-// Storm cells (Myrskysolut) — cell identification + tracking from the MeteoCore
+// Storm cells (Soluntunnistus) — cell identification + tracking from the MeteoCore
 // OGC API Features collection `fmi-radar-nowcast`. Each feature is one
 // convective cell detected in the Finnish radar composite, carrying its
 // severity class, peak reflectivity, footprint area and a tracked motion
@@ -270,7 +270,7 @@ function footprintRadiusM(areaKm2) {
 
 export default function initStormCells() {
   const source = new VectorSource({
-    attributions: 'Myrskysolut © FMI (CC BY 4.0)',
+    attributions: 'Soluntunnistus © FMI (CC BY 4.0)',
   });
 
   // frame instant (ISO) -> snapshot, PENDING while a request is in flight, or

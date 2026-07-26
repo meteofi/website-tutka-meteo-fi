@@ -656,7 +656,7 @@ const lightningController = initLightningLayer({
 // before pane 0 is built; the search UI itself is wired later in main().
 const searchHighlight = initSearchHighlight();
 
-// Storm cells (Myrskysolut): OGC API Features cell identification + tracking,
+// Storm cells (Soluntunnistus): OGC API Features cell identification + tracking,
 // toggled from the POI menu. Module scope like the obs/lightning controllers so
 // its per-pane layer factory can join paneDeps; fetching starts only when the
 // POI is switched on (applyPoiVisibility), and setTime feeds it the clock.
@@ -2194,7 +2194,7 @@ const poiRegistry = [
     // also drives the controller's fetch/poll loop (setEnabled) so nothing is
     // requested while the layer is off.
     id: 'stormcells',
-    label: 'Myrskysolut',
+    label: 'Soluntunnistus',
     icon: 'storm',
     defaultOn: false,
     layerKeys: ['stormCellsLayer'],
@@ -3016,7 +3016,7 @@ function shareAttributions() {
   }
   // POI vector layers carry no layerInfo — credit the ones that need it while on.
   if (POI_STATE.turnpoints) parts.add('Käännöspisteet © Ilmailuliitto');
-  if (POI_STATE.stormcells) parts.add('Myrskysolut © FMI (CC BY 4.0)');
+  if (POI_STATE.stormcells) parts.add('Soluntunnistus © FMI (CC BY 4.0)');
   return [...parts];
 }
 
