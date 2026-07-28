@@ -37,6 +37,7 @@ import initShare from './share';
 import initObsLayer from './obs/obsLayer';
 import initLightningLayer from './lightning/lightningLayer';
 import { createPlaceNamesLayer, placeNamesStyleLight, placeNamesStyleDark } from './placeNames';
+import initStormCells from './stormCells';
 import radarSitesFallbackUrl from './data/radars-finland.geojson';
 import initOwnLocation from './ownLocation';
 import initOwnLocationMenu from './ui/ownLocationMenu';
@@ -655,6 +656,12 @@ const lightningController = initLightningLayer({
 // before pane 0 is built; the search UI itself is wired later in main().
 const searchHighlight = initSearchHighlight();
 
+// Storm cells (Soluntunnistus): OGC API Features cell identification + tracking,
+// toggled from the POI menu. Module scope like the obs/lightning controllers so
+// its per-pane layer factory can join paneDeps; fetching starts only when the
+// POI is switched on (applyPoiVisibility), and setTime feeds it the clock.
+const stormCells = initStormCells();
+
 // Layer-control panel (style / opacity / info) folded into each category's
 // long-press menu. Populated on open via createLongPressHandler's onBeforeShow;
 // acts on whichever pane's layer opened the menu. Declared here so buildPanePill
@@ -677,6 +684,7 @@ const paneDeps = {
   createObservationLayer: obsController.createPaneLayer,
   createLightningLayer: lightningController.createPaneLayer,
   createPlaceNamesLayer,
+  createStormCellsLayer: stormCells.createPaneLayer,
   createSearchHighlightLayer: searchHighlight.createPaneLayer,
 };
 
@@ -1039,6 +1047,10 @@ function setTime(action = 'next', seekIndex = 0) {
   timeline.update((startDate.getTime() - start) / resolution);
   if (probe) probe.setCursor(startDate.getTime(), start, resolution);
   if (crossSection) crossSection.setCursor(startDate.getTime(), start, resolution);
+  // Storm cells show the server's snapshot for the displayed frame — nothing
+  // extrapolated, and empty on frames it has none for. The window is passed so
+  // the controller knows which frames to prefetch.
+  stormCells.setCursor(startDate.getTime(), start, resolution);
   // Per-pane crosshairs: only active panes get the cursor — inactive panes'
   // reticles are hidden and must not refetch; they pick up the current window
   // on reactivation (setLayout runs setTime before syncCrosshairVisibility).
@@ -1313,6 +1325,7 @@ function setMapLayer(maplayer) {
     pane.lightGrayBaseLayer.setVisible(light);
     pane.placeNamesLayer.setStyle(light ? placeNamesStyleLight : placeNamesStyleDark);
     pane.municipalityLayer.setStyle(light ? municipalityStyleLight : municipalityStyleDark);
+    pane.stormCellsLayer.setStyle(light ? stormCells.styleLight : stormCells.styleDark);
   }
   applyIcaoTheme(maplayer);
   applyVesivaylatTheme(maplayer);
@@ -2177,6 +2190,16 @@ const poiRegistry = [
     layerKeys: ['municipalityLayer'],
   },
   {
+    // Unlike the other POIs this one carries live data: applyPoiVisibility
+    // also drives the controller's fetch/poll loop (setEnabled) so nothing is
+    // requested while the layer is off.
+    id: 'stormcells',
+    label: 'Soluntunnistus',
+    icon: 'storm',
+    defaultOn: false,
+    layerKeys: ['stormCellsLayer'],
+  },
+  {
     id: 'vesivaylat',
     label: 'Vesiväylät',
     icon: 'directions_boat',
@@ -2214,6 +2237,8 @@ function applyPoiVisibility() {
       });
     }
   });
+  // Storm cells poll a live API — the toggle gates fetching, not just paint.
+  stormCells.setEnabled(!!POI_STATE.stormcells);
 }
 
 function updatePoiMenuState() {
@@ -2991,6 +3016,7 @@ function shareAttributions() {
   }
   // POI vector layers carry no layerInfo — credit the ones that need it while on.
   if (POI_STATE.turnpoints) parts.add('Käännöspisteet © Ilmailuliitto');
+  if (POI_STATE.stormcells) parts.add('Soluntunnistus © FMI (CC BY 4.0)');
   return [...parts];
 }
 
