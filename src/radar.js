@@ -48,7 +48,11 @@ import createLayerPanel from './ui/layerPanel';
 import initSearchHighlight from './search/searchHighlight';
 import FramePool from './animation/framePool';
 import { canInterpolate, RadarInterpolator } from './animation/interpolation';
-import { parseReferenceTimes } from './nowcast';
+import {
+  NOWCAST_LAYER, OBSERVED_LAYER, NOW_INDEX, FUTURE_STEPS,
+  parseReferenceTimes, newestReferenceMs, timeLayerFor, edrLayerFor,
+  makeRadarSlotProvider, makeCoverageSlotProvider,
+} from './nowcast';
 import { track } from './analytics';
 
 dayjs.locale('fi');
@@ -729,6 +733,41 @@ function activePanes() {
   return panes.slice(0, activeCount);
 }
 
+//
+// NOWCAST MODE ("Suomi + ennuste") — observed past + forecast future in one
+// window. The mechanics live in src/nowcast.js and the FramePool slot-params
+// providers; radar.js only detects the mode and anchors the window.
+//
+// Boundary of the CURRENTLY ROUTED window: the newest observed frame ("now"),
+// epoch-ms. Written ONLY by setTime; null whenever no active pane is in the
+// mode, which turns every slot-params provider inert.
+let nowcastBoundaryMs = null;
+// Module-level getter so per-pool provider closures (built in a loop in
+// buildPanePools) don't capture the mutable binding directly.
+const getNowcastBoundaryMs = () => nowcastBoundaryMs;
+
+// Mode detection reads pane.ACTIVE_LAYERS — never the layer source's params:
+// in nowcast mode the mounted slot's LAYERS flips between the observed and
+// forecast product per displayed frame (FramePool swaps sources on showTime),
+// so source params are not a stable "current product" signal.
+function isNowcastPane(pane) {
+  return pane.VISIBLE.has('radarLayer')
+    && pane.ACTIVE_LAYERS.radarLayer === NOWCAST_LAYER
+    && !(pane.radarSite && pane.radarSite.isSingleSiteActive());
+}
+function anyNowcastPane() {
+  return activePanes().some(isNowcastPane);
+}
+// Canonical current radar product for UI readers (menu highlight, site-exit
+// restore target) — stable across the per-frame slot swaps above.
+function radarProductOf(pane) {
+  if (pane.radarSite && pane.radarSite.isSingleSiteActive()) {
+    return pane.layerss.radarLayer.getSource().getParams().LAYERS;
+  }
+  return pane.ACTIVE_LAYERS.radarLayer
+    || pane.layerss.radarLayer.getSource().getParams().LAYERS;
+}
+
 // Clock interaction gating, wired on EVERY active pane's map. A drag fires
 // pointerdrag on the pane the user touched; the shared view means moveend then
 // fires on every pane. Both are idempotent, so binding to all panes is safe and
@@ -765,7 +804,11 @@ function clonePaneDisplay(src, dst) {
     const ssrc = s.getSource();
     const dsrc = d.getSource();
     if (dsrc.getUrl() !== ssrc.getUrl()) dsrc.setUrl(ssrc.getUrl());
-    dsrc.updateParams({ ...ssrc.getParams() });
+    // Strip the nowcast run pin: the source pane's mounted slot may be a
+    // forecast frame whose params carry DIM_REFERENCE_TIME + the forecast
+    // LAYERS — the clone's providers re-derive both per slot, and the base
+    // source must never send a run pin with the observed product.
+    dsrc.updateParams({ ...ssrc.getParams(), DIM_REFERENCE_TIME: undefined });
     d.set('info', s.get('info'));
     // The interpolator's transparent swap holds the actual opacity at 0 while
     // the warp renders; _userOpacity carries the user's chosen value (and is
@@ -980,7 +1023,12 @@ function setTime(action = 'next', seekIndex = 0) {
       // Dimension, and a malformed dimension can yield non-numeric fields.
       // A layer without a valid time can't constrain the window — skip it
       // rather than throwing here on every tick (which freezes playback).
-      const t = wmslayer in layerInfo ? layerInfo[wmslayer].time : null;
+      // timeLayerFor maps the nowcast entry onto the observed composite:
+      // the window anchors on observations (the forecast product's time.end
+      // is +2 h out and must never move "now"), and the mapping is stable
+      // across nowcast mode's per-frame LAYERS flips.
+      const effLayer = timeLayerFor(wmslayer);
+      const t = effLayer in layerInfo ? layerInfo[effLayer].time : null;
       // The EDR vector layers (observations, FMI lightning) snap raw events
       // onto whatever window the raster layers pick — they must not coarsen
       // the shared resolution nor cap the newest frame. Their seeded
@@ -998,14 +1046,27 @@ function setTime(action = 'next', seekIndex = 0) {
   }
 
   end = Math.floor(end / resolution) * resolution;
-  start = Math.floor(end / resolution) * resolution - resolution * 12;
+  // Nowcast mode (any active pane): "now" is the newest observed frame; the
+  // window extends FUTURE_STEPS steps past it so cells NOW_INDEX+1..12 are
+  // forecast. The boundary is published BEFORE the pools are routed below —
+  // the slot-params providers read it live — and nulled when the mode is
+  // off, which turns the providers inert.
+  const nowcastActive = anyNowcastPane();
+  const nowMs = end;
+  nowcastBoundaryMs = nowcastActive ? nowMs : null;
+  if (nowcastActive) end = nowMs + resolution * FUTURE_STEPS;
+  start = end - resolution * 12;
+  // Following anchors on "now" in nowcast mode: a stopped following view
+  // shows current weather (the boundary frame), not the +30 min frame, and
+  // the 60 s capabilities refresh keeps it pinned there.
+  const followAnchorMs = nowcastActive ? nowMs : end;
 
   switch (action) {
     case 'first':
       startDate = new Date(start);
       break;
     case 'last':
-      startDate = new Date(end);
+      startDate = new Date(followAnchorMs);
       break;
     case 'seek': {
       // Jump to an explicit frame index (0..12) within the current window.
@@ -1038,7 +1099,7 @@ function setTime(action = 'next', seekIndex = 0) {
     startDate = new Date(end);
   }
 
-  if (startDate.getTime() === end && animationId === null) {
+  if (startDate.getTime() === followAnchorMs && animationId === null) {
     IS_FOLLOWING = true;
     localStorage.setItem('IS_FOLLOWING', JSON.stringify(true));
     debug('MODE: FOLLOW');
@@ -1051,6 +1112,7 @@ function setTime(action = 'next', seekIndex = 0) {
 
   // updateTimeLine((startDate.getTime()-start)/resolution);
   timeline.update((startDate.getTime() - start) / resolution);
+  timeline.setNowIndex(nowcastActive ? NOW_INDEX : null);
   if (probe) probe.setCursor(startDate.getTime(), start, resolution);
   if (crossSection) crossSection.setCursor(startDate.getTime(), start, resolution);
   // Storm cells show the server's snapshot for the displayed frame — nothing
@@ -1105,20 +1167,30 @@ function setTime(action = 'next', seekIndex = 0) {
       return;
     }
 
-    const wmslayer = olLayer.getSource().getParams().LAYERS;
+    // In nowcast mode the pane's radar range is anchored on the observed
+    // composite (the mounted slot's LAYERS flips per frame — not a stable
+    // identity) and its end is extended by the forecast product's advertised
+    // range so the future cells aren't blanked by the opacity gate below.
+    const nowcastHere = name === 'radarLayer' && isNowcastPane(pane);
+    const wmslayer = nowcastHere ? OBSERVED_LAYER : olLayer.getSource().getParams().LAYERS;
     const info = wmslayer in layerInfo ? layerInfo[wmslayer].time : null;
 
     const isStale = !!(info && info.end && Date.now() - info.end > STALE_THRESHOLD_MS);
     if (button) button.classList.toggle('stale-data', isStale);
     if (pillBtn) pillBtn.classList.toggle('stale-data', isStale);
 
+    const ncTime = nowcastHere && NOWCAST_LAYER in layerInfo
+      ? layerInfo[NOWCAST_LAYER].time : null;
+    const rangeEnd = info && ncTime && Number.isFinite(ncTime.end)
+      ? Math.max(info.end, ncTime.end)
+      : info && info.end;
     // The EDR obs vector layer handles per-station data gaps itself (a
     // frame with no fresh-enough report simply drops that label) — hiding
     // the whole layer on the WMS capabilities range would blank it on the
     // newest frames whenever the caps timestamp lags the radar window.
     const inRange = name === 'observationLayer'
-      || !info || !info.start || !info.end
-      || (tNow >= info.start && tNow <= info.end);
+      || !info || !info.start || !rangeEnd
+      || (tNow >= info.start && tNow <= rangeEnd);
     // Respect the user's chosen opacity (persistent _baseOpacity) instead of
     // forcing 1 — otherwise every frame swap during playback resets it to 100%.
     // Don't touch it while the interpolator is parking the layer transparent
@@ -1162,9 +1234,10 @@ function setTime(action = 'next', seekIndex = 0) {
   // shown, it stays on for the whole window (incl. the today-side frames).
   timelineStartEl.textContent = dayjs(start).format('LT');
   timelineEndEl.textContent = dayjs(end).format('LT');
+  const isForecastFrame = nowcastActive && tNow > nowMs;
   const today = dayjs();
   const showDate = !dayjs(start).isSame(today, 'day') || !dayjs(end).isSame(today, 'day');
-  updateMapTimeDisplay(timeISO, showDate);
+  updateMapTimeDisplay(timeISO, showDate, isForecastFrame);
 }
 
 //
@@ -1413,6 +1486,19 @@ function updateLayer(layer, wmslayer, opts = {}) {
   if (info && info.url) {
     layer.setLayerUrl(info.url);
   }
+  // Record the pane's canonical product BEFORE touching source params: the
+  // params write below fires the FramePool primary-source diff synchronously,
+  // and its slot-params providers read pane.ACTIVE_LAYERS (nowcast mode) —
+  // they must see the product being applied, not the previous one.
+  if (!skipPersist) {
+    const category = layer.get('name');
+    if (category && pane.ACTIVE_LAYERS[category] !== wmslayer) {
+      pane.ACTIVE_LAYERS[category] = wmslayer;
+      // Only the primary pane persists to localStorage; background panes are
+      // re-seeded by mirroring when a split is (re)entered.
+      if (isPane0) persistActiveLayers();
+    }
+  }
   // Reset style if the new layer doesn't support the currently active style
   const currentStyle = layer.getSource().getParams().STYLES || '';
   const baseUpdate = { LAYERS: wmslayer };
@@ -1447,15 +1533,6 @@ function updateLayer(layer, wmslayer, opts = {}) {
   } else {
     layer.getSource().updateParams(baseUpdate);
   }
-  if (!skipPersist) {
-    const category = layer.get('name');
-    if (category && pane.ACTIVE_LAYERS[category] !== wmslayer) {
-      pane.ACTIVE_LAYERS[category] = wmslayer;
-      // Only the primary pane persists to localStorage; background panes are
-      // re-seeded by mirroring when a split is (re)entered.
-      if (isPane0) persistActiveLayers();
-    }
-  }
   if (!skipVisibility) {
     if (layer.getVisible()) {
       if (isPane0) updateCanonicalPage();
@@ -1466,14 +1543,16 @@ function updateLayer(layer, wmslayer, opts = {}) {
   if (isPane0 && probe && layer === radarLayer) {
     // Pass the elevation (set in single-site mode) so the EDR probe queries the
     // displayed sweep; composites carry no ELEVATION param (z stays null).
-    probe.setActiveLayer(layer.getVisible() ? wmslayer : null, {
+    // edrLayerFor: the nowcast entry probes the observed composite — the EDR
+    // API has no forecast collection.
+    probe.setActiveLayer(layer.getVisible() ? edrLayerFor(wmslayer) : null, {
       z: layer.getSource().getParams().ELEVATION,
     });
   }
   // The crosshair readout is per-pane: each reticle tracks its own pane's
   // radar product (the pistemittaus probe above stays pane-0-only by scope).
   if (pane.crosshair && layer === pane.layerss.radarLayer) {
-    pane.crosshair.setActiveLayer(layer.getVisible() ? wmslayer : null, {
+    pane.crosshair.setActiveLayer(layer.getVisible() ? edrLayerFor(wmslayer) : null, {
       z: layer.getSource().getParams().ELEVATION,
     });
   }
@@ -1525,7 +1604,14 @@ function restoreActiveLayer(category, pane = pane0) {
   }
 
   const currentLayers = olLayer.getSource().getParams().LAYERS;
-  if (currentLayers !== stored) {
+  // In nowcast mode the mounted slot's LAYERS legitimately flips between the
+  // observed and forecast product per displayed frame — the stored nowcast
+  // entry is "applied" whenever the mode owns the pane's radar. Comparing
+  // slot params alone would re-apply it on every 60 s refresh and churn all
+  // 13 slots (sticky + flow-cache invalidation).
+  const applied = currentLayers === stored
+    || (category === 'radarLayer' && stored === NOWCAST_LAYER && isNowcastPane(pane));
+  if (!applied) {
     updateLayer(olLayer, stored, {
       skipVisibility: true,
       skipTracking: true,
@@ -1598,6 +1684,9 @@ function initPaneRadarSite(pane) {
     drawCoverage: (feature) => drawRadarCoverage(pane, feature),
     clearCoverage: () => clearRadarCoverage(pane),
     isLayerAdvertised: isRadarLayerAdvertised,
+    // Stable product identity for the drill-in's restore target — the layer
+    // source's LAYERS flips per frame in nowcast mode.
+    getCanonicalProduct: () => radarProductOf(pane),
     // Only pane 0 drives the shared bottom single-radar strip.
     onSingleSiteChange: pane.index === 0
       ? (state) => { if (radarStrip) radarStrip.update(state); }
@@ -1621,7 +1710,7 @@ function initPaneCrosshair(pane) {
   // writes params via updateParams (not updateLayer), so no setActiveLayer
   // sync has fired for a freshly-created split pane.
   if (layer.getVisible()) {
-    pane.crosshair.setActiveLayer(layer.getSource().getParams().LAYERS, {
+    pane.crosshair.setActiveLayer(edrLayerFor(layer.getSource().getParams().LAYERS), {
       z: layer.getSource().getParams().ELEVATION,
     });
   }
@@ -1650,12 +1739,12 @@ function onChangeVisible(event) {
   recomputeAllTimelineCells();
 
   if (isPane0 && probe && layer === radarLayer) {
-    probe.setActiveLayer(isVisible ? wmslayer : null, {
+    probe.setActiveLayer(isVisible ? edrLayerFor(wmslayer) : null, {
       z: layer.getSource().getParams().ELEVATION,
     });
   }
   if (name === 'radarLayer' && pane.crosshair) {
-    pane.crosshair.setActiveLayer(isVisible ? wmslayer : null, {
+    pane.crosshair.setActiveLayer(isVisible ? edrLayerFor(wmslayer) : null, {
       z: layer.getSource().getParams().ELEVATION,
     });
   }
@@ -1729,6 +1818,9 @@ function applySublayerToPane(pane, category, id) {
     // updateLayer clears ELEVATION in the same params update as LAYERS.
     if (pane.radarSite) pane.radarSite.exitSingleSite({ restore: false });
     updateLayer(pane.layerss.radarLayer, id, { source: 'longpress' });
+    // Reshape the shared window immediately — the nowcast entry extends it
+    // into the future, and any pane can flip the mode on or off.
+    setTime('keep');
     // Recentre the shared view to the picked radar's footprint only for the
     // primary pane — a background pane's pick shouldn't yank every pane around.
     if (pane === pane0) fitToLayerExtent(id);
@@ -1776,7 +1868,9 @@ function buildPanePill(pane) {
       cfg.menu,
       () => toggleLayerVisibility(pane.layerss[category], 'pane-pill'),
       (id) => applySublayerToPane(pane, category, id),
-      () => pane.layerss[category].getSource().getParams().LAYERS,
+      () => (category === 'radarLayer'
+        ? radarProductOf(pane)
+        : pane.layerss[category].getSource().getParams().LAYERS),
       () => pane.layerss[category].getVisible(),
       () => { hideCoachmarkNow(); markLongPressDiscovered(); },
       (menu) => layerPanel.populate(menu, pane.layerss[category]),
@@ -1926,10 +2020,14 @@ const radarMenu = createLongPressHandler(
     // below sets the new composite itself.
     if (radarSite) radarSite.exitSingleSite({ restore: false });
     updateLayer(radarLayer, id, { source: 'longpress' });
+    // Reshape the window immediately: the nowcast entry extends it into the
+    // future (and leaving the entry reverts it) — while playback is stopped
+    // nothing else would re-run setTime.
+    setTime('keep');
     fitToLayerExtent(id);
     radarMenu.hide();
   },
-  () => radarLayer.getSource().getParams().LAYERS,
+  () => radarProductOf(pane0),
   () => radarLayer.getVisible(),
   onLongPressDiscovered,
   (menu) => layerPanel.populate(menu, radarLayer),
@@ -2458,7 +2556,13 @@ function getWMSCapabilities(wms, failCountArg = 0) {
       for (const pane of activePanes()) {
         for (const name of ['satelliteLayer', 'radarLayer', 'lightningLayer', 'observationLayer']) {
           const olLayer = pane.layerss[name];
-          olLayer.set('info', layerInfo[olLayer.getSource().getParams().LAYERS]);
+          // The radar layer's canonical product, not the mounted slot's
+          // LAYERS: in nowcast mode the latter flips per displayed frame,
+          // which would make the layer panel's title/info flap.
+          const infoName = name === 'radarLayer'
+            ? radarProductOf(pane)
+            : olLayer.getSource().getParams().LAYERS;
+          olLayer.set('info', layerInfo[infoName]);
           applyWireFormat(olLayer);
         }
         // The lightning WMS companion carries the actual EUMETSAT raster;
@@ -2471,8 +2575,25 @@ function getWMSCapabilities(wms, failCountArg = 0) {
         }
       }
       for (const pane of activePanes()) restoreActiveLayer(wms.category, pane);
+      // Hide the nowcast menu entry while the forecast product isn't
+      // advertised (server down / product removed). display, not [hidden]:
+      // the menu-item rules set display themselves.
+      const nowcastMenuItem = document.querySelector('#radarLongPressMenu .menu-item[data-layer="fmi-radar-nowcast"]');
+      if (nowcastMenuItem) {
+        nowcastMenuItem.style.display = layerInfo[NOWCAST_LAYER] ? '' : 'none';
+      }
       if (IS_FOLLOWING) {
         setTime('last');
+      }
+      // Nowcast model-run rollover for stopped/scrubbed users: the slot
+      // providers read the newest advertised run live, so a key re-check is
+      // all that's needed. No-op for pools whose override keys are unchanged
+      // (including everyone with the mode off).
+      for (const pane of activePanes()) {
+        for (const poolName of Object.keys(pane.framePools)) {
+          const pool = pane.framePools[poolName];
+          if (pool) pool.refreshSlotOverrides();
+        }
       }
     } else {
       debug(`Invalid WMS Capabilities response structure for ${wms.url}`);
@@ -2668,6 +2789,20 @@ function buildPanePools(pane) {
       poolFlowStates[key][idx] = ready;
       updateTimelineCell(idx);
     };
+    // Nowcast-mode slot providers (src/nowcast.js). Installed permanently on
+    // every pane; they self-deactivate whenever nowcastBoundaryMs is null
+    // (no pane in the mode), so classic behavior is untouched.
+    if (name === 'radarLayer') {
+      pool.setSlotParamsProvider(makeRadarSlotProvider({
+        isNowcastPane: () => isNowcastPane(pane),
+        getBoundaryMs: getNowcastBoundaryMs,
+        getNowcastRefMs: () => newestReferenceMs(layerInfo[NOWCAST_LAYER]),
+      }));
+    } else {
+      pool.setSlotParamsProvider(makeCoverageSlotProvider({
+        getBoundaryMs: getNowcastBoundaryMs,
+      }));
+    }
     pane.framePools[name] = pool;
   }
 }
@@ -2728,7 +2863,7 @@ const main = () => {
     onValueChange: (v) => { if (tools) tools.setProbeValue(v); },
   });
   if (radarLayer.getVisible()) {
-    probe.setActiveLayer(radarLayer.getSource().getParams().LAYERS);
+    probe.setActiveLayer(edrLayerFor(radarLayer.getSource().getParams().LAYERS));
   }
 
   rangeCircle = initRangeCircle({ onStrokeEnd: onDrawStrokeEnd });
@@ -3037,7 +3172,10 @@ function pickEtaSourceLayer() {
   for (const pane of activePanes()) {
     for (const name of pane.VISIBLE) {
       const olLayer = pane.layerss[name];
-      const wmslayer = olLayer && olLayer.getSource().getParams().LAYERS;
+      // timeLayerFor: in nowcast mode the mounted slot's LAYERS flips per
+      // frame between the observed and forecast product; the ETA must track
+      // the observed feed's cadence, not the +2 h forecast end.
+      const wmslayer = olLayer && timeLayerFor(olLayer.getSource().getParams().LAYERS);
       const info = wmslayer && layerInfo[wmslayer] && layerInfo[wmslayer].time;
       if (info && info.end && info.resolution
         && Date.now() - info.end <= ETA_STALE_THRESHOLD_MS

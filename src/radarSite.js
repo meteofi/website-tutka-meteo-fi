@@ -116,6 +116,11 @@ export default function initRadarSite({
   // single-variant preference in resolveProduct; defaulting to false keeps
   // the pvol behavior when the capability data isn't available.
   isLayerAdvertised = () => false,
+  // The pane's canonical radar product (radar.js radarProductOf). The layer
+  // source's LAYERS is not a stable identity in nowcast mode (the mounted
+  // FramePool slot flips per displayed frame), so the drill-in's restore
+  // target must come from here; null falls back to the source params.
+  getCanonicalProduct = null,
   // Fired whenever the active single-site product changes (enter / exit /
   // quantity / sweep) with an activeState() snapshot, or null in composite mode.
   // Only pane 0 wires this — it drives the bottom single-radar strip.
@@ -301,15 +306,18 @@ export default function initRadarSite({
     // shows the site rather than silently arming an invisible layer.
     if (!radarLayer.getVisible()) radarLayer.setVisible(true);
     // Keep the original composite as the restore target across a site→site
-    // switch — never capture a site layer as the composite.
-    const savedComposite = singleSite ? singleSite.savedComposite : getRadarParams().LAYERS;
+    // switch — never capture a site layer as the composite. The canonical
+    // product (when wired) survives nowcast mode's per-frame LAYERS flips,
+    // so exiting a drill-in restores the nowcast entry, not the composite
+    // half it happened to display.
+    const savedComposite = singleSite
+      ? singleSite.savedComposite
+      : (getCanonicalProduct && getCanonicalProduct()) || getRadarParams().LAYERS;
     // Pass ELEVATION through updateLayer so the very first site request
     // carries the sweep in the same params update as LAYERS.
     updateLayer(radarLayer, product.wmsLayer, {
       skipPersist: true, skipTracking: true, elevation: product.elevation,
     });
-    setTime('keep');
-    startLoadWatch();
     singleSite = {
       wmsLayer: product.wmsLayer,
       quantity: product.quantity,
@@ -317,6 +325,11 @@ export default function initRadarSite({
       savedComposite,
       feature,
     };
+    // setTime AFTER singleSite is set: the shared window math consults
+    // isSingleSiteActive() (a drill-in suspends nowcast mode) and must see
+    // the state it is reshaping for.
+    setTime('keep');
+    startLoadWatch();
     updateActiveIndicator();
     // Coverage rings are part of "showing this radar": redraw for the active
     // site (this also handles a site→site switch).
@@ -334,12 +347,17 @@ export default function initRadarSite({
   // clears ELEVATION in the same params update as its LAYERS swap).
   function exitSingleSite({ restore = true } = {}) {
     if (!singleSite) return;
-    if (getRadarParams().LAYERS === singleSite.wmsLayer) {
+    const exiting = singleSite;
+    // Clear the drill-in BEFORE the restore's setTime: the shared window
+    // math consults isSingleSiteActive() (nowcast mode resumes on exit) and
+    // must see the restored state it is reshaping for.
+    singleSite = null;
+    if (getRadarParams().LAYERS === exiting.wmsLayer) {
       if (restore) {
         // Only skip the visibility step when the layer is already hidden (the
         // radar-off path), so restoring there doesn't re-show it. When visible
         // (toggle-off), let updateLayer run its normal canonical-page update.
-        updateLayer(radarLayer, singleSite.savedComposite, {
+        updateLayer(radarLayer, exiting.savedComposite, {
           skipVisibility: !radarLayer.getVisible(),
           skipPersist: true,
           skipTracking: true,
@@ -347,7 +365,6 @@ export default function initRadarSite({
         setTime('keep');
       }
     }
-    singleSite = null;
     stopLoadWatch();
     updateActiveIndicator();
     clearCoverage();
