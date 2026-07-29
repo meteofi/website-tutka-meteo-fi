@@ -144,6 +144,21 @@ const wmsServerConfiguration = {
     license: 'CC-BY-4.0',
     disabled: false,
   },
+  // Nowcast mode: selecting this entry mixes the observed Finnish composite
+  // (past half of the window) with this motion-extrapolated forecast product
+  // (future half), see src/nowcast.js. Rides the same meteocore
+  // GetCapabilities fetch as the other entries.
+  'fi-nowcast': {
+    url: 'https://meteocore.app.meteo.fi/wms',
+    layer: 'fmi-radar-nowcast',
+    refresh: 60000,
+    category: 'radarLayer',
+    title: 'Suomi + ennuste',
+    abstract: 'Havaittu tutkakuva ja liikevektoreihin perustuva ennuste samalla aikajanalla: 30 minuuttia historiaa ja 30 minuuttia ennustetta 5 minuutin askelin.',
+    attribution: 'FMI',
+    license: 'CC-BY-4.0',
+    disabled: false,
+  },
   eu: {
     url: 'https://meteocore.app.meteo.fi/wms',
     layer: 'opera-reflectivity',

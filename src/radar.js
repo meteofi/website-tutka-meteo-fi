@@ -48,6 +48,7 @@ import createLayerPanel from './ui/layerPanel';
 import initSearchHighlight from './search/searchHighlight';
 import FramePool from './animation/framePool';
 import { canInterpolate, RadarInterpolator } from './animation/interpolation';
+import { parseReferenceTimes } from './nowcast';
 import { track } from './analytics';
 
 dayjs.locale('fi');
@@ -2581,6 +2582,10 @@ function getLayerInfo(layer, wms, supportsWebp = false) {
 
   if (typeof layer.Dimension !== 'undefined') {
     product.time = getTimeDimension(layer.Dimension);
+    // Model-run dimension (fmi-radar-nowcast and some NWP layers). OL's
+    // parser already delivers every Dimension element; only `time` was
+    // consumed until nowcast mode needed the run list.
+    product.referenceTime = parseReferenceTimes(layer.Dimension);
   }
 
   if (typeof layer.Style !== 'undefined') {
