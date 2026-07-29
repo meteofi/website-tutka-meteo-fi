@@ -1487,6 +1487,34 @@ body.split-4 #placeSearchButton {
   #timeline > div.timeline-current {
     background-color: var(--dark-primary-color);
   }
+  /* Nowcast mode: cells after the "now" boundary are forecast. The hatch
+     is a background-image so it composes with every state's
+     background-color (loading amber, flow-pending green, current primary)
+     — forecast-ness and load state stay independently readable. */
+  #timeline > div.timeline-future {
+    background-image: repeating-linear-gradient(
+      45deg,
+      transparent 0 3px,
+      rgba(255, 255, 255, 0.22) 3px 5px
+    );
+  }
+  /* The boundary cell carries a bright tick on its right edge marking
+     "now". ::after on a relatively-positioned cell (plain relative on a
+     flex child — no position:fixed, iOS-safe); it overhangs the 10 px
+     track a little so it reads as a marker, not a cell state, and its
+     2 px width fills the gap before the first forecast cell. */
+  #timeline > div.timeline-now { position: relative; }
+  #timeline > div.timeline-now::after {
+    content: '';
+    position: absolute;
+    right: -2px;
+    top: -3px;
+    bottom: -3px;
+    width: 2px;
+    border-radius: 1px;
+    background-color: var(--dark-theme-on-surface);
+    z-index: 1;
+  }
 
   /* Probe chart row — collapses to height 0 when no pin / unsupported layer.
      Lives between the playbar and the load-state strip so its x-axis aligns
@@ -1649,6 +1677,18 @@ body.split-4 #placeSearchButton {
 /* The date is shown only when the animation window includes a day other than
    today (stale data, or a window straddling midnight) — see setTime. */
 #currentMapDate.date-hidden { display: none; }
+
+/* "Ennuste" tag — shown under the clock while the displayed frame is ahead
+   of the newest observation (nowcast mode, cells right of the boundary). */
+#currentMapForecast {
+  font-size: 0.62em;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dark-primary-color);
+  line-height: 1.1;
+}
+#currentMapForecast[hidden] { display: none; }
 
 /* ETA — small countdown to the next image arrival. Shown below the
    map time/date when at least one visible layer has a known

@@ -909,14 +909,19 @@ function bearingLine(layer, coordinates, range, direction) {
 // WMS
 const currentMapTimeDiv = document.getElementById('currentMapTime');
 const currentMapDateDiv = document.getElementById('currentMapDate');
+const currentMapForecastDiv = document.getElementById('currentMapForecast');
 // showDate is a window-level decision (setTime): only shown when the animation
 // window includes a day other than today, and then for every frame in it.
-function updateMapTimeDisplay(time, showDate) {
+// isForecast marks frames ahead of the newest observation (nowcast mode).
+function updateMapTimeDisplay(time, showDate, isForecast = false) {
   const t = dayjs(time);
   if (!t.isValid()) return;
   // Apply the date visibility every call — the window can shift (following /
   // capabilities refresh) without the displayed frame time changing.
   currentMapDateDiv.classList.toggle('date-hidden', !showDate);
+  // Same reasoning: a mode flip can change forecast-ness without the frame
+  // time changing, so this can't sit behind the mapTime !== time guard.
+  currentMapForecastDiv.hidden = !isForecast;
   if (mapTime !== time) {
     currentMapDateDiv.textContent = t.format('l');
     currentMapTimeDiv.textContent = t.format('LT');

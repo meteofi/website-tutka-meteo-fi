@@ -272,6 +272,7 @@
     </div>
     <div class="bar-clock">
       <div id="currentMapTime"></div>
+      <div id="currentMapForecast" hidden>Ennuste</div>
       <div id="currentMapDate"></div>
       <div id="currentMapEta" hidden><i class="material-icons" aria-hidden="true">update</i><span class="eta-value"></span></div>
     </div>
@@ -355,6 +356,9 @@
   <div id="radarLongPressMenu">
     <div class="menu-item" data-layer="fmi-radar-composite-dbz">
       <span class="menu-label">Suomi</span>
+    </div>
+    <div class="menu-item" data-layer="fmi-radar-nowcast">
+      <span class="menu-label">Suomi + ennuste</span>
     </div>
     <div class="menu-item" data-layer="opera-reflectivity">
       <span class="menu-label">Eurooppa</span>

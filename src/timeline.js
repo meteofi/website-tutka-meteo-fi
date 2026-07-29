@@ -6,6 +6,9 @@ class Timeline {
     // scrubbable. Kept optional so a non-interactive timeline (or a test) can
     // construct one without wiring playback.
     this.onSeek = onSeek || null;
+    // Nowcast-mode boundary cell index, or null when the whole window is
+    // observed data (see setNowIndex).
+    this.nowIndex = null;
     this.createTimeline();
     if (this.onSeek) this.enableScrub();
   }
@@ -69,6 +72,20 @@ class Timeline {
     const elem = this.parent.children[index];
     if (!elem) return;
     elem.classList.toggle('timeline-loading', !loaded);
+  }
+
+  // Nowcast mode: mark the boundary cell ("now" = the newest observed
+  // frame) with a tick and hatch every cell after it as forecast. Pass
+  // null to clear both (mode off). Idempotent class toggles — safe to
+  // call on every setTime.
+  setNowIndex(index) {
+    this.nowIndex = index == null ? null : index;
+    const n = this.parent.children.length;
+    for (let i = 0; i < n; i++) {
+      const el = this.parent.children[i];
+      el.classList.toggle('timeline-now', this.nowIndex !== null && i === this.nowIndex);
+      el.classList.toggle('timeline-future', this.nowIndex !== null && i > this.nowIndex);
+    }
   }
 
   // Flow-pending means the raw bitmap is loaded but the interpolator
