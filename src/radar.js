@@ -1581,11 +1581,26 @@ function fitToLayerExtent(wmslayer) {
   });
 }
 
+// Per-layer override map: any wms entry that declares a specific `layer`
+// (e.g. de/fi/eu/no/se/dk on the meteocore endpoint) provides the
+// attribution/license/title fallback for THAT layer specifically. Lets a
+// single GetCapabilities fetch serve a multi-source group correctly.
+// (Defined up here — before its getLayers/getLayerInfo consumers — because
+// restoreActiveLayer's eviction guard below also reads it.)
+const wmsByLayerName = (() => {
+  const byLayer = {};
+  Object.values(wmsServerConfiguration).forEach((value) => {
+    if (value.disabled || !value.layer) return;
+    byLayer[value.layer] = value;
+  });
+  return byLayer;
+})();
+
 // Restore the user's previously selected sublayer for one category (e.g.
 // 'radarLayer') after that category's WMS GetCapabilities has populated
 // layerInfo. If the stored layer is no longer advertised by the server,
 // drop it — the layer stays at its constructor-time default.
-function restoreActiveLayer(category, pane = pane0) {
+function restoreActiveLayer(category, pane = pane0, respondingWms = null) {
   if (!category) return;
   // While a pane is drilled into a single radar site, its radar layer runs a
   // transient `<collection>/<quantity>` product that is NOT in ACTIVE_LAYERS.
@@ -1598,6 +1613,13 @@ function restoreActiveLayer(category, pane = pane0) {
   if (!stored) return;
 
   if (!layerInfo[stored] || layerInfo[stored].category !== category) {
+    // Same-category capabilities handlers race (meteocore vs wms.meteo.fi —
+    // response-handler order is nondeterministic): only the endpoint that
+    // OWNS the stored product may evict it. A faster answer from a server
+    // that never advertises the layer must not wipe the user's selection
+    // before the owning server has been heard.
+    const owner = wmsByLayerName[stored];
+    if (respondingWms && owner && owner.url !== respondingWms.url) return;
     delete pane.ACTIVE_LAYERS[category];
     if (pane === pane0) persistActiveLayers();
     return;
@@ -2574,7 +2596,7 @@ function getWMSCapabilities(wms, failCountArg = 0) {
           applyWireFormat(companion);
         }
       }
-      for (const pane of activePanes()) restoreActiveLayer(wms.category, pane);
+      for (const pane of activePanes()) restoreActiveLayer(wms.category, pane, wms);
       // Hide the nowcast menu entry while the forecast product isn't
       // advertised (server down / product removed). display, not [hidden]:
       // the menu-item rules set display themselves.
@@ -2612,19 +2634,6 @@ function getWMSCapabilities(wms, failCountArg = 0) {
       setTimeout(() => { getWMSCapabilities(wms, failCount); }, delay);
     });
 }
-
-// Per-layer override map: any wms entry that declares a specific `layer`
-// (e.g. de/fi/eu/no/se/dk on the meteocore endpoint) provides the
-// attribution/license/title fallback for THAT layer specifically. Lets a
-// single GetCapabilities fetch serve a multi-source group correctly.
-const wmsByLayerName = (() => {
-  const byLayer = {};
-  Object.values(wmsServerConfiguration).forEach((value) => {
-    if (value.disabled || !value.layer) return;
-    byLayer[value.layer] = value;
-  });
-  return byLayer;
-})();
 
 function getLayers(parentlayer, wms, supportsWebp = false) {
   const products = {};
