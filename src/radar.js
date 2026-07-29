@@ -952,19 +952,25 @@ function bearingLine(layer, coordinates, range, direction) {
 // WMS
 const currentMapTimeDiv = document.getElementById('currentMapTime');
 const currentMapDateDiv = document.getElementById('currentMapDate');
-const currentMapForecastDiv = document.getElementById('currentMapForecast');
+const currentMapKindDiv = document.getElementById('currentMapKind');
 // showDate is a window-level decision (setTime): only shown when the animation
 // window includes a day other than today, and then for every frame in it.
-// isForecast marks frames ahead of the newest observation (nowcast mode).
-function updateMapTimeDisplay(time, showDate, isForecast = false) {
+// nowcastKind is 'obs' | 'forecast' in nowcast mode (the tag shows on EVERY
+// frame — Havainto/Ennuste — so the bar's height never changes during
+// playback) and null outside it (tag hidden).
+function updateMapTimeDisplay(time, showDate, nowcastKind = null) {
   const t = dayjs(time);
   if (!t.isValid()) return;
   // Apply the date visibility every call — the window can shift (following /
   // capabilities refresh) without the displayed frame time changing.
   currentMapDateDiv.classList.toggle('date-hidden', !showDate);
-  // Same reasoning: a mode flip can change forecast-ness without the frame
-  // time changing, so this can't sit behind the mapTime !== time guard.
-  currentMapForecastDiv.hidden = !isForecast;
+  // Same reasoning: a mode flip can change the kind without the frame time
+  // changing, so this can't sit behind the mapTime !== time guard.
+  currentMapKindDiv.hidden = !nowcastKind;
+  if (nowcastKind) {
+    currentMapKindDiv.textContent = nowcastKind === 'forecast' ? 'Ennuste' : 'Havainto';
+    currentMapKindDiv.classList.toggle('forecast', nowcastKind === 'forecast');
+  }
   if (mapTime !== time) {
     currentMapDateDiv.textContent = t.format('l');
     currentMapTimeDiv.textContent = t.format('LT');
@@ -1234,10 +1240,10 @@ function setTime(action = 'next', seekIndex = 0) {
   // shown, it stays on for the whole window (incl. the today-side frames).
   timelineStartEl.textContent = dayjs(start).format('LT');
   timelineEndEl.textContent = dayjs(end).format('LT');
-  const isForecastFrame = nowcastActive && tNow > nowMs;
+  const nowcastKind = nowcastActive ? (tNow > nowMs ? 'forecast' : 'obs') : null;
   const today = dayjs();
   const showDate = !dayjs(start).isSame(today, 'day') || !dayjs(end).isSame(today, 'day');
-  updateMapTimeDisplay(timeISO, showDate, isForecastFrame);
+  updateMapTimeDisplay(timeISO, showDate, nowcastKind);
 }
 
 //

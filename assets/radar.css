@@ -1678,17 +1678,20 @@ body.split-4 #placeSearchButton {
    today (stale data, or a window straddling midnight) — see setTime. */
 #currentMapDate.date-hidden { display: none; }
 
-/* "Ennuste" tag — shown under the clock while the displayed frame is ahead
-   of the newest observation (nowcast mode, cells right of the boundary). */
-#currentMapForecast {
+/* Data-kind tag under the clock in nowcast mode: "Havainto" on observed
+   frames, "Ennuste" (accented) on forecast frames. Present on EVERY frame
+   while the mode is on — a per-frame show/hide would change the bar's
+   height mid-animation. Hidden entirely outside the mode. */
+#currentMapKind {
   font-size: 0.62em;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--dark-primary-color);
+  color: var(--dark-medium-emphasis-text-color);
   line-height: 1.1;
 }
-#currentMapForecast[hidden] { display: none; }
+#currentMapKind.forecast { color: var(--dark-primary-color); }
+#currentMapKind[hidden] { display: none; }
 
 /* ETA — small countdown to the next image arrival. Shown below the
    map time/date when at least one visible layer has a known
