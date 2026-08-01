@@ -2538,7 +2538,30 @@ document.addEventListener('keyup', (event) => {
   }
 });
 
+// One record per started capabilities loop (keyed on the wms config entry
+// the dedup in `main` selected). Tracks the pending reschedule timer, the
+// last attempt time and in-flight state so the visibilitychange catch-up
+// below can fire an immediate refresh without ever doubling a loop.
+const capsLoops = new Map(); // wms entry -> { timer, lastAttemptAt, inFlight }
+function capsLoopOf(wms) {
+  let loop = capsLoops.get(wms);
+  if (!loop) {
+    loop = { timer: 0, lastAttemptAt: 0, inFlight: false };
+    capsLoops.set(wms, loop);
+  }
+  return loop;
+}
+
 function getWMSCapabilities(wms, failCountArg = 0) {
+  const loop = capsLoopOf(wms);
+  // Clearing the pending timer guards against a visibilitychange poke (or
+  // any future manual caller) racing an already-scheduled run.
+  if (loop.timer) {
+    clearTimeout(loop.timer);
+    loop.timer = 0;
+  }
+  loop.lastAttemptAt = Date.now();
+  loop.inFlight = true;
   let failCount = failCountArg;
   const parser = new WMSCapabilities();
   const namespace = wms.namespace ? `&namespace=${wms.namespace}` : '';
@@ -2637,9 +2660,28 @@ function getWMSCapabilities(wms, failCountArg = 0) {
       const delay = failCount > 0
         ? Math.min(wms.refresh * 2 ** failCount, 300000)
         : wms.refresh;
-      setTimeout(() => { getWMSCapabilities(wms, failCount); }, delay);
+      loop.inFlight = false;
+      loop.timer = setTimeout(() => { getWMSCapabilities(wms, failCount); }, delay);
     });
 }
+
+// Wake-from-sleep catch-up: a hidden/frozen tab throttles or suspends the
+// capabilities timers, so after a long sleep the window anchor — and in
+// nowcast mode the pinned model run, which the server retains for only the
+// two newest generations — can be minutes stale; every forecast frame would
+// then 400 until the next scheduled refresh fired. On return to visible,
+// immediately re-run every loop whose last attempt is older than its own
+// cadence (a brief tab switch refreshes nothing), clearing its pending
+// timer so the loop is never doubled. In-flight fetches are left alone.
+// The response handler then does the rest as usual: restoreActiveLayer,
+// refreshSlotOverrides (run rollover), setTime('last') while following.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible') return;
+  capsLoops.forEach((loop, wms) => {
+    if (loop.inFlight || Date.now() - loop.lastAttemptAt < wms.refresh) return;
+    getWMSCapabilities(wms);
+  });
+});
 
 function getLayers(parentlayer, wms, supportsWebp = false) {
   const products = {};
