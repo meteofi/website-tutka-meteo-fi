@@ -20,6 +20,14 @@ function pickSyncParams(params) {
   return out;
 }
 
+// Stable serialization of a per-slot override (see setSlotParamsProvider)
+// used to detect identity changes without deep-comparing params objects.
+function overrideKeyOf(o) {
+  if (o.skip) return 'skip';
+  if (!o.params) return '';
+  return `L=${o.params.LAYERS}|R=${o.params.DIM_REFERENCE_TIME}`;
+}
+
 // Given a padded canvas extent and the padding ratio (e.g., 1.5),
 // return the inner 1× view extent (canvas minus buffer) with the
 // same center.
@@ -82,6 +90,13 @@ export default class FramePool {
     this.onFlowStateChange = null;
     this.windowTimes = null;
     this.currentTime = null;
+    // Optional per-slot identity provider (see setSlotParamsProvider).
+    // Null = every slot mirrors the primary — the classic behavior.
+    this._slotParamsProvider = null;
+    // Reentrancy depth for pool-originated source writes, so the primary
+    // 'change' watcher only diffs EXTERNAL param changes (updateLayer,
+    // style picks) and never the pool's own per-slot writes.
+    this._selfUpdate = 0;
 
     const baseSource = primaryLayer.getSource();
     for (let i = 0; i < size; i++) {
@@ -94,7 +109,7 @@ export default class FramePool {
         serverType: 'geoserver',
       });
       const slot = {
-        layer: null, source, time: null, loaded: false,
+        layer: null, source, time: null, loaded: false, skipped: false, overrideKey: '',
       };
       const layer = new ImageLayer({
         name: `${primaryLayer.get('name')}__slot${i}`,
@@ -194,7 +209,16 @@ export default class FramePool {
 
     this._primaryParamsSnap = this._snapPrimary();
     this._watchPrimarySource();
-    this.primary.on('change:source', () => this._watchPrimarySource());
+    this.primary.on('change:source', () => {
+      // A showTime swap mounts a slot whose params are the pool's own
+      // per-slot truth (possibly an overridden LAYERS in nowcast mode),
+      // not a user product change. Re-snap before re-binding so the diff
+      // baseline follows the mounted source — otherwise every swap across
+      // a per-slot identity boundary would read as an external LAYERS
+      // change and trigger a full resync + flow-cache drop.
+      this._primaryParamsSnap = this._snapPrimary();
+      this._watchPrimarySource();
+    });
   }
 
   _snapPrimary() {
@@ -213,6 +237,7 @@ export default class FramePool {
     const p = this.primary.getSource();
     if (this._psListener) this._psListener.target.un('change', this._psListener.fn);
     const fn = () => {
+      if (this._selfUpdate) return;
       const snap = this._snapPrimary();
       const prev = this._primaryParamsSnap;
       if (
@@ -230,21 +255,123 @@ export default class FramePool {
     this._psListener = { target: p, fn };
   }
 
+  // ---- Per-slot identity overrides --------------------------------------
+  //
+  // A provider lets one window mix WMS identities per frame: nowcast mode
+  // serves past frames from the observed composite and future frames from
+  // the forecast product pinned to one model run. The provider is a pure
+  // function of the frame time:
+  //   provider(timeISO) -> null                    follow the primary (default)
+  //                      | { skip: true }          no data at this time — never fetch
+  //                      | { params: { LAYERS, DIM_REFERENCE_TIME } }
+  // Only LAYERS and DIM_REFERENCE_TIME may be overridden (overrideKeyOf
+  // serializes exactly those); STYLES / FORMAT / ELEVATION always sync from
+  // the primary so a style pick restyles both halves of a mixed window.
+
+  setSlotParamsProvider(fn) {
+    this._slotParamsProvider = fn || null;
+    this.refreshSlotOverrides();
+  }
+
+  _overrideFor(timeISO) {
+    if (!this._slotParamsProvider || !timeISO) return { skip: false, params: null };
+    const o = this._slotParamsProvider(timeISO);
+    if (!o) return { skip: false, params: null };
+    if (o.skip) return { skip: true, params: null };
+    return { skip: false, params: o.params || null };
+  }
+
+  // Build a slot's full params object. The literal's key order is fixed
+  // (sync keys → TIME → DIM_REFERENCE_TIME → override) so params_ first-
+  // insertion order — and with it the GetMap query-string order — is
+  // byte-identical for every slot in every pane; the shared blob cache and
+  // the server's exact-URL cache both key on the full URL string.
+  // DIM_REFERENCE_TIME: undefined keeps that key's position stable AND
+  // scrubs a stale run pin when a slot flips from forecast back to
+  // observed (updateParams merges; ol/uri drops undefined from the URL).
+  _mergedParamsFor(slot, o) {
+    return {
+      ...pickSyncParams(this.primary.getSource().getParams()),
+      TIME: slot.time || undefined,
+      DIM_REFERENCE_TIME: undefined,
+      ...(o.params || {}),
+    };
+  }
+
+  // The ONE path that changes a slot's WMS identity (product / model run /
+  // TIME): guarded params write + sticky invalidation + load and
+  // interpolator bookkeeping.
+  _applySlotIdentity(slot, o, key) {
+    const p = this.primary.getSource();
+    this._selfUpdate++;
+    try {
+      if (slot.source.getUrl() !== p.getUrl()) slot.source.setUrl(p.getUrl());
+      slot.source.updateParams(this._mergedParamsFor(slot, o));
+    } finally {
+      this._selfUpdate--;
+    }
+    // A write to the mounted source must fold into the diff baseline so it
+    // never surfaces as an external change.
+    if (slot.source === this.primary.getSource()) {
+      this._primaryParamsSnap = this._snapPrimary();
+    }
+    // The slot now answers for a different identity; its previous sticky
+    // would render the wrong product/run until the new image lands.
+    slot.source.invalidateSticky();
+    slot.skipped = o.skip;
+    slot.overrideKey = key;
+    slot.loaded = false;
+    if (this.interpolator && slot.time) this.interpolator.invalidateSlot(slot.time);
+    this._notifyLoadChange(slot);
+  }
+
+  // Re-evaluate the provider for every slot and re-identify those whose
+  // override changed. This is the model-run rollover path (same TIMEs, new
+  // DIM_REFERENCE_TIME) and the mode enter/exit path when no window motion
+  // happens to run the setWindow diff. Quiet no-op when nothing changed.
+  refreshSlotOverrides() {
+    let changed = false;
+    for (const slot of this.slots) {
+      if (!slot.time) continue; // eslint-disable-line no-continue
+      const o = this._overrideFor(slot.time);
+      const key = overrideKeyOf(o);
+      if (key !== slot.overrideKey) {
+        this._applySlotIdentity(slot, o, key);
+        changed = true;
+      }
+    }
+    if (changed) {
+      this._pumpLoads();
+      this._notifyAllFlowState();
+    }
+  }
+
   _resyncAllParams(prev, now) {
     const p = this.primary.getSource();
-    const pParams = pickSyncParams(p.getParams());
     for (const slot of this.slots) {
-      // primary's current source is already up-to-date; skip
-      if (slot.source !== p) {
-        if (slot.source.getUrl() !== p.getUrl()) slot.source.setUrl(p.getUrl());
-        const merged = { ...pParams };
-        if (slot.time) merged.TIME = slot.time;
-        slot.source.updateParams(merged);
+      const o = this._overrideFor(slot.time);
+      // Without a provider the mounted source is already up-to-date (it
+      // just received the external write that triggered this resync) —
+      // skip it, exactly the classic behavior. With a provider, per-slot
+      // overrides may need to reshape even the mounted source's params.
+      if (slot.source !== p || this._slotParamsProvider) {
+        this._selfUpdate++;
+        try {
+          if (slot.source.getUrl() !== p.getUrl()) slot.source.setUrl(p.getUrl());
+          slot.source.updateParams(this._mergedParamsFor(slot, o));
+        } finally {
+          this._selfUpdate--;
+        }
       }
+      slot.skipped = o.skip;
+      slot.overrideKey = overrideKeyOf(o);
       // Product/style/URL changed — any stale sticky is now for a
       // different layer and would bleed through on the next pan/zoom.
       slot.source.invalidateSticky();
     }
+    // Our own writes above may have landed on the mounted source; make the
+    // diff baseline reflect the final state.
+    this._primaryParamsSnap = this._snapPrimary();
     // Flow is STYLES- and FORMAT-invariant: a colormap swap doesn't
     // change the underlying motion field, so the interpolator can
     // keep its flow cache and reuse it with the re-styled bitmaps
@@ -437,7 +564,7 @@ export default class FramePool {
       const idx = curIdx + offset;
       if (idx >= 0 && idx < this.size) {
         const slot = this._slotAtIndex(idx);
-        if (slot && slot.time && !slot.loaded) {
+        if (slot && slot.time && !slot.loaded && !slot.skipped) {
           const { image } = slot.source;
           if (!image || image.getState() !== ImageState.LOADING) {
             slot.source.triggerLoad(ctx.extent, ctx.resolution, 1, ctx.projection);
@@ -452,7 +579,10 @@ export default class FramePool {
   _notifyLoadChange(slot) {
     if (!this.onLoadStateChange || !this.windowTimes) return;
     const idx = this.windowTimes.indexOf(slot.time);
-    if (idx >= 0) this.onLoadStateChange(idx, slot.loaded);
+    // Skipped slots (no data exists at this time for this product — e.g.
+    // future frames of an observation-only layer) report "loaded" so they
+    // can never pin the shared timeline cell amber.
+    if (idx >= 0) this.onLoadStateChange(idx, slot.skipped ? true : slot.loaded);
   }
 
   // Accept a list of `size` ISO timestamps. Preserve slots whose TIME is
@@ -485,17 +615,26 @@ export default class FramePool {
       // after `slot.time = newTime` would lose the identity we need.
       const oldTime = slot.time;
       slot.time = newTime;
-      slot.loaded = false;
-      slot.source.updateParams({
-        ...pickSyncParams(this.primary.getSource().getParams()),
-        TIME: newTime,
-      });
-      // Slot now represents a different TIME; the previous sticky is
-      // for the old TIME and would render the wrong frame until the
-      // new TIME's image lands.
-      slot.source.invalidateSticky();
       if (this.interpolator && oldTime) {
         this.interpolator.invalidateSlot(oldTime);
+      }
+      // Slot now represents a different TIME; _applySlotIdentity writes
+      // the new TIME (+ any per-slot override) and drops the old TIME's
+      // sticky, which would render the wrong frame until the new image
+      // lands.
+      const o = this._overrideFor(newTime);
+      this._applySlotIdentity(slot, o, overrideKeyOf(o));
+    }
+    // Kept slots: re-check their override key. On a window slide the same
+    // ISO time can cross the observed/forecast boundary (the preserved
+    // boundary slot flips from advected forecast to the measured frame),
+    // or the pinned model run may have rolled while the TIMEs stayed put.
+    if (this._slotParamsProvider) {
+      for (const slot of this.slots) {
+        if (!slot.time) continue; // eslint-disable-line no-continue
+        const o = this._overrideFor(slot.time);
+        const key = overrideKeyOf(o);
+        if (key !== slot.overrideKey) this._applySlotIdentity(slot, o, key);
       }
     }
     // Prefetch is driven by showTime / moveend (current ± neighbors),
@@ -910,6 +1049,11 @@ export default class FramePool {
     const tA = this.windowTimes[index];
     const tB = this.windowTimes[index + 1];
     if (!tA || !tB) return false;
+    // A pair touching a skipped slot will never animate for this pool;
+    // report it flow-ready so it can't flag the cell "flow pending".
+    const sA = this.slots.find((s) => s.time === tA);
+    const sB = this.slots.find((s) => s.time === tB);
+    if ((sA && sA.skipped) || (sB && sB.skipped)) return true;
     return this.interpolator.hasFlow(tA, tB);
   }
 
@@ -920,9 +1064,12 @@ export default class FramePool {
     }
   }
 
-  // Load state at timeline position (0..size-1).
+  // Load state at timeline position (0..size-1). Skipped slots count as
+  // loaded — see _notifyLoadChange.
   isPositionLoaded(index) {
     if (!this.windowTimes) return false;
-    return this.isTimeLoaded(this.windowTimes[index]);
+    const slot = this.slots.find((s) => s.time === this.windowTimes[index]);
+    if (!slot) return false;
+    return slot.skipped ? true : slot.loaded;
   }
 }
