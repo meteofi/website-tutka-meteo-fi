@@ -38,6 +38,7 @@ import initObsLayer from './obs/obsLayer';
 import initLightningLayer from './lightning/lightningLayer';
 import { createPlaceNamesLayer, placeNamesStyleLight, placeNamesStyleDark } from './placeNames';
 import initStormCells from './stormCells';
+import initTrafficMessages from './trafficMessages';
 import radarSitesFallbackUrl from './data/radars-finland.geojson';
 import initOwnLocation from './ownLocation';
 import initOwnLocationMenu from './ui/ownLocationMenu';
@@ -667,6 +668,13 @@ const searchHighlight = initSearchHighlight();
 // POI is switched on (applyPoiVisibility), and setTime feeds it the clock.
 const stormCells = initStormCells();
 
+// Liikennetiedotteet (Fintraffic road traffic announcements): same shape as the
+// storm-cell controller — module scope so its per-pane layer factory can join
+// paneDeps, fetching gated on the POI toggle, and setTime feeds it the clock.
+// Unlike storm cells it fetches the whole active set at once and uses the
+// cursor only to filter, so a clock move costs no network.
+const trafficMessages = initTrafficMessages();
+
 // Layer-control panel (style / opacity / info) folded into each category's
 // long-press menu. Populated on open via createLongPressHandler's onBeforeShow;
 // acts on whichever pane's layer opened the menu. Declared here so buildPanePill
@@ -690,6 +698,7 @@ const paneDeps = {
   createLightningLayer: lightningController.createPaneLayer,
   createPlaceNamesLayer,
   createStormCellsLayer: stormCells.createPaneLayer,
+  createTrafficLayer: trafficMessages.createPaneLayer,
   createSearchHighlightLayer: searchHighlight.createPaneLayer,
 };
 
@@ -851,15 +860,22 @@ function initNewPane(pane) {
   buildPanePill(pane);
   initPaneRadarSite(pane);
   initPaneCrosshair(pane);
+  initPaneTraffic(pane);
   if (rangeCircle) rangeCircle.attachPane(pane.map);
   if (freehand) freehand.attachPane(pane.map);
   if (sectionLine) sectionLine.attachPane(pane.map);
-  // Radar-site taps work in every pane; the other pane-0 click concerns
-  // (measure/probe tools, station feature info) deliberately stay pane-0-only.
+  // Radar-site and traffic-announcement taps work in every pane; the other
+  // pane-0 click concerns (measure/probe tools, station feature info)
+  // deliberately stay pane-0-only.
   pane.map.on('click', (evt) => {
     if (tools && DRAW_TOOL_NAMES.has(tools.getActiveTool())) return;
     const hit = pane.radarSite.findSiteAtPixel(evt.pixel);
-    if (hit) pane.radarSite.openCardForFeature(hit);
+    if (hit) {
+      pane.radarSite.openCardForFeature(hit);
+      return;
+    }
+    const trafficHit = pane.traffic.findAtPixel(evt.pixel);
+    if (trafficHit) pane.traffic.openFor(trafficHit);
   });
   setMapLayer(getEffectiveTheme());
   applyPoiVisibility();
@@ -1125,6 +1141,10 @@ function setTime(action = 'next', seekIndex = 0) {
   // extrapolated, and empty on frames it has none for. The window is passed so
   // the controller knows which frames to prefetch.
   stormCells.setCursor(startDate.getTime(), start, resolution);
+  // Traffic announcements show only where the displayed frame falls inside the
+  // announcement's validity, so scrubbing back hides an incident that had not
+  // happened yet at that frame. Filter only — no fetch on a cursor move.
+  trafficMessages.setCursor(startDate.getTime(), start, resolution);
   // Per-pane crosshairs: only active panes get the cursor — inactive panes'
   // reticles are hidden and must not refetch; they pick up the current window
   // on reactivation (setLayout runs setTime before syncCrosshairVisibility).
@@ -1411,6 +1431,7 @@ function setMapLayer(maplayer) {
     pane.placeNamesLayer.setStyle(light ? placeNamesStyleLight : placeNamesStyleDark);
     pane.municipalityLayer.setStyle(light ? municipalityStyleLight : municipalityStyleDark);
     pane.stormCellsLayer.setStyle(light ? stormCells.styleLight : stormCells.styleDark);
+    pane.trafficLayer.setStyle(light ? trafficMessages.styleLight : trafficMessages.styleDark);
   }
   applyIcaoTheme(maplayer);
   applyVesivaylatTheme(maplayer);
@@ -1720,6 +1741,13 @@ function initPaneRadarSite(pane) {
       ? (state) => { if (radarStrip) radarStrip.update(state); }
       : undefined,
   });
+}
+
+// One traffic-announcement card per pane, so a tap opens the announcement on
+// the map the user actually tapped (the radar-site drill-in pattern). The
+// controller and its VectorSource stay shared — only the Overlay is per-pane.
+function initPaneTraffic(pane) {
+  pane.traffic = trafficMessages.attachPane(pane.map, pane.trafficLayer);
 }
 
 // One crosshair ("Tähtäin") instance per pane: the reticle overlays the
@@ -2332,6 +2360,16 @@ const poiRegistry = [
     layerKeys: ['stormCellsLayer'],
   },
   {
+    // Live data like stormcells: applyPoiVisibility also drives the
+    // controller's fetch/poll loop (setEnabled) so nothing is requested while
+    // the layer is off.
+    id: 'liikennetiedotteet',
+    label: 'Liikennetiedotteet',
+    icon: 'traffic',
+    defaultOn: false,
+    layerKeys: ['trafficLayer'],
+  },
+  {
     id: 'vesivaylat',
     label: 'Vesiväylät',
     icon: 'directions_boat',
@@ -2371,6 +2409,7 @@ function applyPoiVisibility() {
   });
   // Storm cells poll a live API — the toggle gates fetching, not just paint.
   stormCells.setEnabled(!!POI_STATE.stormcells);
+  trafficMessages.setEnabled(!!POI_STATE.liikennetiedotteet);
 }
 
 function updatePoiMenuState() {
@@ -2962,6 +3001,7 @@ const main = () => {
   initPaneRadarSite(pane0);
   radarSite = pane0.radarSite;
   initPaneCrosshair(pane0);
+  initPaneTraffic(pane0);
 
   // Restore the tool selection from the previous session: the FAB's
   // tap-default always, plus re-arming if a tool was armed when the user
@@ -3105,6 +3145,17 @@ const main = () => {
           highlight = null;
         }
         radarSite.openCardForFeature(radarSiteHit);
+        return;
+      }
+    }
+
+    // Tap on a traffic-announcement marker → open its card. Checked after the
+    // radar sites (a site tap changes what the map shows, so it keeps
+    // priority) and before the generic station readout.
+    if (pane0.traffic) {
+      const trafficHit = pane0.traffic.findAtPixel(evt.pixel);
+      if (trafficHit) {
+        pane0.traffic.openFor(trafficHit);
         return;
       }
     }
