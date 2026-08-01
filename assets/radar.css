@@ -2164,6 +2164,65 @@ body.split-4 #placeSearchButton {
   color: rgba(255, 255, 255, 0.82);
 }
 
+/* Traffic-announcement card (Liikennetiedotteet) — reuses the .marker-card
+   shell + head/close. Wider than the radar-site card because the content is
+   sentences from the sender rather than a couple of controls, and capped in
+   height so a long roadworks description scrolls instead of running off a
+   phone screen. */
+.traffic-card {
+  width: 260px;
+  max-width: calc(100vw - 32px);
+}
+
+.traffic-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-height: 40vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Incident tag ("Onnettomuus"), colour-matched to the map marker so the card
+   is recognisably the thing that was tapped. */
+.traffic-card-tag {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.traffic-card-tag[hidden] { display: none; }
+.traffic-card-tag.traffic-accident { color: #ff2d55; }
+.traffic-card-tag.traffic-warning { color: #ffa033; }
+.traffic-card-tag.traffic-general { color: #5cb8f0; }
+
+.traffic-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--dark-high-emphasis-text-color);
+}
+
+/* The API's description carries real newlines ("Tie 6 välillä …\nTarkempi
+   paikka: …") — keep them rather than collapsing the location detail onto one
+   run-on line. */
+.traffic-card-desc {
+  font-size: 13px;
+  line-height: 1.35;
+  white-space: pre-line;
+  color: var(--dark-medium-emphasis-text-color);
+}
+
+.traffic-card-desc[hidden] { display: none; }
+
+.traffic-card-time {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--dark-medium-emphasis-text-color);
+}
+
+.traffic-card-time[hidden] { display: none; }
+
 /* Radar-site drill-in card — reuses the .marker-card shell + head/close. */
 .radar-site-card { width: 200px; }
 

@@ -75,6 +75,9 @@ export default function createPane(targetEl, sharedView, deps) {
     // Storm cells (src/stormCells.js) — panes share one VectorSource; the
     // controller in radar.js owns fetching and the clock-driven advection.
     createStormCellsLayer,
+    // Traffic announcements (src/trafficMessages.js) — panes share one
+    // VectorSource; the controller owns fetching and the clock filter.
+    createTrafficLayer,
     // Place-search highlight pulse (src/search/searchHighlight.js) — panes
     // share one VectorSource so the pulse shows in every split-screen pane.
     createSearchHighlightLayer,
@@ -297,6 +300,12 @@ export default function createPane(targetEl, sharedView, deps) {
   // own-position marker, which the user is usually looking for specifically.
   const stormCellsLayer = createStormCellsLayer();
 
+  // Traffic announcements are road context rather than data about the radar
+  // image, so they sit below the storm cells and observation symbols — but
+  // above the basemap context overlays, since an incident marker the user is
+  // hunting for must not end up under a place-name label.
+  const trafficLayer = createTrafficLayer();
+
   const guideLayer = new VectorLayer({
     source: new Vector(),
     style: rangeStyle,
@@ -342,6 +351,7 @@ export default function createPane(targetEl, sharedView, deps) {
     radarSiteLayer,
     icaoLayer,
     turnpointLayer,
+    trafficLayer,
     stormCellsLayer,
     ownPositionLayer,
     observationLayer,
@@ -375,6 +385,7 @@ export default function createPane(targetEl, sharedView, deps) {
     radarSiteLayer,
     icaoLayer,
     turnpointLayer,
+    trafficLayer,
     stormCellsLayer,
     municipalityLayer,
     vesivaylaAreaLayer,
