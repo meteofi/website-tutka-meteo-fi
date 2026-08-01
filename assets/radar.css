@@ -35,12 +35,14 @@
 /* Grow so the FABs move up with an open panel / the single-radar strip. */
 :root:has(#probeChart.open)   { --timecontrol-height: 120px; } /* 56 + 64 probe */
 :root:has(#sectionPanel.open) { --timecontrol-height: 264px; } /* 56 + 208 section */
+:root:has(#cameraPanel.open)  { --timecontrol-height: 276px; } /* 56 + 220 camera */
 
 /* The strip adds a 38px row at the top; combined selectors compose with the
    panel overrides via :has() specificity (two :has() beat one). */
 :root:has(#radarStrip:not([hidden]))                          { --timecontrol-height: 94px; }
 :root:has(#radarStrip:not([hidden])):has(#probeChart.open)    { --timecontrol-height: 158px; }
 :root:has(#radarStrip:not([hidden])):has(#sectionPanel.open)  { --timecontrol-height: 302px; }
+:root:has(#radarStrip:not([hidden])):has(#cameraPanel.open)   { --timecontrol-height: 314px; }
 
 /* ≤480px the panels shrink (probe 54, section 176), so the bar does too. */
 @media (max-width: 480px) {
@@ -48,6 +50,8 @@
   :root:has(#sectionPanel.open)                                { --timecontrol-height: 232px; }
   :root:has(#radarStrip:not([hidden])):has(#probeChart.open)   { --timecontrol-height: 148px; }
   :root:has(#radarStrip:not([hidden])):has(#sectionPanel.open) { --timecontrol-height: 250px; }
+  :root:has(#cameraPanel.open)                                 { --timecontrol-height: 244px; }
+  :root:has(#radarStrip:not([hidden])):has(#cameraPanel.open)  { --timecontrol-height: 282px; }
 }
 
 html, body {
@@ -1276,12 +1280,15 @@ body.split-4 #placeSearchButton {
     align-items: center;
     column-gap: 8px;
   }
+  /* One row per stacked element, in DOM order — panels must not share a row,
+     or two open at once would draw on top of each other. */
   #radarStrip   { grid-column: 1 / -1; grid-row: 1; }
   #sectionPanel { grid-column: 1 / -1; grid-row: 2; }
-  #probeChart   { grid-column: 2;      grid-row: 3; }
-  .bar-controls { grid-column: 1;      grid-row: 4; }
-  .time-column  { grid-column: 2;      grid-row: 4; min-width: 0; }
-  .bar-clock    { grid-column: 3;      grid-row: 4; }
+  #cameraPanel  { grid-column: 1 / -1; grid-row: 3; }
+  #probeChart   { grid-column: 2;      grid-row: 4; }
+  .bar-controls { grid-column: 1;      grid-row: 5; }
+  .time-column  { grid-column: 2;      grid-row: 5; min-width: 0; }
+  .bar-clock    { grid-column: 3;      grid-row: 5; }
 
   /* Single-radar strip — flat segmented bar, topmost in the time control. The
      bar's own border doubles as the segment dividers (border-left per segment);
@@ -1581,6 +1588,127 @@ body.split-4 #placeSearchButton {
   #sectionPanel.open { height: 208px; }
   @media (max-width: 480px) {
     #sectionPanel.open { height: 176px; }
+  }
+
+  /* Kelikamera panel — the road photo for the displayed frame. Same
+     collapse/expand mechanics as #sectionPanel above; lives inside
+     #timecontrol so iOS safe-area positioning is inherited (don't give it its
+     own position). */
+  #cameraPanel {
+    width: 100%;
+    height: 0;
+    overflow: hidden;
+    position: relative;
+    transition: height 220ms cubic-bezier(0.2, 0.7, 0.2, 1);
+    z-index: 100;
+  }
+  #cameraPanel.open { height: 220px; }
+  @media (max-width: 480px) {
+    #cameraPanel.open { height: 188px; }
+  }
+  .camera-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 28px;
+    padding: 2px 8px 0;
+  }
+  .camera-icon {
+    font-size: 16px;
+    color: var(--dark-medium-emphasis-text-color);
+  }
+  .camera-title {
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    color: var(--dark-high-emphasis-text-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* The capture time of the photo actually on screen — not the clock's frame
+     time. History runs on a 10-minute grid against the clock's 5, so the two
+     differ routinely and the panel must say which one it is showing. */
+  .camera-time {
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    color: var(--dark-primary-color);
+  }
+  .camera-close {
+    all: unset;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-sizing: border-box;
+  }
+  .camera-close .material-icons {
+    font-size: 16px;
+    color: rgba(255, 255, 255, 0.82);
+  }
+  .camera-body {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: calc(100% - 62px);
+    padding: 0 8px;
+    box-sizing: border-box;
+  }
+  /* Letterboxed rather than cropped: the photo is 16:9 and the panel is as wide
+     as the viewport, so `contain` keeps the whole road scene visible on a
+     phone and simply pads the sides on a desktop. */
+  .camera-image {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+    border-radius: 8px;
+    object-fit: contain;
+    background: rgba(255, 255, 255, 0.04);
+  }
+  .camera-image.empty,
+  .camera-image:not([src]) { display: none; }
+  .camera-message {
+    position: absolute;
+    padding: 0 16px;
+    font-size: 12.5px;
+    text-align: center;
+    color: var(--dark-medium-emphasis-text-color);
+  }
+  .camera-message[hidden] { display: none; }
+  /* Direction selector — one chip per preset, hidden for single-view cameras
+     so the image gets the height instead. */
+  .camera-presets {
+    display: flex;
+    gap: 4px;
+    height: 26px;
+    padding: 4px 8px 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    box-sizing: border-box;
+  }
+  .camera-presets[hidden] { display: none; }
+  .camera-presets::-webkit-scrollbar { display: none; }
+  .camera-preset {
+    all: unset;
+    flex: 0 0 auto;
+    padding: 2px 10px;
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--dark-medium-emphasis-text-color);
+    font: 500 12px 'Roboto', sans-serif;
+    cursor: pointer;
+    box-sizing: border-box;
+  }
+  .camera-preset[aria-pressed='true'] {
+    box-shadow: inset 0 0 0 1px rgba(18, 188, 250, 0.35);
+    color: var(--dark-primary-color);
   }
   .section-head {
     display: flex;

@@ -78,6 +78,9 @@ export default function createPane(targetEl, sharedView, deps) {
     // Traffic announcements (src/trafficMessages.js) — panes share one
     // VectorSource; the controller owns fetching and the clock filter.
     createTrafficLayer,
+    // Road weather cameras (src/weatherCameras.js) — panes share one
+    // VectorSource; the controller owns the station list and the image panel.
+    createWeatherCameraLayer,
     // Place-search highlight pulse (src/search/searchHighlight.js) — panes
     // share one VectorSource so the pulse shows in every split-screen pane.
     createSearchHighlightLayer,
@@ -306,6 +309,11 @@ export default function createPane(targetEl, sharedView, deps) {
   // hunting for must not end up under a place-name label.
   const trafficLayer = createTrafficLayer();
 
+  // Road weather cameras sit just above the traffic announcements — same road
+  // context, and a camera marker is a tap target the user is hunting for, so it
+  // should not end up under an incident marker.
+  const weatherCameraLayer = createWeatherCameraLayer();
+
   const guideLayer = new VectorLayer({
     source: new Vector(),
     style: rangeStyle,
@@ -352,6 +360,7 @@ export default function createPane(targetEl, sharedView, deps) {
     icaoLayer,
     turnpointLayer,
     trafficLayer,
+    weatherCameraLayer,
     stormCellsLayer,
     ownPositionLayer,
     observationLayer,
@@ -386,6 +395,7 @@ export default function createPane(targetEl, sharedView, deps) {
     icaoLayer,
     turnpointLayer,
     trafficLayer,
+    weatherCameraLayer,
     stormCellsLayer,
     municipalityLayer,
     vesivaylaAreaLayer,
