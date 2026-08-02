@@ -86,6 +86,16 @@ const MAX_IMAGE_AGE_MS = 45 * 60 * 1000;
 // behind a dozen speculative loads.
 const MAX_PRELOAD_IN_FLIGHT = 3;
 
+// Once the clock stops moving, the frame on screen is swapped for the full
+// 1280x720 image. The thumbnail is 384 px wide, and a phone panel is ~390 CSS
+// px at devicePixelRatio 3 — nearly 1200 device pixels — so the thumbnail alone
+// is upscaled ~3x and visibly soft on exactly the screens most people use.
+// Loading full resolution per frame is out of the question (251 kB against
+// 14 kB), so it is deferred until the user has settled on a frame. The delay is
+// deliberately longer than a playback tick, so an animating clock never
+// triggers it and playback stays on thumbnails.
+const FULL_IMAGE_DELAY_MS = 800;
+
 const PALETTES = {
   light: {
     body: '#1c4f7c',
@@ -414,6 +424,7 @@ export default function initWeatherCameras({ container } = {}) {
   let selectedFeature = null; // the marker the panel belongs to
   let activePreset = null;
   let shownUrl = null;
+  let fullImageTimer = 0;
   // Generation guard: a station or preset change invalidates images still
   // decoding, so a slow load from the previous camera can never paint over the
   // new one. Cursor moves deliberately do NOT bump it — an in-flight image for
@@ -512,8 +523,27 @@ export default function initWeatherCameras({ container } = {}) {
   // Paint the image for the current cursor. The previous photo stays up until
   // the new one has decoded (the StickyImageWMS rule the raster layers follow),
   // so playback never flashes an empty panel.
+  // Swap the settled frame's thumbnail for the full-resolution image. Guarded
+  // three ways, because this is the one place a slow 251 kB load could paint
+  // over something newer: the generation must still match (no station/preset
+  // change), and the panel must still be showing this very entry's thumbnail.
+  function scheduleFullImage(entry) {
+    clearTimeout(fullImageTimer);
+    const gen = generation;
+    const thumb = thumbUrl(entry.url);
+    fullImageTimer = setTimeout(() => {
+      const img = new Image();
+      img.onload = () => {
+        if (gen !== generation || shownUrl !== thumb) return;
+        panel.image.src = entry.url;
+      };
+      img.src = entry.url;
+    }, FULL_IMAGE_DELAY_MS);
+  }
+
   function renderImage() {
     if (!panel || !activePreset) return;
+    clearTimeout(fullImageTimer);
     const entry = entryAt(activePreset.history, cursorMs);
     if (!entry) {
       setMessage('Ei kuvaa saatavilla');
@@ -528,6 +558,10 @@ export default function initWeatherCameras({ container } = {}) {
       return;
     }
     setMessage('');
+    // Armed even when the thumbnail itself does not change: two adjacent frames
+    // often resolve to the same 10-minute image, and settling on either should
+    // still bring the sharp one.
+    scheduleFullImage(entry);
     const url = thumbUrl(entry.url);
     if (url === shownUrl) return;
     shownUrl = url;
@@ -535,6 +569,9 @@ export default function initWeatherCameras({ container } = {}) {
     const img = new Image();
     img.onload = () => {
       if (gen !== generation || shownUrl !== url) return;
+      // Never demote: if the full-resolution swap already happened for this
+      // frame, a late thumbnail decode must not put the soft image back.
+      if (panel.image.getAttribute('src') === entry.url) return;
       panel.image.src = url;
     };
     img.onerror = () => {
@@ -576,6 +613,7 @@ export default function initWeatherCameras({ container } = {}) {
   function close() {
     if (!panel) return;
     generation += 1;
+    clearTimeout(fullImageTimer);
     setSelected(null);
     station = null;
     stationId = null;
