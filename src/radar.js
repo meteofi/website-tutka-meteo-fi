@@ -39,6 +39,7 @@ import initLightningLayer from './lightning/lightningLayer';
 import { createPlaceNamesLayer, placeNamesStyleLight, placeNamesStyleDark } from './placeNames';
 import initStormCells from './stormCells';
 import initTrafficMessages from './trafficMessages';
+import initWeatherCameras from './weatherCameras';
 import radarSitesFallbackUrl from './data/radars-finland.geojson';
 import initOwnLocation from './ownLocation';
 import initOwnLocationMenu from './ui/ownLocationMenu';
@@ -675,6 +676,14 @@ const stormCells = initStormCells();
 // cursor only to filter, so a clock move costs no network.
 const trafficMessages = initTrafficMessages();
 
+// Kelikamerat (Fintraffic road weather cameras): markers are wall-clock static
+// fixed installations, but the image panel follows the clock — setTime routes
+// the cursor so the photo on screen is the one the camera held at the displayed
+// frame. The station list is fetched only once the POI is switched on.
+const weatherCameras = initWeatherCameras({
+  container: document.getElementById('cameraPanel'),
+});
+
 // Layer-control panel (style / opacity / info) folded into each category's
 // long-press menu. Populated on open via createLongPressHandler's onBeforeShow;
 // acts on whichever pane's layer opened the menu. Declared here so buildPanePill
@@ -699,6 +708,7 @@ const paneDeps = {
   createPlaceNamesLayer,
   createStormCellsLayer: stormCells.createPaneLayer,
   createTrafficLayer: trafficMessages.createPaneLayer,
+  createWeatherCameraLayer: weatherCameras.createPaneLayer,
   createSearchHighlightLayer: searchHighlight.createPaneLayer,
 };
 
@@ -872,6 +882,11 @@ function initNewPane(pane) {
     const hit = pane.radarSite.findSiteAtPixel(evt.pixel);
     if (hit) {
       pane.radarSite.openCardForFeature(hit);
+      return;
+    }
+    const cameraHit = pane.cameras.findAtPixel(evt.pixel);
+    if (cameraHit) {
+      pane.cameras.open(cameraHit);
       return;
     }
     const trafficHit = pane.traffic.findAtPixel(evt.pixel);
@@ -1145,6 +1160,9 @@ function setTime(action = 'next', seekIndex = 0) {
   // announcement's validity, so scrubbing back hides an incident that had not
   // happened yet at that frame. Filter only — no fetch on a cursor move.
   trafficMessages.setCursor(startDate.getTime(), start, resolution);
+  // Kelikamerat: the open camera's photo snaps to the displayed frame, and the
+  // window is passed so the surrounding frames' images can be prefetched.
+  weatherCameras.setCursor(startDate.getTime(), start, resolution);
   // Per-pane crosshairs: only active panes get the cursor — inactive panes'
   // reticles are hidden and must not refetch; they pick up the current window
   // on reactivation (setLayout runs setTime before syncCrosshairVisibility).
@@ -1432,6 +1450,7 @@ function setMapLayer(maplayer) {
     pane.municipalityLayer.setStyle(light ? municipalityStyleLight : municipalityStyleDark);
     pane.stormCellsLayer.setStyle(light ? stormCells.styleLight : stormCells.styleDark);
     pane.trafficLayer.setStyle(light ? trafficMessages.styleLight : trafficMessages.styleDark);
+    pane.weatherCameraLayer.setStyle(light ? weatherCameras.styleLight : weatherCameras.styleDark);
   }
   applyIcaoTheme(maplayer);
   applyVesivaylatTheme(maplayer);
@@ -1748,6 +1767,9 @@ function initPaneRadarSite(pane) {
 // controller and its VectorSource stay shared — only the Overlay is per-pane.
 function initPaneTraffic(pane) {
   pane.traffic = trafficMessages.attachPane(pane.map, pane.trafficLayer);
+  // Cameras only need a per-pane hit-test — unlike the traffic card, the image
+  // panel is a single global bottom panel, so every pane opens the same one.
+  pane.cameras = weatherCameras.attachPane(pane.map, pane.weatherCameraLayer);
 }
 
 // One crosshair ("Tähtäin") instance per pane: the reticle overlays the
@@ -2370,6 +2392,17 @@ const poiRegistry = [
     layerKeys: ['trafficLayer'],
   },
   {
+    // Live data like stormcells/liikennetiedotteet: applyPoiVisibility drives
+    // the controller's station fetch (setEnabled) so nothing is requested while
+    // the layer is off. Markers are hidden below ~z8 (see MAX_RESOLUTION) —
+    // 812 cameras at synoptic zoom would bury the weather.
+    id: 'kelikamerat',
+    label: 'Kelikamerat',
+    icon: 'photo_camera',
+    defaultOn: false,
+    layerKeys: ['weatherCameraLayer'],
+  },
+  {
     id: 'vesivaylat',
     label: 'Vesiväylät',
     icon: 'directions_boat',
@@ -2410,6 +2443,7 @@ function applyPoiVisibility() {
   // Storm cells poll a live API — the toggle gates fetching, not just paint.
   stormCells.setEnabled(!!POI_STATE.stormcells);
   trafficMessages.setEnabled(!!POI_STATE.liikennetiedotteet);
+  weatherCameras.setEnabled(!!POI_STATE.kelikamerat);
 }
 
 function updatePoiMenuState() {
@@ -3145,6 +3179,17 @@ const main = () => {
           highlight = null;
         }
         radarSite.openCardForFeature(radarSiteHit);
+        return;
+      }
+    }
+
+    // Tap on a camera marker → open the image panel. Checked before the traffic
+    // markers: cameras only render from ~z8 in, so a tap that hits one is
+    // deliberate and the marks are small enough to sit near an incident.
+    if (pane0.cameras) {
+      const cameraHit = pane0.cameras.findAtPixel(evt.pixel);
+      if (cameraHit) {
+        pane0.cameras.open(cameraHit);
         return;
       }
     }
