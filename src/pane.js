@@ -269,8 +269,10 @@ export default function createPane(targetEl, sharedView, deps) {
     renderMode: 'vector',
     source: new VectorTileSource({
       format: new MVT(),
-      url: 'https://meteocore.app.meteo.fi/tiles/collections/fi-municipalities/tiles/WebMercatorQuad/{z}/{y}/{x}?f=mvt',
-      attributions: 'Statistics Finland / Tilastokeskus',
+      // MML Maastotietokanta `kunta` boundaries at full base-map resolution,
+      // replacing the Tilastokeskus-derived fi-municipalities collection.
+      url: 'https://meteocore.app.meteo.fi/tiles/collections/mml-maastotiedot-kunta/tiles/WebMercatorQuad/{z}/{y}/{x}?f=mvt',
+      attributions: 'Kunnat © Maanmittauslaitos',
       maxZoom: 14,
     }),
     style: municipalityStyleLight,
