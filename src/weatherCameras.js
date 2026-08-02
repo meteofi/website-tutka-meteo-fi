@@ -69,6 +69,23 @@ const DIGITRAFFIC_USER = 'tutka.meteo.fi';
 // on much later. Nothing here polls.
 const STATIONS_MAX_AGE_MS = 30 * 60 * 1000;
 
+// A station is dropped from the map when its newest image is older than this.
+// `collectionStatus: GATHERING` does NOT mean a camera is producing anything —
+// measured live, 29 of 808 gathering stations had produced no image in over
+// three hours, 19 of them for more than a month and one for 87 days. They drew
+// a marker that could only ever open an empty panel.
+//
+// The threshold sits in a wide empty gap in the data rather than on a guess:
+// 779 stations had an image within 30 minutes and the next-freshest was over a
+// day old, so anything between those bounds selects the same set.
+//
+// Three hours also makes this decision safe to take once at load time instead of
+// per frame. The animation window spans one hour, so a camera whose newest image
+// predates the window by this margin has nothing for ANY frame in it — and one
+// that died a few minutes ago still has images for most of the window and stays
+// until the whole window has moved past it.
+const STATION_STALE_MS = 3 * 60 * 60 * 1000;
+
 // Markers disappear below this resolution (m/px in EPSG:3857) — ~z7, one zoom
 // step wider than the z8 band stormCells.js uses, so a region-level view still
 // shows its cameras. Declutter thins the marks that would otherwise pile up at
@@ -193,14 +210,41 @@ export default function initWeatherCameras({ container } = {}) {
     if (source.getFeatures().length && Date.now() - stationsAt < STATIONS_MAX_AGE_MS) {
       return Promise.resolve();
     }
-    stationsInFlight = fetchJson(`${API}/stations`)
-      .then((json) => {
+    stationsInFlight = Promise.all([
+      fetchJson(`${API}/stations`),
+      // Bulk freshness for all 812 stations in ~20 kB: the newest image time per
+      // preset. Cheaper by orders of magnitude than asking each station, and the
+      // only way to know which cameras are actually alive before drawing them.
+      // Failing open (null) keeps every station rather than emptying the map.
+      fetchJson(`${API}/stations/data`).catch(() => null),
+    ])
+      .then(([json, data]) => {
+        // stationId -> newest image time across its presets.
+        const newest = new Map();
+        if (data) {
+          (data.stations || []).forEach((st) => {
+            let best = 0;
+            (st.presets || []).forEach((pr) => {
+              const t = Date.parse(pr.measuredTime);
+              if (Number.isFinite(t) && t > best) best = t;
+            });
+            if (best) newest.set(st.id, best);
+          });
+        }
+        const cutoff = Date.now() - STATION_STALE_MS;
         const features = (json.features || [])
           // REMOVED_TEMPORARILY cameras are not producing images; a marker for
           // one is a tap that can only disappoint.
           .filter((f) => f.geometry && f.properties
             && f.properties.collectionStatus === 'GATHERING'
             && (f.properties.presets || []).some((p) => p.inCollection))
+          // …and neither is a GATHERING station that stopped producing images
+          // weeks ago. Only applied when the freshness feed actually answered
+          // for that station, so a gap in it never silently deletes cameras.
+          .filter((f) => {
+            const at = newest.get(f.properties.id);
+            return at === undefined || at >= cutoff;
+          })
           .map((f) => {
             const [lon, lat] = f.geometry.coordinates;
             const feature = new Feature({ geometry: new Point(fromLonLat([lon, lat])) });
