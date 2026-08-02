@@ -46,7 +46,7 @@ import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
 import { fromLonLat } from 'ol/proj';
 import {
-  Fill, RegularShape, Stroke, Style,
+  Circle as CircleStyle, Fill, RegularShape, Stroke, Style, Text,
 } from 'ol/style';
 
 const API = 'https://tie.digitraffic.fi/api/weathercam/v1';
@@ -60,11 +60,11 @@ const DIGITRAFFIC_USER = 'tutka.meteo.fi';
 // on much later. Nothing here polls.
 const STATIONS_MAX_AGE_MS = 30 * 60 * 1000;
 
-// Markers disappear below this resolution (m/px in EPSG:3857) — ~z8, the same
-// band stormCells.js calls "just above z8". 812 cameras at synoptic zoom would
-// be a wall of marks over the weather; the app's default zoom is 9, so a
-// first-time user still sees them without touching the view.
-const MAX_RESOLUTION = 700;
+// Markers disappear below this resolution (m/px in EPSG:3857) — ~z7, one zoom
+// step wider than the z8 band stormCells.js uses, so a region-level view still
+// shows its cameras. Declutter thins the marks that would otherwise pile up at
+// this scale; below it 812 cameras become a wall over the weather.
+const MAX_RESOLUTION = 1400;
 
 // History is a 10-minute grid while the animation steps 5 minutes, so
 // consecutive frames often resolve to the same image. An image older than this
@@ -81,10 +81,18 @@ const PALETTES = {
   light: {
     body: '#1c4f7c',
     halo: 'rgba(255,255,255,0.9)',
+    // The open station's mark. The app's primary cyan reads as "active"
+    // everywhere else in the UI, so it needs no separate legend.
+    accent: '#0089c4',
+    textFill: '#123044',
+    textHalo: '#ffffff',
   },
   dark: {
     body: '#7fc4f5',
     halo: 'rgba(0,0,0,0.6)',
+    accent: '#12bcfa',
+    textFill: '#eaf6ff',
+    textHalo: '#000000',
   },
 };
 
@@ -194,7 +202,67 @@ export default function initWeatherCameras({ container } = {}) {
         fill: new Fill({ color: palette.halo }),
       }),
     });
-    return () => [body, lens];
+
+    // The station whose photo is open. Without this the panel gives no clue
+    // which of 800-odd marks it belongs to — the whole point of tapping one on
+    // a map is knowing where you are looking from.
+    //
+    // Every part of the highlight is `declutterMode: 'none'`. The layer
+    // declutters to thin the marks out at wide zoom, but decluttering applies
+    // per style: the ring overlaps the body and the label overlaps both, so the
+    // collision pass silently dropped all but the halo ring and left the
+    // selection nearly invisible. There is only ever one selected station, so
+    // exempting it costs nothing and it must never be thinned away.
+    const selBody = new Style({
+      image: new RegularShape({
+        points: 4,
+        radius: 7.5,
+        angle: Math.PI / 4,
+        fill: new Fill({ color: palette.accent }),
+        stroke: new Stroke({ color: palette.halo, width: 2 }),
+        declutterMode: 'none',
+      }),
+    });
+    const selRing = new Style({
+      image: new CircleStyle({
+        radius: 13,
+        fill: null,
+        stroke: new Stroke({ color: palette.accent, width: 2 }),
+        declutterMode: 'none',
+      }),
+    });
+    const selRingHalo = new Style({
+      image: new CircleStyle({
+        radius: 13,
+        fill: null,
+        stroke: new Stroke({ color: palette.halo, width: 4 }),
+        declutterMode: 'none',
+      }),
+    });
+    // The view direction as the operator words it ("Poriin", "Tienpinta") —
+    // straight from the API. The Digitraffic preset carries no azimuth, only a
+    // road-register direction enum, so nothing here draws a bearing it cannot
+    // actually know.
+    const selLabel = new Style({
+      text: new Text({
+        font: '600 12px Roboto, sans-serif',
+        fill: new Fill({ color: palette.textFill }),
+        stroke: new Stroke({ color: palette.textHalo, width: 3 }),
+        offsetY: -22,
+        declutterMode: 'none',
+      }),
+    });
+
+    return (feature) => {
+      if (!feature.get('selected')) return [body, lens];
+      const out = [selRingHalo, selRing, selBody];
+      const label = feature.get('dirLabel');
+      if (label) {
+        selLabel.getText().setText(label);
+        out.push(selLabel);
+      }
+      return out;
+    };
   }
 
   const styleLight = makeStyleFunction('light');
@@ -284,6 +352,7 @@ export default function initWeatherCameras({ container } = {}) {
 
   let station = null; // the open station's detail entry
   let stationId = null;
+  let selectedFeature = null; // the marker the panel belongs to
   let activePreset = null;
   let shownUrl = null;
   // Generation guard: a station or preset change invalidates images still
@@ -294,6 +363,24 @@ export default function initWeatherCameras({ container } = {}) {
   const preloaded = new Set();
   let preloadQueue = [];
   let preloadInFlight = 0;
+
+  // Selection lives on the feature itself, so every pane's layer repaints from
+  // the one shared source — no per-pane overlay bookkeeping. `set` fires a
+  // change event the source forwards to the layers, so no explicit redraw.
+  function setSelected(feature) {
+    if (selectedFeature === feature) return;
+    if (selectedFeature) {
+      selectedFeature.set('selected', false);
+      selectedFeature.set('dirLabel', '');
+    }
+    selectedFeature = feature;
+    if (feature) feature.set('selected', true);
+  }
+
+  // The direction label under the highlighted marker follows the chosen preset.
+  function updateDirLabel() {
+    if (selectedFeature) selectedFeature.set('dirLabel', activePreset ? activePreset.label : '');
+  }
 
   function setMessage(text) {
     if (!panel) return;
@@ -391,6 +478,7 @@ export default function initWeatherCameras({ container } = {}) {
         activePreset = preset;
         generation += 1;
         shownUrl = null;
+        updateDirLabel();
         renderPresets();
         renderImage();
       });
@@ -401,6 +489,7 @@ export default function initWeatherCameras({ container } = {}) {
   function close() {
     if (!panel) return;
     generation += 1;
+    setSelected(null);
     station = null;
     stationId = null;
     activePreset = null;
@@ -428,6 +517,9 @@ export default function initWeatherCameras({ container } = {}) {
     station = null;
     activePreset = null;
     shownUrl = null;
+    // Highlight immediately, before the detail fetch resolves — the tap should
+    // acknowledge itself on the map without waiting on the network.
+    setSelected(feature);
     panel.el.classList.add('open');
     panel.title.textContent = feature.get('slug') || id;
     panel.time.textContent = '';
@@ -444,6 +536,7 @@ export default function initWeatherCameras({ container } = {}) {
       [activePreset] = entry.presets;
       panel.title.textContent = entry.name;
       setMessage('');
+      updateDirLabel();
       renderPresets();
       renderImage();
     });
