@@ -42,14 +42,23 @@
 
 import Feature from 'ol/Feature';
 import Point from 'ol/geom/Point';
+import Polygon from 'ol/geom/Polygon';
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
 import { fromLonLat } from 'ol/proj';
 import {
   Circle as CircleStyle, Fill, RegularShape, Stroke, Style, Text,
 } from 'ol/style';
+import { bearingForDirection, fetchRoadTangent } from './roadBearing';
 
 const API = 'https://tie.digitraffic.fi/api/weathercam/v1';
+
+// View cone for the open camera's active direction. Sized in pixels so it reads
+// the same at every zoom, and drawn wide (2 x this half-angle) because it is a
+// road bearing, not a lens frustum — the API publishes no field of view, so a
+// narrow ray would claim precision that does not exist.
+const CONE_LENGTH_PX = 38;
+const CONE_HALF_DEG = 21;
 
 // Digitraffic's terms of use require identifying the app on every request. Same
 // value the AIS and traffic-announcement clients send — never anything personal.
@@ -84,6 +93,7 @@ const PALETTES = {
     // The open station's mark. The app's primary cyan reads as "active"
     // everywhere else in the UI, so it needs no separate legend.
     accent: '#0089c4',
+    cone: 'rgba(0,137,196,0.22)',
     textFill: '#123044',
     textHalo: '#ffffff',
   },
@@ -91,6 +101,7 @@ const PALETTES = {
     body: '#7fc4f5',
     halo: 'rgba(0,0,0,0.6)',
     accent: '#12bcfa',
+    cone: 'rgba(18,188,250,0.20)',
     textFill: '#eaf6ff',
     textHalo: '#000000',
   },
@@ -98,11 +109,31 @@ const PALETTES = {
 
 const timeText = (ms) => new Date(ms).toLocaleTimeString('fi', { hour: '2-digit', minute: '2-digit' });
 
+const toRadians = (deg) => (deg * Math.PI) / 180;
+
 // Thumbnails everywhere: 384x216 at 14 kB against 1280x720 at 251 kB. The panel
 // is ~390 px wide on a phone, so the thumbnail is close to 1:1 — and following
 // the clock at full resolution would cost a quarter-megabyte per frame.
 function thumbUrl(imageUrl) {
   return `${imageUrl}${imageUrl.includes('?') ? '&' : '?'}thumbnail=true`;
+}
+
+// Wedge from the camera along `bearingDeg`, in map units. Web Mercator is
+// conformal with vertical meridians, so a true bearing is already the grid
+// bearing here — the only conversion is compass (clockwise from north) to the
+// maths convention (counter-clockwise from +x).
+function coneGeometry(center, bearingDeg, resolution) {
+  const radius = CONE_LENGTH_PX * resolution;
+  const a0 = toRadians(90 - bearingDeg - CONE_HALF_DEG);
+  const a1 = toRadians(90 - bearingDeg + CONE_HALF_DEG);
+  const ring = [center];
+  const STEPS = 8;
+  for (let i = 0; i <= STEPS; i++) {
+    const a = a0 + ((a1 - a0) * i) / STEPS;
+    ring.push([center[0] + radius * Math.cos(a), center[1] + radius * Math.sin(a)]);
+  }
+  ring.push(center);
+  return new Polygon([ring]);
 }
 
 function fetchJson(url) {
@@ -140,6 +171,9 @@ export default function initWeatherCameras({ container } = {}) {
   // stationId -> { name, presets: [{ id, label, history: [{atMs, url}] }] }
   const details = new Map();
   const detailInFlight = new Map();
+  // stationId -> road tangent in degrees, or null when it could not be resolved
+  const tangents = new Map();
+  const tangentInFlight = new Map();
 
   //
   // MARKERS
@@ -253,9 +287,25 @@ export default function initWeatherCameras({ container } = {}) {
       }),
     });
 
-    return (feature) => {
+    // Where the camera is pointed, derived from the road's own geometry (see
+    // roadBearing.js). Drawn under the marker so the mark stays legible, and
+    // filled faintly so it reads as an annotation over the radar echo rather
+    // than as data of its own.
+    const cone = new Style({
+      fill: new Fill({ color: palette.cone }),
+      stroke: new Stroke({ color: palette.accent, width: 1.5 }),
+    });
+
+    return (feature, resolution) => {
       if (!feature.get('selected')) return [body, lens];
-      const out = [selRingHalo, selRing, selBody];
+      const out = [];
+      const bearing = feature.get('viewBearing');
+      if (Number.isFinite(bearing)) {
+        const at = feature.getGeometry().getCoordinates();
+        cone.setGeometry(coneGeometry(at, bearing, resolution));
+        out.push(cone);
+      }
+      out.push(selRingHalo, selRing, selBody);
       const label = feature.get('dirLabel');
       if (label) {
         selLabel.getText().setText(label);
@@ -297,6 +347,9 @@ export default function initWeatherCameras({ container } = {}) {
           // presentationName is the direction as the operator words it
           // ("Inkooseen", "Tienpinta"); it is what a road user recognises.
           label: pr.presentationName || pr.id,
+          // Road-register direction, turned into a real bearing against the
+          // road geometry once the tangent lands (see roadBearing.js).
+          direction: pr.direction,
           history: historyById.get(pr.id) || [],
         }))
         // A preset with no history at all has nothing to show on any frame.
@@ -304,6 +357,12 @@ export default function initWeatherCameras({ container } = {}) {
       const entry = {
         name: (props.names && props.names.fi) || props.name || stationId,
         municipality: props.municipality || '',
+        // Kept for the road-tangent lookup, which needs the camera's own road
+        // address and position to resolve a bearing.
+        roadAddress: props.roadAddress || null,
+        lonLat: (detail.geometry && detail.geometry.coordinates)
+          ? detail.geometry.coordinates.slice(0, 2) : null,
+        tangent: null,
         presets,
       };
       details.set(stationId, entry);
@@ -372,6 +431,7 @@ export default function initWeatherCameras({ container } = {}) {
     if (selectedFeature) {
       selectedFeature.set('selected', false);
       selectedFeature.set('dirLabel', '');
+      selectedFeature.set('viewBearing', undefined);
     }
     selectedFeature = feature;
     if (feature) feature.set('selected', true);
@@ -380,6 +440,32 @@ export default function initWeatherCameras({ container } = {}) {
   // The direction label under the highlighted marker follows the chosen preset.
   function updateDirLabel() {
     if (selectedFeature) selectedFeature.set('dirLabel', activePreset ? activePreset.label : '');
+  }
+
+  // The view cone. Absent until the road tangent has been resolved, and absent
+  // for good on presets whose direction is not along this road (road-surface
+  // and scenery views, crossing roads, unrecorded) — those simply get no cone
+  // rather than a guessed one.
+  function updateViewBearing() {
+    if (!selectedFeature) return;
+    const bearing = bearingForDirection(
+      station ? station.tangent : null,
+      activePreset ? activePreset.direction : null,
+    );
+    selectedFeature.set('viewBearing', Number.isFinite(bearing) ? bearing : undefined);
+  }
+
+  // One road-section lookup per station, cached for the session. It resolves
+  // after the panel is already showing its photo — the cone appearing a moment
+  // later is better than holding the image back for it.
+  function loadTangent(id, entry) {
+    if (tangents.has(id)) return Promise.resolve(tangents.get(id));
+    if (tangentInFlight.has(id)) return tangentInFlight.get(id);
+    const p = fetchRoadTangent(entry.roadAddress, entry.lonLat)
+      .then((t) => { tangents.set(id, t); return t; })
+      .finally(() => { tangentInFlight.delete(id); });
+    tangentInFlight.set(id, p);
+    return p;
   }
 
   function setMessage(text) {
@@ -479,6 +565,7 @@ export default function initWeatherCameras({ container } = {}) {
         generation += 1;
         shownUrl = null;
         updateDirLabel();
+        updateViewBearing();
         renderPresets();
         renderImage();
       });
@@ -537,8 +624,16 @@ export default function initWeatherCameras({ container } = {}) {
       panel.title.textContent = entry.name;
       setMessage('');
       updateDirLabel();
+      updateViewBearing();
       renderPresets();
       renderImage();
+      // The cone trails the photo: the road lookup is a second request, and the
+      // image is what the user tapped for.
+      loadTangent(id, entry).then((t) => {
+        if (gen !== generation) return;
+        entry.tangent = t;
+        updateViewBearing();
+      });
     });
   }
 
