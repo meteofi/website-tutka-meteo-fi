@@ -36,11 +36,21 @@
 
 const API = 'https://rata.digitraffic.fi/api/v1/live-trains/station';
 
-// How far the board looks. A few minutes back so a train that has just left is
-// still shown, and two hours forward so a rural station with an hourly service
-// still fills the board.
-const MINUTES_BEFORE = 5;
-const MINUTES_AFTER = 120;
+// How far the board looks: two hours forward, so a rural station with an hourly
+// service still fills it, and a few minutes back so a train that has just left
+// is still shown.
+//
+// The API's parameter names are relative to the EVENT, not to now, and read
+// backwards from the obvious: `minutes_before_departure` means "minutes before
+// the departure happens", i.e. how far AHEAD to look, while
+// `minutes_after_departure` means "minutes after it departed", i.e. how far
+// BACK. Measured at 01:18 local: `minutes_before_departure=60` returned a
+// departure +33 min in the future, `minutes_after_departure=60` returned six
+// between -49 and -21 min in the past. Getting this the wrong way round fills
+// the board with trains that left hours ago, so the constants are named for
+// what they do rather than for the parameters they feed.
+const LOOK_AHEAD_MINUTES = 120;
+const LOOK_BACK_MINUTES = 5;
 
 // Estimates move while the panel sits open; the schedule itself does not.
 const REFRESH_MS = 30000;
@@ -211,8 +221,8 @@ export default function initTrains({ container, stationsUrl } = {}) {
     if (!station) return;
     const gen = generation;
     const url = `${API}/${encodeURIComponent(station.code)}`
-      + `?minutes_before_departure=${MINUTES_BEFORE}&minutes_after_departure=${MINUTES_AFTER}`
-      + `&minutes_before_arrival=${MINUTES_BEFORE}&minutes_after_arrival=${MINUTES_AFTER}`;
+      + `?minutes_before_departure=${LOOK_AHEAD_MINUTES}&minutes_after_departure=${LOOK_BACK_MINUTES}`
+      + `&minutes_before_arrival=${LOOK_AHEAD_MINUTES}&minutes_after_arrival=${LOOK_BACK_MINUTES}`;
     fetch(url)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
