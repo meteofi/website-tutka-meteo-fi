@@ -453,6 +453,27 @@ const turnpointStyle = new Style({
   }),
 });
 
+// Railway stations (Rautatieasemat) — a green disc with a white outline.
+// Deliberately NOT a square: the weather cameras already use a slate-blue
+// square, and at marker size the two were near-indistinguishable. Green also
+// keeps them clear of the airfields' hollow purple ring, the turnpoints' orange
+// triangle and the traffic layer's blue disc. Shares the airfields' per-theme
+// label colours (updated together in applyIcaoTheme).
+const railwayStyle = new Style({
+  image: new CircleStyle({
+    radius: 4.5,
+    fill: new Fill({ color: 'rgb(0, 180, 81)' }),
+    stroke: new Stroke({ color: '#ffffff', width: 1.5 }),
+  }),
+  text: new Text({
+    font: '12px Calibri,sans-serif',
+    fill: new Fill({ color: icaoTextColors.dark.fill }),
+    stroke: new Stroke({ color: icaoTextColors.dark.halo, width: 2.5 }),
+    offsetX: 0,
+    offsetY: -14,
+  }),
+});
+
 // Municipality polygons (Kunnat) — boundary-only stroke. No labels: every
 // municipality is a multipolygon (islands, exclaves) so the per-polygon
 // interior-point placement scatters the name across the map, often well
@@ -699,6 +720,7 @@ const paneDeps = {
   radarStyle,
   icaoStyle,
   turnpointStyle,
+  railwayStyle,
   municipalityStyleLight,
   vesivaylatStyleFn,
   vesivaylaAreaStyle,
@@ -1421,9 +1443,12 @@ function applyIcaoTheme(theme) {
   icaoStyle.getText().getStroke().setColor(t.halo);
   turnpointStyle.getText().getFill().setColor(t.fill);
   turnpointStyle.getText().getStroke().setColor(t.halo);
+  railwayStyle.getText().getFill().setColor(t.fill);
+  railwayStyle.getText().getStroke().setColor(t.halo);
   for (const pane of panes) {
     pane.icaoLayer.changed();
     if (pane.turnpointLayer) pane.turnpointLayer.changed();
+    if (pane.railwayLayer) pane.railwayLayer.changed();
   }
 }
 
@@ -2363,6 +2388,13 @@ const poiRegistry = [
     icon: 'flag',
     defaultOn: false,
     layerKeys: ['turnpointLayer'],
+  },
+  {
+    id: 'railwaystations',
+    label: 'Rautatieasemat',
+    icon: 'train',
+    defaultOn: false,
+    layerKeys: ['railwayLayer'],
   },
   {
     id: 'municipalities',
@@ -3314,6 +3346,7 @@ function shareAttributions() {
   }
   // POI vector layers carry no layerInfo — credit the ones that need it while on.
   if (POI_STATE.turnpoints) parts.add('Käännöspisteet © Ilmailuliitto');
+  if (POI_STATE.railwaystations) parts.add('Rautatieasemat © Fintraffic (CC BY 4.0)');
   // Kunnat is MML Maastotietokanta (CC BY 4.0) since the switch off the
   // Tilastokeskus-derived collection, so it now needs crediting like the rest.
   if (POI_STATE.municipalities) parts.add('Kunnat © Maanmittauslaitos');
