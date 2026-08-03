@@ -36,11 +36,12 @@ import railwayStationsUrl from './data/railway-stations-finland.geojson';
 import railwayTracksUrl from './data/railway-tracks-finland.geojson';
 
 // Railway stations swap their short code for the full station name at or below
-// this resolution (map units per pixel in EPSG:3857) — about z11 and closer.
-// Below that zoom the code avoids printing the town's name a second time next
-// to the place-name label; from here in the view is town-scale, the station sits
-// visibly apart from the town centroid, and the name is the more useful label.
-const RAILWAY_NAME_MAX_RESOLUTION = 80;
+// this resolution (map units per pixel in EPSG:3857) — about z9 and closer.
+// Wider than that the code keeps the layer from printing each town's name a
+// second time next to the place-name label; from here in there is room for the
+// real name, and it is the more useful label once you are looking at a region
+// rather than the whole network.
+const RAILWAY_NAME_MAX_RESOLUTION = 320;
 
 // The own-position marker + grey accuracy disc. One pair per pane so the
 // marker can render in every pane; the ownLocation controller updates each
