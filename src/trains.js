@@ -95,10 +95,16 @@ export function trainLabel(train) {
 // contract above can be checked against live data without a browser.
 export function boardRows(trains, stationCode, mode, nowMs = Date.now()) {
   const wantType = mode === 'arrivals' ? 'ARRIVAL' : 'DEPARTURE';
-  // `departed_trains`/`arrived_trains` return the last N to have left, however
-  // long ago that was — at Rovaniemi, measured, 415 minutes. Unfiltered they
-  // sort to the top of the board and push the trains someone is actually
-  // waiting for off the bottom.
+  // Kept as a guard even though the request now asks for no past trains. It is
+  // unproven which time the API classifies "departed" by: if it is the SCHEDULED
+  // time rather than the actual one, a train sitting late at the platform counts
+  // as departed and would arrive here with a past timestamp. A night check found
+  // no delayed train anywhere in the country to settle it, so the ordering
+  // guarantee is enforced here instead of resting on an assumption.
+  //
+  // Note this keeps exactly the train that case is about: a service twenty
+  // minutes down but estimated for now stays, because the later of scheduled and
+  // estimate decides.
   const floor = nowMs - PAST_TOLERANCE_MS;
   const rows = [];
   (trains || []).forEach((train) => {
@@ -275,9 +281,13 @@ export default function initTrains({ container, stationsUrl } = {}) {
     const gen = generation;
     const url = `${API}/${encodeURIComponent(station.code)}`
       + `?departing_trains=${REQUEST_TRAINS}&arriving_trains=${REQUEST_TRAINS}`
-      // A couple of just-gone trains so the top of the board is not a train the
-      // user watched leave a minute ago.
-      + '&departed_trains=2&arrived_trains=2'
+      // Ask for no past trains at all. `departed_trains`/`arrived_trains` return
+      // the last N to have gone HOWEVER long ago — 415 minutes at Rovaniemi on a
+      // night check — which is never what a board wants. Zero is accepted and is
+      // the smaller request (10.5 kB against 12.4 at Helsinki); omitting the
+      // parameters is worse still, since they default to a nonzero count and
+      // brought back departures 83 minutes old.
+      + '&departed_trains=0&arrived_trains=0'
       // Drops trains that run through without stopping — they have no platform
       // and no passenger can board them.
       + '&include_nonstopping=false';
