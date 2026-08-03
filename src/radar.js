@@ -453,17 +453,17 @@ const turnpointStyle = new Style({
   }),
 });
 
-// Railway stations (Rautatieasemat) — a filled slate square, so they read as
-// built infrastructure next to the airfields' hollow purple ring and the
-// turnpoints' orange triangle. Shares the airfields' per-theme label colours
-// (updated together in applyIcaoTheme).
+// Railway stations (Rautatieasemat) — a green disc with a white outline.
+// Deliberately NOT a square: the weather cameras already use a slate-blue
+// square, and at marker size the two were near-indistinguishable. Green also
+// keeps them clear of the airfields' hollow purple ring, the turnpoints' orange
+// triangle and the traffic layer's blue disc. Shares the airfields' per-theme
+// label colours (updated together in applyIcaoTheme).
 const railwayStyle = new Style({
-  image: new RegularShape({
-    points: 4,
+  image: new CircleStyle({
     radius: 4.5,
-    angle: Math.PI / 4,
-    fill: new Fill({ color: '#5a6b7a' }),
-    stroke: new Stroke({ color: '#cfd8e0', width: 1.5 }),
+    fill: new Fill({ color: 'rgb(0, 180, 81)' }),
+    stroke: new Stroke({ color: '#ffffff', width: 1.5 }),
   }),
   text: new Text({
     font: '12px Calibri,sans-serif',
