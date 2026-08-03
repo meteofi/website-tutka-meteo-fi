@@ -3314,6 +3314,9 @@ function shareAttributions() {
   }
   // POI vector layers carry no layerInfo — credit the ones that need it while on.
   if (POI_STATE.turnpoints) parts.add('Käännöspisteet © Ilmailuliitto');
+  // Kunnat is MML Maastotietokanta (CC BY 4.0) since the switch off the
+  // Tilastokeskus-derived collection, so it now needs crediting like the rest.
+  if (POI_STATE.municipalities) parts.add('Kunnat © Maanmittauslaitos');
   if (POI_STATE.stormcells) parts.add('Soluntunnistus © FMI (CC BY 4.0)');
   return [...parts];
 }
