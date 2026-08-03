@@ -461,7 +461,7 @@ const railwayTrackColors = {
   light: 'rgba(0, 120, 54, 0.75)',
   dark: 'rgba(255, 255, 255, 0.8)',
 };
-const RAILWAY_TRACK_WIDTH = 2;
+const RAILWAY_TRACK_WIDTH = 1.5;
 const railwayTrackStyle = new Style({
   stroke: new Stroke({ color: railwayTrackColors.dark, width: RAILWAY_TRACK_WIDTH }),
 });
