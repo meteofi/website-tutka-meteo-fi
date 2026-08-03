@@ -34,6 +34,13 @@ import airfieldsUrl from './data/airfields-finland.geojson';
 import turnpointsUrl from './data/turnpoints-finland.geojson';
 import railwayStationsUrl from './data/railway-stations-finland.geojson';
 
+// Railway stations swap their short code for the full station name at or below
+// this resolution (map units per pixel in EPSG:3857) — about z11 and closer.
+// Below that zoom the code avoids printing the town's name a second time next
+// to the place-name label; from here in the view is town-scale, the station sits
+// visibly apart from the town centroid, and the name is the more useful label.
+const RAILWAY_NAME_MAX_RESOLUTION = 80;
+
 // The own-position marker + grey accuracy disc. One pair per pane so the
 // marker can render in every pane; the ownLocation controller updates each
 // pane's geometry (and swaps the style when the AIS source is active).
@@ -278,13 +285,15 @@ export default function createPane(targetEl, sharedView, deps) {
     }),
     visible: false,
     declutter: 'railway-stations',
-    style(feature) {
-      // The short code (HKI, TPE), not the station name — the airfields' ICAO
-      // pattern, and for the same reason. Nearly every station is named after
-      // the town it sits in, so labelling with the name printed "Hämeenlinna"
-      // twice over, once from the place-name layer and once from here. The
-      // codes are also what timetables and platform signs use.
-      railwayStyle.getText().setText(feature.get('s'));
+    style(feature, resolution) {
+      // Zoomed out, the short code (HKI, TPE) — the airfields' ICAO pattern, and
+      // for the same reason: nearly every station is named after the town it
+      // sits in, so the name printed "Hämeenlinna" twice over, once from the
+      // place-name layer and once from here. The codes are also what timetables
+      // and platform signs use. Zoomed in there is room for the real name and
+      // the station is visibly apart from the town label, so it wins.
+      const zoomedIn = resolution <= RAILWAY_NAME_MAX_RESOLUTION;
+      railwayStyle.getText().setText(feature.get(zoomedIn ? 'n' : 's'));
       return railwayStyle;
     },
   });
