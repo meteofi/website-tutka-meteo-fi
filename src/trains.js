@@ -49,15 +49,32 @@ const API = 'https://rata.digitraffic.fi/api/v1/live-trains/station';
 // between -49 and -21 min in the past. Getting this the wrong way round fills
 // the board with trains that left hours ago, so the constants are named for
 // what they do rather than for the parameters they feed.
-const LOOK_AHEAD_MINUTES = 120;
-const LOOK_BACK_MINUTES = 5;
+// The board asks for a COUNT of trains, not a time window. The API's
+// `minutes_before_departure` family is the wrong tool here: a window wide enough
+// for the night is wasteful by day and a narrow one empties out after the last
+// evening train. Measured at 01:35 at Helsinki, two hours held exactly ONE
+// departure, and widening to twelve hours cost 118 kB because every train
+// arrives with its whole timetable attached. `departing_trains=N` simply returns
+// the next N whenever they run — 12 of them at 21.5 kB on the same night,
+// reaching 3.5 hours ahead into the morning service without being asked to.
+//
+// Asked slightly above what the panel can show, so the board still fills after
+// shunting runs and trains terminating here are dropped.
+const REQUEST_TRAINS = 15;
+
+// How far back a train may be and still belong on the board — long enough that
+// one which has just pulled out, or is late and still boarding, stays visible.
+const PAST_TOLERANCE_MS = 15 * 60 * 1000;
 
 // Estimates move while the panel sits open; the schedule itself does not.
 const REFRESH_MS = 30000;
 
-// More than this and the board stops being a board. Helsinki returns ~45
-// commuter trains over the window.
-const MAX_ROWS = 12;
+// A bound on how much DOM one board can build. What is actually shown is
+// decided by the panel: rows are trimmed until the table fits, so the board
+// never scrolls and never leaves a half-row clipped at the bottom. This only
+// keeps a twelve-hour window at a busy station from constructing hundreds of
+// rows to throw most of them away.
+const MAX_ROWS = 40;
 
 const timeText = (iso) => {
   const ms = Date.parse(iso);
@@ -76,8 +93,13 @@ export function trainLabel(train) {
 
 // Pull one station's board out of the API's full-timetable payload. Pure, so the
 // contract above can be checked against live data without a browser.
-export function boardRows(trains, stationCode, mode) {
+export function boardRows(trains, stationCode, mode, nowMs = Date.now()) {
   const wantType = mode === 'arrivals' ? 'ARRIVAL' : 'DEPARTURE';
+  // `departed_trains`/`arrived_trains` return the last N to have left, however
+  // long ago that was — at Rovaniemi, measured, 415 minutes. Unfiltered they
+  // sort to the top of the board and push the trains someone is actually
+  // waiting for off the bottom.
+  const floor = nowMs - PAST_TOLERANCE_MS;
   const rows = [];
   (trains || []).forEach((train) => {
     // Empty stock moves to and from the depot are not services.
@@ -100,11 +122,19 @@ export function boardRows(trains, stationCode, mode) {
     if (endpoint === stationCode) return;
     const scheduledMs = Date.parse(here.scheduledTime);
     if (!Number.isFinite(scheduledMs)) return;
+    const estimateMs = Date.parse(here.liveEstimateTime || here.actualTime) || null;
+    // A train 20 minutes down but estimated for now is still standing at the
+    // platform, so the later of the two decides whether it is past.
+    if (Math.max(scheduledMs, estimateMs || 0) < floor) return;
     rows.push({
       label: trainLabel(train),
+      // Commuter services are shown as their line letter in a disc, the way the
+      // network's own signage and maps present them; everything else stays
+      // plain text ("IC 45", "PYO 273").
+      commuter: !!train.commuterLineID,
       scheduledMs,
       // liveEstimateTime for stops still ahead, actualTime once made.
-      estimateMs: Date.parse(here.liveEstimateTime || here.actualTime) || null,
+      estimateMs,
       lateMinutes: Number.isFinite(here.differenceInMinutes) ? here.differenceInMinutes : 0,
       track: here.commercialTrack || '',
       endpoint,
@@ -156,6 +186,7 @@ export default function initTrains({ container, stationsUrl } = {}) {
       el: container,
       title: container.querySelector('.train-title'),
       mode: container.querySelector('.train-mode'),
+      body: container.querySelector('.train-body'),
       table: container.querySelector('.train-table'),
       message: container.querySelector('.train-message'),
     };
@@ -206,8 +237,11 @@ export default function initTrains({ container, stationsUrl } = {}) {
           // its estimate, just without the warning colour.
           ? (r.lateMinutes >= 1 ? `<span class="train-late">${estimated}</span>` : estimated)
           : '–');
+      const ident = r.commuter
+        ? `<span class="train-line">${r.label}</span>`
+        : r.label;
       return `<tr${r.cancelled ? ' class="is-cancelled"' : ''}>
-        <td class="train-id">${r.label}</td>
+        <td class="train-id">${ident}</td>
         <td class="train-time">${scheduled}</td>
         <td class="train-time">${estimate}</td>
         <td class="train-track">${r.track}</td>
@@ -215,14 +249,38 @@ export default function initTrains({ container, stationsUrl } = {}) {
       </tr>`;
     }).join('');
     panel.table.innerHTML = `${head}<tbody>${body}</tbody>`;
+    trimToFit();
+  }
+
+  // Show whole rows only. The panel is a fixed height, so a busy station would
+  // otherwise leave a row sliced through by the bottom edge — measuring the
+  // rendered table and dropping from the end is exact, where a hard row count
+  // would have to guess at line height and would be wrong on a phone, in the
+  // other theme, or at a different text size.
+  function trimToFit() {
+    if (!panel) return;
+    const tbody = panel.table.tBodies[0];
+    if (!tbody) return;
+    let guard = MAX_ROWS + 1;
+    while (tbody.rows.length > 1
+      && panel.table.offsetHeight > panel.body.clientHeight
+      && guard > 0) {
+      tbody.deleteRow(tbody.rows.length - 1);
+      guard -= 1;
+    }
   }
 
   function load() {
     if (!station) return;
     const gen = generation;
     const url = `${API}/${encodeURIComponent(station.code)}`
-      + `?minutes_before_departure=${LOOK_AHEAD_MINUTES}&minutes_after_departure=${LOOK_BACK_MINUTES}`
-      + `&minutes_before_arrival=${LOOK_AHEAD_MINUTES}&minutes_after_arrival=${LOOK_BACK_MINUTES}`;
+      + `?departing_trains=${REQUEST_TRAINS}&arriving_trains=${REQUEST_TRAINS}`
+      // A couple of just-gone trains so the top of the board is not a train the
+      // user watched leave a minute ago.
+      + '&departed_trains=2&arrived_trains=2'
+      // Drops trains that run through without stopping — they have no platform
+      // and no passenger can board them.
+      + '&include_nonstopping=false';
     fetch(url)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);

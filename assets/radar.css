@@ -1686,13 +1686,13 @@ body.split-4 #placeSearchButton {
     font-size: 16px;
     color: rgba(255, 255, 255, 0.82);
   }
-  /* The board scrolls rather than the panel growing: a busy station returns
-     more trains than any fixed height could show. */
+  /* Rows are trimmed to fit in JS (trimToFit), so the board shows whole rows
+     and never scrolls. `hidden` is the belt-and-braces against a row that is
+     mid-trim during a resize. */
   .train-body {
     flex: 1 1 auto;
     min-height: 0;
-    overflow-y: auto;
-    overscroll-behavior: contain;
+    overflow: hidden;
     padding: 0 8px 4px;
   }
   .train-table {
@@ -1721,6 +1721,22 @@ body.split-4 #placeSearchButton {
     white-space: nowrap;
   }
   .train-id { font-weight: 600; }
+  /* Commuter services are known by their line letter, and the network's own
+     signage and maps put that letter in a disc. Long-distance trains keep
+     plain text ("IC 35", "PYO 273") — they have a number, not a line. */
+  .train-line {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #ffffff;
+    color: #000000;
+    font-weight: 700;
+    font-size: 11.5px;
+    line-height: 1;
+  }
   .train-time { font-variant-numeric: tabular-nums; }
   .train-track { text-align: center; }
   /* The destination is the one column that can be long, so it takes the slack
