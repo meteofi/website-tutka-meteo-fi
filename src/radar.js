@@ -453,16 +453,17 @@ const turnpointStyle = new Style({
   }),
 });
 
-// Railway main tracks — the same green family as the station markers so the two
-// read as one layer, thin enough not to compete with the radar echo underneath.
-// Per-theme, like the airfield labels: the dark basemap needs the brighter
-// green, the light one a darker shade to hold against pale ground.
+// Railway main tracks. Per-theme, like the airfield labels: white on the dark
+// basemap, where the station green went muddy against grey ground and dark
+// water, and the darker green on the light one where white would vanish. The
+// green station discs still tie the pair together on both.
 const railwayTrackColors = {
   light: 'rgba(0, 120, 54, 0.75)',
-  dark: 'rgba(0, 180, 81, 0.7)',
+  dark: 'rgba(255, 255, 255, 0.8)',
 };
+const RAILWAY_TRACK_WIDTH = 2;
 const railwayTrackStyle = new Style({
-  stroke: new Stroke({ color: railwayTrackColors.dark, width: 1.5 }),
+  stroke: new Stroke({ color: railwayTrackColors.dark, width: RAILWAY_TRACK_WIDTH }),
 });
 
 // Railway stations (Rautatieasemat) — a green disc with a white outline.
