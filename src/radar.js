@@ -453,13 +453,14 @@ const turnpointStyle = new Style({
   }),
 });
 
-// Railway main tracks. Per-theme, like the airfield labels: white on the dark
-// basemap, where the station green went muddy against grey ground and dark
-// water, and the darker green on the light one where white would vanish. The
-// green station discs still tie the pair together on both.
+// Railway main tracks. Per-theme, like the airfield labels: a muted grey-green
+// on the dark basemap — the station green went muddy there against grey ground
+// and dark water, while plain white pulled ahead of the radar echo — and the
+// darker green on the light one, where anything pale vanishes. The green
+// station discs tie the pair together on both.
 const railwayTrackColors = {
   light: 'rgba(0, 120, 54, 0.75)',
-  dark: 'rgba(255, 255, 255, 0.8)',
+  dark: 'rgb(158, 172, 157)',
 };
 const RAILWAY_TRACK_WIDTH = 1.5;
 const railwayTrackStyle = new Style({
