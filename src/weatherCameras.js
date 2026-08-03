@@ -171,18 +171,37 @@ function fetchJson(url) {
     });
 }
 
-// Newest entry at or before `ms` — the image the camera actually held at that
-// instant. Entries are ascending (verified live), so this is a plain scan back
-// from the end; 144 entries makes anything cleverer pointless.
+// The entry NEAREST `ms`, not the newest at or before it.
+//
+// Cameras do not capture on the clock's grid. Their 10-minute cadence carries an
+// arbitrary per-camera phase offset — one measured live captures at :06:14,
+// :16:11, :26:13, i.e. about 72 seconds AFTER each five-minute boundary. Taking
+// the newest image at or before the cursor therefore rejected the image
+// belonging to that frame by a minute or so and fell back a full cadence step:
+// frame 10:05 showed the 09:56 image, 8.8 minutes stale, when 10:06:14 was
+// sitting right there. That hit 7 of the 13 frames — every other one — and is
+// what "radar 13:05 gave me the 12:55 camera" was.
+//
+// Nearest halves the worst-case error (a whole cadence step down to half of one)
+// and can pick an image up to ~5 minutes ahead of the frame. That is the right
+// trade: the panel always states the image's real capture time, so a slightly
+// leading image is visible and self-explanatory, while a silently 10-minute-old
+// one reads as if it belonged to the frame. Ties go to the earlier image, so an
+// exact midpoint never leads the clock. Matches how the rest of the app snaps
+// (obs onto frames, trajectory ±150 s) rather than truncating.
+//
+// Entries are ascending (verified live); 144 of them makes a linear scan fine.
 function entryAt(history, ms) {
   if (!history.length) return null;
-  if (ms >= history[history.length - 1].atMs) return history[history.length - 1];
-  for (let i = history.length - 1; i >= 0; i--) {
-    if (history[i].atMs <= ms) return history[i];
-  }
-  // Cursor older than everything retained: the oldest image is the closest
-  // truthful answer, and its own timestamp label makes the gap visible.
-  return history[0];
+  let i = 0;
+  while (i < history.length && history[i].atMs < ms) i += 1;
+  // Cursor outside the retained range: the nearest end is the closest truthful
+  // answer, and its own timestamp label makes the gap visible.
+  if (i === 0) return history[0];
+  if (i === history.length) return history[history.length - 1];
+  const after = history[i];
+  const before = history[i - 1];
+  return (after.atMs - ms) < (ms - before.atMs) ? after : before;
 }
 
 export default function initWeatherCameras({ container } = {}) {
