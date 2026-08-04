@@ -71,6 +71,17 @@ const PAST_TOLERANCE_MS = 15 * 60 * 1000;
 // commercial stop on a platform and would otherwise appear as a departure.
 const PASSENGER_CATEGORIES = new Set(['Commuter', 'Long-distance']);
 
+// …and the category alone is not enough. Within `Commuter` the network runs two
+// train types: `HL`, every real line, and `HV`, which is only ever "line V" —
+// empty stock moving between Ilmala depot and the ends of the lines. Measured
+// over ten stations: 780 HL against 23 HV, every V train an HV and no HV
+// anything but V. They give themselves away by shape, too — 2 commercial stops
+// where the thinnest genuine line has 6 and most have 20 to 36, running 22:09
+// to 02:38 around the end of service, terminating at stabling points, four of
+// them calling at ILR. They carry no passengers and no public timetable lists
+// them, so a board must not either.
+const NON_PUBLIC_TRAIN_TYPES = new Set(['HV']);
+
 // Estimates move while the panel sits open; the schedule itself does not.
 const REFRESH_MS = 30000;
 
@@ -120,6 +131,7 @@ export function boardRows(trains, stationCode, mode, nowMs = Date.now()) {
     // `Locomotive` and `On-track machines`. Any category the network adds later
     // stays off the board until it is deliberately let on.
     if (!PASSENGER_CATEGORIES.has(train.trainCategory)) return;
+    if (NON_PUBLIC_TRAIN_TYPES.has(train.trainType)) return;
     const all = train.timeTableRows || [];
     const commercial = all.filter((r) => r.commercialStop === true);
     if (!commercial.length) return;
