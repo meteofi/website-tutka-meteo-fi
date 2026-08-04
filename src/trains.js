@@ -66,6 +66,11 @@ const REQUEST_TRAINS = 15;
 // one which has just pulled out, or is late and still boarding, stays visible.
 const PAST_TOLERANCE_MS = 15 * 60 * 1000;
 
+// The categories a passenger can actually board. Everything else the network
+// runs — freight, light engines, track machines, empty stock moves — can hold a
+// commercial stop on a platform and would otherwise appear as a departure.
+const PASSENGER_CATEGORIES = new Set(['Commuter', 'Long-distance']);
+
 // Estimates move while the panel sits open; the schedule itself does not.
 const REFRESH_MS = 30000;
 
@@ -108,8 +113,13 @@ export function boardRows(trains, stationCode, mode, nowMs = Date.now()) {
   const floor = nowMs - PAST_TOLERANCE_MS;
   const rows = [];
   (trains || []).forEach((train) => {
-    // Empty stock moves to and from the depot are not services.
-    if (train.trainCategory === 'Shunting') return;
+    // Only what a passenger can board. A whitelist, not a blacklist: an earlier
+    // version excluded `Shunting` alone and a daytime scan of six stations found
+    // 34 `Cargo` rows on the board — freight with a commercial stop and a
+    // platform, advertising departures to places like Patokangas — plus
+    // `Locomotive` and `On-track machines`. Any category the network adds later
+    // stays off the board until it is deliberately let on.
+    if (!PASSENGER_CATEGORIES.has(train.trainCategory)) return;
     const all = train.timeTableRows || [];
     const commercial = all.filter((r) => r.commercialStop === true);
     if (!commercial.length) return;
