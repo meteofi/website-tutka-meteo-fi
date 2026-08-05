@@ -40,6 +40,8 @@ import { createPlaceNamesLayer, placeNamesStyleLight, placeNamesStyleDark } from
 import initStormCells from './stormCells';
 import initTrafficMessages from './trafficMessages';
 import initWeatherCameras from './weatherCameras';
+import initTrains from './trains';
+import railwayStationsUrl from './data/railway-stations-finland.geojson';
 import radarSitesFallbackUrl from './data/radars-finland.geojson';
 import initOwnLocation from './ownLocation';
 import initOwnLocationMenu from './ui/ownLocationMenu';
@@ -719,6 +721,16 @@ const weatherCameras = initWeatherCameras({
   container: document.getElementById('cameraPanel'),
 });
 
+// Departure board for a tapped railway station. Wall-clock live rather than
+// clock-coupled — a board is about what is next, and no radar frame can
+// un-depart a train — so setTime does not route to it; it polls while open.
+const trains = initTrains({
+  container: document.getElementById('trainPanel'),
+  // The same bundled snapshot the marker layer draws, reused to turn the
+  // destination short codes in the API's rows into station names.
+  stationsUrl: railwayStationsUrl,
+});
+
 // Layer-control panel (style / opacity / info) folded into each category's
 // long-press menu. Populated on open via createLongPressHandler's onBeforeShow;
 // acts on whichever pane's layer opened the menu. Declared here so buildPanePill
@@ -924,6 +936,11 @@ function initNewPane(pane) {
     const cameraHit = pane.cameras.findAtPixel(evt.pixel);
     if (cameraHit) {
       pane.cameras.open(cameraHit);
+      return;
+    }
+    const stationHit = pane.trains.findAtPixel(evt.pixel);
+    if (stationHit) {
+      pane.trains.open(stationHit);
       return;
     }
     const trafficHit = pane.traffic.findAtPixel(evt.pixel);
@@ -1814,6 +1831,9 @@ function initPaneTraffic(pane) {
   // Cameras only need a per-pane hit-test — unlike the traffic card, the image
   // panel is a single global bottom panel, so every pane opens the same one.
   pane.cameras = weatherCameras.attachPane(pane.map, pane.weatherCameraLayer);
+  // Railway stations open the departure board — also a single global bottom
+  // panel, so panes share it and only the hit-test is per-pane.
+  pane.trains = trains.attachPane(pane.map, pane.railwayLayer);
 }
 
 // One crosshair ("Tähtäin") instance per pane: the reticle overlays the
@@ -3244,6 +3264,15 @@ const main = () => {
       const cameraHit = pane0.cameras.findAtPixel(evt.pixel);
       if (cameraHit) {
         pane0.cameras.open(cameraHit);
+        return;
+      }
+    }
+
+    // Tap on a railway station → open its departure board.
+    if (pane0.trains) {
+      const stationHit = pane0.trains.findAtPixel(evt.pixel);
+      if (stationHit) {
+        pane0.trains.open(stationHit);
         return;
       }
     }
