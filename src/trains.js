@@ -258,13 +258,19 @@ export default function initTrains({ container, stationsUrl } = {}) {
       // seconds down reports as 1 minute late while both times still print the
       // same HH.MM — comparing what will actually be shown keeps the board from
       // flagging a delay it cannot display.
-      const estimate = r.cancelled
-        ? '<span class="train-cancelled">Peruttu</span>'
-        : (estimated && estimated !== scheduled
-          // Amber means late. A train running ahead of its schedule still shows
-          // its estimate, just without the warning colour.
-          ? (r.lateMinutes >= 1 ? `<span class="train-late">${estimated}</span>` : estimated)
-          : '–');
+      // Empty when there is nothing to say: a placeholder in every on-time row
+      // draws the eye down a column of dashes instead of to the few rows that
+      // actually carry a revised time. The tilde marks it as an estimate rather
+      // than a second scheduled time.
+      let estimate = '';
+      if (r.cancelled) {
+        estimate = '<span class="train-cancelled">Peruttu</span>';
+      } else if (estimated && estimated !== scheduled) {
+        const text = `~${estimated}`;
+        // Amber means late. A train running ahead of its schedule still shows
+        // its estimate, just without the warning colour.
+        estimate = r.lateMinutes >= 1 ? `<span class="train-late">${text}</span>` : text;
+      }
       const ident = r.commuter
         ? `<span class="train-line">${r.label}</span>`
         : r.label;
