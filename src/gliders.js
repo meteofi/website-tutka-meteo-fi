@@ -39,6 +39,7 @@
 
 import Feature from 'ol/Feature';
 import Overlay from 'ol/Overlay';
+import LineString from 'ol/geom/LineString';
 import Point from 'ol/geom/Point';
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
@@ -68,6 +69,19 @@ const SWEEP_MS = 15000;
 // legitimately go 60-90 s between usable fixes, so this says "position is
 // ageing", not "something is wrong".
 const FADE_AFTER_MS = 60000;
+
+// Trails are built ONLY from what this browser tab has watched arrive — the
+// bridge serves no history and is asked for none. They live in memory, are never
+// written anywhere, and die with the layer: switching the POI off or reloading
+// starts every aircraft from nothing. That is the point of the bridge's "not an
+// archive" rule, and this stays inside it.
+//
+// Bounded twice over, because an aircraft crossing the region for hours would
+// otherwise grow an unbounded line: by age, so a trail describes recent
+// behaviour rather than the whole evening, and by point count, so a fast beacon
+// rate cannot outrun the age limit.
+const TRAIL_MAX_AGE_MS = 20 * 60 * 1000;
+const TRAIL_MAX_POINTS = 150;
 
 // Dead-link watchdog. The bridge sends a heartbeat every 20 s when nothing else
 // is flowing, so silence this long means the socket is gone without having
@@ -154,6 +168,9 @@ export default function initGliders() {
 
   const features = new Map(); // id -> Feature
   const cards = []; // one per pane; each follows whichever aircraft it has open
+  // id -> { geom: LineString, times: number[] } — the observed path, in map
+  // coordinates so no reprojection happens per frame.
+  const trails = new Map();
   let socket = null;
   let enabled = false;
   let reconnectMs = RECONNECT_MIN_MS;
@@ -177,8 +194,12 @@ export default function initGliders() {
     } else {
       feature.getGeometry().setCoordinates(at);
     }
+    const fixMs = Number.isFinite(a.t) ? a.t : Date.now();
+    const trail = extendTrail(a.id, at, fixMs);
     feature.setProperties({
       id: a.id,
+      // The line is held on the feature so the style function never rebuilds it.
+      trail: trail.geom.getCoordinates().length > 1 ? trail.geom : null,
       // Competition number first: it is what a glider is called on the radio and
       // is shorter than the registration. Registration otherwise, and nothing at
       // all when the pilot has not accepted being identified.
@@ -192,7 +213,7 @@ export default function initGliders() {
       typeCode: a.type,
       typeLabel: typeOf(a.type).label,
       // The FIX time, not arrival time — what the staleness fade reads.
-      fixMs: Number.isFinite(a.t) ? a.t : Date.now(),
+      fixMs,
       seenMs: Date.now(),
     }, true);
     feature.changed();
@@ -203,11 +224,42 @@ export default function initGliders() {
     if (!feature) return;
     source.removeFeature(feature);
     features.delete(id);
+    trails.delete(id);
   }
 
   function clearAll() {
     source.clear(true);
     features.clear();
+    trails.clear();
+  }
+
+  // Append to the observed path, dropping whatever has aged out. Called once per
+  // beacon, so the trail grows at the rate the aircraft actually reports.
+  function extendTrail(id, at, fixMs) {
+    let trail = trails.get(id);
+    if (!trail) {
+      trail = { geom: new LineString([at]), times: [fixMs] };
+      trails.set(id, trail);
+      return trail;
+    }
+    const coords = trail.geom.getCoordinates();
+    const last = coords[coords.length - 1];
+    // A stationary aircraft still beacons; repeating a point would inflate the
+    // trail without drawing anything.
+    if (last && last[0] === at[0] && last[1] === at[1]) return trail;
+    coords.push(at);
+    trail.times.push(fixMs);
+    const floor = Date.now() - TRAIL_MAX_AGE_MS;
+    let cut = 0;
+    while (cut < trail.times.length - 1 && trail.times[cut] < floor) cut += 1;
+    const over = Math.max(0, (coords.length - cut) - TRAIL_MAX_POINTS);
+    cut += over;
+    if (cut > 0) {
+      coords.splice(0, cut);
+      trail.times.splice(0, cut);
+    }
+    trail.geom.setCoordinates(coords);
+    return trail;
   }
 
   function handle(msg) {
@@ -216,11 +268,14 @@ export default function initGliders() {
     lastFrameMs = Date.now();
     if (!msg || typeof msg !== 'object') return;
     if (msg.type === 'snapshot') {
-      // A FULL RESET, not a diff. The bridge sends one after every subscribe and
-      // unprompted when it has had to drop queued updates, and ids are
-      // regenerated when it restarts — so reconciling against the old set would
-      // strand markers under ids that no longer mean anything.
-      clearAll();
+      // A full reset in effect: nothing survives that the snapshot does not
+      // mention. Ids are regenerated when the bridge restarts, so after one of
+      // those nothing matches and every trail starts fresh — which is correct.
+      // But a snapshot also arrives after mere congestion, where the ids are
+      // unchanged, and blanket-clearing there would throw away minutes of
+      // observed path for no reason. So drop by absence rather than wholesale.
+      const keep = new Set((msg.aircraft || []).map((a) => a.id));
+      for (const id of [...features.keys()]) if (!keep.has(id)) remove(id);
       (msg.aircraft || []).forEach(upsert);
       return;
     }
@@ -345,6 +400,11 @@ export default function initGliders() {
         const shape = SHAPES[spec.shape] || SHAPES.dot;
         entry = {
           rotates: shape.rotates,
+          // Thin and translucent: the trail is context for the mark, not a
+          // feature competing with the radar underneath it.
+          trail: new Style({
+            stroke: new Stroke({ color, width: 1.5, lineCap: 'round' }),
+          }),
           mark: new Style({
             image: new RegularShape({
               points: shape.points,
@@ -384,7 +444,14 @@ export default function initGliders() {
       // reads worse than one that dims.
       const stale = Date.now() - (feature.get('fixMs') || 0) > FADE_AFTER_MS;
       entry.mark.getImage().setOpacity(stale ? 0.45 : 1);
-      const out = [entry.mark];
+      const out = [];
+      // Drawn first so the mark sits on top of its own path.
+      const trail = feature.get('trail');
+      if (trail) {
+        entry.trail.setGeometry(trail);
+        out.push(entry.trail);
+      }
+      out.push(entry.mark);
       const label = feature.get('label');
       if (label) {
         entry.label.getText().setText(label);
