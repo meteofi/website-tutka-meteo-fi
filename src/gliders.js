@@ -74,10 +74,13 @@ const FADE_AFTER_MS = 60000;
 // do. Without this the layer freezes on stale positions and never recovers.
 const SILENCE_TIMEOUT_MS = 50000;
 
-// Marks stop drawing below this resolution (m/px in EPSG:3857) — about z7, the
-// same band the weather cameras use. Aircraft are a local-scale thing; at
-// synoptic zoom they are specks over the weather.
-const MAX_RESOLUTION = 1400;
+// NO zoom floor, deliberately — unlike the weather cameras, which hide below ~z7
+// because 812 fixed markers become a wall at synoptic zoom. Aircraft are the
+// opposite problem: a couple of dozen scattered across Fennoscandia, and they
+// are somewhere different every day. A floor meant that zooming out to find them
+// was exactly what made them disappear, which is how this layer first looked
+// broken — Finland was empty for the evening and everything airborne was over
+// Sweden, two zoom steps out.
 
 // OGN aircraft type codes. Only the distinction that changes the symbol is kept:
 // everything unpowered-and-soaring reads as a glider, the rest as an aeroplane.
@@ -334,7 +337,6 @@ export default function initGliders() {
       return new VectorLayer({
         source,
         visible: false,
-        maxResolution: MAX_RESOLUTION,
         // Own group so aircraft labels never knock out place names.
         declutter: 'gliders',
         // Positions move continuously; repaint during pan/zoom so the marks do
