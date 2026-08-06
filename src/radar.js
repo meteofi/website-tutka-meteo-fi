@@ -950,6 +950,11 @@ function initNewPane(pane) {
       pane.trains.open(stationHit);
       return;
     }
+    const planeHit = pane.gliders.findAtPixel(evt.pixel);
+    if (planeHit) {
+      pane.gliders.open(planeHit);
+      return;
+    }
     const trafficHit = pane.traffic.findAtPixel(evt.pixel);
     if (trafficHit) pane.traffic.openFor(trafficHit);
   });
@@ -1842,6 +1847,8 @@ function initPaneTraffic(pane) {
   // Railway stations open the departure board — also a single global bottom
   // panel, so panes share it and only the hit-test is per-pane.
   pane.trains = trains.attachPane(pane.map, pane.railwayLayer);
+  // Aircraft cards follow a moving subject, so each pane keeps its own.
+  pane.gliders = gliders.attachPane(pane.map, pane.gliderLayer);
 }
 
 // One crosshair ("Tähtäin") instance per pane: the reticle overlays the
@@ -3282,6 +3289,16 @@ const main = () => {
       const cameraHit = pane0.cameras.findAtPixel(evt.pixel);
       if (cameraHit) {
         pane0.cameras.open(cameraHit);
+        return;
+      }
+    }
+
+    // Tap on an aircraft → open its card. First among the POI hit-tests: the
+    // marks are small, they move, and a tap that lands on one is deliberate.
+    if (pane0.gliders) {
+      const planeHit = pane0.gliders.findAtPixel(evt.pixel);
+      if (planeHit) {
+        pane0.gliders.open(planeHit);
         return;
       }
     }

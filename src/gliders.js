@@ -38,6 +38,7 @@
 // than it saves, and aircraft outside the viewport simply do not draw.
 
 import Feature from 'ol/Feature';
+import Overlay from 'ol/Overlay';
 import Point from 'ol/geom/Point';
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
@@ -82,21 +83,62 @@ const SILENCE_TIMEOUT_MS = 50000;
 // broken — Finland was empty for the evening and everything airborne was over
 // Sweden, two zoom steps out.
 
-// OGN aircraft type codes. Only the distinction that changes the symbol is kept:
-// everything unpowered-and-soaring reads as a glider, the rest as an aeroplane.
-const GLIDER_TYPES = new Set([1, 6, 7]); // glider/motor glider, hang glider, paraglider
+// OGN aircraft types → what to draw and what to call it.
+//
+// Shape carries the broad family and colour the specific type, so the two are
+// readable together at marker size and separately when one of them is hard to
+// judge: `tri` soaring, `star` powered, `square` rotor/unmanned, `dot`
+// lighter-than-air or unknown. A shape alone cannot carry ten types, and colour
+// alone fails for a colour-blind reader.
+const TYPES = {
+  0: { label: 'Tuntematon', shape: 'dot', color: 'unknown' },
+  1: { label: 'Purjekone', shape: 'tri', color: 'glider' },
+  2: { label: 'Hinauskone', shape: 'star', color: 'tow' },
+  3: { label: 'Helikopteri', shape: 'square', color: 'rotor' },
+  4: { label: 'Laskuvarjo', shape: 'dot', color: 'chute' },
+  5: { label: 'Pudotuskone', shape: 'star', color: 'tow' },
+  6: { label: 'Riippuliidin', shape: 'tri', color: 'soft' },
+  7: { label: 'Varjoliidin', shape: 'tri', color: 'soft' },
+  8: { label: 'Moottorikone', shape: 'star', color: 'powered' },
+  9: { label: 'Suihkukone', shape: 'star', color: 'jet' },
+  10: { label: 'Tuntematon', shape: 'dot', color: 'unknown' },
+  11: { label: 'Kuumailmapallo', shape: 'dot', color: 'balloon' },
+  12: { label: 'Ilmalaiva', shape: 'dot', color: 'balloon' },
+  13: { label: 'Miehittämätön', shape: 'square', color: 'uav' },
+};
+const UNKNOWN_TYPE = TYPES[0];
+const typeOf = (code) => TYPES[code] || UNKNOWN_TYPE;
 
+// Same inversion rationale as icaoTextColors in radar.js: the dark basemap needs
+// bright marks, the light one darkened and saturated ones, or a purple glider
+// over pale ground disappears.
 const PALETTES = {
   light: {
     glider: '#7b1fd6',
-    other: '#55606b',
+    soft: '#0f7a4a',
+    tow: '#b85c00',
+    powered: '#1c4f7c',
+    jet: '#00707f',
+    rotor: '#8a5a00',
+    chute: '#b0246b',
+    balloon: '#9a6b00',
+    uav: '#b3001b',
+    unknown: '#55606b',
     halo: 'rgba(255,255,255,0.9)',
     textFill: '#241537',
     textHalo: '#ffffff',
   },
   dark: {
     glider: '#c77dff',
-    other: '#9fb3c8',
+    soft: '#4ade80',
+    tow: '#ffa033',
+    powered: '#7fc4f5',
+    jet: '#3fd8e0',
+    rotor: '#ffd166',
+    chute: '#ff6bb0',
+    balloon: '#ffcf70',
+    uav: '#ff5a5a',
+    unknown: '#9fb3c8',
     halo: 'rgba(0,0,0,0.6)',
     textFill: '#f0e6ff',
     textHalo: '#000000',
@@ -111,6 +153,7 @@ export default function initGliders() {
   });
 
   const features = new Map(); // id -> Feature
+  const cards = []; // one per pane; each follows whichever aircraft it has open
   let socket = null;
   let enabled = false;
   let reconnectMs = RECONNECT_MIN_MS;
@@ -146,7 +189,8 @@ export default function initGliders() {
       climb: Number.isFinite(a.climb) ? a.climb : null,
       speed: Number.isFinite(a.speed) ? a.speed : null,
       track: Number.isFinite(a.track) ? a.track : null,
-      isGlider: GLIDER_TYPES.has(a.type),
+      typeCode: a.type,
+      typeLabel: typeOf(a.type).label,
       // The FIX time, not arrival time — what the staleness fade reads.
       fixMs: Number.isFinite(a.t) ? a.t : Date.now(),
       seenMs: Date.now(),
@@ -184,6 +228,7 @@ export default function initGliders() {
       (msg.aircraft || []).forEach(upsert);
       (msg.gone || []).forEach(remove);
     }
+    cards.forEach((c) => c.sync());
     // `heartbeat` needs no handling — its arrival is the point.
   }
 
@@ -272,19 +317,40 @@ export default function initGliders() {
     const palette = PALETTES[theme];
     const cache = new Map();
 
-    const styles = (isGlider) => {
-      const key = String(isGlider);
+    // Shape per family, colour per type. `tri` is an acute arrow that reads as a
+    // heading even at marker size (the AIS target reasoning); `star` is a
+    // four-point mark that suggests wings and tail; `square` and `dot` carry no
+    // heading, which is honest for a hovering helicopter or a drifting balloon.
+    const SHAPES = {
+      tri: {
+        points: 3, radius: 7, radius2: 2.5, rotates: true,
+      },
+      star: {
+        points: 4, radius: 7, radius2: 2.2, rotates: true,
+      },
+      square: {
+        points: 4, radius: 5, angle: Math.PI / 4, rotates: false,
+      },
+      dot: {
+        points: 12, radius: 4.5, rotates: false,
+      },
+    };
+
+    const styles = (typeCode) => {
+      const key = String(typeCode);
       let entry = cache.get(key);
       if (!entry) {
-        const color = isGlider ? palette.glider : palette.other;
+        const spec = typeOf(typeCode);
+        const color = palette[spec.color] || palette.unknown;
+        const shape = SHAPES[spec.shape] || SHAPES.dot;
         entry = {
-          // An acute triangle reads as a heading even at marker size, the same
-          // reasoning as the AIS target symbol.
+          rotates: shape.rotates,
           mark: new Style({
             image: new RegularShape({
-              points: 3,
-              radius: 7,
-              radius2: 2.5,
+              points: shape.points,
+              radius: shape.radius,
+              radius2: shape.radius2,
+              angle: shape.angle || 0,
               fill: new Fill({ color }),
               stroke: new Stroke({ color: palette.halo, width: 1.5 }),
               rotateWithView: true,
@@ -305,10 +371,14 @@ export default function initGliders() {
     };
 
     return (feature) => {
-      const entry = styles(feature.get('isGlider'));
+      const entry = styles(feature.get('typeCode'));
       const track = feature.get('track');
-      // OL rotates clockwise from north, which is exactly what a track is.
-      entry.mark.getImage().setRotation(Number.isFinite(track) ? toRadians(track) : 0);
+      // OL rotates clockwise from north, which is exactly what a track is. Marks
+      // that carry no heading are never rotated — spinning a balloon by its
+      // drift direction would imply a facing it does not have.
+      entry.mark.getImage().setRotation(
+        entry.rotates && Number.isFinite(track) ? toRadians(track) : 0,
+      );
       // Fade an ageing fix rather than dropping it: a glider thermalling can go
       // over a minute between beacons, and a mark that vanishes and returns
       // reads worse than one that dims.
@@ -327,9 +397,133 @@ export default function initGliders() {
   const styleLight = makeStyleFunction('light');
   const styleDark = makeStyleFunction('dark');
 
+  //
+  // CARD
+  //
+  function buildCard() {
+    const el = document.createElement('div');
+    el.className = 'marker-card aircraft-card';
+    el.setAttribute('role', 'region');
+    el.setAttribute('aria-label', 'Lentokone');
+    el.innerHTML = `
+      <div class="marker-card-head">
+        <i class="material-icons marker-card-icon" aria-hidden="true">airplanemode_active</i>
+        <span class="marker-card-title"></span>
+        <button type="button" class="marker-card-close" aria-label="Sulje">
+          <i class="material-icons" aria-hidden="true">close</i>
+        </button>
+      </div>
+      <div class="aircraft-body">
+        <div class="aircraft-name"></div>
+        <div class="aircraft-model"></div>
+        <dl class="aircraft-grid"></dl>
+      </div>
+    `;
+    return el;
+  }
+
+  const fmt = (v, unit, digits = 0) => (Number.isFinite(v)
+    ? `${v.toFixed(digits)} ${unit}` : '–');
+
+  // One card per pane (the radarSite/trafficMessages pattern): an Overlay
+  // belongs to a single map, so a shared card would jump between panes in split
+  // screen.
+  function attachPane(map, layer) {
+    const el = buildCard();
+    document.body.appendChild(el);
+    const overlay = new Overlay({
+      element: el,
+      positioning: 'bottom-center',
+      offset: [0, -16],
+      stopEvent: true,
+      autoPan: false, // the subject moves; auto-panning after it would fight the user
+    });
+    map.addOverlay(overlay);
+
+    const titleEl = el.querySelector('.marker-card-title');
+    const nameEl = el.querySelector('.aircraft-name');
+    const modelEl = el.querySelector('.aircraft-model');
+    const gridEl = el.querySelector('.aircraft-grid');
+    let openId = null;
+
+    function hide() {
+      openId = null;
+      overlay.setPosition(undefined);
+    }
+
+    el.querySelector('.marker-card-close').addEventListener('click', (e) => {
+      e.stopPropagation();
+      hide();
+    });
+
+    function paint(feature) {
+      const label = feature.get('label');
+      const reg = feature.get('reg');
+      titleEl.textContent = feature.get('typeLabel') || 'Lentokone';
+      // An aircraft with no registration is anonymous by the pilot's explicit
+      // choice — it is named by its type, never by its id.
+      nameEl.textContent = label || feature.get('typeLabel') || '';
+      // The competition number is what a glider is called on the radio; show the
+      // registration too when both are known, since they identify differently.
+      const model = feature.get('model');
+      const sub = [reg && reg !== label ? reg : '', model].filter(Boolean).join(' · ');
+      modelEl.textContent = sub;
+      modelEl.hidden = !sub;
+      const climb = feature.get('climb');
+      const speed = feature.get('speed');
+      const ageS = Math.max(0, Math.round((Date.now() - (feature.get('fixMs') || 0)) / 1000));
+      const rows = [
+        ['Korkeus', fmt(feature.get('alt'), 'm')],
+        // Vario is the number a glider pilot reads first, and its sign matters,
+        // so it keeps an explicit +.
+        ['Nousu', Number.isFinite(climb) ? `${climb > 0 ? '+' : ''}${climb.toFixed(1)} m/s` : '–'],
+        ['Nopeus', fmt(Number.isFinite(speed) ? speed * 3.6 : null, 'km/h')],
+        ['Suunta', fmt(feature.get('track'), '°')],
+        // Fixes legitimately arrive over a minute apart, so the age is shown
+        // rather than implied.
+        ['Havaittu', ageS < 60 ? `${ageS} s sitten` : `${Math.round(ageS / 60)} min sitten`],
+      ];
+      gridEl.innerHTML = rows
+        .map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`)
+        .join('');
+      overlay.setPosition(feature.getGeometry().getCoordinates());
+    }
+
+    function openFor(feature) {
+      openId = feature.get('id');
+      paint(feature);
+    }
+
+    // The subject is moving: every update repositions the card and refreshes the
+    // numbers, and an aircraft that goes away takes its card with it.
+    function sync() {
+      if (openId === null) return;
+      const feature = features.get(openId);
+      if (!feature) { hide(); return; }
+      paint(feature);
+    }
+
+    function findAtPixel(pixel) {
+      if (!layer.getVisible()) return null;
+      let hit = null;
+      map.forEachFeatureAtPixel(pixel, (f, l) => {
+        if (l === layer) { hit = f; return true; }
+        return false;
+      }, { hitTolerance: 10 });
+      return hit;
+    }
+
+    const card = {
+      findAtPixel, open: openFor, hide, sync,
+    };
+    cards.push(card);
+    return card;
+  }
+
   return {
     styleLight,
     styleDark,
+    attachPane,
 
     // Pane factory for paneDeps. Starts hidden and on the light style; POI
     // visibility and setMapLayer take over immediately after pane creation.
