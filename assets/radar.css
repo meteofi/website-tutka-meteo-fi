@@ -2510,6 +2510,50 @@ body.split-4 #placeSearchButton {
 
 .traffic-card-time[hidden] { display: none; }
 
+/* Aircraft card (OGN) — reuses the .marker-card shell + head/close. Narrow,
+   because it tracks a moving target and a wide card sweeps across the map. */
+.aircraft-card { width: 190px; }
+
+.aircraft-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.aircraft-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--dark-high-emphasis-text-color);
+}
+
+.aircraft-model {
+  font-size: 12px;
+  color: var(--dark-medium-emphasis-text-color);
+}
+
+.aircraft-model[hidden] { display: none; }
+
+/* Label/value pairs. Values are tabular so the numbers do not jitter as the
+   aircraft updates roughly once a second. */
+.aircraft-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1px 10px;
+  margin: 4px 0 0;
+  font-size: 12.5px;
+}
+
+.aircraft-grid dt {
+  color: var(--dark-medium-emphasis-text-color);
+}
+
+.aircraft-grid dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--dark-high-emphasis-text-color);
+}
+
 /* Radar-site drill-in card — reuses the .marker-card shell + head/close. */
 .radar-site-card { width: 200px; }
 

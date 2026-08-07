@@ -93,6 +93,9 @@ export default function createPane(targetEl, sharedView, deps) {
     // Road weather cameras (src/weatherCameras.js) — panes share one
     // VectorSource; the controller owns the station list and the image panel.
     createWeatherCameraLayer,
+    // Live OGN aircraft (src/gliders.js) — panes share one VectorSource; the
+    // controller owns the WebSocket.
+    createGliderLayer,
     // Place-search highlight pulse (src/search/searchHighlight.js) — panes
     // share one VectorSource so the pulse shows in every split-screen pane.
     createSearchHighlightLayer,
@@ -367,6 +370,10 @@ export default function createPane(targetEl, sharedView, deps) {
   // should not end up under an incident marker.
   const weatherCameraLayer = createWeatherCameraLayer();
 
+  // Live aircraft sit above the static context layers — they move, and they are
+  // what the user switched the layer on to watch.
+  const gliderLayer = createGliderLayer();
+
   const guideLayer = new VectorLayer({
     source: new Vector(),
     style: rangeStyle,
@@ -416,6 +423,7 @@ export default function createPane(targetEl, sharedView, deps) {
     railwayLayer,
     trafficLayer,
     weatherCameraLayer,
+    gliderLayer,
     stormCellsLayer,
     ownPositionLayer,
     observationLayer,
@@ -453,6 +461,7 @@ export default function createPane(targetEl, sharedView, deps) {
     railwayLayer,
     trafficLayer,
     weatherCameraLayer,
+    gliderLayer,
     stormCellsLayer,
     municipalityLayer,
     vesivaylaAreaLayer,

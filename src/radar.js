@@ -41,6 +41,7 @@ import initStormCells from './stormCells';
 import initTrafficMessages from './trafficMessages';
 import initWeatherCameras from './weatherCameras';
 import initTrains from './trains';
+import initGliders from './gliders';
 import railwayStationsUrl from './data/railway-stations-finland.geojson';
 import radarSitesFallbackUrl from './data/radars-finland.geojson';
 import initOwnLocation from './ownLocation';
@@ -721,6 +722,11 @@ const weatherCameras = initWeatherCameras({
   container: document.getElementById('cameraPanel'),
 });
 
+// Live OGN aircraft. Wall-clock like the AIS marker — the bridge holds current
+// positions only, so setTime does not route here; the WebSocket opens with the
+// POI toggle and closes with it.
+const gliders = initGliders();
+
 // Departure board for a tapped railway station. Wall-clock live rather than
 // clock-coupled — a board is about what is next, and no radar frame can
 // un-depart a train — so setTime does not route to it; it polls while open.
@@ -758,6 +764,7 @@ const paneDeps = {
   createStormCellsLayer: stormCells.createPaneLayer,
   createTrafficLayer: trafficMessages.createPaneLayer,
   createWeatherCameraLayer: weatherCameras.createPaneLayer,
+  createGliderLayer: gliders.createPaneLayer,
   createSearchHighlightLayer: searchHighlight.createPaneLayer,
 };
 
@@ -941,6 +948,11 @@ function initNewPane(pane) {
     const stationHit = pane.trains.findAtPixel(evt.pixel);
     if (stationHit) {
       pane.trains.open(stationHit);
+      return;
+    }
+    const planeHit = pane.gliders.findAtPixel(evt.pixel);
+    if (planeHit) {
+      pane.gliders.open(planeHit);
       return;
     }
     const trafficHit = pane.traffic.findAtPixel(evt.pixel);
@@ -1512,6 +1524,7 @@ function setMapLayer(maplayer) {
     pane.stormCellsLayer.setStyle(light ? stormCells.styleLight : stormCells.styleDark);
     pane.trafficLayer.setStyle(light ? trafficMessages.styleLight : trafficMessages.styleDark);
     pane.weatherCameraLayer.setStyle(light ? weatherCameras.styleLight : weatherCameras.styleDark);
+    pane.gliderLayer.setStyle(light ? gliders.styleLight : gliders.styleDark);
   }
   applyIcaoTheme(maplayer);
   applyVesivaylatTheme(maplayer);
@@ -1834,6 +1847,8 @@ function initPaneTraffic(pane) {
   // Railway stations open the departure board — also a single global bottom
   // panel, so panes share it and only the hit-test is per-pane.
   pane.trains = trains.attachPane(pane.map, pane.railwayLayer);
+  // Aircraft cards follow a moving subject, so each pane keeps its own.
+  pane.gliders = gliders.attachPane(pane.map, pane.gliderLayer);
 }
 
 // One crosshair ("Tähtäin") instance per pane: the reticle overlays the
@@ -2429,6 +2444,15 @@ const poiRegistry = [
     layerKeys: ['turnpointLayer'],
   },
   {
+    // Live data like stormcells: applyPoiVisibility drives the WebSocket
+    // (setEnabled), so nothing is connected while the layer is off.
+    id: 'gliders',
+    label: 'Lentokoneet (OGN)',
+    icon: 'airplanemode_active',
+    defaultOn: false,
+    layerKeys: ['gliderLayer'],
+  },
+  {
     // The network and its stations are one toggle: a station marker with no
     // line under it reads as a dot in a field. The id keeps its original
     // spelling so nobody's saved POI_STATE is reset by the rename.
@@ -2518,6 +2542,7 @@ function applyPoiVisibility() {
   stormCells.setEnabled(!!POI_STATE.stormcells);
   trafficMessages.setEnabled(!!POI_STATE.liikennetiedotteet);
   weatherCameras.setEnabled(!!POI_STATE.kelikamerat);
+  gliders.setEnabled(!!POI_STATE.gliders);
 }
 
 function updatePoiMenuState() {
@@ -3268,6 +3293,16 @@ const main = () => {
       }
     }
 
+    // Tap on an aircraft → open its card. First among the POI hit-tests: the
+    // marks are small, they move, and a tap that lands on one is deliberate.
+    if (pane0.gliders) {
+      const planeHit = pane0.gliders.findAtPixel(evt.pixel);
+      if (planeHit) {
+        pane0.gliders.open(planeHit);
+        return;
+      }
+    }
+
     // Tap on a railway station → open its departure board.
     if (pane0.trains) {
       const stationHit = pane0.trains.findAtPixel(evt.pixel);
@@ -3397,6 +3432,7 @@ function shareAttributions() {
   }
   // POI vector layers carry no layerInfo — credit the ones that need it while on.
   if (POI_STATE.turnpoints) parts.add('Käännöspisteet © Ilmailuliitto');
+  if (POI_STATE.gliders) parts.add('Lentokoneet © Open Glider Network');
   if (POI_STATE.railwaystations) {
     parts.add('Rautatieasemat © Fintraffic (CC BY 4.0)');
     parts.add('Rataverkko © Väylävirasto');
