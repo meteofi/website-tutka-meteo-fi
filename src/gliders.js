@@ -508,6 +508,10 @@ export default function initGliders({ telemetry } = {}) {
     const model = feature.get('model');
     const climb = feature.get('climb');
     const speed = feature.get('speed');
+    // Beacons legitimately arrive over a minute apart, so how old the fix is has
+    // to be stated rather than implied — the same reading the retired card
+    // carried as "Havaittu", in the same words.
+    const ageS = Math.max(0, Math.round((Date.now() - (feature.get('fixMs') || 0)) / 1000));
     return {
       icon: 'airplanemode_active',
       // Anonymous aircraft are named by type, never by id — the pilot opted out
@@ -515,6 +519,7 @@ export default function initGliders({ telemetry } = {}) {
       title: label || typeLabel || 'Lentokone',
       subtitle: [label ? typeLabel : '', reg && reg !== label ? reg : '', model]
         .filter(Boolean).join(' · '),
+      status: ageS < 60 ? `${ageS} s sitten` : `${Math.round(ageS / 60)} min sitten`,
       metrics: [
         { label: 'Nopeus', value: one(Number.isFinite(speed) ? speed * 3.6 : null, 'km/h') },
         { label: 'Suunta', value: one(feature.get('track'), '°') },

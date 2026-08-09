@@ -40,6 +40,7 @@ export default function initTelemetryPanel({ container, onClose } = {}) {
       <i class="material-icons telemetry-icon" aria-hidden="true"></i>
       <span class="telemetry-title"></span>
       <span class="telemetry-sub"></span>
+      <span class="telemetry-status"></span>
       <button type="button" class="telemetry-close" aria-label="Sulje">
         <i class="material-icons" aria-hidden="true">close</i>
       </button>
@@ -50,6 +51,7 @@ export default function initTelemetryPanel({ container, onClose } = {}) {
   const iconEl = container.querySelector('.telemetry-icon');
   const titleEl = container.querySelector('.telemetry-title');
   const subEl = container.querySelector('.telemetry-sub');
+  const statusEl = container.querySelector('.telemetry-status');
   const rowEl = container.querySelector('.telemetry-row');
 
   let owner = null;
@@ -73,13 +75,22 @@ export default function initTelemetryPanel({ container, onClose } = {}) {
   // colours the value ('up', 'down', 'warn') for readings whose sign carries
   // meaning, a glider's vertical speed being the motivating case.
   function paint({
-    icon, title, subtitle, metrics,
+    icon, title, subtitle, status, metrics,
   }) {
     if (icon !== undefined) iconEl.textContent = icon;
     if (title !== undefined) titleEl.textContent = title;
     if (subtitle !== undefined) {
       subEl.textContent = subtitle || '';
       subEl.hidden = !subtitle;
+    }
+    // How current the readings are. Every subject this panel is meant to serve
+    // reports intermittently — a glider circling in a thermal can go 60-90 s
+    // between fixes, and an AIS vessel or a phone's GPS is no different — so the
+    // age of the reading belongs beside it, or the numbers read as live when
+    // they are not.
+    if (status !== undefined) {
+      statusEl.textContent = status || '';
+      statusEl.hidden = !status;
     }
     if (!metrics) return;
     // Rebuilt wholesale rather than diffed: a strip holds a handful of cells and

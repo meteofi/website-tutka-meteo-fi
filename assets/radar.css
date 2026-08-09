@@ -1671,6 +1671,17 @@ body.split-4 #placeSearchButton {
     text-overflow: ellipsis;
   }
   .telemetry-sub[hidden] { display: none; }
+  /* Age of the reading, in the same corner the camera panel puts its capture
+     time — the two answer the same question about the same kind of panel. */
+  .telemetry-status {
+    font-size: 11.5px;
+    font-variant-numeric: tabular-nums;
+    color: var(--dark-primary-color);
+    white-space: nowrap;
+    margin-left: auto;
+    flex: 0 0 auto;
+  }
+  .telemetry-status[hidden] { display: none; }
   .telemetry-close {
     all: unset;
     width: 20px;
