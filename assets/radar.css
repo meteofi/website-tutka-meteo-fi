@@ -1670,15 +1670,17 @@ body.split-4 #placeSearchButton {
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .telemetry-sub[hidden] { display: none; }
   /* Age of the reading, in the same corner the camera panel puts its capture
-     time — the two answer the same question about the same kind of panel. */
+     time — the two answer the same question about the same kind of panel.
+     No auto margin here: the subtitle above is the single flexible spacer, and
+     it stays in the layout even when empty. Two elements with margin-left:auto
+     do NOT both go right — flexbox splits the free space equally between them,
+     which parked the age mid-row whenever the subtitle was short or absent. */
   .telemetry-status {
     font-size: 11.5px;
     font-variant-numeric: tabular-nums;
     color: var(--dark-primary-color);
     white-space: nowrap;
-    margin-left: auto;
     flex: 0 0 auto;
   }
   .telemetry-status[hidden] { display: none; }
@@ -1692,10 +1694,6 @@ body.split-4 #placeSearchButton {
     justify-content: center;
     cursor: pointer;
     flex: 0 0 auto;
-    /* Holds the right edge even when the subtitle is absent — an anonymous
-       aircraft has none, and without this the close button slid in against the
-       title. */
-    margin-left: auto;
   }
   .telemetry-close .material-icons {
     font-size: 15px;

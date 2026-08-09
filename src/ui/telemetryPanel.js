@@ -79,10 +79,10 @@ export default function initTelemetryPanel({ container, onClose } = {}) {
   }) {
     if (icon !== undefined) iconEl.textContent = icon;
     if (title !== undefined) titleEl.textContent = title;
-    if (subtitle !== undefined) {
-      subEl.textContent = subtitle || '';
-      subEl.hidden = !subtitle;
-    }
+    // Never hidden: this element is also the flexible spacer that holds the
+    // status and the close button against the right edge, so removing it from
+    // the layout when empty would let them drift inward.
+    if (subtitle !== undefined) subEl.textContent = subtitle || '';
     // How current the readings are. Every subject this panel is meant to serve
     // reports intermittently — a glider circling in a thermal can go 60-90 s
     // between fixes, and an AIS vessel or a phone's GPS is no different — so the
