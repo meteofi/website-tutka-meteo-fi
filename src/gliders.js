@@ -195,11 +195,9 @@ export default function initGliders() {
       feature.getGeometry().setCoordinates(at);
     }
     const fixMs = Number.isFinite(a.t) ? a.t : Date.now();
-    const trail = extendTrail(a.id, at, fixMs);
+    extendTrail(a.id, at, fixMs, a.type);
     feature.setProperties({
       id: a.id,
-      // The line is held on the feature so the style function never rebuilds it.
-      trail: trail.geom.getCoordinates().length > 1 ? trail.geom : null,
       // Competition number first: it is what a glider is called on the radio and
       // is shorter than the registration. Registration otherwise, and nothing at
       // all when the pilot has not accepted being identified.
@@ -224,6 +222,8 @@ export default function initGliders() {
     if (!feature) return;
     source.removeFeature(feature);
     features.delete(id);
+    const trail = trails.get(id);
+    if (trail && trail.inSource) source.removeFeature(trail.feature);
     trails.delete(id);
   }
 
@@ -235,11 +235,21 @@ export default function initGliders() {
 
   // Append to the observed path, dropping whatever has aged out. Called once per
   // beacon, so the trail grows at the rate the aircraft actually reports.
-  function extendTrail(id, at, fixMs) {
+  // The path lives on its OWN feature, whose geometry IS the line. Hanging it
+  // off the aircraft's style with setGeometry looked equivalent but was not:
+  // OpenLayers culls by the FEATURE's geometry, so an aircraft that left the
+  // viewport took its still-visible trail with it.
+  function extendTrail(id, at, fixMs, typeCode) {
     let trail = trails.get(id);
     if (!trail) {
-      trail = { geom: new LineString([at]), times: [fixMs] };
+      const geom = new LineString([at]);
+      const feature = new Feature({ geometry: geom });
+      feature.set('kind', 'trail', true);
+      feature.set('typeCode', typeCode, true);
+      trail = { geom, times: [fixMs], feature };
       trails.set(id, trail);
+      // Not added to the source until there are two points — a one-point line
+      // draws nothing and would only cost a hit-test candidate.
       return trail;
     }
     const coords = trail.geom.getCoordinates();
@@ -259,6 +269,10 @@ export default function initGliders() {
       trail.times.splice(0, cut);
     }
     trail.geom.setCoordinates(coords);
+    if (coords.length > 1 && !trail.inSource) {
+      source.addFeature(trail.feature);
+      trail.inSource = true;
+    }
     return trail;
   }
 
@@ -405,6 +419,18 @@ export default function initGliders() {
           trail: new Style({
             stroke: new Stroke({ color, width: 1.5, lineCap: 'round' }),
           }),
+          // `declutterMode: 'none'` on the mark, for two separate reasons.
+          //
+          // An aircraft must never be thinned away — it is the data, and a
+          // marker that disappears because a neighbour got there first is a
+          // plane that looks like it is not flying.
+          //
+          // And it is why almost no labels were appearing. The mark and the
+          // label are separate Style objects, so decluttering treated them as
+          // rivals: a label sits 16 px above a 7 px mark, the boxes overlap, and
+          // every label lost to its OWN marker before any crowding was even
+          // involved. Excluded from decluttering the mark is not an obstacle
+          // either, so labels now contend only with other labels.
           mark: new Style({
             image: new RegularShape({
               points: shape.points,
@@ -414,6 +440,7 @@ export default function initGliders() {
               fill: new Fill({ color }),
               stroke: new Stroke({ color: palette.halo, width: 1.5 }),
               rotateWithView: true,
+              declutterMode: 'none',
             }),
           }),
           label: new Style({
@@ -432,6 +459,9 @@ export default function initGliders() {
 
     return (feature) => {
       const entry = styles(feature.get('typeCode'));
+      // The path is a separate feature so it survives its aircraft leaving the
+      // viewport; its geometry is the line itself, so nothing is set here.
+      if (feature.get('kind') === 'trail') return entry.trail;
       const track = feature.get('track');
       // OL rotates clockwise from north, which is exactly what a track is. Marks
       // that carry no heading are never rotated — spinning a balloon by its
@@ -444,14 +474,7 @@ export default function initGliders() {
       // reads worse than one that dims.
       const stale = Date.now() - (feature.get('fixMs') || 0) > FADE_AFTER_MS;
       entry.mark.getImage().setOpacity(stale ? 0.45 : 1);
-      const out = [];
-      // Drawn first so the mark sits on top of its own path.
-      const trail = feature.get('trail');
-      if (trail) {
-        entry.trail.setGeometry(trail);
-        out.push(entry.trail);
-      }
-      out.push(entry.mark);
+      const out = [entry.mark];
       const label = feature.get('label');
       if (label) {
         entry.label.getText().setText(label);
@@ -574,7 +597,10 @@ export default function initGliders() {
       if (!layer.getVisible()) return null;
       let hit = null;
       map.forEachFeatureAtPixel(pixel, (f, l) => {
-        if (l === layer) { hit = f; return true; }
+        // Trails share the layer but are not tappable: a card opened on one
+        // would have no aircraft behind it, and a long line is a big target
+        // that would otherwise swallow taps meant for the marks.
+        if (l === layer && f.get('kind') !== 'trail') { hit = f; return true; }
         return false;
       }, { hitTolerance: 10 });
       return hit;
@@ -600,6 +626,9 @@ export default function initGliders() {
         visible: false,
         // Own group so aircraft labels never knock out place names.
         declutter: 'gliders',
+        // Trails first, so an aircraft sits on top of its own path.
+        renderOrder: (a, b) => (a.get('kind') === 'trail' ? 0 : 1)
+          - (b.get('kind') === 'trail' ? 0 : 1),
         // Positions move continuously; repaint during pan/zoom so the marks do
         // not lag the map under the finger.
         updateWhileAnimating: true,
