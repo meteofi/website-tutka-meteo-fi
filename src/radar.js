@@ -42,6 +42,7 @@ import initTrafficMessages from './trafficMessages';
 import initWeatherCameras from './weatherCameras';
 import initTrains from './trains';
 import initGliders from './gliders';
+import initTelemetryPanel from './ui/telemetryPanel';
 import railwayStationsUrl from './data/railway-stations-finland.geojson';
 import radarSitesFallbackUrl from './data/radars-finland.geojson';
 import initOwnLocation from './ownLocation';
@@ -725,7 +726,14 @@ const weatherCameras = initWeatherCameras({
 // Live OGN aircraft. Wall-clock like the AIS marker — the bridge holds current
 // positions only, so setTime does not route here; the WebSocket opens with the
 // POI toggle and closes with it.
-const gliders = initGliders();
+// Shared one-row readout in the time control. Generic by design: the OGN
+// aircraft drive it now, and the AIS vessel and own position are meant to use
+// the same panel rather than each growing their own.
+const telemetry = initTelemetryPanel({
+  container: document.getElementById('telemetryPanel'),
+});
+
+const gliders = initGliders({ telemetry });
 
 // Departure board for a tapped railway station. Wall-clock live rather than
 // clock-coupled — a board is about what is next, and no radar frame can

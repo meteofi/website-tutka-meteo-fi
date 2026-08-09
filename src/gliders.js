@@ -38,7 +38,6 @@
 // than it saves, and aircraft outside the viewport simply do not draw.
 
 import Feature from 'ol/Feature';
-import Overlay from 'ol/Overlay';
 import LineString from 'ol/geom/LineString';
 import Point from 'ol/geom/Point';
 import VectorLayer from 'ol/layer/Vector';
@@ -161,13 +160,12 @@ const PALETTES = {
 
 const toRadians = (deg) => (deg * Math.PI) / 180;
 
-export default function initGliders() {
+export default function initGliders({ telemetry } = {}) {
   const source = new VectorSource({
     attributions: 'Lentokoneet © <a href="https://www.glidernet.org/">Open Glider Network</a>',
   });
 
   const features = new Map(); // id -> Feature
-  const cards = []; // one per pane; each follows whichever aircraft it has open
   // id -> { geom: LineString, times: number[] } — the observed path, in map
   // coordinates so no reprojection happens per frame.
   const trails = new Map();
@@ -297,7 +295,7 @@ export default function initGliders() {
       (msg.aircraft || []).forEach(upsert);
       (msg.gone || []).forEach(remove);
     }
-    cards.forEach((c) => c.sync());
+    syncSelection();
     // `heartbeat` needs no handling — its arrival is the point.
   }
 
@@ -488,116 +486,77 @@ export default function initGliders() {
   const styleDark = makeStyleFunction('dark');
 
   //
-  // CARD
   //
-  function buildCard() {
-    const el = document.createElement('div');
-    el.className = 'marker-card aircraft-card';
-    el.setAttribute('role', 'region');
-    el.setAttribute('aria-label', 'Lentokone');
-    el.innerHTML = `
-      <div class="marker-card-head">
-        <i class="material-icons marker-card-icon" aria-hidden="true">airplanemode_active</i>
-        <span class="marker-card-title"></span>
-        <button type="button" class="marker-card-close" aria-label="Sulje">
-          <i class="material-icons" aria-hidden="true">close</i>
-        </button>
-      </div>
-      <div class="aircraft-body">
-        <div class="aircraft-name"></div>
-        <div class="aircraft-model"></div>
-        <dl class="aircraft-grid"></dl>
-      </div>
-    `;
-    return el;
+  // SELECTION → TELEMETRY STRIP
+  //
+  // The strip replaced an overlay card pinned to the aircraft. The subject moves:
+  // a pinned card drifted across the map, needed repositioning on every update,
+  // and slid off screen exactly when its numbers mattered. A fixed strip stays
+  // where the eye last found it. It is also shared — the AIS vessel and the
+  // device's own position are meant to drive the same panel — so this module
+  // owns only the aircraft-shaped decisions: which readings, in which units,
+  // and what an absent one should say.
+  const OWNER = 'gliders';
+  let selectedId = null;
+
+  const one = (v, unit, digits = 0) => (Number.isFinite(v) ? `${v.toFixed(digits)}\u2009${unit}` : '–');
+
+  function payloadFor(feature) {
+    const label = feature.get('label');
+    const typeLabel = feature.get('typeLabel');
+    const reg = feature.get('reg');
+    const model = feature.get('model');
+    const climb = feature.get('climb');
+    const speed = feature.get('speed');
+    return {
+      icon: 'airplanemode_active',
+      // Anonymous aircraft are named by type, never by id — the pilot opted out
+      // of being identified and the strip must not undo that.
+      title: label || typeLabel || 'Lentokone',
+      subtitle: [label ? typeLabel : '', reg && reg !== label ? reg : '', model]
+        .filter(Boolean).join(' · '),
+      metrics: [
+        { label: 'Nopeus', value: one(Number.isFinite(speed) ? speed * 3.6 : null, 'km/h') },
+        { label: 'Suunta', value: one(feature.get('track'), '°') },
+        { label: 'Korkeus', value: one(feature.get('alt'), 'm') },
+        {
+          label: 'Nousu',
+          // The sign is the reading for a glider — whether it is climbing in a
+          // thermal or sinking between them — so it is kept explicit and
+          // coloured rather than left to be inferred from a minus sign.
+          value: Number.isFinite(climb)
+            ? `${climb > 0 ? '+' : ''}${climb.toFixed(1)}\u2009m/s` : '–',
+          tone: Number.isFinite(climb) && Math.abs(climb) >= 0.5
+            ? (climb > 0 ? 'up' : 'down') : undefined,
+        },
+      ],
+    };
   }
 
-  const fmt = (v, unit, digits = 0) => (Number.isFinite(v)
-    ? `${v.toFixed(digits)} ${unit}` : '–');
+  function selectFeature(feature) {
+    selectedId = feature.get('id');
+    telemetry.open(OWNER, payloadFor(feature));
+  }
 
-  // One card per pane (the radarSite/trafficMessages pattern): an Overlay
-  // belongs to a single map, so a shared card would jump between panes in split
-  // screen.
+  // Called on every message: the subject is moving, so its numbers go stale
+  // between updates, and an aircraft that goes away must take the strip with it.
+  function syncSelection() {
+    if (selectedId === null || !telemetry.ownerIs(OWNER)) return;
+    const feature = features.get(selectedId);
+    if (!feature) {
+      selectedId = null;
+      telemetry.close(OWNER);
+      return;
+    }
+    telemetry.update(OWNER, payloadFor(feature));
+  }
+
   function attachPane(map, layer) {
-    const el = buildCard();
-    document.body.appendChild(el);
-    const overlay = new Overlay({
-      element: el,
-      positioning: 'bottom-center',
-      offset: [0, -16],
-      stopEvent: true,
-      autoPan: false, // the subject moves; auto-panning after it would fight the user
-    });
-    map.addOverlay(overlay);
-
-    const titleEl = el.querySelector('.marker-card-title');
-    const nameEl = el.querySelector('.aircraft-name');
-    const modelEl = el.querySelector('.aircraft-model');
-    const gridEl = el.querySelector('.aircraft-grid');
-    let openId = null;
-
-    function hide() {
-      openId = null;
-      overlay.setPosition(undefined);
-    }
-
-    el.querySelector('.marker-card-close').addEventListener('click', (e) => {
-      e.stopPropagation();
-      hide();
-    });
-
-    function paint(feature) {
-      const label = feature.get('label');
-      const reg = feature.get('reg');
-      titleEl.textContent = feature.get('typeLabel') || 'Lentokone';
-      // An aircraft with no registration is anonymous by the pilot's explicit
-      // choice — it is named by its type, never by its id.
-      nameEl.textContent = label || feature.get('typeLabel') || '';
-      // The competition number is what a glider is called on the radio; show the
-      // registration too when both are known, since they identify differently.
-      const model = feature.get('model');
-      const sub = [reg && reg !== label ? reg : '', model].filter(Boolean).join(' · ');
-      modelEl.textContent = sub;
-      modelEl.hidden = !sub;
-      const climb = feature.get('climb');
-      const speed = feature.get('speed');
-      const ageS = Math.max(0, Math.round((Date.now() - (feature.get('fixMs') || 0)) / 1000));
-      const rows = [
-        ['Korkeus', fmt(feature.get('alt'), 'm')],
-        // Vario is the number a glider pilot reads first, and its sign matters,
-        // so it keeps an explicit +.
-        ['Nousu', Number.isFinite(climb) ? `${climb > 0 ? '+' : ''}${climb.toFixed(1)} m/s` : '–'],
-        ['Nopeus', fmt(Number.isFinite(speed) ? speed * 3.6 : null, 'km/h')],
-        ['Suunta', fmt(feature.get('track'), '°')],
-        // Fixes legitimately arrive over a minute apart, so the age is shown
-        // rather than implied.
-        ['Havaittu', ageS < 60 ? `${ageS} s sitten` : `${Math.round(ageS / 60)} min sitten`],
-      ];
-      gridEl.innerHTML = rows
-        .map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`)
-        .join('');
-      overlay.setPosition(feature.getGeometry().getCoordinates());
-    }
-
-    function openFor(feature) {
-      openId = feature.get('id');
-      paint(feature);
-    }
-
-    // The subject is moving: every update repositions the card and refreshes the
-    // numbers, and an aircraft that goes away takes its card with it.
-    function sync() {
-      if (openId === null) return;
-      const feature = features.get(openId);
-      if (!feature) { hide(); return; }
-      paint(feature);
-    }
-
     function findAtPixel(pixel) {
       if (!layer.getVisible()) return null;
       let hit = null;
       map.forEachFeatureAtPixel(pixel, (f, l) => {
-        // Trails share the layer but are not tappable: a card opened on one
+        // Trails share the layer but are not tappable: a strip opened on one
         // would have no aircraft behind it, and a long line is a big target
         // that would otherwise swallow taps meant for the marks.
         if (l === layer && f.get('kind') !== 'trail') { hit = f; return true; }
@@ -605,12 +564,7 @@ export default function initGliders() {
       }, { hitTolerance: 10 });
       return hit;
     }
-
-    const card = {
-      findAtPixel, open: openFor, hide, sync,
-    };
-    cards.push(card);
-    return card;
+    return { findAtPixel, open: selectFeature };
   }
 
   return {
