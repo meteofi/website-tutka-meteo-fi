@@ -37,6 +37,7 @@
 :root:has(#sectionPanel.open) { --timecontrol-height: 264px; } /* 56 + 208 section */
 :root:has(#cameraPanel.open)  { --timecontrol-height: 316px; } /* 56 + 260 camera */
 :root:has(#trainPanel.open)   { --timecontrol-height: 296px; } /* 56 + 240 trains */
+:root:has(#telemetryPanel.open) { --timecontrol-height: 116px; } /* 56 + 60 telemetry */
 
 /* The strip adds a 38px row at the top; combined selectors compose with the
    panel overrides via :has() specificity (two :has() beat one). */
@@ -45,6 +46,7 @@
 :root:has(#radarStrip:not([hidden])):has(#sectionPanel.open)  { --timecontrol-height: 302px; }
 :root:has(#radarStrip:not([hidden])):has(#cameraPanel.open)   { --timecontrol-height: 354px; }
 :root:has(#radarStrip:not([hidden])):has(#trainPanel.open)    { --timecontrol-height: 334px; }
+:root:has(#radarStrip:not([hidden])):has(#telemetryPanel.open) { --timecontrol-height: 154px; }
 
 /* ≤480px the panels shrink (probe 54, section 176), so the bar does too. */
 @media (max-width: 480px) {
@@ -1290,10 +1292,11 @@ body.split-4 #placeSearchButton {
   #sectionPanel { grid-column: 1 / -1; grid-row: 2; }
   #cameraPanel  { grid-column: 1 / -1; grid-row: 3; }
   #trainPanel   { grid-column: 1 / -1; grid-row: 4; }
-  #probeChart   { grid-column: 2;      grid-row: 5; }
-  .bar-controls { grid-column: 1;      grid-row: 6; }
-  .time-column  { grid-column: 2;      grid-row: 6; min-width: 0; }
-  .bar-clock    { grid-column: 3;      grid-row: 6; }
+  #telemetryPanel { grid-column: 1 / -1; grid-row: 5; }
+  #probeChart   { grid-column: 2;      grid-row: 6; }
+  .bar-controls { grid-column: 1;      grid-row: 7; }
+  .time-column  { grid-column: 2;      grid-row: 7; min-width: 0; }
+  .bar-clock    { grid-column: 3;      grid-row: 7; }
 
   /* Single-radar strip — flat segmented bar, topmost in the time control. The
      bar's own border doubles as the segment dividers (border-left per segment);
@@ -1619,6 +1622,120 @@ body.split-4 #placeSearchButton {
   @media (max-width: 480px) {
     #cameraPanel.open { height: 272px; }
   }
+  /* Telemetry strip — one row of live readings about a selected subject.
+     Generic: the OGN aircraft drive it today, own-vessel AIS and geolocation
+     are meant to follow. Same collapse/expand mechanics as the panels below;
+     lives inside #timecontrol so iOS safe-area positioning is inherited. */
+  #telemetryPanel {
+    width: 100%;
+    height: 0;
+    overflow: hidden;
+    position: relative;
+    transition: height 220ms cubic-bezier(0.2, 0.7, 0.2, 1);
+    z-index: 100;
+  }
+  /* Sized to its content, measured rather than guessed: head 22 + row 35 + 3
+     of breathing room. It was 76 (70 on phones), which left up to 19 px of dead
+     space between the readings and the timeline. The strip holds one row of
+     text — it has no reason to reserve more than that, and unlike the camera or
+     section panels it does not vary with viewport, so there is no phone-specific
+     height to keep. */
+  #telemetryPanel.open { height: 60px; }
+  .telemetry-head {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    height: 20px;
+    padding: 2px 8px 0;
+  }
+  .telemetry-icon {
+    font-size: 14px;
+    line-height: 1;
+    align-self: center;
+    color: var(--dark-medium-emphasis-text-color);
+  }
+  .telemetry-title {
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--dark-high-emphasis-text-color);
+    white-space: nowrap;
+  }
+  /* The subtitle is the first thing to go when space runs out — the readings
+     matter more than the aircraft's model name. */
+  .telemetry-sub {
+    flex: 1;
+    min-width: 0;
+    font-size: 11.5px;
+    color: var(--dark-medium-emphasis-text-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* Age of the reading, in the same corner the camera panel puts its capture
+     time — the two answer the same question about the same kind of panel.
+     No auto margin here: the subtitle above is the single flexible spacer, and
+     it stays in the layout even when empty. Two elements with margin-left:auto
+     do NOT both go right — flexbox splits the free space equally between them,
+     which parked the age mid-row whenever the subtitle was short or absent. */
+  .telemetry-status {
+    font-size: 11.5px;
+    font-variant-numeric: tabular-nums;
+    color: var(--dark-primary-color);
+    white-space: nowrap;
+    flex: 0 0 auto;
+  }
+  .telemetry-status[hidden] { display: none; }
+  .telemetry-close {
+    all: unset;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex: 0 0 auto;
+  }
+  .telemetry-close .material-icons {
+    font-size: 15px;
+    color: rgba(255, 255, 255, 0.82);
+  }
+  /* Equal columns so the numbers hold their place as they change — a row that
+     reflows on every update is unreadable at a glance. */
+  .telemetry-row {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    align-items: center;
+    padding: 2px 8px 3px;
+  }
+  .telemetry-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 0;
+  }
+  .telemetry-value {
+    font-size: 17px;
+    font-weight: 600;
+    line-height: 1.15;
+    font-variant-numeric: tabular-nums;
+    color: var(--dark-high-emphasis-text-color);
+    white-space: nowrap;
+  }
+  /* Sign-carrying readings: a glider climbing versus sinking is the one number
+     on the strip whose direction matters more than its magnitude. */
+  .telemetry-value.is-up { color: #4ade80; }
+  .telemetry-value.is-down { color: #ffa033; }
+  .telemetry-value.is-warn { color: #ff6b6b; }
+  .telemetry-label {
+    font-size: 10.5px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--dark-medium-emphasis-text-color);
+    white-space: nowrap;
+  }
+
   /* Train departure board — same collapse/expand mechanics as the panels
      above; lives inside #timecontrol so iOS safe-area positioning is
      inherited (don't give it its own position). */
