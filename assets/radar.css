@@ -1726,6 +1726,10 @@ body.split-4 #placeSearchButton {
   /* Sign-carrying readings: a glider climbing versus sinking is the one number
      on the strip whose direction matters more than its magnitude. */
   .telemetry-value.is-up { color: #4ade80; }
+  /* Navigation-light convention, so a turn reads without being decoded:
+     port red, starboard green. */
+  .telemetry-value.is-port { color: #ff6b6b; }
+  .telemetry-value.is-stbd { color: #4ade80; }
   .telemetry-value.is-down { color: #ffa033; }
   .telemetry-value.is-warn { color: #ff6b6b; }
   .telemetry-label {
