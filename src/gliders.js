@@ -49,9 +49,11 @@ import {
 
 const WS_URL = 'wss://ogn.app.meteo.fi/ogn/v1';
 
-// The bridge's own region. Subscribing to it wholesale keeps the client free of
-// view-tracking and re-subscribe churn.
-const REGION_BBOX = [10, 55, 42, 73];
+// The bridge's own region, subscribed to wholesale rather than tracking the map
+// view — re-subscribing on every pan would cost a full snapshot each time.
+// Drawn on the map as a boundary (see BOUNDS below) so the edge of coverage is
+// visible rather than being mistaken for empty sky.
+const REGION_BBOX = [3.0, 45.0, 32.0, 71.5];
 
 // Reconnect backoff. The bridge holds one upstream APRS connection for all its
 // clients, but a reconnect storm from a browser tab is still rude and pointless.
@@ -138,6 +140,8 @@ const PALETTES = {
     uav: '#b3001b',
     unknown: '#55606b',
     accent: '#0089c4',
+    bounds: 'rgba(60,80,100,0.55)',
+    boundsText: 'rgba(60,80,100,0.75)',
     halo: 'rgba(255,255,255,0.9)',
     textFill: '#241537',
     textHalo: '#ffffff',
@@ -154,6 +158,8 @@ const PALETTES = {
     uav: '#ff5a5a',
     unknown: '#9fb3c8',
     accent: '#12bcfa',
+    bounds: 'rgba(150,170,190,0.4)',
+    boundsText: 'rgba(150,170,190,0.6)',
     halo: 'rgba(0,0,0,0.6)',
     textFill: '#f0e6ff',
     textHalo: '#000000',
@@ -162,10 +168,25 @@ const PALETTES = {
 
 const toRadians = (deg) => (deg * Math.PI) / 180;
 
+const RANKS = { bounds: 0, trail: 1 };
+const rank = (feature) => (RANKS[feature.get('kind')] ?? 2);
+
 export default function initGliders({ telemetry } = {}) {
   const source = new VectorSource({
     attributions: 'Lentokoneet © <a href="https://www.glidernet.org/">Open Glider Network</a>',
   });
+
+  // The subscription boundary, drawn so the edge of coverage reads as an edge.
+  // A lon/lat box maps to an exact rectangle in Web Mercator — meridians are
+  // vertical and parallels horizontal — so four corners need no densifying.
+  const boundsFeature = new Feature({
+    geometry: new LineString([
+      [REGION_BBOX[0], REGION_BBOX[1]], [REGION_BBOX[2], REGION_BBOX[1]],
+      [REGION_BBOX[2], REGION_BBOX[3]], [REGION_BBOX[0], REGION_BBOX[3]],
+      [REGION_BBOX[0], REGION_BBOX[1]],
+    ].map((c) => fromLonLat(c))),
+  });
+  boundsFeature.set('kind', 'bounds', true);
 
   const features = new Map(); // id -> Feature
   // id -> { geom: LineString, times: number[] } — the observed path, in map
@@ -231,6 +252,9 @@ export default function initGliders({ telemetry } = {}) {
     source.clear(true);
     features.clear();
     trails.clear();
+    // source.clear() takes the boundary with everything else, but it belongs to
+    // the layer rather than to the data — a snapshot must not blink it out.
+    if (enabled) source.addFeature(boundsFeature);
   }
 
   // Append to the observed path, dropping whatever has aged out. Called once per
@@ -478,7 +502,25 @@ export default function initGliders({ telemetry } = {}) {
       }),
     });
 
+    // Dim and dashed, repeating its name along the edge: at most zooms only a
+    // stretch of one side is on screen, so a single label placed once would
+    // usually be somewhere else entirely.
+    const bounds = new Style({
+      stroke: new Stroke({ color: palette.bounds, width: 1.5, lineDash: [7, 6] }),
+      text: new Text({
+        text: 'OGN',
+        font: '600 10px Roboto, sans-serif',
+        placement: 'line',
+        repeat: 260,
+        textBaseline: 'bottom',
+        offsetY: -3,
+        fill: new Fill({ color: palette.boundsText }),
+        declutterMode: 'none',
+      }),
+    });
+
     return (feature) => {
+      if (feature.get('kind') === 'bounds') return bounds;
       const entry = styles(feature.get('typeCode'));
       // The path is a separate feature so it survives its aircraft leaving the
       // viewport; its geometry is the line itself, so nothing is set here.
@@ -552,7 +594,7 @@ export default function initGliders({ telemetry } = {}) {
         { label: 'Suunta', value: one(feature.get('track'), '°') },
         { label: 'Korkeus', value: one(feature.get('alt'), 'm') },
         {
-          label: 'Nousu',
+          label: 'Pysty',
           // The sign is the reading for a glider — whether it is climbing in a
           // thermal or sinking between them — so it is kept explicit and
           // coloured rather than left to be inferred from a minus sign.
@@ -605,10 +647,10 @@ export default function initGliders({ telemetry } = {}) {
       if (!layer.getVisible()) return null;
       let hit = null;
       map.forEachFeatureAtPixel(pixel, (f, l) => {
-        // Trails share the layer but are not tappable: a strip opened on one
-        // would have no aircraft behind it, and a long line is a big target
-        // that would otherwise swallow taps meant for the marks.
-        if (l === layer && f.get('kind') !== 'trail') { hit = f; return true; }
+        // Only aircraft are tappable. Trails and the boundary share the layer
+        // but carry no readings, and both are big line targets that would
+        // otherwise swallow taps meant for the marks.
+        if (l === layer && !f.get('kind')) { hit = f; return true; }
         return false;
       }, { hitTolerance: 10 });
       return hit;
@@ -629,9 +671,8 @@ export default function initGliders({ telemetry } = {}) {
         visible: false,
         // Own group so aircraft labels never knock out place names.
         declutter: 'gliders',
-        // Trails first, so an aircraft sits on top of its own path.
-        renderOrder: (a, b) => (a.get('kind') === 'trail' ? 0 : 1)
-          - (b.get('kind') === 'trail' ? 0 : 1),
+        // Boundary, then trails, then aircraft — each on top of the last.
+        renderOrder: (a, b) => rank(a) - rank(b),
         // Positions move continuously; repaint during pan/zoom so the marks do
         // not lag the map under the finger.
         updateWhileAnimating: true,
@@ -651,6 +692,7 @@ export default function initGliders({ telemetry } = {}) {
         return;
       }
       reconnectMs = RECONNECT_MIN_MS;
+      source.addFeature(boundsFeature);
       connect();
       sweepTimer = setInterval(sweep, SWEEP_MS);
     },

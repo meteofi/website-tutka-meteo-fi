@@ -2455,7 +2455,7 @@ const poiRegistry = [
     // Live data like stormcells: applyPoiVisibility drives the WebSocket
     // (setEnabled), so nothing is connected while the layer is off.
     id: 'gliders',
-    label: 'Lentokoneet (OGN)',
+    label: 'Purjekoneet',
     icon: 'airplanemode_active',
     defaultOn: false,
     layerKeys: ['gliderLayer'],
