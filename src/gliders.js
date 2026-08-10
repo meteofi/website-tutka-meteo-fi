@@ -44,7 +44,7 @@ import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
 import { fromLonLat } from 'ol/proj';
 import {
-  Fill, RegularShape, Stroke, Style, Text,
+  Circle as CircleStyle, Fill, RegularShape, Stroke, Style, Text,
 } from 'ol/style';
 
 const WS_URL = 'wss://ogn.app.meteo.fi/ogn/v1';
@@ -137,6 +137,7 @@ const PALETTES = {
     balloon: '#9a6b00',
     uav: '#b3001b',
     unknown: '#55606b',
+    accent: '#0089c4',
     halo: 'rgba(255,255,255,0.9)',
     textFill: '#241537',
     textHalo: '#ffffff',
@@ -152,6 +153,7 @@ const PALETTES = {
     balloon: '#ffcf70',
     uav: '#ff5a5a',
     unknown: '#9fb3c8',
+    accent: '#12bcfa',
     halo: 'rgba(0,0,0,0.6)',
     textFill: '#f0e6ff',
     textHalo: '#000000',
@@ -455,6 +457,27 @@ export default function initGliders({ telemetry } = {}) {
       return entry;
     };
 
+    // The selection ring is type-independent: it says "this is the one you
+    // picked", which is not a property of the aircraft. declutterMode 'none' for
+    // the same reason as the marks — the one aircraft the user deliberately
+    // chose must never be the one thinned away.
+    const ringHalo = new Style({
+      image: new CircleStyle({
+        radius: 13,
+        fill: null,
+        stroke: new Stroke({ color: palette.halo, width: 4.5 }),
+        declutterMode: 'none',
+      }),
+    });
+    const ring = new Style({
+      image: new CircleStyle({
+        radius: 13,
+        fill: null,
+        stroke: new Stroke({ color: palette.accent, width: 2 }),
+        declutterMode: 'none',
+      }),
+    });
+
     return (feature) => {
       const entry = styles(feature.get('typeCode'));
       // The path is a separate feature so it survives its aircraft leaving the
@@ -472,7 +495,11 @@ export default function initGliders({ telemetry } = {}) {
       // reads worse than one that dims.
       const stale = Date.now() - (feature.get('fixMs') || 0) > FADE_AFTER_MS;
       entry.mark.getImage().setOpacity(stale ? 0.45 : 1);
-      const out = [entry.mark];
+      const out = [];
+      // Drawn under the mark, so the aircraft's own shape and colour still read
+      // through — the ring adds selection, it does not replace identity.
+      if (feature.get('selected')) out.push(ringHalo, ring);
+      out.push(entry.mark);
       const label = feature.get('label');
       if (label) {
         entry.label.getText().setText(label);
@@ -538,18 +565,35 @@ export default function initGliders({ telemetry } = {}) {
     };
   }
 
+  function markSelected(id) {
+    if (selectedId === id) return;
+    const previous = selectedId !== null && features.get(selectedId);
+    if (previous) previous.set('selected', false);
+    selectedId = id;
+    const next = id !== null && features.get(id);
+    if (next) next.set('selected', true);
+  }
+
+  function clearSelection() {
+    markSelected(null);
+  }
+
   function selectFeature(feature) {
-    selectedId = feature.get('id');
-    telemetry.open(OWNER, payloadFor(feature));
+    markSelected(feature.get('id'));
+    telemetry.open(OWNER, payloadFor(feature), clearSelection);
   }
 
   // Called on every message: the subject is moving, so its numbers go stale
   // between updates, and an aircraft that goes away must take the strip with it.
   function syncSelection() {
-    if (selectedId === null || !telemetry.ownerIs(OWNER)) return;
+    if (selectedId === null) return;
+    // The panel is shared. If it has been closed, or another source has taken it
+    // over, the ring has to go with it — otherwise the map keeps claiming a
+    // selection the user can no longer see the readings for.
+    if (!telemetry.ownerIs(OWNER)) { clearSelection(); return; }
     const feature = features.get(selectedId);
     if (!feature) {
-      selectedId = null;
+      clearSelection();
       telemetry.close(OWNER);
       return;
     }

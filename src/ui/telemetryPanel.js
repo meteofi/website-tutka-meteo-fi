@@ -24,7 +24,7 @@
 // would quietly wipe out the aircraft the user just selected. Opening always
 // takes over, because opening is an explicit user action.
 
-export default function initTelemetryPanel({ container, onClose } = {}) {
+export default function initTelemetryPanel({ container } = {}) {
   if (!container) {
     // Same degraded-but-harmless contract as crossSection.js: with no container
     // the API exists and does nothing, so callers need no guards.
@@ -55,13 +55,20 @@ export default function initTelemetryPanel({ container, onClose } = {}) {
   const rowEl = container.querySelector('.telemetry-row');
 
   let owner = null;
+  // Supplied by whoever opened the panel. Closing is not just hiding a box: the
+  // source usually has map state tied to it — the aircraft layer's selection
+  // ring, say — and only the source knows what that is. So it hands over its own
+  // teardown rather than the panel guessing, or radar.js wiring every source in.
+  let ownerClose = null;
 
   function close(from) {
     // A source that no longer owns the panel must not be able to shut it.
     if (from !== undefined && from !== owner) return;
+    const teardown = ownerClose;
     owner = null;
+    ownerClose = null;
     container.classList.remove('open');
-    if (typeof onClose === 'function') onClose();
+    if (typeof teardown === 'function') teardown();
   }
 
   container.querySelector('.telemetry-close').addEventListener('click', (e) => {
@@ -104,8 +111,13 @@ export default function initTelemetryPanel({ container, onClose } = {}) {
 
   return {
     // Opening always takes over — it is an explicit user action.
-    open(from, payload) {
+    // Taking the panel over runs the previous owner's teardown first, so a
+    // source never keeps map state alive for a subject that is no longer shown.
+    open(from, payload, onOwnerClose) {
+      const previous = ownerClose;
+      if (previous && owner !== from) previous();
       owner = from;
+      ownerClose = typeof onOwnerClose === 'function' ? onOwnerClose : null;
       paint(payload);
       container.classList.add('open');
     },
