@@ -33,10 +33,19 @@ export default function initOwnLocation({
   onSpeedChange, // ({ value, unit, headingDeg } | null) — null hides the dial
   onStatusChange, // ('fixed' | 'searching' | 'stale' | 'denied' | 'error')
   onVesselInfo = () => {}, // ({ mmsi, name, shipType } | null) — AIS metadata
+  // Shared bottom strip (src/ui/telemetryPanel.js). Tapping the own-position
+  // marker opens it. Independent of the compass dial — the two are separate
+  // optional displays, so the strip carries a full set of readings rather than
+  // only what the dial lacks.
+  telemetry = null,
   debug = () => {},
 }) {
   let tracking = false;
   let lastCoordinates = null;
+  let lastGpsFixMs = 0;
+  // Whether the strip is currently showing us. The panel is shared, so this is
+  // only ever true while we own it.
+  let selected = false;
 
   // MMSI is a string end to end — leading zeros are significant.
   let mmsi = String(localStorage.getItem(MMSI_KEY) || '');
@@ -118,8 +127,10 @@ export default function initOwnLocation({
     for (const pane of getPanes()) {
       pane.positionFeature.setGeometry(coordinates ? new Point(coordinates) : null);
     }
+    lastGpsFixMs = Date.now();
     onStatusChange('fixed');
     onPositionChange(coordinates, transform(coordinates, projection, 'EPSG:4326'));
+    syncTelemetry();
   });
 
   // The compass dial needs speed AND heading together. Course-over-ground is
@@ -180,6 +191,7 @@ export default function initOwnLocation({
     }
     onStatusChange(stale ? 'stale' : 'fixed');
     onPositionChange(coordinates, [data.lon, data.lat]);
+    syncTelemetry();
     // Marine mode reads in knots; true heading preferred over course-over-ground.
     onSpeedChange(sogKn != null
       ? { value: sogKn, unit: 'kn', headingDeg: heading != null ? heading : cog }
@@ -278,6 +290,97 @@ export default function initOwnLocation({
   // ------------------------------------------------------------- surface ----
 
   // Start/stop the active source and show/hide the marker layer in every pane.
+  const TELEMETRY_OWNER = 'ownlocation';
+
+  const cell = (label, v, unit, digits = 0) => ({
+    label,
+    value: Number.isFinite(v) ? `${v.toFixed(digits)}\u2009${unit}` : '–',
+  });
+
+  function ageText(sinceMs) {
+    if (!sinceMs) return '';
+    const s = Math.max(0, Math.round((Date.now() - sinceMs) / 1000));
+    return s < 60 ? `${s} s sitten` : `${Math.round(s / 60)} min sitten`;
+  }
+
+  // Two sources, two vocabularies. A vessel has course over ground AND a heading
+  // and they differ in a current or a crosswind, which is exactly what a mariner
+  // wants to see; a phone has neither, but does know how far it might be wrong.
+  function telemetryPayload() {
+    if (source === 'ais') {
+      const st = aisState || {};
+      return {
+        icon: 'directions_boat',
+        title: st.name || (mmsi ? `MMSI ${mmsi}` : 'Oma alus'),
+        subtitle: ['AIS', st.name && mmsi ? `MMSI ${mmsi}` : ''].filter(Boolean).join(' · '),
+        status: ageText(lastAisFixMs),
+        metrics: [
+          cell('Nopeus', st.sogKn, 'kn', 1),
+          cell('Kurssi', st.cog, '°'),
+          cell('Suunta', st.heading, '°'),
+          cell('Kääntyminen', st.rot, '°/min'),
+        ],
+      };
+    }
+    const speed = geolocation.getSpeed();
+    const headingRad = geolocation.getHeading();
+    let headingDeg = null;
+    if (Number.isFinite(headingRad)) {
+      headingDeg = ((headingRad * 180) / Math.PI) % 360;
+      if (headingDeg < 0) headingDeg += 360;
+    }
+    return {
+      icon: 'my_location',
+      title: 'Oma sijainti',
+      subtitle: 'GPS',
+      status: ageText(lastGpsFixMs),
+      metrics: [
+        cell('Nopeus', Number.isFinite(speed) ? speed * 3.6 : null, 'km/h'),
+        cell('Suunta', headingDeg, '°'),
+        cell('Korkeus', geolocation.getAltitude(), 'm'),
+        // Not a reading about the world but about the reading itself — a
+        // position with 40 m of uncertainty means something different from one
+        // with 4, and nothing else on screen says which you have.
+        cell('Tarkkuus', geolocation.getAccuracy(), 'm'),
+      ],
+    };
+  }
+
+  function clearTelemetry() {
+    selected = false;
+  }
+
+  function syncTelemetry() {
+    if (!selected || !telemetry || !telemetry.ownerIs(TELEMETRY_OWNER)) {
+      // Another source has taken the panel over, or it was closed.
+      if (selected && telemetry && !telemetry.ownerIs(TELEMETRY_OWNER)) selected = false;
+      return;
+    }
+    telemetry.update(TELEMETRY_OWNER, telemetryPayload());
+  }
+
+  function openTelemetry() {
+    if (!telemetry) return;
+    selected = true;
+    telemetry.open(TELEMETRY_OWNER, telemetryPayload(), clearTelemetry);
+  }
+
+  // One hit-test per pane. Only the position marker opens the strip — the
+  // accuracy disc around it can be hundreds of metres wide, and a tap anywhere
+  // inside it should still reach whatever is underneath.
+  function attachPane(pane) {
+    function findAtPixel(pixel) {
+      if (!pane.ownPositionLayer.getVisible()) return null;
+      let hit = null;
+      pane.map.forEachFeatureAtPixel(pixel, (f, l) => {
+        if (l === pane.ownPositionLayer && f === pane.positionFeature) { hit = f; return true; }
+        return false;
+      }, { hitTolerance: 12 });
+      return hit;
+    }
+    return { findAtPixel, open: openTelemetry };
+  }
+
   function setTracking(enabled) {
     tracking = enabled;
     if (source === 'gps') {
@@ -291,6 +394,9 @@ export default function initOwnLocation({
       applyMarkerStyles(); // covers panes created while tracking was off
     } else {
       onSpeedChange(null); // stopping tracking emits no speed event — hide the dial explicitly
+      // The marker is gone, so readings about it must go too.
+      if (selected && telemetry) telemetry.close(TELEMETRY_OWNER);
+      selected = false;
     }
     setMarkersVisible(enabled);
   }
@@ -372,6 +478,7 @@ export default function initOwnLocation({
   return {
     setTracking,
     adoptPane,
+    attachPane,
     getSource,
     setSource,
     getMmsi,
