@@ -37,7 +37,7 @@
 :root:has(#sectionPanel.open) { --timecontrol-height: 264px; } /* 56 + 208 section */
 :root:has(#cameraPanel.open)  { --timecontrol-height: 316px; } /* 56 + 260 camera */
 :root:has(#trainPanel.open)   { --timecontrol-height: 296px; } /* 56 + 240 trains */
-:root:has(#telemetryPanel.open) { --timecontrol-height: 132px; } /* 56 + 76 telemetry */
+:root:has(#telemetryPanel.open) { --timecontrol-height: 116px; } /* 56 + 60 telemetry */
 
 /* The strip adds a 38px row at the top; combined selectors compose with the
    panel overrides via :has() specificity (two :has() beat one). */
@@ -46,7 +46,7 @@
 :root:has(#radarStrip:not([hidden])):has(#sectionPanel.open)  { --timecontrol-height: 302px; }
 :root:has(#radarStrip:not([hidden])):has(#cameraPanel.open)   { --timecontrol-height: 354px; }
 :root:has(#radarStrip:not([hidden])):has(#trainPanel.open)    { --timecontrol-height: 334px; }
-:root:has(#radarStrip:not([hidden])):has(#telemetryPanel.open) { --timecontrol-height: 170px; }
+:root:has(#radarStrip:not([hidden])):has(#telemetryPanel.open) { --timecontrol-height: 154px; }
 
 /* ≤480px the panels shrink (probe 54, section 176), so the bar does too. */
 @media (max-width: 480px) {
@@ -58,8 +58,6 @@
   :root:has(#radarStrip:not([hidden])):has(#cameraPanel.open)  { --timecontrol-height: 366px; }
   :root:has(#trainPanel.open)                                  { --timecontrol-height: 276px; }
   :root:has(#radarStrip:not([hidden])):has(#trainPanel.open)   { --timecontrol-height: 314px; }
-  :root:has(#telemetryPanel.open)                              { --timecontrol-height: 126px; }
-  :root:has(#radarStrip:not([hidden])):has(#telemetryPanel.open) { --timecontrol-height: 164px; }
 }
 
 html, body {
@@ -1636,10 +1634,13 @@ body.split-4 #placeSearchButton {
     transition: height 220ms cubic-bezier(0.2, 0.7, 0.2, 1);
     z-index: 100;
   }
-  #telemetryPanel.open { height: 76px; }
-  @media (max-width: 480px) {
-    #telemetryPanel.open { height: 70px; }
-  }
+  /* Sized to its content, measured rather than guessed: head 22 + row 35 + 3
+     of breathing room. It was 76 (70 on phones), which left up to 19 px of dead
+     space between the readings and the timeline. The strip holds one row of
+     text — it has no reason to reserve more than that, and unlike the camera or
+     section panels it does not vary with viewport, so there is no phone-specific
+     height to keep. */
+  #telemetryPanel.open { height: 60px; }
   .telemetry-head {
     display: flex;
     align-items: baseline;
@@ -1706,7 +1707,7 @@ body.split-4 #placeSearchButton {
     grid-auto-flow: column;
     grid-auto-columns: 1fr;
     align-items: center;
-    padding: 2px 8px 0;
+    padding: 2px 8px 3px;
   }
   .telemetry-cell {
     display: flex;
