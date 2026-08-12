@@ -402,5 +402,8 @@ export default function initTrains({ container, stationsUrl } = {}) {
     return { findAtPixel, open };
   }
 
-  return { attachPane, close };
+  // `stationName` is shared with the live-train layer (src/trainLocations.js),
+  // which needs the same shortCode -> name expansion for the run it shows in the
+  // telemetry strip. Exposed rather than duplicated so both read one snapshot.
+  return { attachPane, close, stationName };
 }

@@ -42,6 +42,7 @@ import initTrafficMessages from './trafficMessages';
 import initWeatherCameras from './weatherCameras';
 import initTrains from './trains';
 import initGliders from './gliders';
+import initTrainLocations from './trainLocations';
 import initTelemetryPanel from './ui/telemetryPanel';
 import railwayStationsUrl from './data/railway-stations-finland.geojson';
 import radarSitesFallbackUrl from './data/radars-finland.geojson';
@@ -745,6 +746,16 @@ const trains = initTrains({
   stationsUrl: railwayStationsUrl,
 });
 
+// Live train positions, on the same Rautatiet toggle as the stations and the
+// track network — a moving train is what that layer is a map of. Wall-clock like
+// the aircraft and the AIS vessel: the feed carries current positions only, so
+// setTime does not route here. Reuses the departure board's station-name lookup
+// so both expand short codes from one bundled snapshot.
+const trainLocations = initTrainLocations({
+  telemetry,
+  stationName: (code) => trains.stationName(code),
+});
+
 // Layer-control panel (style / opacity / info) folded into each category's
 // long-press menu. Populated on open via createLongPressHandler's onBeforeShow;
 // acts on whichever pane's layer opened the menu. Declared here so buildPanePill
@@ -773,6 +784,7 @@ const paneDeps = {
   createTrafficLayer: trafficMessages.createPaneLayer,
   createWeatherCameraLayer: weatherCameras.createPaneLayer,
   createGliderLayer: gliders.createPaneLayer,
+  createTrainLocationLayer: trainLocations.createPaneLayer,
   createSearchHighlightLayer: searchHighlight.createPaneLayer,
 };
 
@@ -951,6 +963,14 @@ function initNewPane(pane) {
     const cameraHit = pane.cameras.findAtPixel(evt.pixel);
     if (cameraHit) {
       pane.cameras.open(cameraHit);
+      return;
+    }
+    // Checked before the station under it: a train standing at a platform sits
+    // almost on top of the station marker, and a tap that lands on the thing
+    // that is moving is the deliberate one.
+    const trainHit = pane.trainLocations.findAtPixel(evt.pixel);
+    if (trainHit) {
+      pane.trainLocations.open(trainHit);
       return;
     }
     const stationHit = pane.trains.findAtPixel(evt.pixel);
@@ -1537,6 +1557,9 @@ function setMapLayer(maplayer) {
     pane.trafficLayer.setStyle(light ? trafficMessages.styleLight : trafficMessages.styleDark);
     pane.weatherCameraLayer.setStyle(light ? weatherCameras.styleLight : weatherCameras.styleDark);
     pane.gliderLayer.setStyle(light ? gliders.styleLight : gliders.styleDark);
+    pane.trainLocationLayer.setStyle(
+      light ? trainLocations.styleLight : trainLocations.styleDark,
+    );
   }
   applyIcaoTheme(maplayer);
   applyVesivaylatTheme(maplayer);
@@ -1861,6 +1884,7 @@ function initPaneTraffic(pane) {
   pane.trains = trains.attachPane(pane.map, pane.railwayLayer);
   // Aircraft cards follow a moving subject, so each pane keeps its own.
   pane.gliders = gliders.attachPane(pane.map, pane.gliderLayer);
+  pane.trainLocations = trainLocations.attachPane(pane.map, pane.trainLocationLayer);
   // Own position/vessel drives the same strip; only the hit-test is per-pane.
   if (ownLocation) pane.ownTelemetry = ownLocation.attachPane(pane);
 }
@@ -2474,7 +2498,7 @@ const poiRegistry = [
     label: 'Rautatiet',
     icon: 'train',
     defaultOn: false,
-    layerKeys: ['railwayTrackLayer', 'railwayLayer'],
+    layerKeys: ['railwayTrackLayer', 'railwayLayer', 'trainLocationLayer'],
   },
   {
     id: 'municipalities',
@@ -2557,6 +2581,9 @@ function applyPoiVisibility() {
   trafficMessages.setEnabled(!!POI_STATE.liikennetiedotteet);
   weatherCameras.setEnabled(!!POI_STATE.kelikamerat);
   gliders.setEnabled(!!POI_STATE.gliders);
+  // Rautatiet carries a live feed too: the toggle gates the MQTT subscription,
+  // not just whether the markers paint.
+  trainLocations.setEnabled(!!POI_STATE.railwaystations);
 }
 
 function updatePoiMenuState() {
@@ -3334,6 +3361,17 @@ const main = () => {
       }
     }
 
+    // Tap on a moving train → open its telemetry strip. Before the station
+    // check for the same reason as in initNewPane: a train at a platform
+    // overlaps the station marker, and the moving target is the deliberate tap.
+    if (pane0.trainLocations) {
+      const trainHit = pane0.trainLocations.findAtPixel(evt.pixel);
+      if (trainHit) {
+        pane0.trainLocations.open(trainHit);
+        return;
+      }
+    }
+
     // Tap on a railway station → open its departure board.
     if (pane0.trains) {
       const stationHit = pane0.trains.findAtPixel(evt.pixel);
@@ -3467,6 +3505,7 @@ function shareAttributions() {
   if (POI_STATE.railwaystations) {
     parts.add('Rautatieasemat © Fintraffic (CC BY 4.0)');
     parts.add('Rataverkko © Väylävirasto');
+    parts.add('Junat © Fintraffic (CC BY 4.0)');
   }
   // Kunnat is MML Maastotietokanta (CC BY 4.0) since the switch off the
   // Tilastokeskus-derived collection, so it now needs crediting like the rest.
