@@ -178,7 +178,9 @@ export default function initOwnLocation({
     const heading = data.heading === 511 ? null : data.heading;
     const cog = data.cog === 360 ? null : data.cog;
     const sogKn = data.sog === 102.3 ? null : data.sog;
-    const rot = data.rot === -128 ? null : data.rot; // -128 = turn rate not available
+    // Raw AIS field, kept raw: the symbol wants its sign and the telemetry strip
+    // decodes the magnitude itself (rotCell). -128 = turn rate not available.
+    const rot = data.rot === -128 ? null : data.rot;
     lastAisFixMs = data.time ? data.time * 1000 : Date.now();
     const stale = Date.now() - lastAisFixMs > AIS_STALE_MS;
     setAisState({
@@ -297,6 +299,10 @@ export default function initOwnLocation({
     value: Number.isFinite(v) ? `${v.toFixed(digits)}\u2009${unit}` : '–',
   });
 
+  // Decoded here and ONLY here. The vessel symbol reads the same `rot` but takes
+  // just its sign, to pick the side its turn flag points (ownShipStyle.js) — it
+  // never needs the rate, so nothing is decoded twice and the two cannot drift.
+  //
   // Rate of turn arrives as the RAW AIS field, not degrees per minute: the
   // standard encodes it as ROT_AIS = 4.733 * sqrt(rate), so it has to be squared
   // back out. Labelling the raw number "°/min" was simply wrong — a reported -29
