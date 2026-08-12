@@ -427,23 +427,49 @@ const icaoTextColors = {
   light: { fill: '#222', halo: '#ffffff' },
   dark: { fill: '#cccccc', halo: '#000000' },
 };
+// Airfields (Lentokentät) — a filled disc the size and shape of the railway
+// stations' mark. Replaces the hollow purple ring: a
+// filled disc holds its colour at marker size, where a 2px ring mostly showed
+// whatever was underneath it, and the two POI layers reading as one family is
+// the point rather than a side effect.
+//
+// Ringed in white exactly as the station mark is — same radius, same stroke —
+// so the two really are one family, separated only by hue. The white ring is
+// what lifts either dot off a busy basemap, and it is fixed rather than
+// per-theme because it does that job on both.
+//
+// The ICAO code is written in that same colour, so the label and the dot it
+// belongs to are tied together where several POI layers are on at once and a
+// grey code could belong to any of them. It is therefore the one label here
+// that does NOT take the shared per-theme fill — only its halo still inverts
+// (see applyIcaoTheme), which is what keeps a pale colour legible against both
+// basemaps.
+const ICAO_COLOR = 'rgb(224, 145, 224)';
+const ICAO_RADIUS = 4.5;
 const icaoStyle = new Style({
   image: new CircleStyle({
-    radius: 4,
-    fill: null,
-    stroke: new Stroke({ color: '#a040c0', width: 2 }),
+    radius: ICAO_RADIUS,
+    fill: new Fill({ color: ICAO_COLOR }),
+    stroke: new Stroke({ color: '#ffffff', width: 1.5 }),
   }),
   text: new Text({
-    font: '12px Calibri,sans-serif',
-    fill: new Fill({ color: icaoTextColors.dark.fill }),
+    // A step smaller than the other POI labels: this one is coloured, and
+    // colour already carries the emphasis that size would otherwise have to.
+    font: '11px Calibri,sans-serif',
+    fill: new Fill({ color: ICAO_COLOR }),
     stroke: new Stroke({ color: icaoTextColors.dark.halo, width: 2.5 }),
     offsetX: 0,
-    offsetY: -15,
+    // Two pixels clear of the station mark's -14. The code sits above a disc
+    // that is now filled rather than hollow, so there is no longer any gap
+    // showing through the mark itself to separate the two — the separation has
+    // to come from the offset instead.
+    offsetY: -16,
   }),
 });
 
-// Gliding turnpoints (Purjelennon käännöspisteet) — an orange up-triangle so
-// they read distinctly from the airfields' purple ring. Shares the airfields'
+// Gliding turnpoints (Purjelennon käännöspisteet) — an orange up-triangle, a
+// different shape from the airfields' purple disc rather than a different colour,
+// which is what keeps them apart at marker size. Shares the airfields'
 // per-theme label colours (updated together in applyIcaoTheme).
 const turnpointStyle = new Style({
   image: new RegularShape({
@@ -478,9 +504,10 @@ const railwayTrackStyle = new Style({
 
 // Railway stations (Rautatieasemat) — a green disc with a white outline.
 // Deliberately NOT a square: the weather cameras already use a slate-blue
-// square, and at marker size the two were near-indistinguishable. Green also
-// keeps them clear of the airfields' hollow purple ring, the turnpoints' orange
-// triangle and the traffic layer's blue disc. Shares the airfields' per-theme
+// square, and at marker size the two were near-indistinguishable. The airfields
+// now use this same disc shape in purple (without the white ring), so these two
+// are deliberately one family told apart by hue; the turnpoints' orange triangle and the traffic layer's blue
+// disc stay distinct by shape and colour both. Shares the airfields' per-theme
 // label colours (updated together in applyIcaoTheme).
 const railwayStyle = new Style({
   image: new CircleStyle({
@@ -1519,7 +1546,9 @@ function getEffectiveTheme() {
 // pane's vector layers are told to re-render with the new colours.
 function applyIcaoTheme(theme) {
   const t = icaoTextColors[theme] || icaoTextColors.dark;
-  icaoStyle.getText().getFill().setColor(t.fill);
+  // Airfield codes keep their own colour and only swap halo — the fill is
+  // identity here, not emphasis, so it must survive a theme change. The mark
+  // needs nothing per theme: it is its own colour through and through.
   icaoStyle.getText().getStroke().setColor(t.halo);
   turnpointStyle.getText().getFill().setColor(t.fill);
   turnpointStyle.getText().getStroke().setColor(t.halo);
