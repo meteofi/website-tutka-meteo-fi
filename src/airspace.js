@@ -45,7 +45,7 @@ export const AIRSPACE_GROUPS = ['controlled', 'restricted', 'reserved'];
 // Names appear at or below this resolution (map units per pixel in EPSG:3857) —
 // about z9 and closer. Wider than that the polygons still draw; it is only the
 // text that would be unreadable and would bury the radar underneath it.
-const LABEL_MAX_RESOLUTION = 400;
+const LABEL_MAX_RESOLUTION = 800;
 // The vertical limits are appended once there is room to read them — about z11.
 const LIMITS_MAX_RESOLUTION = 90;
 
@@ -153,6 +153,28 @@ function normalLeft(a, b, sign) {
 // glaring. The ADIZ shares it, being the one other thing in this group that is
 // not an information zone.
 const CONTROLLED_COLOR = 'rgb(86, 117, 215)';
+// …but NOT the fill. Filling by group would have tinted the whole country: the
+// ADIZ is a single polygon covering all of Finnish airspace, so it is the one
+// member of this group that has to stay an outline. The fill is therefore keyed
+// on the three codes that describe somewhere you actually fly into.
+const CONTROLLED_FILL_CODES = new Set(['CTR', 'TMA', 'CTA']);
+const CONTROLLED_FILL = 'rgba(86, 117, 215, 0.08)';
+// Named the way a FIZ is: a lighter tint of its own border colour over a dark
+// halo, so boundary and text read as one thing and the text carries on both
+// basemaps without the halo having to follow the theme.
+const CONTROLLED_TEXT = 'rgb(117, 146, 228)';
+const CONTROLLED_TEXT_HALO = 'rgba(6, 16, 48, 0.85)';
+
+// Restricted areas (EFR*) only — not the danger and prohibited areas they share
+// a group with. They are a different promise: entry is subject to conditions
+// rather than forbidden outright or merely hazardous, so they get their own
+// orange-red while D and P keep the group's deeper red.
+const RESTRICTED_R_CODE = 'R';
+const RESTRICTED_R_COLOR = 'rgb(243, 86, 35)';
+// Filled at the same 8% as the controlled areas and the FIZ. These are smaller
+// and stack less than a TMA over its own CTR, so the compounding that keeps the
+// rest of this layer unfilled barely arises.
+const RESTRICTED_R_FILL = 'rgba(243, 86, 35, 0.08)';
 
 const PALETTES = {
   light: {
@@ -257,9 +279,14 @@ export default function initAirspace() {
       fill: fillColor ? new Fill({ color: fillColor }) : undefined,
     });
     const area = strokeStyle(palette[group]);
-    // Built only where it can occur, so every other group keeps a single style
-    // object and a straight return.
-    const fizArea = group === 'controlled' ? strokeStyle(FIZ_COLOR, FIZ_FILL) : null;
+    // Built only where they can occur, so every other group keeps a single
+    // style object and a straight return.
+    const isControlled = group === 'controlled';
+    const fizArea = isControlled ? strokeStyle(FIZ_COLOR, FIZ_FILL) : null;
+    const filledArea = isControlled
+      ? strokeStyle(CONTROLLED_COLOR, CONTROLLED_FILL) : null;
+    const rArea = group === 'restricted'
+      ? strokeStyle(RESTRICTED_R_COLOR, RESTRICTED_R_FILL) : null;
     // One shared path, rewritten per feature. The renderer consumes a feature's
     // styles before moving to the next, which is the same reason the train
     // layer can mutate one LineString for its heading tick.
@@ -285,12 +312,23 @@ export default function initAirspace() {
     const label = makeLabel(palette.textFill, palette.textHalo);
     // A FIZ names itself in its own colour, so a cyan boundary and the text
     // running along it read as one thing.
-    const fizLabel = group === 'controlled' ? makeLabel(FIZ_TEXT, FIZ_TEXT_HALO) : null;
+    const fizLabel = isControlled ? makeLabel(FIZ_TEXT, FIZ_TEXT_HALO) : null;
+    const controlledLabel = isControlled
+      ? makeLabel(CONTROLLED_TEXT, CONTROLLED_TEXT_HALO) : null;
 
     return (feature, resolution) => {
-      const isInfo = fizArea && INFO_CODES.has(feature.get('k'));
-      const shape = isInfo ? fizArea : area;
-      const text = isInfo ? fizLabel : label;
+      const code = feature.get('k');
+      const isInfo = fizArea && INFO_CODES.has(code);
+      let shape = area;
+      if (isInfo) shape = fizArea;
+      else if (filledArea && CONTROLLED_FILL_CODES.has(code)) shape = filledArea;
+      else if (rArea && code === RESTRICTED_R_CODE) shape = rArea;
+      // Within the controlled group everything is either an information zone or
+      // controlled airspace, so both carry their own colour; the restrictions
+      // and reservations keep the shared per-theme text.
+      let text = label;
+      if (isInfo) text = fizLabel;
+      else if (isControlled) text = controlledLabel;
       if (resolution > LABEL_MAX_RESOLUTION) return shape;
       const name = feature.get('n');
       if (!name) return shape;
