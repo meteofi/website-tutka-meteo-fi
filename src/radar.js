@@ -25,6 +25,7 @@ import Timeline from './timeline';
 import createPane from './pane';
 import wmsServerConfiguration, { edrLayerInfo } from './config';
 import createLongPressHandler, { longPressMenuOpener } from './longpress';
+import initPoiMenu from './ui/poiMenu';
 import initTools from './tools';
 import initRangeCircle from './rangeCircle';
 import initFreehand from './freehand';
@@ -90,6 +91,9 @@ let ownPosition = [];
 let ownPosition4326 = [];
 let ownLocation;
 let ownLocationMenu;
+// Assigned once the POI registry below exists; same forward-declaration pattern
+// as ownLocationMenu, so the menu openers above can refresh it.
+let poiMenu;
 let speedDial = null;
 let radarStrip = null;
 let placeSearch = null;
@@ -2253,7 +2257,7 @@ function openOverflowMenu() {
   menuButtonEl.setAttribute('aria-expanded', 'true');
   updateThemeChipsState();
   updateLayoutChipsState();
-  updatePoiMenuState();
+  if (poiMenu) poiMenu.refresh();
   if (ownLocationMenu) ownLocationMenu.refresh();
 }
 
@@ -2586,61 +2590,20 @@ function applyPoiVisibility() {
   trainLocations.setEnabled(!!POI_STATE.railwaystations);
 }
 
-function updatePoiMenuState() {
-  document.querySelectorAll('#poiList .menu-row[data-poi]').forEach((row) => {
-    const id = row.getAttribute('data-poi');
-    row.setAttribute('aria-checked', String(!!POI_STATE[id]));
-  });
-}
-
 function togglePoi(id) {
   POI_STATE[id] = !POI_STATE[id];
   applyPoiVisibility();
   persistPoiState();
-  updatePoiMenuState();
+  if (poiMenu) poiMenu.refresh();
   track('poi-toggle', { id, visible: POI_STATE[id] });
 }
 
-function buildPoiMenuRows() {
-  const container = document.getElementById('poiList');
-  if (!container) return;
-  container.textContent = '';
-  poiRegistry.forEach((entry) => {
-    const row = document.createElement('div');
-    row.className = 'menu-row';
-    row.setAttribute('role', 'menuitemcheckbox');
-    row.setAttribute('aria-checked', String(!!POI_STATE[entry.id]));
-    row.setAttribute('data-poi', entry.id);
-    row.setAttribute('tabindex', '0');
-
-    const iconEl = document.createElement('i');
-    iconEl.className = 'material-icons';
-    iconEl.setAttribute('aria-hidden', 'true');
-    iconEl.textContent = entry.icon;
-
-    const labelEl = document.createElement('span');
-    labelEl.className = 'menu-label';
-    labelEl.textContent = entry.label;
-
-    const switchEl = document.createElement('span');
-    switchEl.className = 'switch';
-    switchEl.setAttribute('aria-hidden', 'true');
-
-    row.appendChild(iconEl);
-    row.appendChild(labelEl);
-    row.appendChild(switchEl);
-
-    row.addEventListener('mouseup', () => togglePoi(entry.id));
-    row.addEventListener('keydown', (e) => {
-      if (e.key === ' ' || e.key === 'Enter') {
-        e.preventDefault();
-        togglePoi(entry.id);
-      }
-    });
-
-    container.appendChild(row);
-  });
-}
+poiMenu = initPoiMenu({
+  container: document.getElementById('poiList'),
+  registry: poiRegistry,
+  isOn: (id) => !!POI_STATE[id],
+  onToggle: togglePoi,
+});
 
 // Reconcile persisted state against layer visibility (handles the case where
 // persisted state diverges from the layer's declared default), then render the
@@ -2648,7 +2611,6 @@ function buildPoiMenuRows() {
 // localStorage the first time a user opens the page after a registry change.
 applyPoiVisibility();
 persistPoiState();
-buildPoiMenuRows();
 
 // Coachmark: briefly surfaces the Finnish layer name after it becomes visible,
 // so icon-only segments stay learnable. When the long-press menu hasn't been
