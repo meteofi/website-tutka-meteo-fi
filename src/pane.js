@@ -99,6 +99,9 @@ export default function createPane(targetEl, sharedView, deps) {
     // Live train positions (src/trainLocations.js) — panes share one
     // VectorSource; the controller owns the MQTT subscription.
     createTrainLocationLayer,
+    // Airspace (src/airspace.js) — called once per part; panes share the three
+    // VectorSources the controller fills from one bundled snapshot.
+    createAirspaceLayer,
     // Place-search highlight pulse (src/search/searchHighlight.js) — panes
     // share one VectorSource so the pulse shows in every split-screen pane.
     createSearchHighlightLayer,
@@ -382,6 +385,14 @@ export default function createPane(targetEl, sharedView, deps) {
   // Rautatiet layer that is actually moving.
   const trainLocationLayer = createTrainLocationLayer();
 
+  // Airspace sits low in the stack — it is context for everything above it, and
+  // its boundaries must never draw over a marker the user is trying to hit.
+  // Reservation areas underneath, being the largest and least specific, then
+  // the restrictions, then controlled airspace on top.
+  const airspaceReservedLayer = createAirspaceLayer('reserved');
+  const airspaceRestrictedLayer = createAirspaceLayer('restricted');
+  const airspaceControlledLayer = createAirspaceLayer('controlled');
+
   const guideLayer = new VectorLayer({
     source: new Vector(),
     style: rangeStyle,
@@ -427,6 +438,9 @@ export default function createPane(targetEl, sharedView, deps) {
     radarSiteLayer,
     icaoLayer,
     turnpointLayer,
+    airspaceReservedLayer,
+    airspaceRestrictedLayer,
+    airspaceControlledLayer,
     railwayTrackLayer,
     railwayLayer,
     trafficLayer,
@@ -466,6 +480,9 @@ export default function createPane(targetEl, sharedView, deps) {
     radarSiteLayer,
     icaoLayer,
     turnpointLayer,
+    airspaceReservedLayer,
+    airspaceRestrictedLayer,
+    airspaceControlledLayer,
     railwayTrackLayer,
     railwayLayer,
     trafficLayer,
