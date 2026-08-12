@@ -102,29 +102,35 @@ const PASSENGER_CATEGORIES = new Set(['Commuter', 'Long-distance']);
 // them, so a board must not either.
 const NON_PUBLIC_TRAIN_TYPES = new Set(['HV']);
 
-// Kehärata, the ring rail, is Finland's only circular passenger service: lines I
-// and P run Helsinki -> airport -> Helsinki in opposite directions, I round by
-// Tikkurila and P round by Myyrmäki. Both START AND END at Helsinki, so at
-// Helsinki the ends of the run say nothing — the board dropped them, because a
-// destination equal to the station you are standing at is normally a train
-// terminating here. Measured at Helsinki: 7 of 30 trains in the payload are
-// these loops, and 6 of them vanished off the board.
+// Kehärata, the ring rail: lines I and P run Helsinki -> airport -> Helsinki in
+// opposite directions, I round by Tikkurila and P round by Myyrmäki. Boards
+// everywhere in Finland announce these as LENTOASEMA plus the way round, and
+// nothing in the ends of the run says that — so without the rule below the
+// board either drops them (a full loop ends where it began, which reads as a
+// train terminating where you are standing: 6 of 7 at Helsinki vanished) or
+// names a terminus nobody is travelling to.
 //
-// What every Finnish board shows instead — destination Lentoasema, via Tikkurila
-// or via Myyrmäki — is HSL's editorial convention and is NOT derivable from the
-// API. Checked against the live routes on 2026-08-13, no geometric rule
-// reproduces it: the stop farthest from Helsinki is Leinelä, the midpoint by
-// both time and index is Aviapolis, and the midpoint of the outbound leg is
-// Louhela for P and Malmi for I. None of those is what a passenger is told, and
-// the bundled station snapshot carries no notion of which stop matters. So this
-// is a table on purpose, not a heuristic that looks principled and is wrong.
+// The rule IS derivable, from three landmark stops. Verified against ten live
+// ring departures on 2026-08-13: every P train reaches Myyrmäki BEFORE the
+// airport and Tikkurila after it, and every I train the other way round. So the
+// way round is simply whichever branch the train reaches on its way to the
+// airport — read per train, not assumed from the line letter, which is what
+// makes it survive a renamed line.
 //
-// Keyed on the commuter line, and applied ONLY to a train whose run begins and
-// ends at the station being displayed. Any other loop the network invents later
-// keeps the old behaviour of being left off rather than being mislabelled.
-const RING_ROUTES = {
-  I: { destination: 'LEN', via: 'TKL' },
-  P: { destination: 'LEN', via: 'MYR' },
+// It also covers the runs that are not loops at all. Line I has a three-quarter
+// working (train 18857) that goes Helsinki -> Tikkurila -> airport and stops at
+// Myyrmäki: its destination really is Myyrmäki, its origin and terminus differ,
+// and no loop test would catch it — yet Fintraffic still shows it as Lentoasema
+// via Tikkurila, because the airport is still ahead. That is the whole test:
+// AHEAD, not "is a loop".
+//
+// Past the airport the landmark stops meaning anything and the real terminus is
+// the honest answer, which falls out of the same comparison.
+const RING = {
+  airport: 'LEN',
+  // The two branches the ring can be entered by. Named here because they are
+  // the ring's own geography; WHICH one applies is derived per train.
+  branches: ['TKL', 'MYR'],
 };
 
 // Estimates move while the panel sits open; the schedule itself does not.
@@ -195,6 +201,12 @@ export function stationBoardQuery(stationCode, count = REQUEST_TRAINS) {
     orig: timeTableRows(where: {commercialStop: {equals: true}}, orderBy: {scheduledTime: ASCENDING}, take: 1) {
       station { shortCode }
     }
+    ringAirport: timeTableRows(where: {commercialStop: {equals: true}, station: {shortCode: {equals: ${JSON.stringify(RING.airport)}}}}, orderBy: {scheduledTime: ASCENDING}, take: 1) {
+      scheduledTime
+    }
+${RING.branches.map((code, i) => `    ringBranch${i}: timeTableRows(where: {commercialStop: {equals: true}, station: {shortCode: {equals: ${JSON.stringify(code)}}}}, orderBy: {scheduledTime: ASCENDING}, take: 1) {
+      scheduledTime
+    }`).join('\n')}
     dest: timeTableRows(where: {commercialStop: {equals: true}}, orderBy: {scheduledTime: DESCENDING}, take: 1) {
       station { shortCode }
     }
@@ -208,6 +220,10 @@ export function stationBoardQuery(stationCode, count = REQUEST_TRAINS) {
 export function normalizeBoard(json) {
   const trains = json && json.data && json.data.trainsByStationAndQuantity;
   if (!Array.isArray(trains)) return [];
+  const rowMs = (slice) => {
+    const ms = slice && slice[0] && Date.parse(slice[0].scheduledTime);
+    return Number.isFinite(ms) ? ms : null;
+  };
   return trains.map((t) => ({
     trainNumber: t.trainNumber,
     trainType: (t.trainType && t.trainType.name) || '',
@@ -220,7 +236,38 @@ export function normalizeBoard(json) {
     destinationCode: (t.dest && t.dest[0] && t.dest[0].station
       && t.dest[0].station.shortCode) || null,
     rows: Array.isArray(t.here) ? t.here : [],
+    // Ring landmarks, as timestamps: when this train calls at the airport, and
+    // when it calls at each branch. Absent on every train that is not a ring
+    // service, which is what switches the rule off for the rest of the network.
+    ringAirportMs: rowMs(t.ringAirport),
+    ringBranches: RING.branches
+      .map((code, i) => ({ code, ms: rowMs(t[`ringBranch${i}`]) }))
+      .filter((b) => b.ms !== null),
   }));
+}
+
+// How a ring service should be announced at this station, or null when the
+// train is not one or has already passed the airport. See RING above.
+//
+// `hereMs` is when this train calls at the station being displayed, so "ahead"
+// and "behind" are relative to the reader's own platform rather than to now —
+// which is what makes the same train read as Lentoasema at Helsinki and as
+// Helsinki once it is on its way back.
+export function ringAnnouncement(train, stationCode, mode, hereMs) {
+  const airportMs = train.ringAirportMs;
+  if (!airportMs || !Number.isFinite(hereMs)) return null;
+  // Departures answer "where is it going", arrivals "where has it been", so the
+  // airport has to be on the matching side of the reader to be the answer.
+  const relevant = mode === 'arrivals' ? airportMs < hereMs : airportMs > hereMs;
+  if (!relevant) return null;
+  // The way round: the branch the train passes between here and the airport. A
+  // branch on the far side of the airport is where it goes afterwards, and one
+  // already behind the reader is not a direction they can still take.
+  const [from, to] = mode === 'arrivals' ? [airportMs, hereMs] : [hereMs, airportMs];
+  const branch = (train.ringBranches || []).find(
+    (b) => b.ms > from && b.ms < to && b.code !== stationCode,
+  );
+  return { endpoint: RING.airport, via: branch ? branch.code : '' };
 }
 
 // Pull one station's board out of the normalised payload. Pure, so the contract
@@ -254,23 +301,21 @@ export function boardRows(trains, stationCode, mode, nowMs = Date.now()) {
     // the row order being ascending by scheduled time.
     const here = (train.rows || []).find((r) => r.type === wantType);
     if (!here) return;
-    let endpoint = mode === 'arrivals' ? train.originCode : train.destinationCode;
-    let via = '';
-    if (!endpoint) return;
-    if (endpoint === stationCode) {
-      // Either a train terminating here — the endpoint would just repeat the
-      // station — or a ring service, which needs the far side of the loop named
-      // instead. Only the second is worth showing.
-      const ring = train.originCode === train.destinationCode
-        && RING_ROUTES[train.commuterLineID];
-      if (!ring) return;
-      endpoint = ring.destination;
-      // The two ring lines are otherwise indistinguishable on a board: both are
-      // a train to the airport leaving Helsinki. The via IS the direction.
-      via = ring.via;
-    }
     const scheduledMs = Date.parse(here.scheduledTime);
     if (!Number.isFinite(scheduledMs)) return;
+    let endpoint = mode === 'arrivals' ? train.originCode : train.destinationCode;
+    let via = '';
+    // A ring service is announced by the airport ahead of it, which overrides
+    // the ends of the run — those are either this very station (a full loop) or
+    // a terminus no one is travelling to (the three-quarter workings).
+    const ring = ringAnnouncement(train, stationCode, mode, scheduledMs);
+    if (ring) {
+      endpoint = ring.endpoint;
+      via = ring.via;
+    }
+    // A train terminating here has no onward destination to show, and one
+    // starting here has no origin — the endpoint would just repeat the station.
+    if (!endpoint || endpoint === stationCode) return;
     const estimateMs = Date.parse(here.liveEstimateTime || here.actualTime) || null;
     // A train 20 minutes down but estimated for now is still standing at the
     // platform, so the later of the two decides whether it is past.
