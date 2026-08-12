@@ -2632,14 +2632,22 @@ function applyPoiVisibility() {
 }
 
 function togglePoi(id) {
-  POI_STATE[id] = !POI_STATE[id];
   const entry = poiRegistry.find((e) => e.id === id);
-  // Switching a topic back on when every part of it was switched off would
-  // otherwise show nothing at all, leaving a switch that says on above an empty
-  // map. Turning the group on means "show this topic", so restore the parts.
-  if (POI_STATE[id] && entry && entry.children
-    && entry.children.every((c) => !POI_STATE[poiChildKey(entry, c)])) {
-    entry.children.forEach((c) => { POI_STATE[poiChildKey(entry, c)] = true; });
+  const children = (entry && entry.children) || [];
+  const shown = children.filter((c) => POI_STATE[poiChildKey(entry, c)]).length;
+  // A topic showing only SOME of its parts completes itself before it switches
+  // off. That is what the mid-travel knob invites — it is sitting half way, so
+  // pushing it should finish the journey — and without it the only route back
+  // to the whole topic is to open it and tick the rest by hand. Switching off
+  // is then the next press, from a switch that is honestly all the way on.
+  const completing = !!POI_STATE[id] && shown > 0 && shown < children.length;
+  POI_STATE[id] = completing || !POI_STATE[id];
+  // Turning a topic on means "show this topic", so a topic with nothing left in
+  // it gets its parts back rather than leaving a lit switch above an empty map.
+  // Otherwise the parts are left alone — switching a whole topic off and on
+  // again returns exactly what was there before.
+  if (POI_STATE[id] && children.length && (completing || shown === 0)) {
+    children.forEach((c) => { POI_STATE[poiChildKey(entry, c)] = true; });
   }
   applyPoiVisibility();
   persistPoiState();
