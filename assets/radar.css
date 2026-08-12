@@ -1868,6 +1868,16 @@ body.split-4 #placeSearchButton {
     overflow: hidden;
     text-overflow: ellipsis;
   }
+
+  /* Ring-rail services (lines I and P) are both "to the airport" from Helsinki
+     and only the via tells them apart, so it sits under the destination rather
+     than beside it — the column is already the widest on a phone. */
+  .train-via {
+    display: block;
+    font-size: 0.78em;
+    opacity: 0.6;
+    line-height: 1.15;
+  }
   .train-late { color: #ffa033; }
   .train-cancelled { color: #ff6b6b; }
   .train-table tr.is-cancelled .train-time,

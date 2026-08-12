@@ -1,5 +1,5 @@
-// Departure board for a tapped railway station, from Digitraffic's live-trains
-// API (`rata.digitraffic.fi/api/v1/live-trains/station/<code>`).
+// Departure board for a tapped railway station, from Digitraffic's rail GraphQL
+// API (`rata.digitraffic.fi/api/v2/graphql/graphql`).
 //
 // Bottom panel, the crossSection.js / weatherCameras.js pattern: `hidden` is
 // removed once at build time and the height-0 / `.open` CSS transition does the
@@ -11,30 +11,48 @@
 // — scrubbing the radar back an hour cannot un-depart a train. It polls instead,
 // so estimates stay current while the panel is open.
 //
-// Server contract notes (measured against the live API on 2026-08-04):
+// WHY GRAPHQL AND NOT THE REST live-trains API. The board needs three rows per
+// train — the stop here, and the two ends of the run — but REST answers with
+// each train's ENTIRE timetable (a Tampere-Helsinki commuter run is 96 rows) and
+// there is no way to ask it for less. GraphQL's `timeTableRows` takes
+// `where`/`orderBy`/`take`, so each of those three is one row fetched by name.
+// Measured over six stations on 2026-08-12: 3151 kB of JSON against 58 kB, a
+// 54x reduction — 92x at Oulu, 138x at Rovaniemi, where long runs make REST
+// worst. This board polls every 30 s while open, so that is per refresh.
+//
+// Server contract notes (measured against the live APIs, 2026-08-04/2026-08-12):
 //   * gzip is MANDATORY, as everywhere on Digitraffic — a request without
 //     `Accept-Encoding: gzip` is answered HTTP 406. `fetch` always sends it;
-//   * each train carries its ENTIRE timetable, not just this station: a
-//     Tampere-Helsinki commuter run came back with 96 rows. The station's own
-//     rows have to be picked out, and the origin/destination read off the ends;
+//   * `trainsByStationAndQuantity` takes the same next-N arguments as the REST
+//     endpoint, PLUS `trainCategories`, which filters server-side. That is not
+//     only smaller: the next-15 slots stop being spent on freight the board
+//     would throw away, so the same request reaches further into the timetable.
+//     At Tampere it returned every passenger train REST did and two more;
 //   * every stop appears TWICE, as an ARRIVAL row and a DEPARTURE row, with the
-//     same scheduledTime at a through station. Filtering by `type` is what
-//     separates the two boards;
+//     same scheduledTime at a through station. One fetch still serves both
+//     boards — only the row filter changes;
 //   * `commercialStop: true` marks the stops a passenger can use — it is absent
 //     on the technical rows (passing loops, timing points), 168 of 292 rows in
-//     the sample. Origin and destination therefore come from the first and last
-//     COMMERCIAL rows, not the first and last rows;
-//   * `trainCategory` is `Commuter`, `Long-distance` or `Shunting`. Shunting
-//     runs are empty stock moves to the depot — a live sample offered two
-//     Helsinki->Ilmala W-trains that would have appeared on the board as
-//     departures to a place no passenger can go. They are dropped;
+//     an earlier sample. Origin and destination are therefore the first and last
+//     COMMERCIAL rows, which is what the `orig`/`dest` slices ask for;
+//   * `trainCategory` is `Commuter`, `Long-distance`, `Cargo`, `Shunting`,
+//     `Locomotive` or `On-track machines`. Shunting runs are empty stock moves
+//     to the depot — a live sample offered two Helsinki->Ilmala W-trains that
+//     would have appeared on the board as departures to a place no passenger can
+//     go. Everything but the two passenger categories is dropped;
 //   * the estimate lives in `liveEstimateTime` on stops still ahead and
 //     `actualTime` on stops already made, so the board reads whichever exists;
-//   * a 120-minute window costs ~33 kB at Helsinki, the busiest station in the
-//     country, and 12 kB at 60 minutes. Quiet stations return a handful of
-//     trains over the same window, which is simply the service they have.
+//   * introspection is rate-limited by shape: more than one `__type` in a single
+//     query is rejected as `BadFaithIntrospection`. Ask for one at a time.
 
-const API = 'https://rata.digitraffic.fi/api/v1/live-trains/station';
+const GRAPHQL_URL = 'https://rata.digitraffic.fi/api/v2/graphql/graphql';
+const APP_ID = 'tutka.meteo.fi';
+
+// The categories a passenger can actually board, sent to the server so the
+// next-N slots are spent on trains that can appear on the board. Kept in the
+// client filter too (PASSENGER_CATEGORIES below): the server argument is an
+// optimisation, not the rule, and the board must not depend on it holding.
+const BOARD_CATEGORIES = ['Commuter', 'Long-distance'];
 
 // How far the board looks: two hours forward, so a rural station with an hourly
 // service still fills it, and a few minutes back so a train that has just left
@@ -59,7 +77,9 @@ const API = 'https://rata.digitraffic.fi/api/v1/live-trains/station';
 // reaching 3.5 hours ahead into the morning service without being asked to.
 //
 // Asked slightly above what the panel can show, so the board still fills after
-// shunting runs and trains terminating here are dropped.
+// the trains terminating here are dropped. Freight and shunting no longer eat
+// into this count — `trainCategories` keeps them out server-side — so the same
+// 15 now reach further into the timetable than they did over REST.
 const REQUEST_TRAINS = 15;
 
 // How far back a train may be and still belong on the board — long enough that
@@ -81,6 +101,37 @@ const PASSENGER_CATEGORIES = new Set(['Commuter', 'Long-distance']);
 // them calling at ILR. They carry no passengers and no public timetable lists
 // them, so a board must not either.
 const NON_PUBLIC_TRAIN_TYPES = new Set(['HV']);
+
+// Kehärata, the ring rail: lines I and P run Helsinki -> airport -> Helsinki in
+// opposite directions, I round by Tikkurila and P round by Myyrmäki. Boards
+// everywhere in Finland announce these as LENTOASEMA plus the way round, and
+// nothing in the ends of the run says that — so without the rule below the
+// board either drops them (a full loop ends where it began, which reads as a
+// train terminating where you are standing: 6 of 7 at Helsinki vanished) or
+// names a terminus nobody is travelling to.
+//
+// The rule IS derivable, from three landmark stops. Verified against ten live
+// ring departures on 2026-08-13: every P train reaches Myyrmäki BEFORE the
+// airport and Tikkurila after it, and every I train the other way round. So the
+// way round is simply whichever branch the train reaches on its way to the
+// airport — read per train, not assumed from the line letter, which is what
+// makes it survive a renamed line.
+//
+// It also covers the runs that are not loops at all. Line I has a three-quarter
+// working (train 18857) that goes Helsinki -> Tikkurila -> airport and stops at
+// Myyrmäki: its destination really is Myyrmäki, its origin and terminus differ,
+// and no loop test would catch it — yet Fintraffic still shows it as Lentoasema
+// via Tikkurila, because the airport is still ahead. That is the whole test:
+// AHEAD, not "is a loop".
+//
+// Past the airport the landmark stops meaning anything and the real terminus is
+// the honest answer, which falls out of the same comparison.
+const RING = {
+  airport: 'LEN',
+  // The two branches the ring can be entered by. Named here because they are
+  // the ring's own geography; WHICH one applies is derived per train.
+  branches: ['TKL', 'MYR'],
+};
 
 // Estimates move while the panel sits open; the schedule itself does not.
 const REFRESH_MS = 30000;
@@ -107,8 +158,120 @@ export function trainLabel(train) {
   return `${train.trainType || ''} ${train.trainNumber || ''}`.trim();
 }
 
-// Pull one station's board out of the API's full-timetable payload. Pure, so the
-// contract above can be checked against live data without a browser.
+// The board's query. Pure and deterministic, so it can be diffed against the
+// REST payload it replaced without a browser.
+//
+// Three row slices per train, each one row (or two) rather than the whole
+// timetable: `here` is this station's stop — both the ARRIVAL and the DEPARTURE
+// row, since one payload serves both boards — and `orig`/`dest` are the ends of
+// the COMMERCIAL run, so a train that starts or terminates in a depot still
+// shows the station a passenger cares about.
+export function stationBoardQuery(stationCode, count = REQUEST_TRAINS) {
+  // JSON.stringify rather than bare quotes: station codes come from a bundled
+  // snapshot, but a query built by concatenation should not be the thing that
+  // trusts it.
+  const station = JSON.stringify(String(stationCode));
+  const categories = BOARD_CATEGORIES.map((c) => JSON.stringify(c)).join(', ');
+  return `{
+  trainsByStationAndQuantity(
+    station: ${station}
+    departingTrains: ${count}
+    arrivingTrains: ${count}
+    departedTrains: 0
+    arrivedTrains: 0
+    includeNonStopping: false
+    trainCategories: [${categories}]
+  ) {
+    trainNumber
+    commuterLineid
+    cancelled
+    trainType { name trainCategory { name } }
+    here: timeTableRows(
+      where: {commercialStop: {equals: true}, station: {shortCode: {equals: ${station}}}}
+      orderBy: {scheduledTime: ASCENDING}
+    ) {
+      type
+      scheduledTime
+      liveEstimateTime
+      actualTime
+      differenceInMinutes
+      commercialTrack
+      cancelled
+    }
+    orig: timeTableRows(where: {commercialStop: {equals: true}}, orderBy: {scheduledTime: ASCENDING}, take: 1) {
+      station { shortCode }
+    }
+    ringAirport: timeTableRows(where: {commercialStop: {equals: true}, station: {shortCode: {equals: ${JSON.stringify(RING.airport)}}}}, orderBy: {scheduledTime: ASCENDING}, take: 1) {
+      scheduledTime
+    }
+${RING.branches.map((code, i) => `    ringBranch${i}: timeTableRows(where: {commercialStop: {equals: true}, station: {shortCode: {equals: ${JSON.stringify(code)}}}}, orderBy: {scheduledTime: ASCENDING}, take: 1) {
+      scheduledTime
+    }`).join('\n')}
+    dest: timeTableRows(where: {commercialStop: {equals: true}}, orderBy: {scheduledTime: DESCENDING}, take: 1) {
+      station { shortCode }
+    }
+  }
+}`;
+}
+
+// GraphQL response -> the flat shape boardRows reads. Origin and destination
+// become plain fields here because the server has already picked them; the
+// board no longer walks a timetable looking for its ends.
+export function normalizeBoard(json) {
+  const trains = json && json.data && json.data.trainsByStationAndQuantity;
+  if (!Array.isArray(trains)) return [];
+  const rowMs = (slice) => {
+    const ms = slice && slice[0] && Date.parse(slice[0].scheduledTime);
+    return Number.isFinite(ms) ? ms : null;
+  };
+  return trains.map((t) => ({
+    trainNumber: t.trainNumber,
+    trainType: (t.trainType && t.trainType.name) || '',
+    trainCategory: (t.trainType && t.trainType.trainCategory
+      && t.trainType.trainCategory.name) || '',
+    commuterLineID: t.commuterLineid || '',
+    cancelled: !!t.cancelled,
+    originCode: (t.orig && t.orig[0] && t.orig[0].station
+      && t.orig[0].station.shortCode) || null,
+    destinationCode: (t.dest && t.dest[0] && t.dest[0].station
+      && t.dest[0].station.shortCode) || null,
+    rows: Array.isArray(t.here) ? t.here : [],
+    // Ring landmarks, as timestamps: when this train calls at the airport, and
+    // when it calls at each branch. Absent on every train that is not a ring
+    // service, which is what switches the rule off for the rest of the network.
+    ringAirportMs: rowMs(t.ringAirport),
+    ringBranches: RING.branches
+      .map((code, i) => ({ code, ms: rowMs(t[`ringBranch${i}`]) }))
+      .filter((b) => b.ms !== null),
+  }));
+}
+
+// How a ring service should be announced at this station, or null when the
+// train is not one or has already passed the airport. See RING above.
+//
+// `hereMs` is when this train calls at the station being displayed, so "ahead"
+// and "behind" are relative to the reader's own platform rather than to now —
+// which is what makes the same train read as Lentoasema at Helsinki and as
+// Helsinki once it is on its way back.
+export function ringAnnouncement(train, stationCode, mode, hereMs) {
+  const airportMs = train.ringAirportMs;
+  if (!airportMs || !Number.isFinite(hereMs)) return null;
+  // Departures answer "where is it going", arrivals "where has it been", so the
+  // airport has to be on the matching side of the reader to be the answer.
+  const relevant = mode === 'arrivals' ? airportMs < hereMs : airportMs > hereMs;
+  if (!relevant) return null;
+  // The way round: the branch the train passes between here and the airport. A
+  // branch on the far side of the airport is where it goes afterwards, and one
+  // already behind the reader is not a direction they can still take.
+  const [from, to] = mode === 'arrivals' ? [airportMs, hereMs] : [hereMs, airportMs];
+  const branch = (train.ringBranches || []).find(
+    (b) => b.ms > from && b.ms < to && b.code !== stationCode,
+  );
+  return { endpoint: RING.airport, via: branch ? branch.code : '' };
+}
+
+// Pull one station's board out of the normalised payload. Pure, so the contract
+// above can be checked against live data without a browser.
 export function boardRows(trains, stationCode, mode, nowMs = Date.now()) {
   const wantType = mode === 'arrivals' ? 'ARRIVAL' : 'DEPARTURE';
   // Kept as a guard even though the request now asks for no past trains. It is
@@ -132,24 +295,27 @@ export function boardRows(trains, stationCode, mode, nowMs = Date.now()) {
     // stays off the board until it is deliberately let on.
     if (!PASSENGER_CATEGORIES.has(train.trainCategory)) return;
     if (NON_PUBLIC_TRAIN_TYPES.has(train.trainType)) return;
-    const all = train.timeTableRows || [];
-    const commercial = all.filter((r) => r.commercialStop === true);
-    if (!commercial.length) return;
-    const here = commercial.find(
-      (r) => r.stationShortCode === stationCode && r.type === wantType,
-    );
+    // Every row in `rows` is already this station's, and already commercial —
+    // the query filtered on both — so the only choice left is which board it
+    // belongs to. A train calling here twice yields its earliest matching stop,
+    // the row order being ascending by scheduled time.
+    const here = (train.rows || []).find((r) => r.type === wantType);
     if (!here) return;
-    // Origin and destination are the ends of the commercial run, so a train that
-    // starts or terminates in a depot still shows the station a passenger cares
-    // about.
-    const endpoint = mode === 'arrivals'
-      ? commercial[0].stationShortCode
-      : commercial[commercial.length - 1].stationShortCode;
-    // A train terminating here has no onward destination to show, and one
-    // starting here has no origin — the endpoint would just repeat the station.
-    if (endpoint === stationCode) return;
     const scheduledMs = Date.parse(here.scheduledTime);
     if (!Number.isFinite(scheduledMs)) return;
+    let endpoint = mode === 'arrivals' ? train.originCode : train.destinationCode;
+    let via = '';
+    // A ring service is announced by the airport ahead of it, which overrides
+    // the ends of the run — those are either this very station (a full loop) or
+    // a terminus no one is travelling to (the three-quarter workings).
+    const ring = ringAnnouncement(train, stationCode, mode, scheduledMs);
+    if (ring) {
+      endpoint = ring.endpoint;
+      via = ring.via;
+    }
+    // A train terminating here has no onward destination to show, and one
+    // starting here has no origin — the endpoint would just repeat the station.
+    if (!endpoint || endpoint === stationCode) return;
     const estimateMs = Date.parse(here.liveEstimateTime || here.actualTime) || null;
     // A train 20 minutes down but estimated for now is still standing at the
     // platform, so the later of the two decides whether it is past.
@@ -166,6 +332,7 @@ export function boardRows(trains, stationCode, mode, nowMs = Date.now()) {
       lateMinutes: Number.isFinite(here.differenceInMinutes) ? here.differenceInMinutes : 0,
       track: here.commercialTrack || '',
       endpoint,
+      via,
       cancelled: !!(train.cancelled || here.cancelled),
     });
   });
@@ -279,7 +446,9 @@ export default function initTrains({ container, stationsUrl } = {}) {
         <td class="train-time">${scheduled}</td>
         <td class="train-time">${estimate}</td>
         <td class="train-track">${r.track}</td>
-        <td class="train-endpoint">${stationName(r.endpoint)}</td>
+        <td class="train-endpoint">${stationName(r.endpoint)}${
+  r.via ? `<span class="train-via">via ${stationName(r.via)}</span>` : ''
+}</td>
       </tr>`;
     }).join('');
     panel.table.innerHTML = `${head}<tbody>${body}</tbody>`;
@@ -307,26 +476,29 @@ export default function initTrains({ container, stationsUrl } = {}) {
   function load() {
     if (!station) return;
     const gen = generation;
-    const url = `${API}/${encodeURIComponent(station.code)}`
-      + `?departing_trains=${REQUEST_TRAINS}&arriving_trains=${REQUEST_TRAINS}`
-      // Ask for no past trains at all. `departed_trains`/`arrived_trains` return
-      // the last N to have gone HOWEVER long ago — 415 minutes at Rovaniemi on a
-      // night check — which is never what a board wants. Zero is accepted and is
-      // the smaller request (10.5 kB against 12.4 at Helsinki); omitting the
-      // parameters is worse still, since they default to a nonzero count and
-      // brought back departures 83 minutes old.
-      + '&departed_trains=0&arrived_trains=0'
-      // Drops trains that run through without stopping — they have no platform
-      // and no passenger can board them.
-      + '&include_nonstopping=false';
-    fetch(url)
+    fetch(GRAPHQL_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        // Digitraffic asks that clients identify themselves. The preflight this
+        // needs is answered with a 24 h max-age, so the 30 s poll pays for it
+        // once — and a JSON POST would be preflighted anyway.
+        'Digitraffic-User': APP_ID,
+      },
+      body: JSON.stringify({ query: stationBoardQuery(station.code) }),
+    })
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
       })
       .then((json) => {
         if (gen !== generation) return;
-        trains = json;
+        // GraphQL reports failures in the body with HTTP 200, so a bad query
+        // would otherwise silently empty the board rather than say anything.
+        if (json && json.errors && json.errors.length) {
+          throw new Error(json.errors[0].message || 'GraphQL error');
+        }
+        trains = normalizeBoard(json);
         render();
       })
       .catch((err) => {
