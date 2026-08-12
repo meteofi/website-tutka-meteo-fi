@@ -2257,7 +2257,13 @@ function openOverflowMenu() {
   menuButtonEl.setAttribute('aria-expanded', 'true');
   updateThemeChipsState();
   updateLayoutChipsState();
-  if (poiMenu) poiMenu.refresh();
+  if (poiMenu) {
+    // Always opens at its collapsed height: the parts are a detour, not where
+    // anyone starts, and a menu that reopens the length you last left it is a
+    // menu that has quietly grown.
+    poiMenu.collapseAll();
+    poiMenu.refresh();
+  }
   if (ownLocationMenu) ownLocationMenu.refresh();
 }
 
@@ -2495,14 +2501,25 @@ const poiRegistry = [
     layerKeys: ['gliderLayer'],
   },
   {
-    // The network and its stations are one toggle: a station marker with no
-    // line under it reads as a dot in a field. The id keeps its original
+    // A topic with parts. The group switch still turns the whole thing on and
+    // off — a station marker with no line under it reads as a dot in a field,
+    // so the default remains all-or-nothing — but the parts can be operated
+    // individually from the row's disclosure. The id keeps its original
     // spelling so nobody's saved POI_STATE is reset by the rename.
     id: 'railwaystations',
     label: 'Rautatiet',
     icon: 'train',
     defaultOn: false,
-    layerKeys: ['railwayTrackLayer', 'railwayLayer', 'trainLocationLayer'],
+    // Ordered as they stack on the map, bottom first, which is also how a
+    // reader builds the picture: the network, its stations, then what is
+    // running on it.
+    children: [
+      { id: 'tracks', label: 'Raiteet', layerKeys: ['railwayTrackLayer'] },
+      { id: 'stations', label: 'Asemat', layerKeys: ['railwayLayer'] },
+      // Junat is the one that costs something to leave on: it holds the MQTT
+      // subscription open (see applyPoiVisibility).
+      { id: 'trains', label: 'Junat', layerKeys: ['trainLocationLayer'] },
+    ],
   },
   {
     id: 'municipalities',
@@ -2554,18 +2571,36 @@ const poiRegistry = [
   },
 ];
 
+// A topic's part is stored under `<topic>.<part>`, flat, so POI_STATE stays a
+// map of booleans and the reconciliation below stays one pass.
+const poiChildKey = (entry, child) => `${entry.id}.${child.id}`;
+
 // POI_STATE is reconciled against the current registry on every load: unknown
 // persisted keys are dropped, and new registry entries fall back to defaultOn.
 const POI_STATE = (() => {
   const persisted = safeParseJSON('POI_STATE', null) || {};
+  const has = (k) => Object.prototype.hasOwnProperty.call(persisted, k);
   const state = {};
   poiRegistry.forEach((entry) => {
-    state[entry.id] = Object.prototype.hasOwnProperty.call(persisted, entry.id)
-      ? !!persisted[entry.id]
-      : entry.defaultOn;
+    state[entry.id] = has(entry.id) ? !!persisted[entry.id] : entry.defaultOn;
+    // Parts default to ON rather than to the topic's own default. A topic that
+    // has never been split before was all-or-nothing, so everyone's saved
+    // `railwaystations: true` has to keep meaning all three — the group switch
+    // alone decides whether anything shows.
+    (entry.children || []).forEach((child) => {
+      const key = poiChildKey(entry, child);
+      state[key] = has(key) ? !!persisted[key] : true;
+    });
   });
   return state;
 })();
+
+// Is this layer actually on: the topic switched on AND, for a topic with parts,
+// that part switched on too.
+function isPoiOn(entryId, childId) {
+  if (!POI_STATE[entryId]) return false;
+  return childId ? !!POI_STATE[`${entryId}.${childId}`] : true;
+}
 
 function persistPoiState() {
   localStorage.setItem('POI_STATE', JSON.stringify(POI_STATE));
@@ -2573,11 +2608,16 @@ function persistPoiState() {
 
 function applyPoiVisibility() {
   poiRegistry.forEach((entry) => {
-    const visible = !!POI_STATE[entry.id];
+    const groupOn = !!POI_STATE[entry.id];
+    // A topic is either one set of layers or several named parts, each gated by
+    // the group as well as by itself.
+    const groups = entry.children
+      ? entry.children.map((c) => ({ on: groupOn && !!POI_STATE[poiChildKey(entry, c)], keys: c.layerKeys }))
+      : [{ on: groupOn, keys: entry.layerKeys }];
     for (const pane of panes) {
-      entry.layerKeys.forEach((key) => {
-        if (pane[key]) pane[key].setVisible(visible);
-      });
+      groups.forEach(({ on, keys }) => keys.forEach((key) => {
+        if (pane[key]) pane[key].setVisible(on);
+      }));
     }
   });
   // Storm cells poll a live API — the toggle gates fetching, not just paint.
@@ -2585,24 +2625,52 @@ function applyPoiVisibility() {
   trafficMessages.setEnabled(!!POI_STATE.liikennetiedotteet);
   weatherCameras.setEnabled(!!POI_STATE.kelikamerat);
   gliders.setEnabled(!!POI_STATE.gliders);
-  // Rautatiet carries a live feed too: the toggle gates the MQTT subscription,
-  // not just whether the markers paint.
-  trainLocations.setEnabled(!!POI_STATE.railwaystations);
+  // Rautatiet carries a live feed too, and it is the Junat part that holds it:
+  // the toggle gates the MQTT subscription, not just whether the markers paint,
+  // so switching Junat off alone must also close the socket.
+  trainLocations.setEnabled(isPoiOn('railwaystations', 'trains'));
 }
 
 function togglePoi(id) {
   POI_STATE[id] = !POI_STATE[id];
+  const entry = poiRegistry.find((e) => e.id === id);
+  // Switching a topic back on when every part of it was switched off would
+  // otherwise show nothing at all, leaving a switch that says on above an empty
+  // map. Turning the group on means "show this topic", so restore the parts.
+  if (POI_STATE[id] && entry && entry.children
+    && entry.children.every((c) => !POI_STATE[poiChildKey(entry, c)])) {
+    entry.children.forEach((c) => { POI_STATE[poiChildKey(entry, c)] = true; });
+  }
   applyPoiVisibility();
   persistPoiState();
   if (poiMenu) poiMenu.refresh();
   track('poi-toggle', { id, visible: POI_STATE[id] });
 }
 
+function togglePoiChild(entryId, childId) {
+  const key = `${entryId}.${childId}`;
+  POI_STATE[key] = !POI_STATE[key];
+  // Operating a part is a statement about the topic too: ticking one while the
+  // topic is off is a request to see it, and unticking the last one is a
+  // request to see none of it. Without this the switch and the map disagree.
+  const entry = poiRegistry.find((e) => e.id === entryId);
+  if (entry && entry.children) {
+    const anyOn = entry.children.some((c) => POI_STATE[poiChildKey(entry, c)]);
+    POI_STATE[entryId] = anyOn;
+  }
+  applyPoiVisibility();
+  persistPoiState();
+  if (poiMenu) poiMenu.refresh();
+  track('poi-toggle', { id: key, visible: POI_STATE[key] });
+}
+
 poiMenu = initPoiMenu({
   container: document.getElementById('poiList'),
   registry: poiRegistry,
   isOn: (id) => !!POI_STATE[id],
+  isChildOn: (entryId, childId) => !!POI_STATE[`${entryId}.${childId}`],
   onToggle: togglePoi,
+  onToggleChild: togglePoiChild,
 });
 
 // Reconcile persisted state against layer visibility (handles the case where
@@ -3464,11 +3532,11 @@ function shareAttributions() {
   // POI vector layers carry no layerInfo — credit the ones that need it while on.
   if (POI_STATE.turnpoints) parts.add('Käännöspisteet © Ilmailuliitto');
   if (POI_STATE.gliders) parts.add('Lentokoneet © Open Glider Network');
-  if (POI_STATE.railwaystations) {
-    parts.add('Rautatieasemat © Fintraffic (CC BY 4.0)');
-    parts.add('Rataverkko © Väylävirasto');
-    parts.add('Junat © Fintraffic (CC BY 4.0)');
-  }
+  // Credited per part now that they can be switched independently — showing
+  // only the track network should not claim to be showing Fintraffic's trains.
+  if (isPoiOn('railwaystations', 'stations')) parts.add('Rautatieasemat © Fintraffic (CC BY 4.0)');
+  if (isPoiOn('railwaystations', 'tracks')) parts.add('Rataverkko © Väylävirasto');
+  if (isPoiOn('railwaystations', 'trains')) parts.add('Junat © Fintraffic (CC BY 4.0)');
   // Kunnat is MML Maastotietokanta (CC BY 4.0) since the switch off the
   // Tilastokeskus-derived collection, so it now needs crediting like the rest.
   if (POI_STATE.municipalities) parts.add('Kunnat © Maanmittauslaitos');

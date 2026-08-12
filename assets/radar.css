@@ -1145,6 +1145,83 @@ body.split-4 #placeSearchButton {
     transform: translateX(14px);
   }
 
+  /* A topic whose parts disagree: the knob sits mid-travel and the track is
+     lifted off the "off" grey. Read together with the ARIA `mixed` state, this
+     is what stops a topic quietly missing a part from looking fully on. */
+  #overflowMenu .menu-row[aria-checked="mixed"] .switch {
+    /* A dimmed --dark-primary-color (#12BCFA). Against the plain grey of "off"
+       this has to read as "partly on" at a glance and from arm's length, so it
+       keeps the on-colour rather than borrowing a lighter grey. */
+    background: rgba(18, 188, 250, 0.45);
+  }
+  #overflowMenu .menu-row[aria-checked="mixed"] .switch::after {
+    /* Exactly mid-travel: the track is 36px, the knob 18px inset by 2px. */
+    transform: translateX(9px);
+  }
+  #overflowMenu .menu-row[aria-checked="mixed"] .material-icons {
+    color: var(--dark-primary-color);
+  }
+
+  /* Disclosure for a topic with parts. Its own button, so that expanding and
+     switching the topic off are never the same press. */
+  #overflowMenu .poi-expand {
+    all: unset;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+  #overflowMenu .poi-expand:hover { background-color: rgba(255, 255, 255, 0.08); }
+  #overflowMenu .poi-expand:focus-visible { background-color: rgba(255, 255, 255, 0.14); }
+  /* Kept at medium emphasis even when the topic is on, so it reads as a control
+     rather than as a second lit-up topic icon. */
+  #overflowMenu .menu-row .poi-expand .material-icons {
+    font-size: 20px;
+    color: var(--dark-medium-emphasis-text-color);
+    transition: transform 180ms ease;
+  }
+  #overflowMenu .menu-row.is-expanded .poi-expand .material-icons {
+    transform: rotate(180deg);
+  }
+
+  /* Parts of a topic. Shorter than a topic row and with no icon of their own —
+     they are indented to start where the parent's label starts, so the group
+     reads as one block rather than as more topics. */
+  #overflowMenu .menu-row.is-child {
+    height: 40px;
+    /* Indented PAST the parent's label rather than flush with it: aligned, the
+       parts read as more topics that happen to be smaller. The rule down the
+       left is what ties them to the topic above. */
+    padding-left: 66px;
+    position: relative;
+  }
+  #overflowMenu .menu-row.is-child::before {
+    content: '';
+    position: absolute;
+    left: 25px;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: rgba(255, 255, 255, 0.12);
+  }
+  /* The rule stops halfway down the last part, so the group visibly ends. */
+  #overflowMenu .menu-row.is-child:last-of-type::before,
+  #overflowMenu .menu-row.is-child:has(+ .menu-row[data-poi])::before {
+    bottom: 50%;
+  }
+  #overflowMenu .menu-row.is-child[hidden] { display: none; }
+  #overflowMenu .menu-row.is-child .menu-label {
+    font-size: 13px;
+    color: var(--dark-medium-emphasis-text-color);
+  }
+  #overflowMenu .menu-row.is-child[aria-checked="true"] .menu-label {
+    color: var(--dark-high-emphasis-text-color);
+  }
+
   #overflowMenu .menu-divider {
     height: 1px;
     background: rgba(255, 255, 255, 0.08);
