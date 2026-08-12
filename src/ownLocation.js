@@ -33,10 +33,19 @@ export default function initOwnLocation({
   onSpeedChange, // ({ value, unit, headingDeg } | null) — null hides the dial
   onStatusChange, // ('fixed' | 'searching' | 'stale' | 'denied' | 'error')
   onVesselInfo = () => {}, // ({ mmsi, name, shipType } | null) — AIS metadata
+  // Shared bottom strip (src/ui/telemetryPanel.js). Tapping the own-position
+  // marker opens it. Independent of the compass dial — the two are separate
+  // optional displays, so the strip carries a full set of readings rather than
+  // only what the dial lacks.
+  telemetry = null,
   debug = () => {},
 }) {
   let tracking = false;
   let lastCoordinates = null;
+  let lastGpsFixMs = 0;
+  // Whether the strip is currently showing us. The panel is shared, so this is
+  // only ever true while we own it.
+  let selected = false;
 
   // MMSI is a string end to end — leading zeros are significant.
   let mmsi = String(localStorage.getItem(MMSI_KEY) || '');
@@ -118,8 +127,10 @@ export default function initOwnLocation({
     for (const pane of getPanes()) {
       pane.positionFeature.setGeometry(coordinates ? new Point(coordinates) : null);
     }
+    lastGpsFixMs = Date.now();
     onStatusChange('fixed');
     onPositionChange(coordinates, transform(coordinates, projection, 'EPSG:4326'));
+    syncTelemetry();
   });
 
   // The compass dial needs speed AND heading together. Course-over-ground is
@@ -167,7 +178,9 @@ export default function initOwnLocation({
     const heading = data.heading === 511 ? null : data.heading;
     const cog = data.cog === 360 ? null : data.cog;
     const sogKn = data.sog === 102.3 ? null : data.sog;
-    const rot = data.rot === -128 ? null : data.rot; // -128 = turn rate not available
+    // Raw AIS field, kept raw: the symbol wants its sign and the telemetry strip
+    // decodes the magnitude itself (rotCell). -128 = turn rate not available.
+    const rot = data.rot === -128 ? null : data.rot;
     lastAisFixMs = data.time ? data.time * 1000 : Date.now();
     const stale = Date.now() - lastAisFixMs > AIS_STALE_MS;
     setAisState({
@@ -180,6 +193,7 @@ export default function initOwnLocation({
     }
     onStatusChange(stale ? 'stale' : 'fixed');
     onPositionChange(coordinates, [data.lon, data.lat]);
+    syncTelemetry();
     // Marine mode reads in knots; true heading preferred over course-over-ground.
     onSpeedChange(sogKn != null
       ? { value: sogKn, unit: 'kn', headingDeg: heading != null ? heading : cog }
@@ -278,6 +292,127 @@ export default function initOwnLocation({
   // ------------------------------------------------------------- surface ----
 
   // Start/stop the active source and show/hide the marker layer in every pane.
+  const TELEMETRY_OWNER = 'ownlocation';
+
+  const cell = (label, v, unit, digits = 0) => ({
+    label,
+    value: Number.isFinite(v) ? `${v.toFixed(digits)}\u2009${unit}` : '–',
+  });
+
+  // Decoded here and ONLY here. The vessel symbol reads the same `rot` but takes
+  // just its sign, to pick the side its turn flag points (ownShipStyle.js) — it
+  // never needs the rate, so nothing is decoded twice and the two cannot drift.
+  //
+  // Rate of turn arrives as the RAW AIS field, not degrees per minute: the
+  // standard encodes it as ROT_AIS = 4.733 * sqrt(rate), so it has to be squared
+  // back out. Labelling the raw number "°/min" was simply wrong — a reported -29
+  // is -37 °/min, not -29.
+  //
+  // ±127 is reserved for "turning faster than 5°/30s, no turn indicator fitted"
+  // and must not be decoded; squaring it would claim about 720 °/min. -128 is
+  // "not available" and is already mapped to null upstream.
+  //
+  // Direction follows the navigation lights, which is what a mariner reads
+  // without thinking: port red, starboard green. Positive AIS rate is a turn to
+  // starboard — the same sign the vessel symbol uses for its turn flag.
+  function rotCell(raw) {
+    const label = 'Kääntyminen';
+    if (!Number.isFinite(raw)) return { label, value: '–' };
+    const side = raw > 0 ? 'stbd' : 'port';
+    // No sign on the reserved value: "->10" reads as minus-greater-than, and the
+    // colour already says which way.
+    if (Math.abs(raw) === 127) return { label, value: '>10\u2009°/min', tone: side };
+    const rate = Math.round((Math.abs(raw) / 4.733) ** 2) * Math.sign(raw);
+    // The encoding is quadratic, so the smallest raw steps round to nothing. A
+    // red or green zero would claim a turn the number denies.
+    if (rate === 0) return { label, value: '0\u2009°/min' };
+    return { label, value: `${rate > 0 ? '+' : ''}${rate}\u2009°/min`, tone: side };
+  }
+
+  function ageText(sinceMs) {
+    if (!sinceMs) return '';
+    const s = Math.max(0, Math.round((Date.now() - sinceMs) / 1000));
+    return s < 60 ? `${s} s sitten` : `${Math.round(s / 60)} min sitten`;
+  }
+
+  // Two sources, two vocabularies. A vessel has course over ground AND a heading
+  // and they differ in a current or a crosswind, which is exactly what a mariner
+  // wants to see; a phone has neither, but does know how far it might be wrong.
+  function telemetryPayload() {
+    if (source === 'ais') {
+      const st = aisState || {};
+      return {
+        icon: 'directions_boat',
+        title: st.name || (mmsi ? `MMSI ${mmsi}` : 'Oma alus'),
+        subtitle: ['AIS', st.name && mmsi ? `MMSI ${mmsi}` : ''].filter(Boolean).join(' · '),
+        status: ageText(lastAisFixMs),
+        metrics: [
+          cell('Nopeus', st.sogKn, 'kn', 1),
+          cell('Kurssi', st.cog, '°'),
+          cell('Suunta', st.heading, '°'),
+          rotCell(st.rot),
+        ],
+      };
+    }
+    const speed = geolocation.getSpeed();
+    const headingRad = geolocation.getHeading();
+    let headingDeg = null;
+    if (Number.isFinite(headingRad)) {
+      headingDeg = ((headingRad * 180) / Math.PI) % 360;
+      if (headingDeg < 0) headingDeg += 360;
+    }
+    return {
+      icon: 'my_location',
+      title: 'Oma sijainti',
+      subtitle: 'GPS',
+      status: ageText(lastGpsFixMs),
+      metrics: [
+        cell('Nopeus', Number.isFinite(speed) ? speed * 3.6 : null, 'km/h'),
+        cell('Suunta', headingDeg, '°'),
+        cell('Korkeus', geolocation.getAltitude(), 'm'),
+        // Not a reading about the world but about the reading itself — a
+        // position with 40 m of uncertainty means something different from one
+        // with 4, and nothing else on screen says which you have.
+        cell('Tarkkuus', geolocation.getAccuracy(), 'm'),
+      ],
+    };
+  }
+
+  function clearTelemetry() {
+    selected = false;
+  }
+
+  function syncTelemetry() {
+    if (!selected || !telemetry || !telemetry.ownerIs(TELEMETRY_OWNER)) {
+      // Another source has taken the panel over, or it was closed.
+      if (selected && telemetry && !telemetry.ownerIs(TELEMETRY_OWNER)) selected = false;
+      return;
+    }
+    telemetry.update(TELEMETRY_OWNER, telemetryPayload());
+  }
+
+  function openTelemetry() {
+    if (!telemetry) return;
+    selected = true;
+    telemetry.open(TELEMETRY_OWNER, telemetryPayload(), clearTelemetry);
+  }
+
+  // One hit-test per pane. Only the position marker opens the strip — the
+  // accuracy disc around it can be hundreds of metres wide, and a tap anywhere
+  // inside it should still reach whatever is underneath.
+  function attachPane(pane) {
+    function findAtPixel(pixel) {
+      if (!pane.ownPositionLayer.getVisible()) return null;
+      let hit = null;
+      pane.map.forEachFeatureAtPixel(pixel, (f, l) => {
+        if (l === pane.ownPositionLayer && f === pane.positionFeature) { hit = f; return true; }
+        return false;
+      }, { hitTolerance: 12 });
+      return hit;
+    }
+    return { findAtPixel, open: openTelemetry };
+  }
+
   function setTracking(enabled) {
     tracking = enabled;
     if (source === 'gps') {
@@ -291,6 +426,9 @@ export default function initOwnLocation({
       applyMarkerStyles(); // covers panes created while tracking was off
     } else {
       onSpeedChange(null); // stopping tracking emits no speed event — hide the dial explicitly
+      // The marker is gone, so readings about it must go too.
+      if (selected && telemetry) telemetry.close(TELEMETRY_OWNER);
+      selected = false;
     }
     setMarkersVisible(enabled);
   }
@@ -372,6 +510,7 @@ export default function initOwnLocation({
   return {
     setTracking,
     adoptPane,
+    attachPane,
     getSource,
     setSource,
     getMmsi,

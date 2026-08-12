@@ -958,6 +958,10 @@ function initNewPane(pane) {
       pane.trains.open(stationHit);
       return;
     }
+    if (pane.ownTelemetry && pane.ownTelemetry.findAtPixel(evt.pixel)) {
+      pane.ownTelemetry.open();
+      return;
+    }
     const planeHit = pane.gliders.findAtPixel(evt.pixel);
     if (planeHit) {
       pane.gliders.open(planeHit);
@@ -1857,6 +1861,8 @@ function initPaneTraffic(pane) {
   pane.trains = trains.attachPane(pane.map, pane.railwayLayer);
   // Aircraft cards follow a moving subject, so each pane keeps its own.
   pane.gliders = gliders.attachPane(pane.map, pane.gliderLayer);
+  // Own position/vessel drives the same strip; only the hit-test is per-pane.
+  if (ownLocation) pane.ownTelemetry = ownLocation.attachPane(pane);
 }
 
 // One crosshair ("Tähtäin") instance per pane: the reticle overlays the
@@ -3181,6 +3187,7 @@ const main = () => {
   ownLocation = initOwnLocation({
     projection: map.getView().getProjection(),
     getPanes: () => panes,
+    telemetry,
     debug,
     onPositionChange: (coordinates, lonLat) => {
       ownPosition = coordinates;
@@ -3212,6 +3219,11 @@ const main = () => {
       if (ownLocationMenu) ownLocationMenu.setVesselInfo(info);
     },
   });
+
+  // Pane 0 is built long before this point, so initPaneTraffic could not have
+  // attached the own-location hit-test — the controller did not exist yet.
+  // Later panes get theirs there, where it does.
+  pane0.ownTelemetry = ownLocation.attachPane(pane0);
 
   ownLocationMenu = initOwnLocationMenu({
     getSource: () => ownLocation.getSource(),
@@ -3297,6 +3309,17 @@ const main = () => {
       const cameraHit = pane0.cameras.findAtPixel(evt.pixel);
       if (cameraHit) {
         pane0.cameras.open(cameraHit);
+        return;
+      }
+    }
+
+    // Tap on our own marker → open its readings. Checked before the POI layers:
+    // it is the one mark the user placed themselves, and it is often sitting on
+    // top of whatever else is at that spot.
+    if (pane0.ownTelemetry) {
+      const ownHit = pane0.ownTelemetry.findAtPixel(evt.pixel);
+      if (ownHit) {
+        pane0.ownTelemetry.open();
         return;
       }
     }
