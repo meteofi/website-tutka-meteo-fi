@@ -175,6 +175,22 @@ const RESTRICTED_R_COLOR = 'rgb(243, 86, 35)';
 // and stack less than a TMA over its own CTR, so the compounding that keeps the
 // rest of this layer unfilled barely arises.
 const RESTRICTED_R_FILL = 'rgba(243, 86, 35, 0.08)';
+// Named like the controlled areas and the FIZ: a lighter tint of its own border
+// over a dark halo of the same hue.
+const RESTRICTED_R_TEXT = 'rgb(247, 145, 112)';
+const RESTRICTED_R_TEXT_HALO = 'rgba(46, 12, 4, 0.85)';
+
+// Prohibited areas (EFP*) — seven of them, over the nuclear plants, the
+// refinery and two patches of Helsinki. The only airspace here you may not
+// enter at all, so they are the one thing on this layer allowed to be loud: a
+// straight red rather than the restricted orange, and filled at 18% where
+// everything else sits at 8%. There are seven and they do not overlap, so the
+// compounding that keeps the rest faint does not apply.
+const PROHIBITED_CODE = 'P';
+const PROHIBITED_COLOR = 'rgb(224, 36, 36)';
+const PROHIBITED_FILL = 'rgba(224, 36, 36, 0.18)';
+const PROHIBITED_TEXT = 'rgb(235, 113, 113)';
+const PROHIBITED_TEXT_HALO = 'rgba(48, 4, 6, 0.85)';
 
 const PALETTES = {
   light: {
@@ -285,8 +301,11 @@ export default function initAirspace() {
     const fizArea = isControlled ? strokeStyle(FIZ_COLOR, FIZ_FILL) : null;
     const filledArea = isControlled
       ? strokeStyle(CONTROLLED_COLOR, CONTROLLED_FILL) : null;
-    const rArea = group === 'restricted'
+    const isRestricted = group === 'restricted';
+    const rArea = isRestricted
       ? strokeStyle(RESTRICTED_R_COLOR, RESTRICTED_R_FILL) : null;
+    const pArea = isRestricted
+      ? strokeStyle(PROHIBITED_COLOR, PROHIBITED_FILL) : null;
     // One shared path, rewritten per feature. The renderer consumes a feature's
     // styles before moving to the next, which is the same reason the train
     // layer can mutate one LineString for its heading tick.
@@ -315,20 +334,29 @@ export default function initAirspace() {
     const fizLabel = isControlled ? makeLabel(FIZ_TEXT, FIZ_TEXT_HALO) : null;
     const controlledLabel = isControlled
       ? makeLabel(CONTROLLED_TEXT, CONTROLLED_TEXT_HALO) : null;
+    const rLabel = isRestricted
+      ? makeLabel(RESTRICTED_R_TEXT, RESTRICTED_R_TEXT_HALO) : null;
+    const pLabel = isRestricted
+      ? makeLabel(PROHIBITED_TEXT, PROHIBITED_TEXT_HALO) : null;
 
     return (feature, resolution) => {
       const code = feature.get('k');
       const isInfo = fizArea && INFO_CODES.has(code);
       let shape = area;
+      const isR = rArea && code === RESTRICTED_R_CODE;
+      const isP = pArea && code === PROHIBITED_CODE;
       if (isInfo) shape = fizArea;
       else if (filledArea && CONTROLLED_FILL_CODES.has(code)) shape = filledArea;
-      else if (rArea && code === RESTRICTED_R_CODE) shape = rArea;
+      else if (isP) shape = pArea;
+      else if (isR) shape = rArea;
       // Within the controlled group everything is either an information zone or
       // controlled airspace, so both carry their own colour; the restrictions
       // and reservations keep the shared per-theme text.
       let text = label;
       if (isInfo) text = fizLabel;
       else if (isControlled) text = controlledLabel;
+      else if (isP) text = pLabel;
+      else if (isR) text = rLabel;
       if (resolution > LABEL_MAX_RESOLUTION) return shape;
       const name = feature.get('n');
       if (!name) return shape;
