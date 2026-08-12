@@ -147,9 +147,16 @@ function normalLeft(a, b, sign) {
 // areas on it washed the whole of southern Finland and discoloured the radar
 // echo, which is the one thing this app exists to show. A boundary is a line;
 // drawing it as one costs nothing and compounds with nothing.
+// CTR, TMA and CTA — the airspace you need a clearance to enter. One blue on
+// both themes rather than a light/dark pair: it sits mid-tone, so it holds
+// against the pale basemap without going black and against the dark one without
+// glaring. The ADIZ shares it, being the one other thing in this group that is
+// not an information zone.
+const CONTROLLED_COLOR = 'rgb(86, 117, 215)';
+
 const PALETTES = {
   light: {
-    controlled: 'rgba(21, 82, 168, 0.8)',
+    controlled: CONTROLLED_COLOR,
     restricted: 'rgba(178, 34, 34, 0.8)',
     // Dimmest of the three: they are the most numerous by far, so they are the
     // ones that decide whether the map is readable.
@@ -158,7 +165,7 @@ const PALETTES = {
     textHalo: 'rgba(255, 255, 255, 0.95)',
   },
   dark: {
-    controlled: 'rgba(122, 175, 255, 0.8)',
+    controlled: CONTROLLED_COLOR,
     restricted: 'rgba(255, 122, 122, 0.8)',
     reserved: 'rgba(214, 138, 226, 0.5)',
     textFill: '#f0f0f0',
