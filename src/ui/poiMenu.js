@@ -13,10 +13,21 @@
 // length as before. It only grows while someone is actually using that topic,
 // and it collapses again on its own the next time the menu is opened.
 //
-// The group switch stays the primary control and keeps its whole-row hit
-// target. The chevron is a separate button precisely because those two actions
-// must not be reachable by the same press — a stray tap should never silently
-// hide a layer the user thought they were expanding.
+// The chevron is a separate button precisely because expanding and switching
+// off must not be reachable by the same press — a stray tap should never
+// silently hide a layer the user thought they were expanding.
+//
+// THE SWITCH ON A TOPIC WITH PARTS IS A REAL THREE-POSITION CONTROL. Pressing
+// its left end turns the whole topic off, its right end turns every part on,
+// and the knob genuinely sits at the position it reports. Pressing anywhere
+// ELSE on the row is the ordinary toggle, which remembers: a topic hidden and
+// shown again comes back with the parts you had chosen, not with all of them.
+// That split is the whole point — the switch is for saying "none" or "all"
+// outright, the row is for putting a topic away without losing your selection.
+//
+// Only topics with parts get this. A plain row has nothing to be partial about,
+// and making its switch positional would turn a press on the end it already
+// sits at into a confusing no-op.
 
 const EXPAND_ICON = 'expand_more';
 
@@ -29,6 +40,9 @@ export default function initPoiMenu({
   isChildOn = () => false,
   // The caller mutates its own state, applies it and persists.
   onToggle,
+  // (id, on) -> void. The switch pressed at one of its ends, which is absolute
+  // rather than a toggle: left means none of the topic, right means all of it.
+  onSetGroup = () => {},
   onToggleChild = () => {},
 } = {}) {
   if (!container) return { refresh() {}, collapseAll() {} };
@@ -86,6 +100,15 @@ export default function initPoiMenu({
     el.className = 'switch';
     el.setAttribute('aria-hidden', 'true');
     return el;
+  }
+
+  // Which end of the switch was pressed. Measured against the element rather
+  // than trusting offsetX, which is relative to whatever the event happened to
+  // land on — the knob is a pseudo-element, but padding and hit slop are not.
+  function pressedRightEnd(switchEl, event) {
+    const rect = switchEl.getBoundingClientRect();
+    if (!rect.width) return false;
+    return (event.clientX - rect.left) >= rect.width / 2;
   }
 
   // Space and Enter operate a row; the arrow keys open and close a topic, which
@@ -153,8 +176,21 @@ export default function initPoiMenu({
       row.appendChild(toggleEl);
     }
 
-    row.appendChild(makeSwitch());
+    const switchEl = makeSwitch();
+    if (entry.children) {
+      // Stops the press so the row's own toggle does not also run: on this row
+      // the switch and the rest of the row mean different things.
+      switchEl.addEventListener('mouseup', (e) => {
+        e.stopPropagation();
+        onSetGroup(entry.id, pressedRightEnd(switchEl, e));
+      });
+    }
+    row.appendChild(switchEl);
     row.addEventListener('mouseup', () => onToggle(entry.id));
+    // Keyboard keeps the remembering toggle on the row and reaches "all on" by
+    // the parts themselves, which are focusable rows of their own. The ends of
+    // the switch are a pointer affordance; nothing is only reachable through
+    // them.
     wireKeys(row, () => onToggle(entry.id), entry);
     return row;
   }

@@ -2631,28 +2631,44 @@ function applyPoiVisibility() {
   trainLocations.setEnabled(isPoiOn('railwaystations', 'trains'));
 }
 
+// Pressing the ROW is the remembering toggle: it hides or shows a topic without
+// forgetting which of its parts you had chosen. Coming back on therefore returns
+// exactly the selection you left, not all of it.
+//
+// The one thing it has to special-case is a topic with nothing left in it —
+// switching that "on" would light the switch above an empty map, so the parts
+// come back with it.
 function togglePoi(id) {
   const entry = poiRegistry.find((e) => e.id === id);
   const children = (entry && entry.children) || [];
-  const shown = children.filter((c) => POI_STATE[poiChildKey(entry, c)]).length;
-  // A topic showing only SOME of its parts completes itself before it switches
-  // off. That is what the mid-travel knob invites — it is sitting half way, so
-  // pushing it should finish the journey — and without it the only route back
-  // to the whole topic is to open it and tick the rest by hand. Switching off
-  // is then the next press, from a switch that is honestly all the way on.
-  const completing = !!POI_STATE[id] && shown > 0 && shown < children.length;
-  POI_STATE[id] = completing || !POI_STATE[id];
-  // Turning a topic on means "show this topic", so a topic with nothing left in
-  // it gets its parts back rather than leaving a lit switch above an empty map.
-  // Otherwise the parts are left alone — switching a whole topic off and on
-  // again returns exactly what was there before.
-  if (POI_STATE[id] && children.length && (completing || shown === 0)) {
+  POI_STATE[id] = !POI_STATE[id];
+  if (POI_STATE[id] && children.length
+    && children.every((c) => !POI_STATE[poiChildKey(entry, c)])) {
     children.forEach((c) => { POI_STATE[poiChildKey(entry, c)] = true; });
   }
   applyPoiVisibility();
   persistPoiState();
   if (poiMenu) poiMenu.refresh();
   track('poi-toggle', { id, visible: POI_STATE[id] });
+}
+
+// Pressing the SWITCH itself is absolute, by the side pressed: its left end
+// means none of this topic, its right end means all of it. That is what makes
+// the three positions real controls rather than just a readout — the knob
+// sitting mid-travel can be pushed either way — and it is the only way to say
+// "all of it" without opening the topic and ticking the rest by hand.
+//
+// Deliberately NOT a toggle: pressing the end a switch already sits at does
+// nothing, which is the point. The remembering toggle is the rest of the row.
+function setPoiGroup(id, on) {
+  const entry = poiRegistry.find((e) => e.id === id);
+  const children = (entry && entry.children) || [];
+  POI_STATE[id] = on;
+  if (on) children.forEach((c) => { POI_STATE[poiChildKey(entry, c)] = true; });
+  applyPoiVisibility();
+  persistPoiState();
+  if (poiMenu) poiMenu.refresh();
+  track('poi-toggle', { id, visible: on });
 }
 
 function togglePoiChild(entryId, childId) {
@@ -2678,6 +2694,7 @@ poiMenu = initPoiMenu({
   isOn: (id) => !!POI_STATE[id],
   isChildOn: (entryId, childId) => !!POI_STATE[`${entryId}.${childId}`],
   onToggle: togglePoi,
+  onSetGroup: setPoiGroup,
   onToggleChild: togglePoiChild,
 });
 
