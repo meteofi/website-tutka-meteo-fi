@@ -182,6 +182,20 @@ const DASHES = { reserved: [6, 4] };
 // saturated enough for the light one.
 const INFO_CODES = new Set(['FIZ', 'RMZ']);
 const FIZ_COLOR = 'rgb(112, 235, 235)';
+// The one group that carries a fill, and only just: a flight information zone is
+// a place you are inside or outside of in a way a control area is not, so the
+// hint is worth having. Kept at 8% because the general no-fill rule above still
+// applies in spirit — a FIZ UPPER and a FIZ LOWER share the same footprint, so
+// even this doubles where they stack.
+const FIZ_FILL = 'rgba(112, 235, 235, 0.08)';
+// Lighter than the border so the text lifts off it rather than merging into it.
+const FIZ_TEXT = 'rgb(150, 243, 243)';
+// …which means its halo cannot follow the theme like every other label here.
+// The rule elsewhere is that the halo inverts against the BASEMAP, but this
+// text is near-white on both, so on the light basemap a white halo left it
+// washed out to the point of being unreadable. The halo has to invert against
+// the TEXT instead: dark on both themes.
+const FIZ_TEXT_HALO = 'rgba(0, 40, 40, 0.85)';
 
 export default function initAirspace() {
   const format = new GeoJSON({ featureProjection: 'EPSG:3857' });
@@ -227,26 +241,27 @@ export default function initAirspace() {
 
   function makeStyleFunction(theme, group) {
     const palette = PALETTES[theme];
-    const strokeStyle = (color) => new Style({
+    const strokeStyle = (color, fillColor) => new Style({
       stroke: new Stroke({
         color,
         width: group === 'controlled' ? 1.2 : 1.4,
         lineDash: DASHES[group],
       }),
+      fill: fillColor ? new Fill({ color: fillColor }) : undefined,
     });
     const area = strokeStyle(palette[group]);
     // Built only where it can occur, so every other group keeps a single style
     // object and a straight return.
-    const fizArea = group === 'controlled' ? strokeStyle(FIZ_COLOR) : null;
+    const fizArea = group === 'controlled' ? strokeStyle(FIZ_COLOR, FIZ_FILL) : null;
     // One shared path, rewritten per feature. The renderer consumes a feature's
     // styles before moving to the next, which is the same reason the train
     // layer can mutate one LineString for its heading tick.
     const labelPath = new LineString([[0, 0], [0, 0]]);
     // Its own Style so it can be decluttered away while the boundary stays —
     // the polygon is the data, the label is a convenience.
-    const label = new Style({
+    const makeLabel = (color, halo) => new Style({
       text: new Text({
-        font: '600 11px Roboto, sans-serif',
+        font: '600 10px Roboto, sans-serif',
         // `line` follows the polygon's ring; `repeat` re-draws it every so many
         // pixels along it. Sitting just off the line rather than on it keeps the
         // boundary itself unbroken, since OpenLayers will not gap a stroke for
@@ -256,13 +271,19 @@ export default function initAirspace() {
         // Centred ON the inset path, so the whole text block sits inside the
         // boundary rather than straddling it.
         textBaseline: 'middle',
-        fill: new Fill({ color: palette.textFill }),
-        stroke: new Stroke({ color: palette.textHalo, width: 3 }),
+        fill: new Fill({ color }),
+        stroke: new Stroke({ color: halo, width: 3 }),
       }),
     });
+    const label = makeLabel(palette.textFill, palette.textHalo);
+    // A FIZ names itself in its own colour, so a cyan boundary and the text
+    // running along it read as one thing.
+    const fizLabel = group === 'controlled' ? makeLabel(FIZ_TEXT, FIZ_TEXT_HALO) : null;
 
     return (feature, resolution) => {
-      const shape = fizArea && INFO_CODES.has(feature.get('k')) ? fizArea : area;
+      const isInfo = fizArea && INFO_CODES.has(feature.get('k'));
+      const shape = isInfo ? fizArea : area;
+      const text = isInfo ? fizLabel : label;
       if (resolution > LABEL_MAX_RESOLUTION) return shape;
       const name = feature.get('n');
       if (!name) return shape;
@@ -273,10 +294,10 @@ export default function initAirspace() {
       // not two: text following a curve cannot stack, and a boundary label that
       // needs two rows would only fit on the straightest stretches. An en dash,
       // not a hyphen — it is a range.
-      const text = resolution <= LIMITS_MAX_RESOLUTION && (lower || upper)
+      const labelText = resolution <= LIMITS_MAX_RESOLUTION && (lower || upper)
         ? `${name}  ${lower}–${upper}`
         : name;
-      label.getText().setText(text);
+      text.getText().setText(labelText);
       // Inside the area, not on it. Falls back to the boundary itself when the
       // airspace is too small to step into — the label geometry always stays
       // within the feature's own extent either way, so nothing here can be
@@ -284,8 +305,8 @@ export default function initAirspace() {
       const ring = feature.getGeometry().getCoordinates()[0];
       const inset = insetRing(ring, LABEL_INSET_PX * resolution);
       labelPath.setCoordinates(inset || ring);
-      label.setGeometry(labelPath);
-      return [shape, label];
+      text.setGeometry(labelPath);
+      return [shape, text];
     };
   }
 
