@@ -57,7 +57,17 @@ const TYPES = {
   2: { code: 'D', label: 'Vaara-alue', group: 'restricted' },
   3: { code: 'P', label: 'Kieltoalue', group: 'restricted' },
   4: { code: 'CTR', label: 'Lähialue', group: 'controlled' },
-  6: { code: 'FIZ', label: 'Lentotiedotusvyöhyke', group: 'controlled' },
+  // openAIP's type 6 is a Radio Mandatory Zone, and Finland files both its
+  // flight information zones AND at least one genuine RMZ (EFNU) under it —
+  // ten FIZ against one RMZ in the 2026-08-12 export. Telling them apart by
+  // name keeps the layer from calling Nummela's radio zone a FIZ.
+  6: {
+    code: 'FIZ',
+    label: 'Lentotiedotusvyöhyke',
+    group: 'controlled',
+    variant: (name) => (/\bRMZ\b/.test(name)
+      ? { code: 'RMZ', label: 'Radiovyöhyke' } : null),
+  },
   7: { code: 'TMA', label: 'Lähestymisalue', group: 'controlled' },
   8: { code: 'TRA', label: 'Tilapäinen varausalue', group: 'reserved' },
   9: { code: 'TSA', label: 'Tilapäisesti erotettu alue', group: 'reserved' },
@@ -129,12 +139,13 @@ for (const f of source.features) {
     continue;
   }
   counts[spec.group] = (counts[spec.group] || 0) + 1;
+  const variant = spec.variant && spec.variant(p.name || '');
   features.push({
     type: 'Feature',
     properties: {
       n: p.name || '',
       // Short keys: this file ships to every visitor who switches the layer on.
-      k: spec.code,
+      k: variant ? variant.code : spec.code,
       g: spec.group,
       c: CLASSES[p.icaoClass] || '',
       u: limitText(p.upperLimit),

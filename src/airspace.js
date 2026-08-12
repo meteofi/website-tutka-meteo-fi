@@ -171,6 +171,18 @@ const PALETTES = {
 // edge reads as "provisional" without claiming anything specific.
 const DASHES = { reserved: [6, 4] };
 
+// A flight information zone is grouped with controlled airspace but is NOT
+// controlled — it is class G, where the service is information rather than
+// clearance. Same group, because that is where a reader looks for it, but its
+// own cyan border so it is not mistaken for the CTR or TMA it usually sits
+// beside. The one radio mandatory zone shares the colour: it is the same kind
+// of place, somewhere you must be heard rather than cleared.
+//
+// One colour for both themes — already light enough for the dark basemap and
+// saturated enough for the light one.
+const INFO_CODES = new Set(['FIZ', 'RMZ']);
+const FIZ_COLOR = 'rgb(112, 235, 235)';
+
 export default function initAirspace() {
   const format = new GeoJSON({ featureProjection: 'EPSG:3857' });
   // One source per part, so switching a part off is a layer going invisible
@@ -215,13 +227,17 @@ export default function initAirspace() {
 
   function makeStyleFunction(theme, group) {
     const palette = PALETTES[theme];
-    const area = new Style({
+    const strokeStyle = (color) => new Style({
       stroke: new Stroke({
-        color: palette[group],
+        color,
         width: group === 'controlled' ? 1.2 : 1.4,
         lineDash: DASHES[group],
       }),
     });
+    const area = strokeStyle(palette[group]);
+    // Built only where it can occur, so every other group keeps a single style
+    // object and a straight return.
+    const fizArea = group === 'controlled' ? strokeStyle(FIZ_COLOR) : null;
     // One shared path, rewritten per feature. The renderer consumes a feature's
     // styles before moving to the next, which is the same reason the train
     // layer can mutate one LineString for its heading tick.
@@ -246,9 +262,10 @@ export default function initAirspace() {
     });
 
     return (feature, resolution) => {
-      if (resolution > LABEL_MAX_RESOLUTION) return area;
+      const shape = fizArea && INFO_CODES.has(feature.get('k')) ? fizArea : area;
+      if (resolution > LABEL_MAX_RESOLUTION) return shape;
       const name = feature.get('n');
-      if (!name) return area;
+      if (!name) return shape;
       const lower = feature.get('l');
       const upper = feature.get('u');
       // Limits are what turn "there is an airspace here" into something a
@@ -268,7 +285,7 @@ export default function initAirspace() {
       const inset = insetRing(ring, LABEL_INSET_PX * resolution);
       labelPath.setCoordinates(inset || ring);
       label.setGeometry(labelPath);
-      return [area, label];
+      return [shape, label];
     };
   }
 
