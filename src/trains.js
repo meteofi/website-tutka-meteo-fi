@@ -1,5 +1,5 @@
-// Departure board for a tapped railway station, from Digitraffic's live-trains
-// API (`rata.digitraffic.fi/api/v1/live-trains/station/<code>`).
+// Departure board for a tapped railway station, from Digitraffic's rail GraphQL
+// API (`rata.digitraffic.fi/api/v2/graphql/graphql`).
 //
 // Bottom panel, the crossSection.js / weatherCameras.js pattern: `hidden` is
 // removed once at build time and the height-0 / `.open` CSS transition does the
@@ -101,6 +101,31 @@ const PASSENGER_CATEGORIES = new Set(['Commuter', 'Long-distance']);
 // them calling at ILR. They carry no passengers and no public timetable lists
 // them, so a board must not either.
 const NON_PUBLIC_TRAIN_TYPES = new Set(['HV']);
+
+// Kehärata, the ring rail, is Finland's only circular passenger service: lines I
+// and P run Helsinki -> airport -> Helsinki in opposite directions, I round by
+// Tikkurila and P round by Myyrmäki. Both START AND END at Helsinki, so at
+// Helsinki the ends of the run say nothing — the board dropped them, because a
+// destination equal to the station you are standing at is normally a train
+// terminating here. Measured at Helsinki: 7 of 30 trains in the payload are
+// these loops, and 6 of them vanished off the board.
+//
+// What every Finnish board shows instead — destination Lentoasema, via Tikkurila
+// or via Myyrmäki — is HSL's editorial convention and is NOT derivable from the
+// API. Checked against the live routes on 2026-08-13, no geometric rule
+// reproduces it: the stop farthest from Helsinki is Leinelä, the midpoint by
+// both time and index is Aviapolis, and the midpoint of the outbound leg is
+// Louhela for P and Malmi for I. None of those is what a passenger is told, and
+// the bundled station snapshot carries no notion of which stop matters. So this
+// is a table on purpose, not a heuristic that looks principled and is wrong.
+//
+// Keyed on the commuter line, and applied ONLY to a train whose run begins and
+// ends at the station being displayed. Any other loop the network invents later
+// keeps the old behaviour of being left off rather than being mislabelled.
+const RING_ROUTES = {
+  I: { destination: 'LEN', via: 'TKL' },
+  P: { destination: 'LEN', via: 'MYR' },
+};
 
 // Estimates move while the panel sits open; the schedule itself does not.
 const REFRESH_MS = 30000;
@@ -229,10 +254,21 @@ export function boardRows(trains, stationCode, mode, nowMs = Date.now()) {
     // the row order being ascending by scheduled time.
     const here = (train.rows || []).find((r) => r.type === wantType);
     if (!here) return;
-    const endpoint = mode === 'arrivals' ? train.originCode : train.destinationCode;
-    // A train terminating here has no onward destination to show, and one
-    // starting here has no origin — the endpoint would just repeat the station.
-    if (!endpoint || endpoint === stationCode) return;
+    let endpoint = mode === 'arrivals' ? train.originCode : train.destinationCode;
+    let via = '';
+    if (!endpoint) return;
+    if (endpoint === stationCode) {
+      // Either a train terminating here — the endpoint would just repeat the
+      // station — or a ring service, which needs the far side of the loop named
+      // instead. Only the second is worth showing.
+      const ring = train.originCode === train.destinationCode
+        && RING_ROUTES[train.commuterLineID];
+      if (!ring) return;
+      endpoint = ring.destination;
+      // The two ring lines are otherwise indistinguishable on a board: both are
+      // a train to the airport leaving Helsinki. The via IS the direction.
+      via = ring.via;
+    }
     const scheduledMs = Date.parse(here.scheduledTime);
     if (!Number.isFinite(scheduledMs)) return;
     const estimateMs = Date.parse(here.liveEstimateTime || here.actualTime) || null;
@@ -251,6 +287,7 @@ export function boardRows(trains, stationCode, mode, nowMs = Date.now()) {
       lateMinutes: Number.isFinite(here.differenceInMinutes) ? here.differenceInMinutes : 0,
       track: here.commercialTrack || '',
       endpoint,
+      via,
       cancelled: !!(train.cancelled || here.cancelled),
     });
   });
@@ -364,7 +401,9 @@ export default function initTrains({ container, stationsUrl } = {}) {
         <td class="train-time">${scheduled}</td>
         <td class="train-time">${estimate}</td>
         <td class="train-track">${r.track}</td>
-        <td class="train-endpoint">${stationName(r.endpoint)}</td>
+        <td class="train-endpoint">${stationName(r.endpoint)}${
+  r.via ? `<span class="train-via">via ${stationName(r.via)}</span>` : ''
+}</td>
       </tr>`;
     }).join('');
     panel.table.innerHTML = `${head}<tbody>${body}</tbody>`;
