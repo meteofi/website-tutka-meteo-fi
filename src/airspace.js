@@ -45,9 +45,17 @@ export const AIRSPACE_GROUPS = ['controlled', 'restricted', 'reserved'];
 // about z9 and closer. Wider than that the polygons still draw; it is only the
 // text that would be unreadable and would bury the radar underneath it.
 const LABEL_MAX_RESOLUTION = 400;
-// The vertical limits are the second line, and they only earn their space once
-// there is room to read both — about z11.
+// The vertical limits are appended once there is room to read them — about z11.
 const LIMITS_MAX_RESOLUTION = 90;
+
+// Labels ride the BOUNDARY, not the middle of the area, which is how an
+// aeronautical chart does it and for the same two reasons. An airspace is
+// defined by its edge, so that is where the reader is looking; and these areas
+// are large — at the zooms where the text is readable the centre is usually off
+// screen, so a single label at the centroid would be missing exactly when it
+// was wanted. Repeating along the edge means whichever stretch of boundary is
+// on screen carries its own name.
+const LABEL_REPEAT_PX = 340;
 
 // Chart conventions, which pilots already read without a legend: controlled
 // airspace blue, the restrictions red, military reservations magenta. Each
@@ -142,9 +150,16 @@ export default function initAirspace() {
     const label = new Style({
       text: new Text({
         font: '600 11px Roboto, sans-serif',
+        // `line` follows the polygon's ring; `repeat` re-draws it every so many
+        // pixels along it. Sitting just off the line rather than on it keeps the
+        // boundary itself unbroken, since OpenLayers will not gap a stroke for
+        // text the way a chart's engraver would.
+        placement: 'line',
+        repeat: LABEL_REPEAT_PX,
+        textBaseline: 'bottom',
+        offsetY: -3,
         fill: new Fill({ color: palette.textFill }),
-        stroke: new Stroke({ color: palette.textHalo, width: 2.5 }),
-        overflow: false,
+        stroke: new Stroke({ color: palette.textHalo, width: 3 }),
       }),
     });
 
@@ -154,11 +169,13 @@ export default function initAirspace() {
       if (!name) return area;
       const lower = feature.get('l');
       const upper = feature.get('u');
-      // Limits are what turns "there is an airspace here" into something a
-      // reader can act on, but they double the label's height, so they wait
-      // until there is room. An en dash, not a hyphen: it is a range.
+      // Limits are what turn "there is an airspace here" into something a
+      // reader can act on, so they join the name once there is room. One line,
+      // not two: text following a curve cannot stack, and a boundary label that
+      // needs two rows would only fit on the straightest stretches. An en dash,
+      // not a hyphen — it is a range.
       const text = resolution <= LIMITS_MAX_RESOLUTION && (lower || upper)
-        ? `${name}\n${lower}–${upper}`
+        ? `${name}  ${lower}–${upper}`
         : name;
       label.getText().setText(text);
       return [area, label];
