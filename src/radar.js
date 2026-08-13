@@ -44,6 +44,7 @@ import initWeatherCameras from './weatherCameras';
 import initTrains from './trains';
 import initGliders from './gliders';
 import initTrainLocations from './trainLocations';
+import initAirspace from './airspace';
 import initTelemetryPanel from './ui/telemetryPanel';
 import railwayStationsUrl from './data/railway-stations-finland.geojson';
 import radarSitesFallbackUrl from './data/radars-finland.geojson';
@@ -782,6 +783,10 @@ const trains = initTrains({
 // the aircraft and the AIS vessel: the feed carries current positions only, so
 // setTime does not route here. Reuses the departure board's station-name lookup
 // so both expand short codes from one bundled snapshot.
+// Airspace (Ilmatilat) from a bundled openAIP snapshot. Static and clock-free:
+// the file has no time dimension, so setTime does not route here.
+const airspace = initAirspace();
+
 const trainLocations = initTrainLocations({
   telemetry,
   stationName: (code) => trains.stationName(code),
@@ -816,6 +821,7 @@ const paneDeps = {
   createWeatherCameraLayer: weatherCameras.createPaneLayer,
   createGliderLayer: gliders.createPaneLayer,
   createTrainLocationLayer: trainLocations.createPaneLayer,
+  createAirspaceLayer: airspace.createPaneLayer,
   createSearchHighlightLayer: searchHighlight.createPaneLayer,
 };
 
@@ -1593,6 +1599,10 @@ function setMapLayer(maplayer) {
     pane.trainLocationLayer.setStyle(
       light ? trainLocations.styleLight : trainLocations.styleDark,
     );
+    const airspaceTheme = light ? 'light' : 'dark';
+    pane.airspaceControlledLayer.setStyle(airspace.styleFor('controlled', airspaceTheme));
+    pane.airspaceRestrictedLayer.setStyle(airspace.styleFor('restricted', airspaceTheme));
+    pane.airspaceReservedLayer.setStyle(airspace.styleFor('reserved', airspaceTheme));
   }
   applyIcaoTheme(maplayer);
   applyVesivaylatTheme(maplayer);
@@ -2530,6 +2540,28 @@ const poiRegistry = [
     layerKeys: ['gliderLayer'],
   },
   {
+    // Aviation context, and the app's only CC BY-NC dataset — see
+    // scripts/fetch-airspace.mjs. Three parts because they answer different
+    // questions: where you may not go, where you must talk to someone, and
+    // where the military might be. The reservation areas are 378 of the 684
+    // polygons and are off by default; on, at synoptic zoom, they cover much of
+    // the country and bury the radar this app exists to show.
+    id: 'airspace',
+    label: 'Ilmatilat',
+    icon: 'radar',
+    defaultOn: false,
+    children: [
+      { id: 'controlled', label: 'Valvottu ilmatila', layerKeys: ['airspaceControlledLayer'] },
+      { id: 'restricted', label: 'Rajoitusalueet', layerKeys: ['airspaceRestrictedLayer'] },
+      {
+        id: 'reserved',
+        label: 'Varausalueet',
+        layerKeys: ['airspaceReservedLayer'],
+        defaultOn: false,
+      },
+    ],
+  },
+  {
     // A topic with parts. The group switch still turns the whole thing on and
     // off — a station marker with no line under it reads as a dot in a field,
     // so the default remains all-or-nothing — but the parts can be operated
@@ -2612,13 +2644,16 @@ const POI_STATE = (() => {
   const state = {};
   poiRegistry.forEach((entry) => {
     state[entry.id] = has(entry.id) ? !!persisted[entry.id] : entry.defaultOn;
-    // Parts default to ON rather than to the topic's own default. A topic that
-    // has never been split before was all-or-nothing, so everyone's saved
+    // Parts default to ON unless the part says otherwise. A topic that has
+    // never been split before was all-or-nothing, so everyone's saved
     // `railwaystations: true` has to keep meaning all three — the group switch
-    // alone decides whether anything shows.
+    // alone decides whether anything shows. A part may still opt out
+    // (`defaultOn: false`) when it is too heavy to be a sensible default, which
+    // is how the airspace reservation areas start off.
     (entry.children || []).forEach((child) => {
       const key = poiChildKey(entry, child);
-      state[key] = has(key) ? !!persisted[key] : true;
+      const fallback = child.defaultOn !== false;
+      state[key] = has(key) ? !!persisted[key] : fallback;
     });
   });
   return state;
@@ -2658,6 +2693,9 @@ function applyPoiVisibility() {
   // the toggle gates the MQTT subscription, not just whether the markers paint,
   // so switching Junat off alone must also close the socket.
   trainLocations.setEnabled(isPoiOn('railwaystations', 'trains'));
+  // Airspace is a bundled file, and the toggle gates fetching it: most visitors
+  // never switch this on and should not pay 254 kB for it.
+  airspace.setEnabled(!!POI_STATE.airspace);
 }
 
 // Pressing the ROW is the remembering toggle: it hides or shows a topic without
@@ -3585,6 +3623,9 @@ function shareAttributions() {
   }
   // POI vector layers carry no layerInfo — credit the ones that need it while on.
   if (POI_STATE.turnpoints) parts.add('Käännöspisteet © Ilmailuliitto');
+  // Required: openAIP is CC BY-NC, so the credit is a licence condition rather
+  // than a courtesy.
+  if (POI_STATE.airspace) parts.add('Ilmatilat © openAIP (CC BY-NC 4.0)');
   if (POI_STATE.gliders) parts.add('Lentokoneet © Open Glider Network');
   // Credited per part now that they can be switched independently — showing
   // only the track network should not claim to be showing Fintraffic's trains.

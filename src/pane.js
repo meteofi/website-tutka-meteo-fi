@@ -99,6 +99,9 @@ export default function createPane(targetEl, sharedView, deps) {
     // Live train positions (src/trainLocations.js) — panes share one
     // VectorSource; the controller owns the MQTT subscription.
     createTrainLocationLayer,
+    // Airspace (src/airspace.js) — called once per part; panes share the three
+    // VectorSources the controller fills from one bundled snapshot.
+    createAirspaceLayer,
     // Place-search highlight pulse (src/search/searchHighlight.js) — panes
     // share one VectorSource so the pulse shows in every split-screen pane.
     createSearchHighlightLayer,
@@ -382,6 +385,16 @@ export default function createPane(targetEl, sharedView, deps) {
   // Rautatiet layer that is actually moving.
   const trainLocationLayer = createTrainLocationLayer();
 
+  // Airspace sits BELOW every point marker — the radar sites, the aerodromes,
+  // the turnpoints. It is context for them: an aerodrome inside a CTR is the
+  // thing being looked at, and a boundary drawn over its mark would both hide it
+  // and take the tap meant for it. Within the group, reservation areas
+  // underneath, being the largest and least specific, then the restrictions,
+  // then controlled airspace on top.
+  const airspaceReservedLayer = createAirspaceLayer('reserved');
+  const airspaceRestrictedLayer = createAirspaceLayer('restricted');
+  const airspaceControlledLayer = createAirspaceLayer('controlled');
+
   const guideLayer = new VectorLayer({
     source: new Vector(),
     style: rangeStyle,
@@ -424,6 +437,9 @@ export default function createPane(targetEl, sharedView, deps) {
     municipalityLayer,
     vesivaylaAreaLayer,
     vesivaylatLayer,
+    airspaceReservedLayer,
+    airspaceRestrictedLayer,
+    airspaceControlledLayer,
     radarSiteLayer,
     icaoLayer,
     turnpointLayer,
@@ -463,6 +479,9 @@ export default function createPane(targetEl, sharedView, deps) {
     lightningLayer,
     lightningWmsLayer,
     observationLayer,
+    airspaceReservedLayer,
+    airspaceRestrictedLayer,
+    airspaceControlledLayer,
     radarSiteLayer,
     icaoLayer,
     turnpointLayer,
