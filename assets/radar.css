@@ -1213,7 +1213,12 @@ body.split-4 #placeSearchButton {
   #overflowMenu .menu-row.is-child:has(+ .menu-row[data-poi])::before {
     bottom: 50%;
   }
-  #overflowMenu .menu-row.is-child[hidden] { display: none; }
+  /* `hidden` alone cannot hide a menu row: the base rule sets display:flex,
+     which beats the browser's own [hidden] { display: none }. Every collapsible
+     row needs this — the parts of a topic AND the topics inside a section. It
+     was scoped to .is-child once, which left an Ilmailu row that reported
+     itself hidden while still being painted, so the section would not collapse. */
+  #overflowMenu .menu-row[hidden] { display: none; }
   #overflowMenu .menu-row.is-child .menu-label {
     font-size: 13px;
     color: var(--dark-medium-emphasis-text-color);
