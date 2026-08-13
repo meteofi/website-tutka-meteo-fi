@@ -791,7 +791,7 @@ const airspace = initAirspace();
 // Search-and-rescue vessels from the marine AIS feed. Wall-clock like the
 // aircraft and the trains: AIS says where a vessel is now, so setTime does not
 // route here.
-const rescueVessels = initRescueVessels();
+const rescueVessels = initRescueVessels({ telemetry });
 
 const trainLocations = initTrainLocations({
   telemetry,
@@ -1012,6 +1012,11 @@ function initNewPane(pane) {
     // Checked before the station under it: a train standing at a platform sits
     // almost on top of the station marker, and a tap that lands on the thing
     // that is moving is the deliberate one.
+    const vesselHit = pane.rescueVessels.findAtPixel(evt.pixel);
+    if (vesselHit) {
+      pane.rescueVessels.open(vesselHit);
+      return;
+    }
     const trainHit = pane.trainLocations.findAtPixel(evt.pixel);
     if (trainHit) {
       pane.trainLocations.open(trainHit);
@@ -1935,6 +1940,7 @@ function initPaneTraffic(pane) {
   // Aircraft cards follow a moving subject, so each pane keeps its own.
   pane.gliders = gliders.attachPane(pane.map, pane.gliderLayer);
   pane.trainLocations = trainLocations.attachPane(pane.map, pane.trainLocationLayer);
+  pane.rescueVessels = rescueVessels.attachPane(pane.map, pane.rescueVesselLayer);
   // Own position/vessel drives the same strip; only the hit-test is per-pane.
   if (ownLocation) pane.ownTelemetry = ownLocation.attachPane(pane);
 }
@@ -3543,6 +3549,17 @@ const main = () => {
       const planeHit = pane0.gliders.findAtPixel(evt.pixel);
       if (planeHit) {
         pane0.gliders.open(planeHit);
+        return;
+      }
+    }
+
+    // Tap on a rescue vessel → open its telemetry strip. With the other live
+    // movers: the targets are small, they move, and a tap that lands on one is
+    // deliberate.
+    if (pane0.rescueVessels) {
+      const vesselHit = pane0.rescueVessels.findAtPixel(evt.pixel);
+      if (vesselHit) {
+        pane0.rescueVessels.open(vesselHit);
         return;
       }
     }

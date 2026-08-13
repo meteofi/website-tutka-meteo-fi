@@ -34,6 +34,7 @@ import { fromLonLat } from 'ol/proj';
 
 import createAisClient from './aisClient';
 import { createOwnShipStyleFn } from './ownShipStyle';
+import { ageText, cell, rotCell } from './aisFormat';
 
 // AIS ship type for search and rescue.
 const SAR_SHIP_TYPE = 51;
@@ -64,7 +65,12 @@ const clean = {
   rot: (v) => (v === -128 || Math.abs(v) === 127 ? null : v),
 };
 
-export default function initRescueVessels() {
+// Names and numbers appear only once the map is close enough to have room —
+// the same band the aircraft readouts and the station names use. A fleet of
+// fifty is a different problem from one own vessel, which is always labelled.
+const LABEL_MAX_RESOLUTION = 320;
+
+export default function initRescueVessels({ telemetry } = {}) {
   const source = new VectorSource({
     attributions: 'Pelastusalukset © <a href="https://www.digitraffic.fi/">Fintraffic</a> (CC BY 4.0)',
   });
@@ -102,6 +108,7 @@ export default function initRescueVessels() {
       stale: Date.now() - atMs > STALE_MS,
     }, true);
     feature.changed();
+    syncSelection();
   }
 
   function clearAll() {
@@ -121,6 +128,7 @@ export default function initRescueVessels() {
       if (stale !== state.stale) feature.set('aisState', { ...state, stale }, true);
     });
     source.changed();
+    syncSelection();
   }
 
   async function start() {
@@ -173,9 +181,91 @@ export default function initRescueVessels() {
     upsert(mmsi, data);
   }
 
-  const style = createOwnShipStyleFn({ rgb: RESCUE_RGB });
+  const style = createOwnShipStyleFn({
+    rgb: RESCUE_RGB,
+    labelMaxResolution: LABEL_MAX_RESOLUTION,
+    // Most of these are alongside most of the time; a harbour full of "0,0 kn"
+    // says nothing, and the name is what identifies the target.
+    courseWhenUnderWay: true,
+    // Never thinned away, for the reason the aircraft readouts are not: a label
+    // that appears only sometimes is worse than one that always does.
+    labelAlwaysDrawn: true,
+  });
+
+  //
+  // SELECTION -> TELEMETRY STRIP
+  //
+  // The same panel the own vessel, the aircraft and the trains use — and for a
+  // rescue vessel the readings are exactly the own vessel's, because it is the
+  // same kind of object seen from outside.
+  const OWNER = 'rescueVessels';
+  let selectedMmsi = null;
+
+  function payloadFor(feature) {
+    const st = feature.get('aisState') || {};
+    return {
+      icon: 'support',
+      title: st.name || `MMSI ${feature.get('mmsi')}`,
+      // The MMSI is the only identifier that is certainly unique, and it is what
+      // a listener would use to look the vessel up anywhere else.
+      subtitle: st.name ? `MMSI ${feature.get('mmsi')}` : '',
+      status: ageText(st.atMs),
+      metrics: [
+        cell('Nopeus', st.sogKn, 'kn', 1),
+        cell('Kurssi', st.cog, '°'),
+        cell('Suunta', st.heading, '°'),
+        rotCell(st.rot),
+      ],
+    };
+  }
+
+  function markSelected(mmsi) {
+    if (selectedMmsi === mmsi) return;
+    const previous = selectedMmsi !== null && features.get(selectedMmsi);
+    if (previous) previous.set('aisState', { ...previous.get('aisState'), selected: false });
+    selectedMmsi = mmsi;
+    const next = mmsi !== null && features.get(mmsi);
+    if (next) next.set('aisState', { ...next.get('aisState'), selected: true });
+  }
+
+  const clearSelection = () => markSelected(null);
+
+  function selectFeature(feature) {
+    markSelected(feature.get('mmsi'));
+    telemetry.open(OWNER, payloadFor(feature), clearSelection);
+  }
+
+  // The subject moves and reports intermittently, so the readings go stale
+  // between messages, and a vessel that drops out must take the strip with it.
+  function syncSelection() {
+    if (selectedMmsi === null || !telemetry) return;
+    // The panel is shared: if another source has taken it, the ring goes too.
+    if (!telemetry.ownerIs(OWNER)) { clearSelection(); return; }
+    const feature = features.get(selectedMmsi);
+    if (!feature) {
+      clearSelection();
+      telemetry.close(OWNER);
+      return;
+    }
+    telemetry.update(OWNER, payloadFor(feature));
+  }
+
+  function attachPane(map, layer) {
+    function findAtPixel(pixel) {
+      if (!layer.getVisible()) return null;
+      let hit = null;
+      map.forEachFeatureAtPixel(pixel, (f, l) => {
+        if (l === layer) { hit = f; return true; }
+        return false;
+      }, { hitTolerance: 8 });
+      return hit;
+    }
+    return { findAtPixel, open: selectFeature };
+  }
 
   return {
+    attachPane,
+
     createPaneLayer() {
       return new VectorLayer({
         source,
@@ -199,6 +289,9 @@ export default function initRescueVessels() {
         sweepTimer = 0;
         if (client) client.disconnect();
         clearAll();
+        // Switching the layer off has to take the strip with it: the vessel it
+        // was reporting no longer exists on the map.
+        syncSelection();
         return;
       }
       sweepTimer = setInterval(sweep, SWEEP_MS);
