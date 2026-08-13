@@ -385,10 +385,12 @@ export default function createPane(targetEl, sharedView, deps) {
   // Rautatiet layer that is actually moving.
   const trainLocationLayer = createTrainLocationLayer();
 
-  // Airspace sits low in the stack — it is context for everything above it, and
-  // its boundaries must never draw over a marker the user is trying to hit.
-  // Reservation areas underneath, being the largest and least specific, then
-  // the restrictions, then controlled airspace on top.
+  // Airspace sits BELOW every point marker — the radar sites, the aerodromes,
+  // the turnpoints. It is context for them: an aerodrome inside a CTR is the
+  // thing being looked at, and a boundary drawn over its mark would both hide it
+  // and take the tap meant for it. Within the group, reservation areas
+  // underneath, being the largest and least specific, then the restrictions,
+  // then controlled airspace on top.
   const airspaceReservedLayer = createAirspaceLayer('reserved');
   const airspaceRestrictedLayer = createAirspaceLayer('restricted');
   const airspaceControlledLayer = createAirspaceLayer('controlled');
@@ -435,12 +437,12 @@ export default function createPane(targetEl, sharedView, deps) {
     municipalityLayer,
     vesivaylaAreaLayer,
     vesivaylatLayer,
-    radarSiteLayer,
-    icaoLayer,
-    turnpointLayer,
     airspaceReservedLayer,
     airspaceRestrictedLayer,
     airspaceControlledLayer,
+    radarSiteLayer,
+    icaoLayer,
+    turnpointLayer,
     railwayTrackLayer,
     railwayLayer,
     trafficLayer,
@@ -477,12 +479,12 @@ export default function createPane(targetEl, sharedView, deps) {
     lightningLayer,
     lightningWmsLayer,
     observationLayer,
-    radarSiteLayer,
-    icaoLayer,
-    turnpointLayer,
     airspaceReservedLayer,
     airspaceRestrictedLayer,
     airspaceControlledLayer,
+    radarSiteLayer,
+    icaoLayer,
+    turnpointLayer,
     railwayTrackLayer,
     railwayLayer,
     trafficLayer,
