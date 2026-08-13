@@ -51,7 +51,7 @@ import {
 // GPS jamming, and a jammed receiver does not go quiet — it reports confidently
 // from somewhere else entirely, which drawn without question rules a line
 // across the country and back. Thresholds and the reasoning are in the module.
-import { isPlausibleLeg } from './gliderTrail';
+import { isPlausibleLeg, trailBandIndex } from './gliderTrail';
 
 const WS_URL = 'wss://ogn.app.meteo.fi/ogn/v1';
 
@@ -184,6 +184,27 @@ const toRadians = (deg) => (deg * Math.PI) / 180;
 // Deliberately quiet: unbold, a size below the identity label, and dimmer than
 // it. The identity is what you are looking for; this is what you read once you
 // have found it.
+// The trail fades as it ages, so the eye reads which way the aircraft has been
+// going without any arrow to say so — the bright end is where it is now.
+//
+// Four bands rather than a per-segment gradient. OpenLayers strokes a whole
+// geometry in one colour, so a true gradient would mean one Style per segment,
+// and a trail runs to 150 points. Four is enough for the direction to be
+// obvious and costs four styles however long the trail is.
+//
+// Split by AGE rather than by position along the line: an aircraft that sat in
+// a thermal and then ran downwind lays points at wildly different spacings, and
+// fading by index would make the fast leg look old.
+const TRAIL_FADE_ALPHAS = [0.15, 0.3, 0.52, 0.85];
+
+// #rrggbb -> rgba(). The trail colours are the palette's per-type hexes.
+function withAlpha(hex, alpha) {
+  const n = parseInt(hex.slice(1), 16);
+  /* eslint-disable no-bitwise */
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+  /* eslint-enable no-bitwise */
+}
+
 const READOUT_MIN_KMH = 1;
 // Drawn only from about z9 in — the band at which this app shows detail
 // elsewhere too (railway and aerodrome names appear at the same resolution).
@@ -319,6 +340,9 @@ export default function initGliders({ telemetry } = {}) {
       feature.set('kind', 'trail', true);
       feature.set('typeCode', typeCode, true);
       trail = { geom, times: [fixMs], feature };
+      // The same array the trail keeps, not a copy: it is mutated in place by
+      // push and splice, so the style function always sees current times.
+      feature.set('times', trail.times, true);
       trails.set(id, trail);
       // Not added to the source until there are two points — a one-point line
       // draws nothing and would only cost a hit-test candidate.
@@ -494,10 +518,11 @@ export default function initGliders({ telemetry } = {}) {
         entry = {
           rotates: shape.rotates,
           // Thin and translucent: the trail is context for the mark, not a
-          // feature competing with the radar underneath it.
-          trail: new Style({
-            stroke: new Stroke({ color, width: 1.5, lineCap: 'round' }),
-          }),
+          // feature competing with the radar underneath it. One style per age
+          // band, oldest first — see TRAIL_FADE_ALPHAS.
+          trailBands: TRAIL_FADE_ALPHAS.map((alpha) => new Style({
+            stroke: new Stroke({ color: withAlpha(color, alpha), width: 1.5, lineCap: 'round' }),
+          })),
           // `declutterMode: 'none'` on the mark, for two separate reasons.
           //
           // An aircraft must never be thinned away — it is the data, and a
@@ -535,6 +560,46 @@ export default function initGliders({ telemetry } = {}) {
       }
       return entry;
     };
+
+    // One line per band, rewritten per feature. Times increase along a trail, so
+    // a band is always one contiguous run and each can be reused — the renderer
+    // consumes a feature's styles before moving to the next.
+    const bandLines = TRAIL_FADE_ALPHAS.map(() => new LineString([[0, 0], [0, 0]]));
+
+    const bandOf = (ageMs) => trailBandIndex(ageMs, TRAIL_MAX_AGE_MS, TRAIL_FADE_ALPHAS.length);
+
+    function trailStyles(feature, entry) {
+      const coords = feature.getGeometry().getCoordinates();
+      const times = feature.get('times');
+      const bands = entry.trailBands;
+      // Without timestamps there is nothing to fade by; draw it as it was.
+      if (!times || times.length !== coords.length || coords.length < 2) {
+        return bands[bands.length - 1];
+      }
+      const newest = times[times.length - 1];
+      const out = [];
+      let start = 0;
+      let band = bandOf(newest - times[0]);
+      for (let i = 1; i < coords.length; i += 1) {
+        const next = bandOf(newest - times[i]);
+        if (next !== band) {
+          // The run includes the first point of the following one, so the bands
+          // meet rather than leaving a gap at every boundary.
+          bandLines[band].setCoordinates(coords.slice(start, i + 1));
+          bands[band].setGeometry(bandLines[band]);
+          out.push(bands[band]);
+          start = i;
+          band = next;
+        }
+      }
+      // Reusing the cached styles rather than cloning is safe because times
+      // increase along a trail, so a band is one contiguous run and no band is
+      // pushed twice for the same feature.
+      bandLines[band].setCoordinates(coords.slice(start));
+      bands[band].setGeometry(bandLines[band]);
+      out.push(bands[band]);
+      return out;
+    }
 
     // The selection ring is type-independent: it says "this is the one you
     // picked", which is not a property of the aircraft. declutterMode 'none' for
@@ -600,7 +665,7 @@ export default function initGliders({ telemetry } = {}) {
       const entry = styles(feature.get('typeCode'));
       // The path is a separate feature so it survives its aircraft leaving the
       // viewport; its geometry is the line itself, so nothing is set here.
-      if (feature.get('kind') === 'trail') return entry.trail;
+      if (feature.get('kind') === 'trail') return trailStyles(feature, entry);
       const track = feature.get('track');
       // OL rotates clockwise from north, which is exactly what a track is. Marks
       // that carry no heading are never rotated — spinning a balloon by its

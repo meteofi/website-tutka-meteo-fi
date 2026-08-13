@@ -45,3 +45,14 @@ export function isPlausibleLeg(from, fromMs, to, toMs) {
   if (!(dt >= TRAIL_MIN_DT_MS)) return metres <= TRAIL_SAME_INSTANT_MAX_M;
   return metres / (dt / 1000) <= TRAIL_MAX_SPEED_MS;
 }
+
+// How a trail is shaded along its length: which band a point of a given age
+// belongs to, counting from 0 (oldest, faintest) to bandCount - 1 (newest).
+//
+// Age is measured against the trail's NEWEST point rather than the clock, so a
+// trail that has stopped growing keeps its shape instead of collapsing into the
+// faintest band the moment the aircraft goes quiet.
+export function trailBandIndex(ageMs, maxAgeMs, bandCount) {
+  const step = Math.floor((ageMs / maxAgeMs) * bandCount);
+  return Math.min(bandCount - 1, Math.max(0, bandCount - 1 - step));
+}
