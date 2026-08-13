@@ -113,6 +113,9 @@ export default function createPane(targetEl, sharedView, deps) {
     // Airspace (src/airspace.js) — called once per part; panes share the three
     // VectorSources the controller fills from one bundled snapshot.
     createAirspaceLayer,
+    // Search-and-rescue vessels (src/ais/rescueVessels.js) — panes share one
+    // VectorSource; the controller owns the AIS subscription.
+    createRescueVesselLayer,
     // Place-search highlight pulse (src/search/searchHighlight.js) — panes
     // share one VectorSource so the pulse shows in every split-screen pane.
     createSearchHighlightLayer,
@@ -410,6 +413,9 @@ export default function createPane(targetEl, sharedView, deps) {
   const airspaceRestrictedLayer = createAirspaceLayer('restricted');
   const airspaceControlledLayer = createAirspaceLayer('controlled');
 
+  // Rescue vessels sit with the other live movers, above the static context.
+  const rescueVesselLayer = createRescueVesselLayer();
+
   const guideLayer = new VectorLayer({
     source: new Vector(),
     style: rangeStyle,
@@ -463,6 +469,7 @@ export default function createPane(targetEl, sharedView, deps) {
     trafficLayer,
     weatherCameraLayer,
     trainLocationLayer,
+    rescueVesselLayer,
     gliderLayer,
     stormCellsLayer,
     ownPositionLayer,
@@ -505,6 +512,7 @@ export default function createPane(targetEl, sharedView, deps) {
     trafficLayer,
     weatherCameraLayer,
     trainLocationLayer,
+    rescueVesselLayer,
     gliderLayer,
     stormCellsLayer,
     municipalityLayer,
