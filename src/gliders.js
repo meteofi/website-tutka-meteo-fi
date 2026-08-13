@@ -185,6 +185,16 @@ const toRadians = (deg) => (deg * Math.PI) / 180;
 // it. The identity is what you are looking for; this is what you read once you
 // have found it.
 const READOUT_MIN_KMH = 1;
+// Drawn only from about z9 in — the band at which this app shows detail
+// elsewhere too (railway and aerodrome names appear at the same resolution).
+//
+// Below that it is not drawn AT ALL, and above it it is never thinned away.
+// Decluttering was the obvious way to keep a crowded sky readable and it was
+// the wrong one: with several aircraft near each other almost every readout
+// lost, so the numbers were mostly absent exactly where someone had zoomed in
+// to read them. Better to answer the question "is there room for this on screen"
+// with the zoom, once, than per label and unpredictably.
+const READOUT_MAX_RESOLUTION = 320;
 // The same threshold the telemetry strip uses to call a climb meaningful. Below
 // it an arrow would be claiming a trend out of noise.
 const READOUT_CLIMB_MS = 0.5;
@@ -196,8 +206,11 @@ export function readoutFor({ speed, alt, climb }) {
   if (kmh === null || kmh < READOUT_MIN_KMH) return '';
   const lines = [`${Math.round(kmh)} km/h`];
   if (Number.isFinite(alt)) {
+    // Filled triangles, not arrows: at 10px an arrowhead is a few pixels of
+    // diagonal stroke and reads as a smudge that could be pointing either way.
+    // A solid triangle is unambiguous at any size that renders it at all.
     const trend = Number.isFinite(climb) && Math.abs(climb) >= READOUT_CLIMB_MS
-      ? ` ${climb > 0 ? '\u2191' : '\u2193'}` : '';
+      ? ` ${climb > 0 ? '\u25B2' : '\u25BC'}` : '';
     lines.push(`${Math.round(alt)} m${trend}`);
   }
   return lines.join('\n');
@@ -548,14 +561,18 @@ export default function initGliders({ telemetry } = {}) {
     // sits. Left-aligned off the right shoulder so the numbers line up down the
     // screen when several aircraft are near each other.
     //
-    // This one DOES declutter — unlike the mark, which must never be thinned
-    // away. A missing readout costs nothing; a missing aircraft is a lie.
+    // Zoom decides whether there is room for these, not decluttering — see
+    // READOUT_MAX_RESOLUTION.
     const readout = new Style({
       text: new Text({
         font: '10px Roboto, sans-serif',
         textAlign: 'left',
         textBaseline: 'middle',
         offsetX: 11,
+        // Never thinned away, like the mark it belongs to: at these zooms the
+        // aircraft are far enough apart that overlap is rare, and a readout
+        // that appears only sometimes is worse than one that always does.
+        declutterMode: 'none',
         fill: new Fill({ color: palette.dataText }),
         stroke: new Stroke({ color: palette.textHalo, width: 2.5 }),
       }),
@@ -578,7 +595,7 @@ export default function initGliders({ telemetry } = {}) {
       }),
     });
 
-    return (feature) => {
+    return (feature, resolution) => {
       if (feature.get('kind') === 'bounds') return bounds;
       const entry = styles(feature.get('typeCode'));
       // The path is a separate feature so it survives its aircraft leaving the
@@ -606,7 +623,7 @@ export default function initGliders({ telemetry } = {}) {
         entry.label.getText().setText(label);
         out.push(entry.label);
       }
-      const numbers = readoutFor({
+      const numbers = resolution > READOUT_MAX_RESOLUTION ? '' : readoutFor({
         speed: feature.get('speed'),
         alt: feature.get('alt'),
         climb: feature.get('climb'),
