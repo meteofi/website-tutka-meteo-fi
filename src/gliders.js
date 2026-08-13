@@ -151,6 +151,7 @@ const PALETTES = {
     halo: 'rgba(255,255,255,0.9)',
     textFill: '#241537',
     textHalo: '#ffffff',
+    dataText: 'rgba(36,21,55,0.72)',
   },
   dark: {
     glider: '#c77dff',
@@ -169,10 +170,38 @@ const PALETTES = {
     halo: 'rgba(0,0,0,0.6)',
     textFill: '#f0e6ff',
     textHalo: '#000000',
+    dataText: 'rgba(240,230,255,0.75)',
   },
 };
 
 const toRadians = (deg) => (deg * Math.PI) / 180;
+
+// The readout beside a moving aircraft: how fast, how high, and whether it is
+// going up or down. Only while it is actually moving — a glider parked on the
+// field would otherwise carry two lines of nothing useful, and at any zoom wide
+// enough to be interesting most of what is on screen is parked.
+//
+// Deliberately quiet: unbold, a size below the identity label, and dimmer than
+// it. The identity is what you are looking for; this is what you read once you
+// have found it.
+const READOUT_MIN_KMH = 1;
+// The same threshold the telemetry strip uses to call a climb meaningful. Below
+// it an arrow would be claiming a trend out of noise.
+const READOUT_CLIMB_MS = 0.5;
+
+// Two lines, or one if the altitude is missing. Returns '' when there is
+// nothing worth drawing, which is also the signal not to draw it.
+export function readoutFor({ speed, alt, climb }) {
+  const kmh = Number.isFinite(speed) ? speed * 3.6 : null;
+  if (kmh === null || kmh < READOUT_MIN_KMH) return '';
+  const lines = [`${Math.round(kmh)} km/h`];
+  if (Number.isFinite(alt)) {
+    const trend = Number.isFinite(climb) && Math.abs(climb) >= READOUT_CLIMB_MS
+      ? ` ${climb > 0 ? '\u2191' : '\u2193'}` : '';
+    lines.push(`${Math.round(alt)} m${trend}`);
+  }
+  return lines.join('\n');
+}
 
 const RANKS = { bounds: 0, trail: 1 };
 const rank = (feature) => (RANKS[feature.get('kind')] ?? 2);
@@ -515,6 +544,23 @@ export default function initGliders({ telemetry } = {}) {
       }),
     });
 
+    // Beside the mark rather than above it, where the identity label already
+    // sits. Left-aligned off the right shoulder so the numbers line up down the
+    // screen when several aircraft are near each other.
+    //
+    // This one DOES declutter — unlike the mark, which must never be thinned
+    // away. A missing readout costs nothing; a missing aircraft is a lie.
+    const readout = new Style({
+      text: new Text({
+        font: '10px Roboto, sans-serif',
+        textAlign: 'left',
+        textBaseline: 'middle',
+        offsetX: 11,
+        fill: new Fill({ color: palette.dataText }),
+        stroke: new Stroke({ color: palette.textHalo, width: 2.5 }),
+      }),
+    });
+
     // Dim and dashed, repeating its name along the edge: at most zooms only a
     // stretch of one side is on screen, so a single label placed once would
     // usually be somewhere else entirely.
@@ -559,6 +605,15 @@ export default function initGliders({ telemetry } = {}) {
       if (label) {
         entry.label.getText().setText(label);
         out.push(entry.label);
+      }
+      const numbers = readoutFor({
+        speed: feature.get('speed'),
+        alt: feature.get('alt'),
+        climb: feature.get('climb'),
+      });
+      if (numbers) {
+        readout.getText().setText(numbers);
+        out.push(readout);
       }
       return out;
     };
