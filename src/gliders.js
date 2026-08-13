@@ -47,6 +47,12 @@ import {
   Circle as CircleStyle, Fill, RegularShape, Stroke, Style, Text,
 } from 'ol/style';
 
+// Whether the aircraft could have flown a leg. Eastern Finland sees sustained
+// GPS jamming, and a jammed receiver does not go quiet — it reports confidently
+// from somewhere else entirely, which drawn without question rules a line
+// across the country and back. Thresholds and the reasoning are in the module.
+import { isPlausibleLeg } from './gliderTrail';
+
 const WS_URL = 'wss://ogn.app.meteo.fi/ogn/v1';
 
 // The bridge's own region, subscribed to wholesale rather than tracking the map
@@ -281,6 +287,13 @@ export default function initGliders({ telemetry } = {}) {
     // A stationary aircraft still beacons; repeating a point would inflate the
     // trail without drawing anything.
     if (last && last[0] === at[0] && last[1] === at[1]) return trail;
+    // A leg the aircraft could not have flown is not drawn. The mark still moves
+    // to the reported position — that is what the feed says, and this layer does
+    // not get to decide an aircraft is somewhere else — but the path it leaves
+    // behind stays a path rather than a scribble.
+    if (last && !isPlausibleLeg(last, trail.times[trail.times.length - 1], at, fixMs)) {
+      return trail;
+    }
     coords.push(at);
     trail.times.push(fixMs);
     const floor = Date.now() - TRAIL_MAX_AGE_MS;
