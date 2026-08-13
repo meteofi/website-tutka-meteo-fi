@@ -227,6 +227,18 @@ const DASHES = { reserved: [6, 4] };
 // No fill, deliberately, and not only for the usual compounding reason: a filled
 // area reads as somewhere that IS something, and the snapshot cannot say whether
 // a danger area is active. See the note at the top of this file.
+// Draw order WITHIN the restricted layer. These areas share boundaries — a
+// danger area often abuts a restricted one along exactly the same line — and
+// whichever draws last owns the shared pixels. With D last, a solid R border
+// came out looking dashed wherever a D touched it, which is a lie about the R.
+//
+// So: danger underneath, restricted over it, prohibited over everything. That
+// is also the order of how much the boundary constrains you, which is the order
+// a reader would want if only one of them can be seen.
+const RESTRICTED_RANK = {
+  D: 0, RES: 0, R: 1, P: 2,
+};
+
 const DANGER_CODE = 'D';
 const DANGER_COLOR = 'rgb(255, 210, 76)';
 const DANGER_DASH = [6, 4];
@@ -421,6 +433,12 @@ export default function initAirspace() {
       return new VectorLayer({
         source: sources.get(group),
         visible: false,
+        // Only the restricted group needs one; elsewhere the default
+        // creation-order draw is fine, and the other groups' borders are all
+        // solid so a shared edge cannot misreport itself.
+        renderOrder: group === 'restricted'
+          ? (a, b) => (RESTRICTED_RANK[a.get('k')] ?? 0) - (RESTRICTED_RANK[b.get('k')] ?? 0)
+          : undefined,
         // Own declutter group so airspace names never knock out place names or
         // station names — layers sharing a value are decluttered together, and
         // the topmost wins.
