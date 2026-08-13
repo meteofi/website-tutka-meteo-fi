@@ -2518,6 +2518,7 @@ const poiRegistry = [
   },
   {
     id: 'airfields',
+    section: 'ilmailu',
     label: 'Lentokentät',
     icon: 'flight',
     defaultOn: false,
@@ -2525,6 +2526,7 @@ const poiRegistry = [
   },
   {
     id: 'turnpoints',
+    section: 'ilmailu',
     label: 'Purjelennon käännöspisteet',
     icon: 'flag',
     defaultOn: false,
@@ -2534,6 +2536,7 @@ const poiRegistry = [
     // Live data like stormcells: applyPoiVisibility drives the WebSocket
     // (setEnabled), so nothing is connected while the layer is off.
     id: 'gliders',
+    section: 'ilmailu',
     label: 'Purjekoneet',
     icon: 'airplanemode_active',
     defaultOn: false,
@@ -2547,6 +2550,7 @@ const poiRegistry = [
     // polygons and are off by default; on, at synoptic zoom, they cover much of
     // the country and bury the radar this app exists to show.
     id: 'airspace',
+    section: 'ilmailu',
     label: 'Ilmatilat',
     icon: 'radar',
     defaultOn: false,
@@ -2635,6 +2639,17 @@ const poiRegistry = [
 // A topic's part is stored under `<topic>.<part>`, flat, so POI_STATE stays a
 // map of booleans and the reconciliation below stays one pass.
 const poiChildKey = (entry, child) => `${entry.id}.${child.id}`;
+
+// Sections group topics in the menu and nothing else. A section has NO state of
+// its own: whether it looks on, off or half-on is read from its members, and
+// pressing it just operates them. That is what keeps this a rendering concern —
+// POI_STATE, applyPoiVisibility and every topic's own parts are untouched by it,
+// and a topic does not care whether it happens to be displayed inside one.
+const poiSections = {
+  ilmailu: { label: 'Ilmailu', icon: 'flight_takeoff' },
+};
+
+const poiSectionMembers = (sectionId) => poiRegistry.filter((e) => e.section === sectionId);
 
 // POI_STATE is reconciled against the current registry on every load: unknown
 // persisted keys are dropped, and new registry entries fall back to defaultOn.
@@ -2755,14 +2770,42 @@ function togglePoiChild(entryId, childId) {
   track('poi-toggle', { id: key, visible: POI_STATE[key] });
 }
 
+// `action` is 'toggle' (the row), 'all' (the switch's right end) or 'none' (its
+// left end) — the same three gestures a topic with parts already answers to.
+function setPoiSection(sectionId, action) {
+  const members = poiSectionMembers(sectionId);
+  const anyOn = members.some((e) => !!POI_STATE[e.id]);
+  let target = !anyOn;
+  if (action === 'all') target = true;
+  if (action === 'none') target = false;
+  members.forEach((entry) => {
+    POI_STATE[entry.id] = target;
+    const children = entry.children || [];
+    if (!target || !children.length) return;
+    // Turning a section on restores a topic's parts only when it has none left,
+    // exactly as pressing that topic's own row would. Asking for ALL of it is
+    // the one gesture that overrides a part the user switched off.
+    const allOff = children.every((c) => !POI_STATE[poiChildKey(entry, c)]);
+    if (action === 'all' || allOff) {
+      children.forEach((c) => { POI_STATE[poiChildKey(entry, c)] = true; });
+    }
+  });
+  applyPoiVisibility();
+  persistPoiState();
+  if (poiMenu) poiMenu.refresh();
+  track('poi-toggle', { id: sectionId, visible: target });
+}
+
 poiMenu = initPoiMenu({
   container: document.getElementById('poiList'),
   registry: poiRegistry,
+  sections: poiSections,
   isOn: (id) => !!POI_STATE[id],
   isChildOn: (entryId, childId) => !!POI_STATE[`${entryId}.${childId}`],
   onToggle: togglePoi,
   onSetGroup: setPoiGroup,
   onToggleChild: togglePoiChild,
+  onSection: setPoiSection,
 });
 
 // Reconcile persisted state against layer visibility (handles the case where

@@ -1213,13 +1213,54 @@ body.split-4 #placeSearchButton {
   #overflowMenu .menu-row.is-child:has(+ .menu-row[data-poi])::before {
     bottom: 50%;
   }
-  #overflowMenu .menu-row.is-child[hidden] { display: none; }
+  /* `hidden` alone cannot hide a menu row: the base rule sets display:flex,
+     which beats the browser's own [hidden] { display: none }. Every collapsible
+     row needs this — the parts of a topic AND the topics inside a section. It
+     was scoped to .is-child once, which left an Ilmailu row that reported
+     itself hidden while still being painted, so the section would not collapse. */
+  #overflowMenu .menu-row[hidden] { display: none; }
   #overflowMenu .menu-row.is-child .menu-label {
     font-size: 13px;
     color: var(--dark-medium-emphasis-text-color);
   }
   #overflowMenu .menu-row.is-child[aria-checked="true"] .menu-label {
     color: var(--dark-high-emphasis-text-color);
+  }
+
+  /* Topics inside a section (Ilmailu) sit one step in, and their own parts one
+     step further, so three levels stay legible without the deepest one running
+     out of row. The guide rule is the section's, so the whole group reads as
+     one block. */
+  #overflowMenu .menu-row.is-in-section {
+    padding-left: 34px;
+    position: relative;
+  }
+  #overflowMenu .menu-row.is-in-section::before {
+    content: '';
+    position: absolute;
+    left: 25px;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: rgba(255, 255, 255, 0.12);
+  }
+  #overflowMenu .menu-row.is-child.is-in-section {
+    padding-left: 84px;
+  }
+  /* The part rows already draw their own rule; inside a section it would double
+     up with the section's, so theirs moves in to mark the topic instead. */
+  #overflowMenu .menu-row.is-child.is-in-section::after {
+    content: '';
+    position: absolute;
+    left: 59px;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: rgba(255, 255, 255, 0.12);
+  }
+  #overflowMenu .menu-row.is-child.is-in-section:last-of-type::after,
+  #overflowMenu .menu-row.is-child.is-in-section:has(+ .menu-row:not(.is-child))::after {
+    bottom: 50%;
   }
 
   #overflowMenu .menu-divider {
