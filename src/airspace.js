@@ -195,6 +195,8 @@ const PROHIBITED_TEXT_HALO = 'rgba(48, 4, 6, 0.85)';
 const PALETTES = {
   light: {
     controlled: CONTROLLED_COLOR,
+    // R, D and P all carry their own colour now, so this dresses exactly one
+    // feature: EFNOISE01, the overflight restriction.
     restricted: 'rgba(178, 34, 34, 0.8)',
     // Dimmest of the three: they are the most numerous by far, so they are the
     // ones that decide whether the map is readable.
@@ -215,6 +217,31 @@ const PALETTES = {
 // rather than a wall, and this layer cannot say whether one is active. A dashed
 // edge reads as "provisional" without claiming anything specific.
 const DASHES = { reserved: [6, 4] };
+
+// Danger areas (EFD*) — the most numerous thing on this layer at 136 of the 684
+// polygons, and the least categorical: a hazard may exist, rather than entry
+// being restricted or forbidden. Amber says caution without competing with the
+// restricted orange or the prohibited red, and the dash says the same thing the
+// reservation areas' dash does — this boundary is a condition, not a wall.
+//
+// No fill, deliberately, and not only for the usual compounding reason: a filled
+// area reads as somewhere that IS something, and the snapshot cannot say whether
+// a danger area is active. See the note at the top of this file.
+// Draw order WITHIN the restricted layer. These areas share boundaries — a
+// danger area often abuts a restricted one along exactly the same line — and
+// whichever draws last owns the shared pixels. With D last, a solid R border
+// came out looking dashed wherever a D touched it, which is a lie about the R.
+//
+// So: danger underneath, restricted over it, prohibited over everything. That
+// is also the order of how much the boundary constrains you, which is the order
+// a reader would want if only one of them can be seen.
+const RESTRICTED_RANK = {
+  D: 0, RES: 0, R: 1, P: 2,
+};
+
+const DANGER_CODE = 'D';
+const DANGER_COLOR = 'rgb(255, 210, 76)';
+const DANGER_DASH = [6, 4];
 
 // A flight information zone is grouped with controlled airspace but is NOT
 // controlled — it is class G, where the service is information rather than
@@ -286,11 +313,12 @@ export default function initAirspace() {
 
   function makeStyleFunction(theme, group) {
     const palette = PALETTES[theme];
-    const strokeStyle = (color, fillColor) => new Style({
+    // `dash` overrides the group's own; passing nothing keeps it.
+    const strokeStyle = (color, fillColor, dash) => new Style({
       stroke: new Stroke({
         color,
         width: group === 'controlled' ? 1.2 : 1.4,
-        lineDash: DASHES[group],
+        lineDash: dash || DASHES[group],
       }),
       fill: fillColor ? new Fill({ color: fillColor }) : undefined,
     });
@@ -306,6 +334,8 @@ export default function initAirspace() {
       ? strokeStyle(RESTRICTED_R_COLOR, RESTRICTED_R_FILL) : null;
     const pArea = isRestricted
       ? strokeStyle(PROHIBITED_COLOR, PROHIBITED_FILL) : null;
+    const dArea = isRestricted
+      ? strokeStyle(DANGER_COLOR, null, DANGER_DASH) : null;
     // One shared path, rewritten per feature. The renderer consumes a feature's
     // styles before moving to the next, which is the same reason the train
     // layer can mutate one LineString for its heading tick.
@@ -345,10 +375,12 @@ export default function initAirspace() {
       let shape = area;
       const isR = rArea && code === RESTRICTED_R_CODE;
       const isP = pArea && code === PROHIBITED_CODE;
+      const isD = dArea && code === DANGER_CODE;
       if (isInfo) shape = fizArea;
       else if (filledArea && CONTROLLED_FILL_CODES.has(code)) shape = filledArea;
       else if (isP) shape = pArea;
       else if (isR) shape = rArea;
+      else if (isD) shape = dArea;
       // Within the controlled group everything is either an information zone or
       // controlled airspace, so both carry their own colour; the restrictions
       // and reservations keep the shared per-theme text.
@@ -401,6 +433,12 @@ export default function initAirspace() {
       return new VectorLayer({
         source: sources.get(group),
         visible: false,
+        // Only the restricted group needs one; elsewhere the default
+        // creation-order draw is fine, and the other groups' borders are all
+        // solid so a shared edge cannot misreport itself.
+        renderOrder: group === 'restricted'
+          ? (a, b) => (RESTRICTED_RANK[a.get('k')] ?? 0) - (RESTRICTED_RANK[b.get('k')] ?? 0)
+          : undefined,
         // Own declutter group so airspace names never knock out place names or
         // station names — layers sharing a value are decluttered together, and
         // the topmost wins.
