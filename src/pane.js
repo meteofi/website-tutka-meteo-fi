@@ -43,6 +43,17 @@ import railwayTracksUrl from './data/railway-tracks-finland.geojson';
 // rather than the whole network.
 const RAILWAY_NAME_MAX_RESOLUTION = 320;
 
+// Aerodromes add their name under the ICAO code at the same zoom the railway
+// stations spell themselves out, so the two POI layers change at one point
+// rather than at two. The code stays either way: it is what an aerodrome is
+// called on a chart and on the radio, and it is the shorter thing to read once
+// you already know which airfield you are looking at.
+const AIRFIELD_NAME_MAX_RESOLUTION = 320;
+// Two lines need the label lifted clear of the mark, since the text block is
+// centred on its offset — at -16 the lower line would sit on the disc.
+const AIRFIELD_LABEL_OFFSET = -16;
+const AIRFIELD_LABEL_OFFSET_TWO_LINE = -23;
+
 // The own-position marker + grey accuracy disc. One pair per pane so the
 // marker can render in every pane; the ownLocation controller updates each
 // pane's geometry (and swaps the style when the AIS source is active).
@@ -260,8 +271,12 @@ export default function createPane(targetEl, sharedView, deps) {
       url: airfieldsUrl,
     }),
     visible: false,
-    style(feature) {
-      icaoStyle.getText().setText(feature.get('icao'));
+    style(feature, resolution) {
+      const name = feature.get('name');
+      const withName = !!name && resolution <= AIRFIELD_NAME_MAX_RESOLUTION;
+      const text = icaoStyle.getText();
+      text.setText(withName ? `${feature.get('icao')}\n${name}` : feature.get('icao'));
+      text.setOffsetY(withName ? AIRFIELD_LABEL_OFFSET_TWO_LINE : AIRFIELD_LABEL_OFFSET);
       return icaoStyle;
     },
   });

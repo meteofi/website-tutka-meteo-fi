@@ -34,6 +34,8 @@
 //                                                  1.9 MB for Helsinki-Vantaa
 //   AD 2.2 item 1, "ARP"                           the aerodrome reference point,
 //                                                  as DDMMSS N / DDDMMSS E
+//   AD 2.2 item 3, "ELEV / REF T / MEAN LOW T"     aerodrome elevation, published
+//                                                  in feet ("180 FT / 23° C / NIL")
 //
 // AD 2 IS AERODROMES; AD 3 IS HELIPORTS. The index at AD 1.3 lists both and
 // marks which section each belongs to. Only AD 2 is taken, which is why this
@@ -201,6 +203,27 @@ function parseArp(html, icao) {
   throw new Error(`${icao}: no ARP coordinate found on its AD 2 page`);
 }
 
+// Aerodrome elevation, from AD 2.2 item 3. Published in feet, and kept in feet:
+// that is the unit the AIP states it in and the one an aerodrome's elevation is
+// quoted in everywhere else, so converting here would only invite the reader to
+// wonder what was rounded.
+//
+// Unlike the ARP this is not fatal when missing — an aerodrome without a stated
+// elevation is a gap in the source, not a broken parse — but the caller counts
+// them, because a sudden crop of them IS a broken parse.
+function parseElevation(html) {
+  const text = stripTags(html);
+  const at = text.search(/ELEV\s*\/\s*REF\s*T/i);
+  if (at < 0) return null;
+  const m = text.slice(at, at + 200).match(/(-?\d+(?:\.\d+)?)\s*(FT|M)\b/i);
+  if (!m) return null;
+  const value = Number(m[1]);
+  if (!Number.isFinite(value)) return null;
+  // Metres appear nowhere in the current cycle, but the field is free text and
+  // one day might: converting is safer than silently mixing units.
+  return Math.round(m[2].toUpperCase() === 'M' ? value / 0.3048 : value);
+}
+
 async function mapWithConcurrency(items, worker) {
   const out = new Array(items.length);
   let next = 0;
@@ -240,16 +263,30 @@ let done = 0;
 const features = await mapWithConcurrency(aerodromes, async (ad) => {
   const html = await fetchText(base + encodeURIComponent(ad.file), `${ad.icao} AD 2 page`);
   const coordinates = parseArp(html, ad.icao);
+  const elevationFt = parseElevation(html);
   done += 1;
   if (done % 20 === 0) console.log(`  …${done}/${aerodromes.length}`);
   return {
     type: 'Feature',
-    // `icao` is what the map layer labels with; the name is carried so a future
-    // change can show "HELSINKI-VANTAA" instead of a code without another run.
-    properties: { icao: ad.icao, name: ad.name },
+    // `icao` is what the map labels with at a distance, `name` once there is
+    // room for it, and `elevationFt` is carried for whatever wants it next.
+    properties: {
+      icao: ad.icao,
+      name: ad.name,
+      ...(elevationFt === null ? {} : { elevationFt }),
+    },
     geometry: { type: 'Point', coordinates },
   };
 });
+
+const withElevation = features.filter((f) => f.properties.elevationFt !== undefined).length;
+if (!limit && withElevation < features.length * 0.9) {
+  throw new Error(
+    `Only ${withElevation} of ${features.length} aerodromes yielded an elevation. `
+    + 'AD 2.2 item 3 has probably changed shape — refusing to write a file that '
+    + 'is mostly missing it.',
+  );
+}
 
 const out = {
   type: 'FeatureCollection',
@@ -276,5 +313,5 @@ if (limit) {
 } else {
   await writeFile(OUT, JSON.stringify(out));
   console.log(`airfields: ${features.length} aerodromes -> ${(JSON.stringify(out).length / 1024).toFixed(0)} kB`);
-  console.log(`  effective ${cycle.date} (${cycle.folder})`);
+  console.log(`  effective ${cycle.date} (${cycle.folder}), ${withElevation} with elevation`);
 }
