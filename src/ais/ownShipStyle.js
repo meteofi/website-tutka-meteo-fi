@@ -38,18 +38,25 @@ const TURN_FLAG = 5; // px, fixed-length flag at the end of the heading line
 const VECTOR_MINUTES = 3; // COG/SOG vector shows a 3-minute run
 const MIN_VECTOR_SOG_KN = 0.5; // below this the vector is noise, not motion
 
-// Thin orange own-ship lines over a faint light-gray casing; both basemap themes.
-const ink = (alpha) => `rgba(255, 140, 0, ${alpha})`;
+// Thin coloured lines over a faint light-gray casing; both basemap themes. The
+// casing is what makes one thin line legible on either, so it does not vary.
+const OWN_SHIP_RGB = '255, 140, 0';
 const casing = (alpha) => `rgba(210, 210, 210, ${0.55 * alpha})`;
 
-function cased(geometry, alpha, width, lineDash) {
+function cased(rgb, geometry, alpha, width, lineDash) {
   return [
     new Style({ geometry, stroke: new Stroke({ color: casing(alpha), width: width + 1, lineDash }) }),
-    new Style({ geometry, stroke: new Stroke({ color: ink(alpha), width, lineDash }) }),
+    new Style({ geometry, stroke: new Stroke({ color: `rgba(${rgb}, ${alpha})`, width, lineDash }) }),
   ];
 }
 
-export function createOwnShipStyleFn() {
+// The IMO target symbology, in whatever colour the caller needs it. Own ship
+// keeps the orange it has always had; the rescue-vessel layer passes its own,
+// so the two are one shape family telling you the same things — where it is
+// pointing, how fast, which way it is turning — and differ only in hue.
+//
+// `rgb` is a bare "r, g, b" so the alpha can vary per element.
+export function createOwnShipStyleFn({ rgb = OWN_SHIP_RGB } = {}) {
   return (feature, resolution) => {
     const geometry = feature.getGeometry();
     if (!geometry) return [];
@@ -74,18 +81,18 @@ export function createOwnShipStyleFn() {
     // Triangle: reported position at centre, half the height.
     const apex = pt(0, TRI_H / 2);
     const triangle = new Polygon([[apex, pt(-TRI_W / 2, -TRI_H / 2), pt(TRI_W / 2, -TRI_H / 2), apex]]);
-    styles.push(...cased(triangle, alpha, 1.25));
+    styles.push(...cased(rgb, triangle, alpha, 1.25));
 
     // Heading line: solid, thinner than the speed vector, origin at the apex.
     // Only drawn when true heading exists — with COG-only data the triangle
     // orientation and the vector already show the direction.
     if (state.heading != null) {
       const headingEnd = pt(0, TRI_H / 2 + HEADING_LEN);
-      styles.push(...cased(new LineString([apex, headingEnd]), alpha, 1));
+      styles.push(...cased(rgb, new LineString([apex, headingEnd]), alpha, 1));
       // Turn flag: fixed length, to the side the vessel is turning.
       if (state.rot != null && state.rot !== 0) {
         const side = state.rot > 0 ? 1 : -1;
-        styles.push(...cased(new LineString([headingEnd, pt(side * TURN_FLAG, TRI_H / 2 + HEADING_LEN)]), alpha, 1));
+        styles.push(...cased(rgb, new LineString([headingEnd, pt(side * TURN_FLAG, TRI_H / 2 + HEADING_LEN)]), alpha, 1));
       }
     }
 
@@ -97,13 +104,16 @@ export function createOwnShipStyleFn() {
       const groundMeters = state.sogKn * 1852 * (VECTOR_MINUTES / 60);
       const len = groundMeters / Math.cos((state.lat * Math.PI) / 180);
       const end = [center[0] + Math.sin(rad) * len, center[1] + Math.cos(rad) * len];
-      styles.push(...cased(new LineString([center, end]), alpha, 1.5, [3, 3]));
+      styles.push(...cased(rgb, new LineString([center, end]), alpha, 1.5, [3, 3]));
     }
 
     // Two-line label: direction, then speed. Below the symbol when the
     // heading points up-screen (the heading line occupies the space above),
     // above it when pointing down.
     const lines = [];
+    // A named target says its name first — for own ship there is nothing to
+    // say, but a rescue vessel is worth identifying before its heading.
+    if (state.name) lines.push(state.name);
     if (orientDeg != null) lines.push(`${Math.round(((orientDeg % 360) + 360) % 360)}°`);
     if (state.sogKn != null) lines.push(`${state.sogKn.toFixed(1).replace('.', ',')} kn`);
     if (lines.length) {

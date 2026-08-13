@@ -45,6 +45,7 @@ import initTrains from './trains';
 import initGliders from './gliders';
 import initTrainLocations from './trainLocations';
 import initAirspace from './airspace';
+import initRescueVessels from './ais/rescueVessels';
 import initTelemetryPanel from './ui/telemetryPanel';
 import railwayStationsUrl from './data/railway-stations-finland.geojson';
 import radarSitesFallbackUrl from './data/radars-finland.geojson';
@@ -787,6 +788,11 @@ const trains = initTrains({
 // the file has no time dimension, so setTime does not route here.
 const airspace = initAirspace();
 
+// Search-and-rescue vessels from the marine AIS feed. Wall-clock like the
+// aircraft and the trains: AIS says where a vessel is now, so setTime does not
+// route here.
+const rescueVessels = initRescueVessels();
+
 const trainLocations = initTrainLocations({
   telemetry,
   stationName: (code) => trains.stationName(code),
@@ -822,6 +828,7 @@ const paneDeps = {
   createGliderLayer: gliders.createPaneLayer,
   createTrainLocationLayer: trainLocations.createPaneLayer,
   createAirspaceLayer: airspace.createPaneLayer,
+  createRescueVesselLayer: rescueVessels.createPaneLayer,
   createSearchHighlightLayer: searchHighlight.createPaneLayer,
 };
 
@@ -2626,13 +2633,24 @@ const poiRegistry = [
   },
   {
     id: 'vesivaylat',
+    section: 'vesiliikenne',
     label: 'Vesiväylät',
-    icon: 'directions_boat',
+    icon: 'route',
     defaultOn: false,
     // Area fill renders behind the line geometry — both flip together
     // off the same toggle. Order here doesn't drive z-order; the layers
     // array does (vesivaylaAreaLayer sits before vesivaylatLayer there).
     layerKeys: ['vesivaylaAreaLayer', 'vesivaylatLayer'],
+  },
+  {
+    // Live data like the aircraft and the trains: applyPoiVisibility drives the
+    // AIS subscription (setEnabled), so nothing is connected while it is off.
+    id: 'pelastusalukset',
+    section: 'vesiliikenne',
+    label: 'Pelastusalukset',
+    icon: 'support',
+    defaultOn: false,
+    layerKeys: ['rescueVesselLayer'],
   },
 ];
 
@@ -2647,6 +2665,7 @@ const poiChildKey = (entry, child) => `${entry.id}.${child.id}`;
 // and a topic does not care whether it happens to be displayed inside one.
 const poiSections = {
   ilmailu: { label: 'Ilmailu', icon: 'flight_takeoff' },
+  vesiliikenne: { label: 'Vesiliikenne', icon: 'directions_boat' },
 };
 
 const poiSectionMembers = (sectionId) => poiRegistry.filter((e) => e.section === sectionId);
@@ -2711,6 +2730,8 @@ function applyPoiVisibility() {
   // Airspace is a bundled file, and the toggle gates fetching it: most visitors
   // never switch this on and should not pay 254 kB for it.
   airspace.setEnabled(!!POI_STATE.airspace);
+  // The AIS subscription lives only while the layer is on.
+  rescueVessels.setEnabled(!!POI_STATE.pelastusalukset);
 }
 
 // Pressing the ROW is the remembering toggle: it hides or shows a topic without
@@ -3669,6 +3690,7 @@ function shareAttributions() {
   // Required: openAIP is CC BY-NC, so the credit is a licence condition rather
   // than a courtesy.
   if (POI_STATE.airspace) parts.add('Ilmatilat © openAIP (CC BY-NC 4.0)');
+  if (POI_STATE.pelastusalukset) parts.add('Pelastusalukset © Fintraffic (CC BY 4.0)');
   if (POI_STATE.gliders) parts.add('Lentokoneet © Open Glider Network');
   // Credited per part now that they can be switched independently — showing
   // only the track network should not claim to be showing Fintraffic's trains.

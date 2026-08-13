@@ -138,7 +138,26 @@ export default function createAisClient({
     onStateChange('idle');
   }
 
+  // Every vessel Digitraffic knows, with its shipType — 1129 records, 56 kB, and
+  // the only way to find the rescue vessels: the API has no server-side type
+  // filter, so the whole list is fetched once and filtered here.
+  async function fetchVessels() {
+    return fetchJson('/vessels');
+  }
+
+  // Every current position, as GeoJSON. 1246 features, 50 kB — one call to give
+  // a vessel layer something to draw before the first MQTT message arrives.
+  async function fetchAllLocations() {
+    return fetchJson('/locations');
+  }
+
   return {
-    connect, disconnect, setSubscriptions, fetchLocation, fetchMetadata,
+    connect,
+    disconnect,
+    setSubscriptions,
+    fetchLocation,
+    fetchMetadata,
+    fetchVessels,
+    fetchAllLocations,
   };
 }
