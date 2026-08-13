@@ -28,6 +28,15 @@
 // Only topics with parts get this. A plain row has nothing to be partial about,
 // and making its switch positional would turn a press on the end it already
 // sits at into a confusing no-op.
+//
+// SECTIONS are the same idea one level up: a run of related topics (Ilmailu =
+// aerodromes, turnpoints, aircraft, airspace) behind one disclosure, so four
+// rows cost one when nobody is looking at them. A section has NO STATE OF ITS
+// OWN — it reads on, off or half-on from its members and its gestures just
+// operate them — which is what lets a topic inside a section keep its own parts
+// and behave exactly as it does outside one. That matters because Ilmatilat has
+// parts of its own, so a section that owned state would have needed a third
+// level of it.
 
 const EXPAND_ICON = 'expand_more';
 
@@ -38,12 +47,17 @@ export default function initPoiMenu({
   // than cached, so the caller stays the single source of truth.
   isOn,
   isChildOn = () => false,
+  // { id: { label, icon } } for the runs of topics that share a `section`.
+  sections = {},
   // The caller mutates its own state, applies it and persists.
   onToggle,
   // (id, on) -> void. The switch pressed at one of its ends, which is absolute
   // rather than a toggle: left means none of the topic, right means all of it.
   onSetGroup = () => {},
   onToggleChild = () => {},
+  // (sectionId, 'toggle' | 'all' | 'none') — the same three gestures a topic
+  // with parts answers to, applied to every member at once.
+  onSection = () => {},
 } = {}) {
   if (!container) return { refresh() {}, collapseAll() {} };
 
@@ -58,14 +72,31 @@ export default function initPoiMenu({
     return shown === 0 ? 'off' : 'partial';
   }
 
+  const sectionMembers = (sectionId) => registry.filter((e) => e.section === sectionId);
+
+  // Read from the members, never stored. All of them fully on reads on, none of
+  // them reads off, anything else is the half-on that tells you to look inside.
+  function sectionState(sectionId) {
+    const states = sectionMembers(sectionId).map(groupState);
+    if (states.every((st) => st === 'on')) return 'on';
+    if (states.every((st) => st === 'off')) return 'off';
+    return 'partial';
+  }
+
+  const ariaFor = (state) => (state === 'partial' ? 'mixed' : String(state === 'on'));
+
   function refresh() {
+    Object.keys(sections).forEach((sectionId) => {
+      const row = container.querySelector(`.menu-row[data-poi-section="${sectionId}"]`);
+      if (row) row.setAttribute('aria-checked', ariaFor(sectionState(sectionId)));
+    });
     registry.forEach((entry) => {
       const row = container.querySelector(`.menu-row[data-poi="${entry.id}"]`);
       if (!row) return;
       const state = groupState(entry);
       // `mixed` is the ARIA value for a checkbox whose children disagree, so a
       // screen reader says "partially checked" rather than one of the lies.
-      row.setAttribute('aria-checked', state === 'partial' ? 'mixed' : String(state === 'on'));
+      row.setAttribute('aria-checked', ariaFor(state));
       (entry.children || []).forEach((child) => {
         const childRow = container.querySelector(
           `.menu-row[data-poi-child="${entry.id}.${child.id}"]`,
@@ -89,10 +120,32 @@ export default function initPoiMenu({
     });
   }
 
+  // A section hides its members, and their parts with them; showing it again
+  // leaves each topic's own disclosure as it was.
+  function setSectionExpanded(sectionId, expanded) {
+    const row = container.querySelector(`.menu-row[data-poi-section="${sectionId}"]`);
+    const toggleEl = row && row.querySelector('.poi-expand');
+    if (!toggleEl) return;
+    toggleEl.setAttribute('aria-expanded', String(expanded));
+    row.classList.toggle('is-expanded', expanded);
+    sectionMembers(sectionId).forEach((entry) => {
+      const memberRow = container.querySelector(`.menu-row[data-poi="${entry.id}"]`);
+      if (memberRow) memberRow.hidden = !expanded;
+      const topicOpen = !!memberRow && memberRow.classList.contains('is-expanded');
+      (entry.children || []).forEach((child) => {
+        const childRow = container.querySelector(
+          `.menu-row[data-poi-child="${entry.id}.${child.id}"]`,
+        );
+        if (childRow) childRow.hidden = !expanded || !topicOpen;
+      });
+    });
+  }
+
   function collapseAll() {
     registry.forEach((entry) => {
       if (entry.children) setExpanded(entry, false);
     });
+    Object.keys(sections).forEach((sectionId) => setSectionExpanded(sectionId, false));
   }
 
   function makeSwitch() {
@@ -128,9 +181,82 @@ export default function initPoiMenu({
     });
   }
 
-  function buildRow(entry) {
+  // The disclosure button, shared by topics and sections. Its own button, so
+  // that expanding and switching off are never the same press.
+  function buildChevron(label, onFlip) {
+    const toggleEl = document.createElement('button');
+    toggleEl.type = 'button';
+    toggleEl.className = 'poi-expand';
+    toggleEl.setAttribute('aria-expanded', 'false');
+    toggleEl.setAttribute('aria-label', `${label}: näytä osat`);
+    const chevron = document.createElement('i');
+    chevron.className = 'material-icons';
+    chevron.setAttribute('aria-hidden', 'true');
+    chevron.textContent = EXPAND_ICON;
+    toggleEl.appendChild(chevron);
+    const flip = (e) => {
+      e.stopPropagation();
+      onFlip(toggleEl.getAttribute('aria-expanded') !== 'true');
+    };
+    toggleEl.addEventListener('mouseup', flip);
+    toggleEl.addEventListener('keydown', (e) => {
+      if (e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        flip(e);
+      }
+    });
+    return toggleEl;
+  }
+
+  function buildSectionRow(sectionId) {
+    const spec = sections[sectionId];
     const row = document.createElement('div');
     row.className = 'menu-row';
+    row.setAttribute('role', 'menuitemcheckbox');
+    row.setAttribute('aria-checked', ariaFor(sectionState(sectionId)));
+    row.setAttribute('data-poi-section', sectionId);
+    row.setAttribute('tabindex', '0');
+
+    const iconEl = document.createElement('i');
+    iconEl.className = 'material-icons';
+    iconEl.setAttribute('aria-hidden', 'true');
+    iconEl.textContent = spec.icon;
+
+    const labelEl = document.createElement('span');
+    labelEl.className = 'menu-label';
+    labelEl.textContent = spec.label;
+
+    row.appendChild(iconEl);
+    row.appendChild(labelEl);
+    row.appendChild(buildChevron(spec.label, (open) => setSectionExpanded(sectionId, open)));
+
+    // Same three gestures as a topic with parts: the switch ends are absolute,
+    // the rest of the row is the remembering toggle.
+    const switchEl = makeSwitch();
+    switchEl.addEventListener('mouseup', (e) => {
+      e.stopPropagation();
+      onSection(sectionId, pressedRightEnd(switchEl, e) ? 'all' : 'none');
+    });
+    row.appendChild(switchEl);
+    row.addEventListener('mouseup', () => onSection(sectionId, 'toggle'));
+    row.addEventListener('keydown', (e) => {
+      if (e.key === ' ' || e.key === 'Enter') {
+        e.preventDefault();
+        onSection(sectionId, 'toggle');
+        return;
+      }
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        e.preventDefault();
+        setSectionExpanded(sectionId, e.key === 'ArrowRight');
+      }
+    });
+    return row;
+  }
+
+  function buildRow(entry) {
+    const row = document.createElement('div');
+    row.className = entry.section ? 'menu-row is-in-section' : 'menu-row';
+    if (entry.section) row.hidden = true;
     row.setAttribute('role', 'menuitemcheckbox');
     row.setAttribute('aria-checked', String(!!isOn(entry.id)));
     row.setAttribute('data-poi', entry.id);
@@ -149,31 +275,7 @@ export default function initPoiMenu({
     row.appendChild(labelEl);
 
     if (entry.children) {
-      const toggleEl = document.createElement('button');
-      toggleEl.type = 'button';
-      toggleEl.className = 'poi-expand';
-      toggleEl.setAttribute('aria-expanded', 'false');
-      // Named for what it reveals, since the row's own label is read separately.
-      toggleEl.setAttribute('aria-label', `${entry.label}: näytä osat`);
-      const chevron = document.createElement('i');
-      chevron.className = 'material-icons';
-      chevron.setAttribute('aria-hidden', 'true');
-      chevron.textContent = EXPAND_ICON;
-      toggleEl.appendChild(chevron);
-      // The chevron sits inside the row, so without stopping the press here the
-      // group would toggle as well as expand.
-      const flip = (e) => {
-        e.stopPropagation();
-        setExpanded(entry, toggleEl.getAttribute('aria-expanded') !== 'true');
-      };
-      toggleEl.addEventListener('mouseup', flip);
-      toggleEl.addEventListener('keydown', (e) => {
-        if (e.key === ' ' || e.key === 'Enter') {
-          e.preventDefault();
-          flip(e);
-        }
-      });
-      row.appendChild(toggleEl);
+      row.appendChild(buildChevron(entry.label, (open) => setExpanded(entry, open)));
     }
 
     const switchEl = makeSwitch();
@@ -197,7 +299,7 @@ export default function initPoiMenu({
 
   function buildChildRow(entry, child) {
     const row = document.createElement('div');
-    row.className = 'menu-row is-child';
+    row.className = entry.section ? 'menu-row is-child is-in-section' : 'menu-row is-child';
     row.setAttribute('role', 'menuitemcheckbox');
     row.setAttribute('aria-checked', String(isChildOn(entry.id, child.id)));
     row.setAttribute('data-poi-child', `${entry.id}.${child.id}`);
@@ -217,7 +319,14 @@ export default function initPoiMenu({
   }
 
   container.textContent = '';
+  const emitted = new Set();
   registry.forEach((entry) => {
+    // Members of a section are contiguous in the registry, so the section's own
+    // row goes in when the first of them is reached.
+    if (entry.section && sections[entry.section] && !emitted.has(entry.section)) {
+      emitted.add(entry.section);
+      container.appendChild(buildSectionRow(entry.section));
+    }
     container.appendChild(buildRow(entry));
     (entry.children || []).forEach((child) => {
       container.appendChild(buildChildRow(entry, child));
