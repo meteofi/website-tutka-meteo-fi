@@ -116,6 +116,9 @@ export default function createPane(targetEl, sharedView, deps) {
     // Search-and-rescue vessels (src/ais/rescueVessels.js) — panes share one
     // VectorSource; the controller owns the AIS subscription.
     createRescueVesselLayer,
+    // METAR station plots (src/metar/metarLayer.js) — panes share one
+    // VectorSource; the controller owns the fetching and follows the clock.
+    createMetarLayer,
     // Place-search highlight pulse (src/search/searchHighlight.js) — panes
     // share one VectorSource so the pulse shows in every split-screen pane.
     createSearchHighlightLayer,
@@ -416,6 +419,10 @@ export default function createPane(targetEl, sharedView, deps) {
   // Rescue vessels sit with the other live movers, above the static context.
   const rescueVesselLayer = createRescueVesselLayer();
 
+  // METAR plots annotate the aerodromes, so they sit above the airspace and the
+  // aerodrome discs but below the things that move.
+  const metarLayer = createMetarLayer();
+
   const guideLayer = new VectorLayer({
     source: new Vector(),
     style: rangeStyle,
@@ -464,6 +471,7 @@ export default function createPane(targetEl, sharedView, deps) {
     radarSiteLayer,
     icaoLayer,
     turnpointLayer,
+    metarLayer,
     railwayTrackLayer,
     railwayLayer,
     trafficLayer,
@@ -507,6 +515,7 @@ export default function createPane(targetEl, sharedView, deps) {
     radarSiteLayer,
     icaoLayer,
     turnpointLayer,
+    metarLayer,
     railwayTrackLayer,
     railwayLayer,
     trafficLayer,

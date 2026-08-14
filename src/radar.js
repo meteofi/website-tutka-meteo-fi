@@ -46,6 +46,7 @@ import initGliders from './gliders';
 import initTrainLocations from './trainLocations';
 import initAirspace from './airspace';
 import initRescueVessels from './ais/rescueVessels';
+import initMetar from './metar/metarLayer';
 import initTelemetryPanel from './ui/telemetryPanel';
 import railwayStationsUrl from './data/railway-stations-finland.geojson';
 import radarSitesFallbackUrl from './data/radars-finland.geojson';
@@ -799,6 +800,11 @@ const airspace = initAirspace();
 // route here.
 const rescueVessels = initRescueVessels({ telemetry });
 
+// METAR station plots. Clock-coupled, unlike the other live layers: MET Norway
+// returns 24 h of reports per station in the same request, so the plot can show
+// what the aerodrome reported at the frame being displayed.
+const metar = initMetar({ telemetry });
+
 const trainLocations = initTrainLocations({
   telemetry,
   stationName: (code) => trains.stationName(code),
@@ -835,6 +841,7 @@ const paneDeps = {
   createTrainLocationLayer: trainLocations.createPaneLayer,
   createAirspaceLayer: airspace.createPaneLayer,
   createRescueVesselLayer: rescueVessels.createPaneLayer,
+  createMetarLayer: metar.createPaneLayer,
   createSearchHighlightLayer: searchHighlight.createPaneLayer,
 };
 
@@ -1018,6 +1025,11 @@ function initNewPane(pane) {
     // Checked before the station under it: a train standing at a platform sits
     // almost on top of the station marker, and a tap that lands on the thing
     // that is moving is the deliberate one.
+    const metarHit = pane.metar.findAtPixel(evt.pixel);
+    if (metarHit) {
+      pane.metar.open(metarHit);
+      return;
+    }
     const vesselHit = pane.rescueVessels.findAtPixel(evt.pixel);
     if (vesselHit) {
       pane.rescueVessels.open(vesselHit);
@@ -1316,6 +1328,9 @@ function setTime(action = 'next', seekIndex = 0) {
   // Kelikamerat: the open camera's photo snaps to the displayed frame, and the
   // window is passed so the surrounding frames' images can be prefetched.
   weatherCameras.setCursor(startDate.getTime(), start, resolution);
+  // METAR plots follow the clock too: the 24 h of reports is already in hand, so
+  // showing the one current at the displayed frame is a lookup, not a fetch.
+  metar.setCursor(startDate.getTime(), start, resolution);
   // Per-pane crosshairs: only active panes get the cursor — inactive panes'
   // reticles are hidden and must not refetch; they pick up the current window
   // on reactivation (setLayout runs setTime before syncCrosshairVisibility).
@@ -1621,6 +1636,7 @@ function setMapLayer(maplayer) {
     pane.airspaceControlledLayer.setStyle(airspace.styleFor('controlled', airspaceTheme));
     pane.airspaceRestrictedLayer.setStyle(airspace.styleFor('restricted', airspaceTheme));
     pane.airspaceReservedLayer.setStyle(airspace.styleFor('reserved', airspaceTheme));
+    pane.metarLayer.setStyle(light ? metar.styleLight : metar.styleDark);
   }
   applyIcaoTheme(maplayer);
   applyVesivaylatTheme(maplayer);
@@ -1947,6 +1963,7 @@ function initPaneTraffic(pane) {
   pane.gliders = gliders.attachPane(pane.map, pane.gliderLayer);
   pane.trainLocations = trainLocations.attachPane(pane.map, pane.trainLocationLayer);
   pane.rescueVessels = rescueVessels.attachPane(pane.map, pane.rescueVesselLayer);
+  pane.metar = metar.attachPane(pane.map, pane.metarLayer);
   // Own position/vessel drives the same strip; only the hit-test is per-pane.
   if (ownLocation) pane.ownTelemetry = ownLocation.attachPane(pane);
 }
@@ -2562,6 +2579,16 @@ const poiRegistry = [
     layerKeys: ['gliderLayer'],
   },
   {
+    // Live data: applyPoiVisibility drives the fetching (setEnabled), so nothing
+    // is requested while the layer is off.
+    id: 'metar',
+    section: 'ilmailu',
+    label: 'Sääsanomat',
+    icon: 'cloud',
+    defaultOn: false,
+    layerKeys: ['metarLayer'],
+  },
+  {
     // Aviation context, and the app's only CC BY-NC dataset — see
     // scripts/fetch-airspace.mjs. Three parts because they answer different
     // questions: where you may not go, where you must talk to someone, and
@@ -2744,6 +2771,7 @@ function applyPoiVisibility() {
   airspace.setEnabled(!!POI_STATE.airspace);
   // The AIS subscription lives only while the layer is on.
   rescueVessels.setEnabled(!!POI_STATE.pelastusalukset);
+  metar.setEnabled(!!POI_STATE.metar);
 }
 
 // Pressing the ROW is the remembering toggle: it hides or shows a topic without
@@ -3559,6 +3587,15 @@ const main = () => {
       }
     }
 
+    // Tap on a METAR plot → open the report in the telemetry strip.
+    if (pane0.metar) {
+      const metarHit = pane0.metar.findAtPixel(evt.pixel);
+      if (metarHit) {
+        pane0.metar.open(metarHit);
+        return;
+      }
+    }
+
     // Tap on a rescue vessel → open its telemetry strip. With the other live
     // movers: the targets are small, they move, and a tap that lands on one is
     // deliberate.
@@ -3713,6 +3750,7 @@ function shareAttributions() {
   // Required: openAIP is CC BY-NC, so the credit is a licence condition rather
   // than a courtesy.
   if (POI_STATE.airspace) parts.add('Ilmatilat © openAIP (CC BY-NC 4.0)');
+  if (POI_STATE.metar) parts.add('METAR © MET Norway (CC BY 4.0)');
   if (POI_STATE.pelastusalukset) parts.add('Pelastusalukset © Fintraffic (CC BY 4.0)');
   if (POI_STATE.gliders) parts.add('Lentokoneet © Open Glider Network');
   // Credited per part now that they can be switched independently — showing
