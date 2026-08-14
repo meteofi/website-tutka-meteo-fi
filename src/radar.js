@@ -645,12 +645,13 @@ const rangeStyle = new Style({
 // bootstrap (createPane + pane-0 aliases) runs just below the source.
 
 // Radar-site markers track the live radar network rather than a hand-edited
-// file: four meteocore OGC API Features collections are fetched and merged —
+// file: five meteocore OGC API Features collections are fetched and merged —
 // Finland (fi-radar-pvol), Estonia (ee-radar-volume), Denmark
-// (dk-radar-volume) and the Netherlands (radar-nl-volume, whose id puts the
-// country in the middle rather than in front; nothing parses these ids except
-// the single-variant rule below, which only matches the Finnish -pvol- form and
-// correctly declines the rest). Each feature's
+// (dk-radar-volume), the Netherlands (radar-nl-volume) and Croatia
+// (radar-hr-volume). The newer two put the country in the middle of the id
+// rather than in front; nothing parses these ids except the single-variant rule
+// below, which only matches the Finnish -pvol- form and correctly declines the
+// rest. Each feature's
 // `name` is the official station name used for the label. If both live
 // fetches fail (offline PWA, meteocore unreachable), fall back to the bundled
 // snapshot so markers still render. Default 'all' loading strategy → the
@@ -660,12 +661,13 @@ const RADAR_SITE_COLLECTIONS = [
   'https://meteocore.app.meteo.fi/features/collections/ee-radar-volume/items?f=application/geo%2Bjson&limit=1000',
   'https://meteocore.app.meteo.fi/features/collections/dk-radar-volume/items?f=application/geo%2Bjson&limit=1000',
   'https://meteocore.app.meteo.fi/features/collections/radar-nl-volume/items?f=application/geo%2Bjson&limit=1000',
+  'https://meteocore.app.meteo.fi/features/collections/radar-hr-volume/items?f=application/geo%2Bjson&limit=1000',
 ];
 const RADAR_SITE_FALLBACK_URL = radarSitesFallbackUrl;
 
 const radarSiteSource = new Vector({
   format: new GeoJSON(),
-  attributions: 'FMI / Estonian Environment Agency / DMI / KNMI (CC BY 4.0)',
+  attributions: 'FMI / Estonian Environment Agency / DMI / KNMI / DHMZ (CC BY 4.0)',
   loader: (extent, resolution, projection, success, failure) => {
     const readInto = (geojson) => {
       const features = radarSiteSource.getFormat()
