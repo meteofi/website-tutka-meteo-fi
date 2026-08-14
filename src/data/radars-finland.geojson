@@ -956,6 +956,181 @@
                     "ZDR"
                 ]
             }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    17.20046,
+                    45.883527
+                ]
+            },
+            "properties": {
+                "name": "Bilogora",
+                "nod": "hrbil",
+                "country": "hr",
+                "collection": "radar-hr-volume-hrbil",
+                "coverage_radius_m": 249200.6,
+                "elevation_angles": [
+                    0.5,
+                    1.3,
+                    3.2,
+                    4.8,
+                    6.0,
+                    7.5,
+                    11.5,
+                    17.5,
+                    25.0
+                ],
+                "quantities": [
+                    "DBZH",
+                    "RHOHV",
+                    "TH",
+                    "VRADH",
+                    "ZDR"
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    15.37637,
+                    44.04516
+                ]
+            },
+            "properties": {
+                "name": "Debeljak",
+                "nod": "hrdeb",
+                "country": "hr",
+                "collection": "radar-hr-volume-hrdeb",
+                "coverage_radius_m": 249200.6,
+                "elevation_angles": [
+                    0.5,
+                    1.3,
+                    3.2,
+                    4.8,
+                    6.0,
+                    7.5,
+                    11.5,
+                    17.5,
+                    25.0
+                ],
+                "quantities": [
+                    "DBZH",
+                    "RHOHV",
+                    "TH",
+                    "VRADH",
+                    "ZDR"
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    18.70333,
+                    45.15917
+                ]
+            },
+            "properties": {
+                "name": "Gradiste",
+                "nod": "hrgra",
+                "country": "hr",
+                "collection": "radar-hr-volume-hrgra",
+                "coverage_radius_m": 249200.6,
+                "elevation_angles": [
+                    0.5,
+                    1.3,
+                    3.2,
+                    4.8,
+                    6.0,
+                    7.5,
+                    11.5,
+                    17.5,
+                    25.0
+                ],
+                "quantities": [
+                    "DBZH",
+                    "RHOHV",
+                    "TH",
+                    "VRADH",
+                    "ZDR"
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    15.968383,
+                    45.907814
+                ]
+            },
+            "properties": {
+                "name": "Puntijarka",
+                "nod": "hrpun",
+                "country": "hr",
+                "collection": "radar-hr-volume-hrpun",
+                "coverage_radius_m": 249200.6,
+                "elevation_angles": [
+                    0.5,
+                    1.3,
+                    3.2,
+                    4.8,
+                    6.0,
+                    7.5,
+                    11.5,
+                    17.5,
+                    25.0
+                ],
+                "quantities": [
+                    "DBZH",
+                    "RHOHV",
+                    "TH",
+                    "VRADH",
+                    "ZDR"
+                ]
+            }
+        },
+        {
+            "type": "Feature",
+            "geometry": {
+                "type": "Point",
+                "coordinates": [
+                    17.47829,
+                    42.89439
+                ]
+            },
+            "properties": {
+                "name": "Uljenje",
+                "nod": "hrulj",
+                "country": "hr",
+                "collection": "radar-hr-volume-hrulj",
+                "coverage_radius_m": 249200.6,
+                "elevation_angles": [
+                    0.5,
+                    1.3,
+                    3.2,
+                    4.8,
+                    6.0,
+                    7.5,
+                    11.5,
+                    17.5,
+                    25.0
+                ],
+                "quantities": [
+                    "DBZH",
+                    "RHOHV",
+                    "TH",
+                    "VRADH",
+                    "ZDR"
+                ]
+            }
         }
     ]
 }
