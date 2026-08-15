@@ -35,8 +35,18 @@ const BARB_LEN = 26;
 const FEATHER_LEN = 9;
 const FEATHER_STEP = 4.5;
 const PENNANT_W = 5;
+// The text slots. Three rows, two columns, around the circle:
+//
+//   TEXT_DY is half the row spacing. At 9 it was tighter than the 11px font is
+//   tall, so the rows touched; 14 gives a clear line between them.
+//
+//   The MIDDLE row sits further out than the top and bottom ones. That is not
+//   decoration: the circle is at its widest exactly at the middle row's height,
+//   while at ±14 it is not in the way at all, so the middle needs the extra
+//   clearance and the outer rows do not.
 const TEXT_DX = 13;
-const TEXT_DY = 9;
+const TEXT_DX_MIDDLE = 18;
+const TEXT_DY = 14;
 
 // Flight category is the first thing a pilot reads, so it colours the circle.
 // The standard aviation colours, which pilots already know from every briefing
@@ -280,9 +290,9 @@ export function createStationPlotStyle({ theme = 'light' } = {}) {
     // Two columns, each reading top to bottom, with the middle slot of each
     // reserved for the thing that is usually absent:
     //
-    //     temperature   pressure
-    //     visibility  ●  ceiling
-    //     dew point     ICAO
+    //      temperature    pressure
+    //   visibility   ●    ceiling
+    //      dew point      ICAO
     //
     // Visibility and ceiling are drawn ONLY when they restrict anything — no
     // number means 10 km or more, and no ceiling. That is the common case by a
@@ -295,7 +305,7 @@ export function createStationPlotStyle({ theme = 'light' } = {}) {
     }
     const vis = visibilityText(report);
     if (vis) {
-      styles.push(slot(center, vis, -TEXT_DX, 0, 'right', textColor, haloColor, resolution));
+      styles.push(slot(center, vis, -TEXT_DX_MIDDLE, 0, 'right', textColor, haloColor, resolution));
     }
     if (Number.isFinite(report.dewpC)) {
       styles.push(slot(center, num(report.dewpC), -TEXT_DX, -TEXT_DY, 'right', textColor, haloColor, resolution));
@@ -304,9 +314,11 @@ export function createStationPlotStyle({ theme = 'light' } = {}) {
       styles.push(slot(center, num(report.qnhHpa), TEXT_DX, TEXT_DY, 'left', textColor, haloColor, resolution));
     }
     if (Number.isFinite(report.ceilingFt)) {
-      // In the category colour: a ceiling is usually the reason a field is not
-      // green, so the number and the verdict it drives read as one thing.
-      styles.push(slot(center, `${report.ceilingFt}`, TEXT_DX, 0, 'left', color, haloColor, resolution));
+      // Neutral, like the other numbers. It was drawn in the category colour on
+      // the reasoning that a ceiling is usually the reason a field is not green
+      // — but a magenta or blue number on a pale basemap is simply harder to
+      // read than a black one, and the circle already carries the verdict.
+      styles.push(slot(center, `${report.ceilingFt}`, TEXT_DX_MIDDLE, 0, 'left', textColor, haloColor, resolution));
     }
     // The ICAO code identifies the plot; without it a reader has numbers but no
     // idea which field they belong to.
