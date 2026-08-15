@@ -114,51 +114,82 @@ function barbGeometry(center, directionDeg, speedKt, resolution) {
   return { lines, polygons };
 }
 
-// The okta circle: a disc whose fill shows total sky cover. Drawn as a filled
-// wedge over an outlined circle, which is the classic rendering and reads at
-// 12 px where separate okta glyphs would not.
+// The sky-cover symbol: how much of the circle is filled says how much of the
+// sky is covered.
+//
+// DRAWN ENTIRELY AS GEOMETRY, and that is not a style choice. OpenLayers replays
+// a vector layer in a fixed order — Polygon, Circle, LineString, Image, Text
+// (ExecutorGroup.ALL) — so an `image: new CircleStyle(...)` is painted AFTER any
+// Polygon regardless of the order the styles were returned in. The first version
+// drew the outline as a white-filled CircleStyle and the cover as a wedge
+// Polygon, so the white disc landed on top and erased it: every station showed
+// an empty circle unless it was fully overcast, which was the one case with no
+// wedge to erase. Keeping the whole symbol in the Polygon and LineString passes
+// keeps it in the order it is written.
+//
+// Symbols follow the synoptic convention, filling clockwise from 12 o'clock:
+// 1 okta is a vertical line rather than a thin wedge (a 45° sliver at this size
+// is indistinguishable from a rendering artefact), 8 is solid, and everything
+// between is a wedge of that eighth. METAR reports cover in categories, so in
+// practice this draws 0 (clear/CAVOK), 1 (FEW), 3 (SCT), 6 (BKN) and 8 (OVC).
 function coverStyles(center, oktas, color, resolution, haloColor) {
-  const styles = [];
-  const outline = new Style({
-    geometry: new Point(center),
-    image: new CircleStyle({
-      radius: CIRCLE_R,
-      fill: new Fill({ color: haloColor }),
-      stroke: new Stroke({ color, width: 1.6 }),
-      declutterMode: 'none',
-    }),
-  });
-  const filled = Math.max(0, Math.min(8, Number.isFinite(oktas) ? oktas : 0));
-  if (filled >= 8) {
-    styles.push(new Style({
-      geometry: new Point(center),
-      image: new CircleStyle({
-        radius: CIRCLE_R,
-        fill: new Fill({ color }),
-        stroke: new Stroke({ color, width: 1.6 }),
-        declutterMode: 'none',
-      }),
-    }));
-    return styles;
-  }
-  styles.push(outline);
-  if (filled > 0) {
-    // A wedge from north, clockwise, covering filled/8 of the disc.
-    const r = CIRCLE_R * resolution;
+  const r = CIRCLE_R * resolution;
+  const disc = (from, to) => {
+    // A wedge from `from` to `to` turns, clockwise from north.
     const ring = [center];
-    const steps = 24;
-    const sweep = (filled / 8) * Math.PI * 2;
+    const steps = Math.max(3, Math.round((to - from) * 24));
     for (let i = 0; i <= steps; i += 1) {
-      const a = (i / steps) * sweep;
+      const a = (from + ((to - from) * i) / steps) * Math.PI * 2;
       ring.push([center[0] + Math.sin(a) * r, center[1] + Math.cos(a) * r]);
     }
     ring.push(center);
+    return new Polygon([ring]);
+  };
+  const whole = disc(0, 1);
+  const filled = Math.max(0, Math.min(8, Number.isFinite(oktas) ? oktas : 0));
+
+  const styles = [
+    // An opaque backing so the wind barb's shaft does not show through the
+    // circle, which would read as an extra line across the symbol.
+    new Style({ geometry: whole, fill: new Fill({ color: haloColor }) }),
+  ];
+  if (filled >= 8) {
+    styles.push(new Style({ geometry: whole, fill: new Fill({ color }) }));
+  } else if (filled >= 2) {
+    styles.push(new Style({ geometry: disc(0, filled / 8), fill: new Fill({ color }) }));
+  }
+  // The outline goes on last so the fill never covers it.
+  styles.push(new Style({ geometry: whole, stroke: new Stroke({ color, width: 1.6 }) }));
+  if (filled === 1) {
+    // The traditional one-okta symbol: a single line from the centre upward.
     styles.push(new Style({
-      geometry: new Polygon([ring]),
-      fill: new Fill({ color }),
+      geometry: new LineString([center, [center[0], center[1] + r]]),
+      stroke: new Stroke({ color, width: 1.6 }),
     }));
   }
   return styles;
+}
+
+// Visibility, in kilometres, and only when it is restricting. 10 km is the
+// reporting ceiling (9999 means "10 km or more") and CAVOK asserts the same, so
+// neither is worth a slot — an empty middle-left means "not a problem".
+//
+// Metric because this is a European aerodrome plot: the METAR itself carries
+// metres, and a Finnish pilot's limits are quoted in metres and kilometres, not
+// statute miles.
+export function visibilityText(report) {
+  if (!report || report.cavok) return '';
+  const m = report.visM;
+  // 9999 is the METAR sentinel for "10 km or more", not a measurement. The
+  // parser already maps it to 10000, but treating it as 9.999 km here would
+  // print "10.0 km" — a plausible-looking number that is really a code.
+  if (!Number.isFinite(m) || m >= 9999) return '';
+  if (m >= 1000) {
+    const km = m / 1000;
+    // 5 rather than 5.0, but 1.5 keeps its decimal.
+    return Number.isInteger(km) ? `${km} km` : `${km.toFixed(1)} km`;
+  }
+  return `${m} m`;
 }
 
 // One text slot of the model.
@@ -246,15 +277,36 @@ export function createStationPlotStyle({ theme = 'light' } = {}) {
       styles.push(slot(center, label, 0, -TEXT_DY - 8, 'center', textColor, haloColor, resolution));
     }
 
+    // Two columns, each reading top to bottom, with the middle slot of each
+    // reserved for the thing that is usually absent:
+    //
+    //     temperature   pressure
+    //     visibility  ●  ceiling
+    //     dew point     ICAO
+    //
+    // Visibility and ceiling are drawn ONLY when they restrict anything — no
+    // number means 10 km or more, and no ceiling. That is the common case by a
+    // long way (900 of 1142 live reports were CAVOK), so the plot stays four
+    // numbers most of the time and the two middle slots filling in is itself the
+    // signal that a field is worth a second look.
     const num = (v) => (Number.isFinite(v) ? String(Math.round(v)) : '');
     if (Number.isFinite(report.tempC)) {
       styles.push(slot(center, num(report.tempC), -TEXT_DX, TEXT_DY, 'right', textColor, haloColor, resolution));
+    }
+    const vis = visibilityText(report);
+    if (vis) {
+      styles.push(slot(center, vis, -TEXT_DX, 0, 'right', textColor, haloColor, resolution));
     }
     if (Number.isFinite(report.dewpC)) {
       styles.push(slot(center, num(report.dewpC), -TEXT_DX, -TEXT_DY, 'right', textColor, haloColor, resolution));
     }
     if (Number.isFinite(report.qnhHpa)) {
       styles.push(slot(center, num(report.qnhHpa), TEXT_DX, TEXT_DY, 'left', textColor, haloColor, resolution));
+    }
+    if (Number.isFinite(report.ceilingFt)) {
+      // In the category colour: a ceiling is usually the reason a field is not
+      // green, so the number and the verdict it drives read as one thing.
+      styles.push(slot(center, `${report.ceilingFt}`, TEXT_DX, 0, 'left', color, haloColor, resolution));
     }
     // The ICAO code identifies the plot; without it a reader has numbers but no
     // idea which field they belong to.
