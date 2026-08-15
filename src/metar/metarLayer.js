@@ -29,10 +29,16 @@ import createMetarSource from './metarSource';
 import { reportAt } from './metarParse';
 import { createStationPlotStyle, createPlotFeature } from './stationPlot';
 
-// A full station model at synoptic zoom is unreadable and would bury the radar,
-// so nothing is drawn below about z8. The same band the aerodrome names and the
-// glider readouts use.
-const MAX_RESOLUTION = 700;
+// Plots draw from about z6 in. Web Mercator resolution is 156543/2^z, so z6 is
+// 2446 m/px and this threshold sits just above it.
+//
+// It started at 700 (z8 and closer), on the reasoning that a full station model
+// at synoptic zoom would be unreadable and would bury the radar. Widened on
+// request: at z6 the whole country is in view, and being able to see at a glance
+// which fields are green and which are magenta is worth more than the crowding
+// costs — the plots do not declutter, so where two aerodromes are close their
+// models overlap rather than one disappearing.
+const MAX_RESOLUTION = 2500;
 
 // How old a report may be before the plot says so. Reports are half-hourly, so
 // anything past about two of them means the station has gone quiet rather than
