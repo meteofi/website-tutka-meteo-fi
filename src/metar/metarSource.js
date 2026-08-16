@@ -55,9 +55,16 @@ export default function createMetarSource({ fetchImpl = fetch } = {}) {
   let timer = 0;
   let running = false;
   let onUpdate = () => {};
+  // Switching the layer off has to stop the fetching, not just the timer. A
+  // refresh already in flight would otherwise run to completion and write its
+  // result into a store the user has closed — so the request is aborted, and a
+  // generation counter makes sure a response that arrives anyway is discarded
+  // rather than repopulating it.
+  let controller = null;
+  let generation = 0;
 
-  async function fetchBatch(codes) {
-    const resp = await fetchImpl(`${ENDPOINT}?icao=${codes.join(',')}`);
+  async function fetchBatch(codes, signal) {
+    const resp = await fetchImpl(`${ENDPOINT}?icao=${codes.join(',')}`, { signal });
     if (!resp.ok) throw new Error(`METAR ${resp.status}`);
     const text = await resp.text();
     // The response is one flat stream of reports for every station asked for,
@@ -75,11 +82,17 @@ export default function createMetarSource({ fetchImpl = fetch } = {}) {
   async function refresh() {
     if (running) return;
     running = true;
+    const mine = generation;
+    controller = typeof AbortController === 'function' ? new AbortController() : null;
+    const signal = controller ? controller.signal : undefined;
     const codes = reporting && reporting.length ? reporting : wanted;
     try {
       const batches = await Promise.all(
-        chunk(codes, MAX_CODES_PER_REQUEST).map((part) => fetchBatch(part)),
+        chunk(codes, MAX_CODES_PER_REQUEST).map((part) => fetchBatch(part, signal)),
       );
+      // Stopped while this was in flight: its answer belongs to a layer that is
+      // no longer on, so it is dropped rather than written.
+      if (mine !== generation) return;
       const answered = [];
       batches.forEach((grouped) => {
         grouped.forEach((reports, icao) => {
@@ -92,16 +105,20 @@ export default function createMetarSource({ fetchImpl = fetch } = {}) {
       // then left alone, rather than re-asked every five minutes forever.
       if (answered.length) reporting = answered;
     } catch (err) {
-      // Keep whatever was already held. A refresh failing is not a reason to
-      // blank plots that were correct a minute ago.
+      // Keep whatever was already held. A refresh failing — or being aborted
+      // because the layer was switched off — is not a reason to blank plots
+      // that were correct a minute ago.
+    } finally {
+      running = false;
     }
-    running = false;
+    if (mine !== generation) return;
     onUpdate();
   }
 
   return {
     // `list` is the ICAO codes to watch — for us, the bundled aerodromes.
     start(list, updateCallback) {
+      generation += 1;
       wanted = list;
       reporting = null;
       onUpdate = typeof updateCallback === 'function' ? updateCallback : () => {};
@@ -110,8 +127,14 @@ export default function createMetarSource({ fetchImpl = fetch } = {}) {
     },
 
     stop() {
+      // Bumping the generation first means anything already in flight is
+      // disowned even if the abort does not take.
+      generation += 1;
       if (timer) clearInterval(timer);
       timer = 0;
+      if (controller) controller.abort();
+      controller = null;
+      running = false;
       byStation.clear();
       reporting = null;
     },
