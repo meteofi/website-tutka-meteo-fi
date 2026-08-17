@@ -92,18 +92,6 @@ const wmsServerConfiguration = {
     attribution: 'EUMETSAT',
     disabled: true,
   },
-  ca: {
-    url: 'https://geo.weather.gc.ca/geomet/',
-    layer: 'RADAR_1KM_RRAI',
-    // GeoMet advertises thousands of layers; sending the GeoServer/MapServer
-    // `&layer=` extension narrows the GetCapabilities response to just this
-    // one. The flag also keeps the entry out of the (url, namespace) dedup
-    // bucket so each narrowed request fetches independently.
-    narrowByLayer: true,
-    refresh: 300000,
-    category: 'radarLayer',
-    disabled: true,
-  },
   de: {
     url: 'https://meteocore.app.meteo.fi/wms',
     layer: 'dwd-radar-composite-dbz',

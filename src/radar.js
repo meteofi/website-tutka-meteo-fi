@@ -3016,18 +3016,11 @@ function getWMSCapabilities(wms, failCountArg = 0) {
   let failCount = failCountArg;
   const parser = new WMSCapabilities();
   const namespace = wms.namespace ? `&namespace=${wms.namespace}` : '';
-  // `&layer=` is a non-standard GeoServer/MapServer extension. Only servers
-  // that explicitly need it set `narrowByLayer: true` in their config —
-  // e.g. GeoMet (Canada), which advertises thousands of layers and would
-  // otherwise return a huge document. Everywhere else we drop the param
-  // and let the (url, namespace) dedup at the caller collapse identical
-  // requests (see `main`).
-  const layerParam = (wms.narrowByLayer && wms.layer) ? `&layer=${wms.layer}` : '';
   const controller = new AbortController();
   const timeoutId = setTimeout(() => { controller.abort(); }, 30000);
   debug(`Request WMS Capabilities ${wms.url}`);
 
-  fetch(`${wms.url}?SERVICE=WMS&version=1.3.0&request=GetCapabilities${namespace}${layerParam}`, {
+  fetch(`${wms.url}?SERVICE=WMS&version=1.3.0&request=GetCapabilities${namespace}`, {
     signal: controller.signal,
   }).then((response) => {
     // An HTTP error (typically 5xx from an overloaded WMS server)
@@ -3327,22 +3320,17 @@ const main = () => {
 
   setMapLayer(getEffectiveTheme());
 
-  // Multiple wms entries can share a (url, namespace) endpoint — e.g. all
-  // six radar nations served from meteocore.app.meteo.fi/wms point at the
-  // same GetCapabilities document. Fetch each unique endpoint exactly once;
+  // Multiple wms entries can share a (url, namespace) endpoint — every radar
+  // nation served from meteocore.app.meteo.fi/wms points at the same
+  // GetCapabilities document. Fetch each unique endpoint exactly once;
   // getLayers populates layerInfo for every layer the server advertises,
   // so the remaining entries' product names resolve naturally.
-  //
-  // Entries with `narrowByLayer: true` (e.g. GeoMet's Canadian radar) opt
-  // out of dedup: the server returns a different document per `&layer=`,
-  // so each filtered request must run on its own.
   //
   // Plain null-prototype object used as a string-keyed set of endpoints.
   const seenEndpoints = Object.create(null);
   Object.values(options.wmsServerConfiguration).forEach((value) => {
     if (value.disabled) return;
-    const layerKey = value.narrowByLayer ? (value.layer || '') : '';
-    const key = `${value.url}|${value.namespace || ''}|${layerKey}`;
+    const key = `${value.url}|${value.namespace || ''}`;
     if (!(key in seenEndpoints)) seenEndpoints[key] = value;
   });
 
