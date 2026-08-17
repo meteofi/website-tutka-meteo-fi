@@ -3015,12 +3015,11 @@ function getWMSCapabilities(wms, failCountArg = 0) {
   loop.inFlight = true;
   let failCount = failCountArg;
   const parser = new WMSCapabilities();
-  const namespace = wms.namespace ? `&namespace=${wms.namespace}` : '';
   const controller = new AbortController();
   const timeoutId = setTimeout(() => { controller.abort(); }, 30000);
   debug(`Request WMS Capabilities ${wms.url}`);
 
-  fetch(`${wms.url}?SERVICE=WMS&version=1.3.0&request=GetCapabilities${namespace}`, {
+  fetch(`${wms.url}?SERVICE=WMS&version=1.3.0&request=GetCapabilities`, {
     signal: controller.signal,
   }).then((response) => {
     // An HTTP error (typically 5xx from an overloaded WMS server)
@@ -3133,17 +3132,9 @@ function getLayers(parentlayer, wms, supportsWebp = false) {
     if (Array.isArray(layer.Layer)) {
       getLayers(layer.Layer, wms, supportsWebp);
     } else {
-      let name = layer.Name;
-      // Servers differ on whether Name carries the workspace prefix, so add
-      // the configured namespace only when it's not already present.
-      if (wms.namespace && name.indexOf(`${wms.namespace}:`) !== 0) {
-        name = `${wms.namespace}:${name}`;
-      }
-      const candidate = wmsByLayerName[name] || wmsByLayerName[layer.Name];
-      const sameEndpoint = candidate
-        && candidate.url === wms.url
-        && (candidate.namespace || '') === (wms.namespace || '');
-      const ownerWms = sameEndpoint ? candidate : wms;
+      const name = layer.Name;
+      const candidate = wmsByLayerName[name];
+      const ownerWms = (candidate && candidate.url === wms.url) ? candidate : wms;
       layerInfo[name] = getLayerInfo(layer, ownerWms, supportsWebp);
       layerInfo[name].layer = name;
     }
@@ -3320,18 +3311,17 @@ const main = () => {
 
   setMapLayer(getEffectiveTheme());
 
-  // Multiple wms entries can share a (url, namespace) endpoint — every radar
-  // nation served from meteocore.app.meteo.fi/wms points at the same
-  // GetCapabilities document. Fetch each unique endpoint exactly once;
-  // getLayers populates layerInfo for every layer the server advertises,
-  // so the remaining entries' product names resolve naturally.
+  // Multiple wms entries can share an endpoint — every radar nation served
+  // from meteocore.app.meteo.fi/wms points at the same GetCapabilities
+  // document. Fetch each unique URL exactly once; getLayers populates
+  // layerInfo for every layer the server advertises, so the remaining
+  // entries' product names resolve naturally.
   //
   // Plain null-prototype object used as a string-keyed set of endpoints.
   const seenEndpoints = Object.create(null);
   Object.values(options.wmsServerConfiguration).forEach((value) => {
     if (value.disabled) return;
-    const key = `${value.url}|${value.namespace || ''}`;
-    if (!(key in seenEndpoints)) seenEndpoints[key] = value;
+    if (!(value.url in seenEndpoints)) seenEndpoints[value.url] = value;
   });
 
   // EDR-backed products (former wms-obs GeoServer, offline for good) have no
