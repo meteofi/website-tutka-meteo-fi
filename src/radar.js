@@ -55,6 +55,7 @@ import initOwnLocationMenu from './ui/ownLocationMenu';
 import initPlaceSearch from './ui/placeSearch';
 import initSpeedDial from './ui/speedDial';
 import initRadarStrip from './ui/radarStrip';
+import initRadarLegend from './ui/radarLegend';
 import createLayerPanel from './ui/layerPanel';
 import initSearchHighlight from './search/searchHighlight';
 import FramePool from './animation/framePool';
@@ -99,6 +100,7 @@ let ownLocationMenu;
 let poiMenu;
 let speedDial = null;
 let radarStrip = null;
+let radarLegend = null;
 let placeSearch = null;
 let tools = null;
 let rangeCircle = null;
@@ -376,6 +378,9 @@ ImageLayer.prototype.setLayerStyle = function (style, source) {
   debug(`Set layer style: ${style}`);
   this.getSource().updateParams({ STYLES: style });
   if (source) trackCategory(this, { action: 'style', style, source });
+  // No pane guard: refresh re-reads pane 0's params, so a style change on
+  // another pane is just a cache-hit re-render of an unchanged legend.
+  if (radarLegend && this.get('name') === 'radarLayer') radarLegend.refresh();
 };
 
 // STYLES
@@ -1788,6 +1793,9 @@ function updateLayer(layer, wmslayer, opts = {}) {
       z: layer.getSource().getParams().ELEVATION,
     });
   }
+  // Must stay after the STYLES reset above so the legend reads the post-reset
+  // style; covers layer picks, nowcast and single-site transitions alike.
+  if (isPane0 && radarLegend && layer === radarLayer) radarLegend.refresh();
 }
 
 // Pan/zoom the map to a layer's advertised coverage. Used by the radar
@@ -2022,6 +2030,7 @@ function onChangeVisible(event) {
       z: layer.getSource().getParams().ELEVATION,
     });
   }
+  if (isPane0 && radarLegend && name === 'radarLayer') radarLegend.refresh();
   // Visibility change may invalidate the current timeline window
   // (e.g. activating a stale satellite caps `end` to its old time.end,
   // or hiding it releases the cap). Recompute window + per-layer
@@ -3398,6 +3407,20 @@ const main = () => {
     onSelectQuantity: (q) => { if (radarSite) radarSite.setActiveQuantity(q); },
     onExit: () => { if (radarSite) radarSite.exitSingleSite({ restore: true }); },
   });
+  // Colour-scale legend under the timeline. The getter hands over pane-0 truth
+  // on every refresh; layers via radarProductOf, never getParams().LAYERS (the
+  // nowcast mode flips the mounted slot's LAYERS per displayed frame).
+  radarLegend = initRadarLegend({
+    strip: document.getElementById('legendStrip'),
+    panel: document.getElementById('legendPanel'),
+    getActiveRadar: () => ({
+      url: radarLayer.getSource().getUrl(),
+      layers: radarProductOf(pane0),
+      style: radarLayer.getSource().getParams().STYLES || '',
+      visible: radarLayer.getVisible(),
+    }),
+  });
+  radarLegend.refresh(); // seed from restored state; capabilities-driven updateLayer re-refreshes
   initPaneRadarSite(pane0);
   radarSite = pane0.radarSite;
   initPaneCrosshair(pane0);
