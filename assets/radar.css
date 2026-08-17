@@ -38,6 +38,7 @@
 :root:has(#cameraPanel.open)  { --timecontrol-height: 316px; } /* 56 + 260 camera */
 :root:has(#trainPanel.open)   { --timecontrol-height: 296px; } /* 56 + 240 trains */
 :root:has(#telemetryPanel.open) { --timecontrol-height: 116px; } /* 56 + 60 telemetry */
+:root:has(#legendPanel.open)  { --timecontrol-height: 122px; } /* 56 + 66 legend */
 
 /* The strip adds a 38px row at the top; combined selectors compose with the
    panel overrides via :has() specificity (two :has() beat one). */
@@ -47,6 +48,11 @@
 :root:has(#radarStrip:not([hidden])):has(#cameraPanel.open)   { --timecontrol-height: 354px; }
 :root:has(#radarStrip:not([hidden])):has(#trainPanel.open)    { --timecontrol-height: 334px; }
 :root:has(#radarStrip:not([hidden])):has(#telemetryPanel.open) { --timecontrol-height: 154px; }
+:root:has(#radarStrip:not([hidden])):has(#legendPanel.open)   { --timecontrol-height: 160px; }
+/* Probe + legend is the one likely panel pairing (pinned probe, legend opened
+   on top of it) — without this combo the single-:has() tie-break would leave
+   the FABs inside the taller bar. */
+:root:has(#probeChart.open):has(#legendPanel.open)            { --timecontrol-height: 186px; } /* 56 + 64 + 66 */
 
 /* ≤480px the panels shrink (probe 54, section 176), so the bar does too. */
 @media (max-width: 480px) {
@@ -58,6 +64,7 @@
   :root:has(#radarStrip:not([hidden])):has(#cameraPanel.open)  { --timecontrol-height: 366px; }
   :root:has(#trainPanel.open)                                  { --timecontrol-height: 276px; }
   :root:has(#radarStrip:not([hidden])):has(#trainPanel.open)   { --timecontrol-height: 314px; }
+  :root:has(#probeChart.open):has(#legendPanel.open)           { --timecontrol-height: 176px; } /* 56 + 54 + 66 */
 }
 
 html, body {
@@ -1405,7 +1412,10 @@ body.split-4 #placeSearchButton {
     column-gap: 8px;
   }
   /* One row per stacked element, in DOM order — panels must not share a row,
-     or two open at once would draw on top of each other. */
+     or two open at once would draw on top of each other. The legend panel is
+     the one row BELOW the transport row: the probe must sit directly above the
+     timeline (13-cell register), so nothing may slot between rows 6 and 7, and
+     the panel unfolding beneath the hairline that opens it reads naturally. */
   #radarStrip   { grid-column: 1 / -1; grid-row: 1; }
   #sectionPanel { grid-column: 1 / -1; grid-row: 2; }
   #cameraPanel  { grid-column: 1 / -1; grid-row: 3; }
@@ -1415,6 +1425,7 @@ body.split-4 #placeSearchButton {
   .bar-controls { grid-column: 1;      grid-row: 7; }
   .time-column  { grid-column: 2;      grid-row: 7; min-width: 0; }
   .bar-clock    { grid-column: 3;      grid-row: 7; }
+  #legendPanel  { grid-column: 1 / -1; grid-row: 8; }
 
   /* Single-radar strip — flat segmented bar, topmost in the time control. The
      bar's own border doubles as the segment dividers (border-left per segment);
@@ -1505,6 +1516,43 @@ body.split-4 #placeSearchButton {
     line-height: 1;
     color: var(--dark-medium-emphasis-text-color);
     font-variant-numeric: tabular-nums;
+  }
+
+  /* Colour-scale hairline — pane 0's active radar palette, drawn under the
+     frame labels; tapping it unfolds the legend panel below the transport row.
+     The border keeps the control findable when the palette's left end is
+     nearly transparent over the dark bar. */
+  #legendStrip[hidden] { display: none; }
+  .legend-toggle {
+    all: unset;
+    box-sizing: border-box;
+    display: block;
+    width: 100%;
+    height: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 3px;
+    /* The gradient must not tile into the border area (the repeat tile would
+       wrap its right end onto the left edge) nor bleed under the translucent
+       border. The JS sets background-image only, so these stay in force. */
+    background-repeat: no-repeat;
+    background-clip: padding-box;
+    position: relative;
+    /* Above #timeline (z 100) so a future overlap can't hand taps to the
+       scrubber; today the scrubber's ::before pad ends 8px below its track,
+       well clear of this strip. */
+    z-index: 101;
+    cursor: pointer;
+  }
+  .legend-toggle:focus-visible { outline: 1px solid var(--dark-primary-color); outline-offset: 2px; }
+  /* Thin strip, fat finger: the tap pad reaches up to the times row and down
+     into the bar's bottom padding. */
+  .legend-toggle::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -5px;
+    bottom: -9px;
   }
 
   .bar-controls {
@@ -1856,6 +1904,65 @@ body.split-4 #placeSearchButton {
     text-transform: uppercase;
     color: var(--dark-medium-emphasis-text-color);
     white-space: nowrap;
+  }
+
+  /* Radar colour-scale legend — the hairline's expanded form: Finnish title,
+     gradient bar and value ticks. Same collapse/expand mechanics as the panels
+     above; lives inside #timecontrol so iOS safe-area positioning is inherited
+     (don't give it its own position). Tapping anywhere on it collapses. */
+  #legendPanel {
+    width: 100%;
+    height: 0;
+    overflow: hidden;
+    position: relative;
+    transition: height 220ms cubic-bezier(0.2, 0.7, 0.2, 1);
+    z-index: 100;
+    cursor: pointer;
+  }
+  #legendPanel.open { height: 66px; } /* head 22 + bar 18 + ticks 16 + 10 air */
+  .legend-head {
+    height: 18px;
+    padding: 4px 8px 0;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--dark-high-emphasis-text-color);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .legend-bar {
+    box-sizing: border-box;
+    height: 16px;
+    margin: 2px 8px 0;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    border-radius: 4px;
+    background-repeat: no-repeat; /* see .legend-toggle */
+    background-clip: padding-box;
+  }
+  .legend-ticks {
+    position: relative;
+    height: 14px;
+    margin: 2px 8px 0;
+    font-size: 10px;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    color: var(--dark-medium-emphasis-text-color);
+  }
+  .legend-ticks span {
+    position: absolute;
+    top: 3px;
+    transform: translateX(-50%);
+  }
+  /* A short mark bridging the gap to the bar, so a label reads as a position
+     on the gradient rather than a number floating near it. */
+  .legend-ticks span::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: -5px;
+    width: 1px;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.4);
   }
 
   /* Train departure board — same collapse/expand mechanics as the panels
