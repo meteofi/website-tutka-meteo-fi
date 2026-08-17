@@ -36,6 +36,20 @@
 //                                                  as DDMMSS N / DDDMMSS E
 //   AD 2.2 item 3, "ELEV / REF T / MEAN LOW T"     aerodrome elevation, published
 //                                                  in feet ("180 FT / 23° C / NIL")
+//   AD 2.11 item 1, "Associated MET Office"        the aerodrome's meteorological
+//                                                  office, or NIL when it has none
+//
+// WHICH AERODROMES ISSUE A METAR. AD 2.11 item 1 names the responsible MET
+// office, or says NIL. That turns out to be an exact predictor: measured over
+// all 80 aerodromes on 2026-08-16, precisely the 24 with a named office answer
+// with a METAR from MET Norway, and precisely the 56 with NIL do not — no
+// disagreement in either direction. GEN 3.5 corroborates the mechanism: METAR
+// is issued every 30 minutes in Finland, by these offices ("LEN Etelä / LEN
+// South" and "LEN Pohjoinen / LEN North").
+//
+// So `metar: true` is carried on the aerodromes that have one. It saves the
+// METAR layer from asking 80 stations to find 24, and — unlike discovering it
+// empirically — it is right on the very first request rather than the second.
 //
 // AD 2 IS AERODROMES; AD 3 IS HELIPORTS. The index at AD 1.3 lists both and
 // marks which section each belongs to. Only AD 2 is taken, which is why this
@@ -203,6 +217,23 @@ function parseArp(html, icao) {
   throw new Error(`${icao}: no ARP coordinate found on its AD 2 page`);
 }
 
+// Does this aerodrome have a meteorological office, and therefore a METAR?
+// AD 2.11 item 1 is the responsible office or NIL. Read from the ENGLISH label
+// backwards, since the value sits between the Finnish and English labels of the
+// same row, and matching on the Finnish one alone would break if the page ever
+// went single-language.
+function parseMetarService(html) {
+  const text = stripTags(html);
+  const at = text.indexOf('AD 2.11 METEOROLOGICAL INFORMATION PROVIDED');
+  if (at < 0) return false;
+  const m = /Vastuussa oleva lentosääkeskus\s+(.*?)\s+Associated MET Office/.exec(
+    text.slice(at, at + 400),
+  );
+  if (!m) return false;
+  const office = m[1].trim();
+  return office !== '' && office.toUpperCase() !== 'NIL';
+}
+
 // Aerodrome elevation, from AD 2.2 item 3. Published in feet, and kept in feet:
 // that is the unit the AIP states it in and the one an aerodrome's elevation is
 // quoted in everywhere else, so converting here would only invite the reader to
@@ -264,6 +295,7 @@ const features = await mapWithConcurrency(aerodromes, async (ad) => {
   const html = await fetchText(base + encodeURIComponent(ad.file), `${ad.icao} AD 2 page`);
   const coordinates = parseArp(html, ad.icao);
   const elevationFt = parseElevation(html);
+  const metar = parseMetarService(html);
   done += 1;
   if (done % 20 === 0) console.log(`  …${done}/${aerodromes.length}`);
   return {
@@ -274,10 +306,23 @@ const features = await mapWithConcurrency(aerodromes, async (ad) => {
       icao: ad.icao,
       name: ad.name,
       ...(elevationFt === null ? {} : { elevationFt }),
+      // Only on the aerodromes that have one, so its absence is the common case
+      // and the file does not carry 56 `metar: false` entries.
+      ...(metar ? { metar: true } : {}),
     },
     geometry: { type: 'Point', coordinates },
   };
 });
+
+const withMetar = features.filter((f) => f.properties.metar).length;
+// A cycle in which NO aerodrome has a MET office means AD 2.11 has changed shape,
+// not that Finland stopped reporting weather.
+if (!limit && !withMetar) {
+  throw new Error(
+    'No aerodrome reported an associated MET office. AD 2.11 item 1 has probably '
+    + 'changed shape — refusing to write a file that claims nowhere issues a METAR.',
+  );
+}
 
 const withElevation = features.filter((f) => f.properties.elevationFt !== undefined).length;
 if (!limit && withElevation < features.length * 0.9) {
@@ -313,5 +358,5 @@ if (limit) {
 } else {
   await writeFile(OUT, JSON.stringify(out));
   console.log(`airfields: ${features.length} aerodromes -> ${(JSON.stringify(out).length / 1024).toFixed(0)} kB`);
-  console.log(`  effective ${cycle.date} (${cycle.folder}), ${withElevation} with elevation`);
+  console.log(`  effective ${cycle.date} (${cycle.folder}), ${withElevation} with elevation, ${withMetar} issue a METAR`);
 }
