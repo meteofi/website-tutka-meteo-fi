@@ -169,7 +169,7 @@ These are bounded sets at the time of writing — useful for sanity-checking das
 | Category | Common WMS LAYERS values |
 |---|---|
 | `satellite` | `msg_iodc:hrv_clouds`, `mtg:airmass`, `mtg:natural_color`, `mtg:convection`, … (EUMETSAT) |
-| `radar` | `fmi-radar-composite-dbz`, `Radar_1km_RR`, `Radar_1km_SRI`, … (FMI / Meteo.fi) |
+| `radar` | `fmi-radar-composite-dbz`, `opera-reflectivity`, `smhi-radar-composite-dbz`, … (MeteoCore) |
 | `lightning` | `observation:lightning` |
 | `observation` | `observation:airtemperature`, `observation:rh`, `observation:windspeedms`, … (FMI obs) |
 
@@ -179,7 +179,7 @@ Style names are layer-specific and mostly come from the WMS server. Examples:
 
 | Category | Example STYLES |
 |---|---|
-| `radar` | `radar-rr-color`, `dbz-fmi`, `dbz-eureffin` |
+| `radar` | `radar_fmi`, `radar_dbz`, `radarscope_dbz_standard` |
 | `satellite` | server defaults, occasionally overridden |
 | `observation` | parameter-specific palettes |
 

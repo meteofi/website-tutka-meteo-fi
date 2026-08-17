@@ -335,11 +335,6 @@ function recomputeAllTimelineCells() {
   for (let i = 0; i < 13; i++) updateTimelineCell(i);
 }
 
-// One-time migration of a deprecated FMI openwms layer name.
-if (ACTIVE_LAYERS.radarLayer === 'suomi_dbz_eureffin') {
-  ACTIVE_LAYERS.radarLayer = 'fmi-radar-composite-dbz';
-  persistActiveLayers();
-}
 // IS_DARK: null = auto (follow OS), true = user picked dark, false = user picked light
 let IS_DARK = safeParseJSON('IS_DARK', null);
 let IS_TRACKING = safeParseJSON('IS_TRACKING', false);
@@ -1853,15 +1848,23 @@ function restoreActiveLayer(category, pane = pane0, respondingWms = null) {
   if (!stored) return;
 
   if (!layerInfo[stored] || layerInfo[stored].category !== category) {
-    // Same-category capabilities handlers race (meteocore vs wms.meteo.fi —
-    // response-handler order is nondeterministic): only the endpoint that
-    // OWNS the stored product may evict it. A faster answer from a server
-    // that never advertises the layer must not wipe the user's selection
-    // before the owning server has been heard.
+    // Same-category capabilities handlers race — the radar category is served
+    // by both meteocore and EUMETSAT's H60B endpoint, and response-handler
+    // order is nondeterministic: only the endpoint that OWNS the stored
+    // product may evict it. A faster answer from a server that never
+    // advertises the layer must not wipe the user's selection before the
+    // owning server has been heard.
     const owner = wmsByLayerName[stored];
     if (respondingWms && owner && owner.url !== respondingWms.url) return;
     delete pane.ACTIVE_LAYERS[category];
     if (pane === pane0) persistActiveLayers();
+    // Eviction leaves the layer on its constructor-time default, so — unlike
+    // every other path out of this function — no updateLayer runs and nothing
+    // re-fires the legend refresh. The boot-time seed refresh has already
+    // asked the server about the (now unknown) stored product and hidden the
+    // legend on the failure, so without this it stays hidden for the whole
+    // session even though the default product renders fine.
+    if (pane === pane0 && category === 'radarLayer' && radarLegend) radarLegend.refresh();
     return;
   }
 
@@ -3138,8 +3141,8 @@ function getLayers(parentlayer, wms, supportsWebp = false) {
       getLayers(layer.Layer, wms, supportsWebp);
     } else {
       let name = layer.Name;
-      // FMI GeoServer returns unprefixed names; meteo.fi returns prefixed.
-      // Add namespace prefix only when it's not already present.
+      // Servers differ on whether Name carries the workspace prefix, so add
+      // the configured namespace only when it's not already present.
       if (wms.namespace && name.indexOf(`${wms.namespace}:`) !== 0) {
         name = `${wms.namespace}:${name}`;
       }

@@ -1,19 +1,4 @@
 const wmsServerConfiguration = {
-  'fmi-radar': {
-    url: 'https://openwms.fmi.fi/geoserver/Radar/wms',
-    refresh: 60000,
-    category: 'radarLayer',
-    attribution: 'FMI (CC-BY-4.0)',
-    disabled: true,
-  },
-  'meteo-radar': {
-    url: 'https://wms.meteo.fi/geoserver/wms',
-    namespace: 'radar',
-    refresh: 60000,
-    category: 'radarLayer',
-    attribution: 'FMI (CC-BY-4.0)',
-    disabled: false,
-  },
   eumetsat: {
     url: 'https://eumetview.eumetsat.int/geoserv/wms',
     namespace: 'meteosat',

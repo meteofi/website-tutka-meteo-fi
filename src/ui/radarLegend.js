@@ -7,17 +7,21 @@
 // so the legend always describes the exact palette the map pixels were
 // rendered with — the LAYER/STYLE key is read live from pane 0's radar source
 // on every refresh (this module only ever READS WMS params, never writes them).
-// Only meteocore serves the JSON form; any other radar server (EUMETSAT H60B,
-// wms.meteo.fi) simply hides the legend.
+// Only meteocore serves the JSON form; any other radar server (today EUMETSAT
+// H60B) simply hides the legend.
 //
 // Server contract caveats (live-verified 2026-08-17):
-// - An unknown LAYER returns HTTP 200 with an XML ServiceExceptionReport, so
-//   "not JSON / wrong shape" is a definitive no-legend answer: the key is
-//   poisoned and never blind-retried (the edrLightning.js convention). This
-//   also absorbs the startup race where the seed refresh asks meteocore about
-//   a persisted EUMETSAT/wms.meteo.fi product before capabilities-driven
-//   restore has rewritten the source URL — those keys can never yield a
-//   legend, so poisoning them is correct, not a bug to "fix" with a retry.
+// - An unknown LAYER answers either HTTP 200 with an XML ServiceExceptionReport
+//   or a bare HTTP 400, depending on the name. Both are definitive no-legend
+//   answers and both poison the key ("not JSON / wrong shape" for the former,
+//   the 4xx branch for the latter) — never blind-retried, the edrLightning.js
+//   convention. This also absorbs the startup race where the seed refresh asks
+//   meteocore about a persisted EUMETSAT product, or a stored product that no
+//   server advertises any more, before capabilities-driven restore has run —
+//   those keys can never yield a legend, so poisoning them is correct, not a
+//   bug to "fix" with a retry. (The stored-product case relies on
+//   restoreActiveLayer re-refreshing after it evicts, or the legend would
+//   stay hidden behind the poisoned stale key for the whole session.)
 // - An unknown parameter under a known collection silently returns the
 //   collection default legend instead of an error; harmless here because the
 //   key is always the verbatim LAYERS string the map itself renders with.
