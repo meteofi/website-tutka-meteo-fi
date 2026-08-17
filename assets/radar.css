@@ -1359,6 +1359,73 @@ body.split-4 #placeSearchButton {
   /* ========================================================================
      Coachmark toast — shows Finnish layer name briefly on activation
      ======================================================================== */
+  /* Backend-outage banner (src/ui/serverStatus.js). Sits directly under the
+     top toolbar, same 8px + 52px + 14px stack the coachmark uses. Explicit
+     `top` (never `top: auto`) because iOS Safari needs a real offset on
+     position: fixed. Left/right insets keep it clear of the notch in
+     landscape. */
+  #serverStatusBanner {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 8px + 52px + 14px);
+    left: calc(env(safe-area-inset-left, 0px) + 8px);
+    right: calc(env(safe-area-inset-right, 0px) + 8px);
+    z-index: 131; /* just above #coachmark (130), below long-press menus */
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: 560px;
+    margin: 0 auto;
+    padding: 8px 10px 8px 12px;
+    background: rgba(120, 22, 22, 0.92);
+    color: var(--dark-high-emphasis-text-color);
+    font-family: 'Roboto', sans-serif;
+    border-radius: 12px;
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+  }
+  #serverStatusBanner[hidden] { display: none; }
+  #serverStatusBanner .ss-icon { font-size: 20px; flex: 0 0 auto; }
+  /* min-width: 0 lets the flex child shrink so long text wraps instead of
+     pushing the buttons off the edge on a 390px phone. */
+  #serverStatusBanner .ss-text { flex: 1 1 auto; min-width: 0; }
+  #serverStatusBanner .ss-title { font-size: 13px; font-weight: 500; }
+  #serverStatusBanner .ss-detail {
+    font-size: 11px;
+    font-weight: 400;
+    color: var(--dark-medium-emphasis-text-color);
+  }
+  #serverStatusBanner .ss-retry {
+    flex: 0 0 auto;
+    background: rgba(255, 255, 255, 0.14);
+    color: inherit;
+    border: 0;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  #serverStatusBanner .ss-retry[hidden] { display: none; }
+  #serverStatusBanner .ss-retry:disabled { opacity: 0.5; cursor: default; }
+  #serverStatusBanner .ss-close {
+    flex: 0 0 auto;
+    background: none;
+    border: 0;
+    color: inherit;
+    opacity: 0.8;
+    font-size: 18px;
+    padding: 4px;
+    cursor: pointer;
+  }
+  /* Push the coachmark below the banner so an outage message and a layer-name
+     coachmark can't land on the same pixels. */
+  body.has-server-banner #coachmark {
+    top: calc(env(safe-area-inset-top, 0px) + 8px + 52px + 14px + 56px);
+  }
+
   #coachmark {
     position: fixed;
     top: calc(env(safe-area-inset-top, 0px) + 8px + 52px + 14px);

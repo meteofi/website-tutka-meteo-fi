@@ -56,6 +56,7 @@ import initPlaceSearch from './ui/placeSearch';
 import initSpeedDial from './ui/speedDial';
 import initRadarStrip from './ui/radarStrip';
 import initRadarLegend from './ui/radarLegend';
+import initServerStatus from './ui/serverStatus';
 import createLayerPanel from './ui/layerPanel';
 import initSearchHighlight from './search/searchHighlight';
 import FramePool from './animation/framePool';
@@ -101,6 +102,7 @@ let poiMenu;
 let speedDial = null;
 let radarStrip = null;
 let radarLegend = null;
+let serverStatus = null;
 let placeSearch = null;
 let tools = null;
 let rangeCircle = null;
@@ -2034,6 +2036,9 @@ function onChangeVisible(event) {
     });
   }
   if (isPane0 && radarLegend && name === 'radarLayer') radarLegend.refresh();
+  // Turning a layer on or off changes which outages are worth mentioning —
+  // and any pane's visibility counts, not just pane 0's.
+  if (serverStatus) serverStatus.refresh();
   // Visibility change may invalidate the current timeline window
   // (e.g. activating a stale satellite caps `end` to its old time.end,
   // or hiding it releases the cap). Recompute window + per-layer
@@ -3003,6 +3008,69 @@ function capsLoopOf(wms) {
   return loop;
 }
 
+function hostOfUrl(url) {
+  try { return new URL(url).host; } catch (e) { return null; }
+}
+
+// Which categories a down host is actually costing the user right now — the
+// outage banner only speaks about layers that are switched on somewhere.
+//
+// Answered from each layer's SOURCE URL rather than layerInfo: the source url
+// is set at construction and by updateLayer, so this is still right before
+// GetCapabilities has ever succeeded. Reading layerInfo instead would go blank
+// exactly when the app boots into an outage — the case that matters most.
+//
+// The EDR-backed vector layers (observations, FMI lightning) have no source
+// url; a meteocore outage still surfaces through its radar WMS, which is the
+// same host.
+function visibleCategoriesForHost(host) {
+  const out = new Set();
+  for (const pane of activePanes()) {
+    for (const name of pane.VISIBLE) {
+      const olLayer = pane.layerss[name];
+      const source = olLayer && olLayer.getSource();
+      const url = source && source.getUrl && source.getUrl();
+      if (url && hostOfUrl(url) === host) out.add(name);
+    }
+    // The lightning category's EUMETSAT companion raster lives outside layerss.
+    if (pane.VISIBLE.has('lightningLayer') && pane.lightningWmsLayer) {
+      const url = pane.lightningWmsLayer.getSource().getUrl();
+      if (url && hostOfUrl(url) === host) out.add('lightningLayer');
+    }
+  }
+  return [...out];
+}
+
+// Age of the freshest frame the affected categories can still show, for the
+// banner's "uusin kuva 25 min vanha". Capabilities are frozen at whatever the
+// server last advertised, which is precisely the number the user wants.
+function newestFrameAgeMs(categories) {
+  const ends = [];
+  activePanes().forEach((pane) => {
+    categories.filter((name) => pane.VISIBLE.has(name)).forEach((name) => {
+      const olLayer = pane.layerss[name];
+      // timeLayerFor: in nowcast mode the mounted slot's LAYERS flips per frame;
+      // the age must come from the observed feed, not the +2 h forecast end.
+      const wmslayer = olLayer && timeLayerFor(olLayer.getSource().getParams().LAYERS);
+      const info = wmslayer && layerInfo[wmslayer] && layerInfo[wmslayer].time;
+      if (info && Number.isFinite(info.end)) ends.push(info.end);
+    });
+  });
+  return ends.length ? Date.now() - Math.max(...ends) : null;
+}
+
+// "Yritä uudelleen": drop the pending backoff timer for every loop on a down
+// host and poll again now. Backoff caps at 5 minutes, so without this a user
+// staring at a recovered server waits out a timer that knows nothing about it.
+function retryHosts(hostList) {
+  capsLoops.forEach((loop, wms) => {
+    if (!hostList.includes(hostOfUrl(wms.url)) || loop.inFlight) return;
+    clearTimeout(loop.timer);
+    loop.timer = 0;
+    getWMSCapabilities(wms);
+  });
+}
+
 function getWMSCapabilities(wms, failCountArg = 0) {
   const loop = capsLoopOf(wms);
   // Clearing the pending timer guards against a visibilitychange poke (or
@@ -3036,6 +3104,7 @@ function getWMSCapabilities(wms, failCountArg = 0) {
     failCount = 0;
     const result = parser.read(text);
     if (result && result.Capability && result.Capability.Layer && result.Capability.Layer.Layer) {
+      if (serverStatus) serverStatus.report(wms.url, true);
       // A server "supports webp" when its GetCapabilities advertises
       // image/webp as a GetMap output format (e.g. meteocore). Prefer it
       // there to shrink GetMap payloads — and let servers that don't
@@ -3090,11 +3159,15 @@ function getWMSCapabilities(wms, failCountArg = 0) {
         }
       }
     } else {
+      // A 200 carrying something that isn't a capabilities document is a
+      // broken server, not a working one — count it as down for the banner.
+      if (serverStatus) serverStatus.report(wms.url, false);
       debug(`Invalid WMS Capabilities response structure for ${wms.url}`);
       debug(result);
     }
   }).catch((error) => {
     clearTimeout(timeoutId);
+    if (serverStatus) serverStatus.report(wms.url, false);
     failCount++;
     debug(`Error fetching WMS Capabilities from ${wms.url}: ${error.message} (fail #${failCount})`);
   })
@@ -3402,6 +3475,16 @@ const main = () => {
     }),
   });
   radarLegend.refresh(); // seed from restored state; capabilities-driven updateLayer re-refreshes
+
+  // Backend-outage banner. Wired before the capabilities loops start below so
+  // the very first poll outcome is reported — booting straight into an outage
+  // is the case it most needs to catch.
+  serverStatus = initServerStatus({
+    container: document.getElementById('serverStatusBanner'),
+    getAffectedCategories: visibleCategoriesForHost,
+    getNewestFrameAgeMs: newestFrameAgeMs,
+    onRetry: retryHosts,
+  });
   initPaneRadarSite(pane0);
   radarSite = pane0.radarSite;
   initPaneCrosshair(pane0);
