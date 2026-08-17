@@ -1,27 +1,4 @@
 const wmsServerConfiguration = {
-  'fmi-radar': {
-    url: 'https://openwms.fmi.fi/geoserver/Radar/wms',
-    refresh: 60000,
-    category: 'radarLayer',
-    attribution: 'FMI (CC-BY-4.0)',
-    disabled: true,
-  },
-  'meteo-radar': {
-    url: 'https://wms.meteo.fi/geoserver/wms',
-    namespace: 'radar',
-    refresh: 60000,
-    category: 'radarLayer',
-    attribution: 'FMI (CC-BY-4.0)',
-    disabled: false,
-  },
-  eumetsat: {
-    url: 'https://eumetview.eumetsat.int/geoserv/wms',
-    namespace: 'meteosat',
-    refresh: 300000,
-    category: 'satelliteLayer',
-    attribution: 'EUMETSAT',
-    disabled: true,
-  },
   eumetsat1: {
     url: 'https://view.eumetsat.int/geoserver/msg_fes/rgb_eview/wms',
     refresh: 300000,
@@ -98,27 +75,6 @@ const wmsServerConfiguration = {
     transparent: true,
     disabled: false,
   },
-  eumetsat4: {
-    url: 'https://eumetview.eumetsat.int/geoserv/meteosat/msg_airmass/wms',
-    refresh: 300000,
-    category: 'satelliteLayer',
-    title: 'Meteosat ilmamassat',
-    abstract: 'Kylmä polaarinen ilma näkyy kuvassa violettina, lämmin trooppinen ilma vihreänä, kuiva ilma punaisena sekä paksut korkeat pilvet valkoisena.',
-    attribution: 'EUMETSAT',
-    disabled: true,
-  },
-  ca: {
-    url: 'https://geo.weather.gc.ca/geomet/',
-    layer: 'RADAR_1KM_RRAI',
-    // GeoMet advertises thousands of layers; sending the GeoServer/MapServer
-    // `&layer=` extension narrows the GetCapabilities response to just this
-    // one. The flag also keeps the entry out of the (url, namespace) dedup
-    // bucket so each narrowed request fetches independently.
-    narrowByLayer: true,
-    refresh: 300000,
-    category: 'radarLayer',
-    disabled: true,
-  },
   de: {
     url: 'https://meteocore.app.meteo.fi/wms',
     layer: 'dwd-radar-composite-dbz',
@@ -127,13 +83,6 @@ const wmsServerConfiguration = {
     attribution: 'DWD',
     license: 'CC-BY-4.0',
     disabled: false,
-  },
-  nl: {
-    url: 'https://geoservices.knmi.nl/cgi-bin/RADNL_OPER_R___25PCPRR_L3.cgi',
-    refresh: 60000,
-    category: 'radarLayer',
-    attribution: 'KNMI',
-    disabled: true,
   },
   fi: {
     url: 'https://meteocore.app.meteo.fi/wms',
@@ -213,21 +162,6 @@ const wmsServerConfiguration = {
     // not CC-BY — attribution only, no license tag.
     attribution: 'IMGW-PIB',
     disabled: false,
-  },
-  vn: {
-    url: 'https://vietnam.smartmet.fi/wms',
-    namespace: 'vnmha:radar',
-    refresh: 60000,
-    category: 'radarLayer',
-    attribution: 'VNMHA',
-    disabled: true,
-  },
-  noaa: {
-    url: 'https://mesonet.agron.iastate.edu/cgi-bin/wms/nexrad/n0q-t.cgi',
-    refresh: 60000,
-    category: 'radarLayer',
-    attribution: 'NOAA',
-    disabled: true,
   },
 };
 

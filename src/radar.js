@@ -335,11 +335,6 @@ function recomputeAllTimelineCells() {
   for (let i = 0; i < 13; i++) updateTimelineCell(i);
 }
 
-// One-time migration of a deprecated FMI openwms layer name.
-if (ACTIVE_LAYERS.radarLayer === 'suomi_dbz_eureffin') {
-  ACTIVE_LAYERS.radarLayer = 'fmi-radar-composite-dbz';
-  persistActiveLayers();
-}
 // IS_DARK: null = auto (follow OS), true = user picked dark, false = user picked light
 let IS_DARK = safeParseJSON('IS_DARK', null);
 let IS_TRACKING = safeParseJSON('IS_TRACKING', false);
@@ -1853,15 +1848,23 @@ function restoreActiveLayer(category, pane = pane0, respondingWms = null) {
   if (!stored) return;
 
   if (!layerInfo[stored] || layerInfo[stored].category !== category) {
-    // Same-category capabilities handlers race (meteocore vs wms.meteo.fi —
-    // response-handler order is nondeterministic): only the endpoint that
-    // OWNS the stored product may evict it. A faster answer from a server
-    // that never advertises the layer must not wipe the user's selection
-    // before the owning server has been heard.
+    // Same-category capabilities handlers race — the radar category is served
+    // by both meteocore and EUMETSAT's H60B endpoint, and response-handler
+    // order is nondeterministic: only the endpoint that OWNS the stored
+    // product may evict it. A faster answer from a server that never
+    // advertises the layer must not wipe the user's selection before the
+    // owning server has been heard.
     const owner = wmsByLayerName[stored];
     if (respondingWms && owner && owner.url !== respondingWms.url) return;
     delete pane.ACTIVE_LAYERS[category];
     if (pane === pane0) persistActiveLayers();
+    // Eviction leaves the layer on its constructor-time default, so — unlike
+    // every other path out of this function — no updateLayer runs and nothing
+    // re-fires the legend refresh. The boot-time seed refresh has already
+    // asked the server about the (now unknown) stored product and hidden the
+    // legend on the failure, so without this it stays hidden for the whole
+    // session even though the default product renders fine.
+    if (pane === pane0 && category === 'radarLayer' && radarLegend) radarLegend.refresh();
     return;
   }
 
@@ -3012,19 +3015,11 @@ function getWMSCapabilities(wms, failCountArg = 0) {
   loop.inFlight = true;
   let failCount = failCountArg;
   const parser = new WMSCapabilities();
-  const namespace = wms.namespace ? `&namespace=${wms.namespace}` : '';
-  // `&layer=` is a non-standard GeoServer/MapServer extension. Only servers
-  // that explicitly need it set `narrowByLayer: true` in their config —
-  // e.g. GeoMet (Canada), which advertises thousands of layers and would
-  // otherwise return a huge document. Everywhere else we drop the param
-  // and let the (url, namespace) dedup at the caller collapse identical
-  // requests (see `main`).
-  const layerParam = (wms.narrowByLayer && wms.layer) ? `&layer=${wms.layer}` : '';
   const controller = new AbortController();
   const timeoutId = setTimeout(() => { controller.abort(); }, 30000);
   debug(`Request WMS Capabilities ${wms.url}`);
 
-  fetch(`${wms.url}?SERVICE=WMS&version=1.3.0&request=GetCapabilities${namespace}${layerParam}`, {
+  fetch(`${wms.url}?SERVICE=WMS&version=1.3.0&request=GetCapabilities`, {
     signal: controller.signal,
   }).then((response) => {
     // An HTTP error (typically 5xx from an overloaded WMS server)
@@ -3137,17 +3132,9 @@ function getLayers(parentlayer, wms, supportsWebp = false) {
     if (Array.isArray(layer.Layer)) {
       getLayers(layer.Layer, wms, supportsWebp);
     } else {
-      let name = layer.Name;
-      // FMI GeoServer returns unprefixed names; meteo.fi returns prefixed.
-      // Add namespace prefix only when it's not already present.
-      if (wms.namespace && name.indexOf(`${wms.namespace}:`) !== 0) {
-        name = `${wms.namespace}:${name}`;
-      }
-      const candidate = wmsByLayerName[name] || wmsByLayerName[layer.Name];
-      const sameEndpoint = candidate
-        && candidate.url === wms.url
-        && (candidate.namespace || '') === (wms.namespace || '');
-      const ownerWms = sameEndpoint ? candidate : wms;
+      const name = layer.Name;
+      const candidate = wmsByLayerName[name];
+      const ownerWms = (candidate && candidate.url === wms.url) ? candidate : wms;
       layerInfo[name] = getLayerInfo(layer, ownerWms, supportsWebp);
       layerInfo[name].layer = name;
     }
@@ -3324,23 +3311,17 @@ const main = () => {
 
   setMapLayer(getEffectiveTheme());
 
-  // Multiple wms entries can share a (url, namespace) endpoint — e.g. all
-  // six radar nations served from meteocore.app.meteo.fi/wms point at the
-  // same GetCapabilities document. Fetch each unique endpoint exactly once;
-  // getLayers populates layerInfo for every layer the server advertises,
-  // so the remaining entries' product names resolve naturally.
-  //
-  // Entries with `narrowByLayer: true` (e.g. GeoMet's Canadian radar) opt
-  // out of dedup: the server returns a different document per `&layer=`,
-  // so each filtered request must run on its own.
+  // Multiple wms entries can share an endpoint — every radar nation served
+  // from meteocore.app.meteo.fi/wms points at the same GetCapabilities
+  // document. Fetch each unique URL exactly once; getLayers populates
+  // layerInfo for every layer the server advertises, so the remaining
+  // entries' product names resolve naturally.
   //
   // Plain null-prototype object used as a string-keyed set of endpoints.
   const seenEndpoints = Object.create(null);
   Object.values(options.wmsServerConfiguration).forEach((value) => {
     if (value.disabled) return;
-    const layerKey = value.narrowByLayer ? (value.layer || '') : '';
-    const key = `${value.url}|${value.namespace || ''}|${layerKey}`;
-    if (!(key in seenEndpoints)) seenEndpoints[key] = value;
+    if (!(value.url in seenEndpoints)) seenEndpoints[value.url] = value;
   });
 
   // EDR-backed products (former wms-obs GeoServer, offline for good) have no
