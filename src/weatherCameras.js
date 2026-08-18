@@ -50,6 +50,7 @@ import {
   Circle as CircleStyle, Fill, RegularShape, Stroke, Style, Text,
 } from 'ol/style';
 import { bearingForDirection, fetchRoadTangent } from './roadBearing';
+import { FRAME_COUNT } from './constants';
 
 const API = 'https://tie.digitraffic.fi/api/weathercam/v1';
 
@@ -574,7 +575,7 @@ export default function initWeatherCameras({ container } = {}) {
   function preloadWindow(windowStartMs, stepMs) {
     if (!activePreset || !Number.isFinite(windowStartMs) || !Number.isFinite(stepMs)) return;
     const wanted = [];
-    for (let i = 0; i < 13; i++) {
+    for (let i = 0; i < FRAME_COUNT; i++) {
       const e = entryAt(activePreset.history, windowStartMs + i * stepMs);
       if (e) wanted.push({ url: thumbUrl(e.url), d: Math.abs(windowStartMs + i * stepMs - cursorMs) });
     }

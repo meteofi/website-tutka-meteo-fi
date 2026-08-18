@@ -33,8 +33,8 @@ import Point from 'ol/geom/Point';
 import { fromLonLat, toLonLat } from 'ol/proj';
 import { RegularShape, Stroke, Style } from 'ol/style';
 import { createLightningClient } from './edrLightning';
+import { FRAME_COUNT } from '../constants';
 
-const FRAME_COUNT = 13;
 const MOVE_DEBOUNCE_MS = 300;
 // The very first fetch waits longer: at boot the 13 radar frames must win
 // the bandwidth and the main thread, and the first seconds shift the window

@@ -10,6 +10,8 @@
 //     the quantity, queried at the displayed elevation angle (z).
 // Otherwise the chart row stays collapsed (height 0).
 
+import { FRAME_COUNT, FRAME_STEPS } from './constants';
+
 const ENDPOINT = 'https://meteocore.app.meteo.fi/edr/collections';
 const PARAMETER_NAME = 'reflectivity';
 
@@ -225,10 +227,10 @@ export default function initProbe({ container, onValueChange }) {
   const NO_EMIT = Symbol('no-emit');
   let lastEmittedValue = NO_EMIT;
 
-  // The load-state strip below has 13 equal-flex cells separated by a 2px gap.
-  // To keep each bar centered on its cell, mirror that gap here and anchor every
-  // bar at its cell midpoint.
-  const STRIP_CELLS = 13;
+  // The load-state strip below has one equal-flex cell per animation frame,
+  // separated by a 2px gap. To keep each bar centered on its cell, mirror that
+  // gap here and anchor every bar at its cell midpoint.
+  const STRIP_CELLS = FRAME_COUNT;
   const CELL_GAP = 2; // px — must match #timeline's flex gap in radar.css
 
   function showMessage(text) {
@@ -444,7 +446,7 @@ export default function initProbe({ container, onValueChange }) {
     setCursor(cursorTimeMs, windowStartMs, stepMs) {
       cursorMs = cursorTimeMs;
       resolutionMs = stepMs;
-      const w = [windowStartMs, windowStartMs + 12 * stepMs];
+      const w = [windowStartMs, windowStartMs + FRAME_STEPS * stepMs];
       const changed = !windowMs || windowMs[0] !== w[0] || windowMs[1] !== w[1];
       windowMs = w;
       if (changed && pin && collection) {
