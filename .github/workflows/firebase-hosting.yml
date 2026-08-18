@@ -24,8 +24,21 @@ jobs:
         env:
           NODE_ENV: production
 
-      # Deploy preview on PR (dev project)
-      - if: github.event_name == 'pull_request'
+      # Deploy preview on PR (dev project).
+      #
+      # Skipped for Dependabot: GitHub withholds repository secrets from
+      # Dependabot-triggered runs, so firebaseServiceAccount arrives empty and
+      # the action dies with "Input required and not supplied:
+      # firebaseServiceAccount". That failure is environmental, not a signal
+      # about the change — it made every Dependabot PR show a permanent red ✗
+      # and trained us to ignore this job's status on exactly the PRs where
+      # skimming is most tempting. The build above still runs, so the job stays
+      # a real green; CI's `build` job (lint + build) remains the actual gate.
+      #
+      # Note: PRs from forks lack secrets for the same reason and would fail
+      # the same way. Not guarded here because this repo takes no fork PRs —
+      # add `github.event.pull_request.head.repo.fork == false` if that changes.
+      - if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
