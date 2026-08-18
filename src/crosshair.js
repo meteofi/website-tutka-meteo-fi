@@ -22,6 +22,7 @@ import { getDistance } from 'ol/sphere';
 import {
   resolveEdrTarget, fetchSeries, normalizeLonLat, paramSpec, formatReadout,
 } from './probe';
+import { FRAME_STEPS } from './constants';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -41,8 +42,6 @@ const LINE_OUTER_MAX = 150;
 const ARROW_LEN = 10;
 const ARROW_HALF_W = 5;
 
-// The strip window holds 13 frames (0..12), mirroring probe.js.
-const WINDOW_FRAMES = 12;
 // Hide the radar arrow when the radar sits essentially under the reticle — too
 // close on screen to draw a sensible arrow.
 const MIN_TARGET_PX = LINE_INNER + ARROW_LEN;
@@ -350,7 +349,7 @@ export default function initCrosshair({
     setCursor(cursorTimeMs, windowStartMs, step) {
       cursorMs = cursorTimeMs;
       stepMs = step;
-      const w = [windowStartMs, windowStartMs + WINDOW_FRAMES * step];
+      const w = [windowStartMs, windowStartMs + FRAME_STEPS * step];
       const changed = !windowMs || windowMs[0] !== w[0] || windowMs[1] !== w[1];
       windowMs = w;
       if (!visible) return;

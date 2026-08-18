@@ -93,6 +93,7 @@ import { fromLonLat } from 'ol/proj';
 import {
   Fill, Stroke, Style, Text,
 } from 'ol/style';
+import { FRAME_COUNT } from './constants';
 
 const COLLECTION_URL = 'https://meteocore.app.meteo.fi/features/collections/fmi-radar-nowcast';
 const ITEMS_URL = `${COLLECTION_URL}/items?f=application/geo%2Bjson&limit=1000`;
@@ -102,12 +103,6 @@ const META_URL = COLLECTION_URL;
 // small cap keeps the displayed frame's request from queueing behind a dozen
 // prefetches on a cold start.
 const MAX_IN_FLIGHT = 3;
-
-// The animation window is exactly 13 frames (CLAUDE.md hard rule 4). This is
-// one more copy of that constant — audit it with the others (radar.js,
-// framePool.js `size`, probe.js STRIP_CELLS, crosshair.js WINDOW_FRAMES) if the
-// window length ever changes.
-const FRAME_COUNT = 13;
 
 // The analysis runs on the 5-minute radar cadence; a 60 s poll picks a new one
 // up within a minute of it landing. Cheap enough (~13 kB gzipped) that the

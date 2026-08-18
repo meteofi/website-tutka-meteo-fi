@@ -5,6 +5,7 @@ import {
   parseTemporalValues, snapToAdvertised, parseSection, singleVariantOf,
 } from './edr/trajectoryQuery';
 import { paramSpec } from './probe';
+import { FRAME_COUNT } from './constants';
 
 // Poikkileikkaus controller + bottom panel: renders a vertical radar
 // cross-section (distance along the drawn line × height above the antenna)
@@ -27,7 +28,6 @@ import { paramSpec } from './probe';
 // JavaScript Map — never import OL's Map here.
 
 const PARAMETER = 'DBZH';
-const FRAME_COUNT = 13; // the animation window (12 five-minute steps)
 const HEIGHT_CAP_M = 15000; // Finnish echo tops stay below this; crop for pixel density
 const CACHE_MAX = 32; // 13 frames + a site switch's worth of sections
 const META_TTL_MS = 60000; // rides the app's 60 s capabilities cadence

@@ -4,6 +4,7 @@ import ImageState from 'ol/ImageState';
 import { containsExtent } from 'ol/extent';
 import StickyImageWMS from './stickyImageWMS';
 import computeRequestShape from '../wms/requestShape';
+import { FRAME_COUNT } from '../constants';
 
 const SYNC_PARAM_KEYS = ['LAYERS', 'STYLES', 'FORMAT', 'ELEVATION'];
 
@@ -57,7 +58,7 @@ function deriveViewExtent(paddedExtent, ratio) {
 // refetch the one slot whose TIME left the window.
 export default class FramePool {
   constructor({
-    primaryLayer, map, size = 13, ratio = 1.5, interpolator = null,
+    primaryLayer, map, size = FRAME_COUNT, ratio = 1.5, interpolator = null,
   }) {
     this.primary = primaryLayer;
     this.map = map;

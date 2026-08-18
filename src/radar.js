@@ -21,6 +21,7 @@ import 'dayjs/locale/fi';
 import utcPlugin from 'dayjs/plugin/utc';
 import localizedFormat from 'dayjs/plugin/localizedFormat';
 import durationPlugin from 'dayjs/plugin/duration';
+import { FRAME_COUNT, FRAME_STEPS } from './constants';
 import Timeline from './timeline';
 import createPane from './pane';
 import wmsServerConfiguration, { edrLayerInfo } from './config';
@@ -115,7 +116,7 @@ let crossSection = null;
 const DRAW_TOOL_NAMES = new Set(['rengas', 'piirto', 'poikkileikkaus']);
 let probe = null;
 let radarSite = null;
-let startDate = new Date(Math.floor(Date.now() / 300000) * 300000 - 300000 * 12);
+let startDate = new Date(Math.floor(Date.now() / 300000) * 300000 - 300000 * FRAME_STEPS);
 // Handle of the currently-running playback loop (now a requestAnimationFrame
 // id — was a setInterval handle before the RAF refactor). Null when paused.
 let animationId = null;
@@ -334,7 +335,7 @@ function updateTimelineCell(i) {
 }
 
 function recomputeAllTimelineCells() {
-  for (let i = 0; i < 13; i++) updateTimelineCell(i);
+  for (let i = 0; i < FRAME_COUNT; i++) updateTimelineCell(i);
 }
 
 // IS_DARK: null = auto (follow OS), true = user picked dark, false = user picked light
@@ -1214,7 +1215,7 @@ function updateCanonicalPage() {
 function setTime(action = 'next', seekIndex = 0) {
   let resolution = 300000;
   let end = Math.floor(Date.now() / resolution) * resolution - resolution;
-  let start = end - resolution * 12;
+  let start = end - resolution * FRAME_STEPS;
 
   // Compute the shared 13-frame window from the UNION of every active pane's
   // visible layers — time is identical across panes, so one window drives them
@@ -1259,7 +1260,7 @@ function setTime(action = 'next', seekIndex = 0) {
   const nowMs = end;
   nowcastBoundaryMs = nowcastActive ? nowMs : null;
   if (nowcastActive) end = nowMs + resolution * FUTURE_STEPS;
-  start = end - resolution * 12;
+  start = end - resolution * FRAME_STEPS;
   // Following anchors on "now" in nowcast mode: a stopped following view
   // shows current weather (the boundary frame), not the +30 min frame, and
   // the 60 s capabilities refresh keeps it pinned there.
@@ -1349,7 +1350,7 @@ function setTime(action = 'next', seekIndex = 0) {
   const timeInterval = `PT${resolution / 60000}M/${timeISO}`;
   const windowInstant = [];
   const windowInterval = [];
-  for (let i = 0; i <= 12; i++) {
+  for (let i = 0; i <= FRAME_STEPS; i++) {
     const t = new Date(start + i * resolution).toISOString();
     windowInstant.push(t);
     windowInterval.push(`PT${resolution / 60000}M/${t}`);
@@ -3343,8 +3344,8 @@ function buildPanePools(pane) {
   ];
   for (const [name, layer] of pairs) {
     const key = `${pane.index}:${name}`;
-    poolLoadStates[key] = new Array(13).fill(false);
-    poolFlowStates[key] = new Array(13).fill(false);
+    poolLoadStates[key] = new Array(FRAME_COUNT).fill(false);
+    poolFlowStates[key] = new Array(FRAME_COUNT).fill(false);
     const pool = new FramePool({ primaryLayer: layer, map: pane.map });
     pool.onLoadStateChange = (idx, loaded) => {
       poolLoadStates[key][idx] = loaded;
@@ -3376,7 +3377,7 @@ function buildPanePools(pane) {
 // MAIN
 //
 const main = () => {
-  timeline = new Timeline(13, document.getElementById('timeline'), {
+  timeline = new Timeline(FRAME_COUNT, document.getElementById('timeline'), {
     // Tap/drag the strip to seek — pause playback (like the skip buttons) then
     // jump to that frame within the current window.
     onSeek: (index) => { stop(); setTime('seek', index); },

@@ -33,6 +33,7 @@ import Point from 'ol/geom/Point';
 import { fromLonLat, toLonLat } from 'ol/proj';
 import { createObsClient, OBS_PRODUCTS } from './edrObservations';
 import createObsStyle from './obsStyles';
+import { FRAME_COUNT } from '../constants';
 
 // Pan/zoom settle time before re-checking the fetched polygon. The quantized
 // bounds make most moveends a no-op; this only spaces out the checks.
@@ -42,7 +43,6 @@ const MOVE_DEBOUNCE_MS = 300;
 // several times (each GetCapabilities arrival) — one deferred fetch replaces
 // that burst. Labels appear ~2 s later; radar appears sooner.
 const FIRST_FETCH_DELAY_MS = 2000;
-const FRAME_COUNT = 13;
 
 export default function initObsLayer({ defaultProduct }) {
   // Low-priority hint (Chromium; ignored elsewhere): observation data must
