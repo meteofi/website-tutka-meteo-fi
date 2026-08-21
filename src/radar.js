@@ -46,6 +46,7 @@ import initTrains from './trains';
 import initGliders from './gliders';
 import initTrainLocations from './trainLocations';
 import initAirspace from './airspace';
+import initAirfields from './airfields';
 import initRescueVessels from './ais/rescueVessels';
 import initMetar from './metar/metarLayer';
 import initTelemetryPanel from './ui/telemetryPanel';
@@ -839,6 +840,11 @@ const trains = initTrains({
 // the file has no time dimension, so setTime does not route here.
 const airspace = initAirspace();
 
+// Aerodromes (Lentokentät) from the bundled eAIP snapshots, one per country.
+// Static and clock-free like the airspace; the METAR layer below borrows its
+// records to know where to draw its station plots.
+const airfields = initAirfields();
+
 // Search-and-rescue vessels from the marine AIS feed. Wall-clock like the
 // aircraft and the trains: AIS says where a vessel is now, so setTime does not
 // route here.
@@ -847,7 +853,7 @@ const rescueVessels = initRescueVessels({ telemetry });
 // METAR station plots. Clock-coupled, unlike the other live layers: MET Norway
 // returns 24 h of reports per station in the same request, so the plot can show
 // what the aerodrome reported at the frame being displayed.
-const metar = initMetar({ telemetry });
+const metar = initMetar({ telemetry, stations: airfields.stations });
 
 const trainLocations = initTrainLocations({
   telemetry,
@@ -884,6 +890,7 @@ const paneDeps = {
   createGliderLayer: gliders.createPaneLayer,
   createTrainLocationLayer: trainLocations.createPaneLayer,
   createAirspaceLayer: airspace.createPaneLayer,
+  createAirfieldLayer: airfields.createPaneLayer,
   createRescueVesselLayer: rescueVessels.createPaneLayer,
   createMetarLayer: metar.createPaneLayer,
   createSearchHighlightLayer: searchHighlight.createPaneLayer,
@@ -3909,6 +3916,7 @@ function shareAttributions() {
     }
   }
   // POI vector layers carry no layerInfo — credit the ones that need it while on.
+  if (POI_STATE.airfields) parts.add('Lentopaikat © Fintraffic ANS / SIA');
   if (POI_STATE.turnpoints) parts.add('Käännöspisteet © Ilmailuliitto');
   // Required: openAIP is CC BY-NC, so the credit is a licence condition rather
   // than a courtesy.

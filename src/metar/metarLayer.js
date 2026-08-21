@@ -16,21 +16,20 @@
 // 30-minute granularity that explains itself rather than looking stale.
 //
 // NO STATION LIST OF ITS OWN. The ICAO codes, positions AND whether an aerodrome
-// issues a METAR at all come from the bundled eAIP snapshot
-// (src/data/airfields-finland.geojson), which is why this layer is 200 lines
-// rather than 400. The generator reads the last of those from AD 2.11 — the
-// aerodrome's associated MET office, or NIL — which is an exact predictor: the
-// 24 aerodromes with a named office are precisely the 24 that answer.
+// issues a METAR at all come from the bundled eAIP snapshots, handed in by
+// src/airfields.js, which is why this layer is 200 lines rather than 400.
 //
-// So only those are ever asked for. The alternative, asking all 80 and keeping
-// whoever replies, works too but spends the first request on 56 aerodromes that
-// have no weather service and never will.
+// The generator decides the last of those per country, and its reasoning is
+// worth knowing here: in Finland AD 2.11's "associated MET office" is an exact
+// predictor, so the 24 flagged aerodromes are precisely the 24 that answer; in
+// France it predicts nothing useful, so every AD 2 aerodrome is flagged and the
+// source below narrows to whoever replies on the first request. Either way this
+// layer asks about what it is given and keeps what answers.
 
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
 import { fromLonLat } from 'ol/proj';
 
-import airfieldsUrl from '../data/airfields-finland.geojson';
 import createMetarSource from './metarSource';
 import { reportAt } from './metarParse';
 import { createStationPlotStyle, createPlotFeature } from './stationPlot';
@@ -51,17 +50,7 @@ const MAX_RESOLUTION = 2500;
 // simply not having reported yet.
 const STALE_MS = 90 * 60 * 1000;
 
-// Does this snapshot carry the METAR flag at all? Cached per load, since the
-// answer cannot change within one.
-let flaggedKnown = null;
-function anyFlagged(json) {
-  if (flaggedKnown === null) {
-    flaggedKnown = (json.features || []).some((f) => f.properties && f.properties.metar);
-  }
-  return flaggedKnown;
-}
-
-export default function initMetar({ telemetry } = {}) {
+export default function initMetar({ telemetry, stations } = {}) {
   const source = new VectorSource({
     attributions: 'METAR © <a href="https://www.met.no/">MET Norway</a> (CC BY 4.0)',
   });
@@ -73,21 +62,20 @@ export default function initMetar({ telemetry } = {}) {
   let cursorMs = Date.now();
   let stationsLoaded = false;
 
-  // The aerodrome positions, from the bundle the eAIP generator produces. Every
-  // station that reports METAR is in here; the ones that are not simply never
-  // get a feature.
+  // The aerodrome positions, from the snapshots src/airfields.js has already
+  // fetched and parsed for the aerodrome layer. Every station worth asking about
+  // is in here; the rest simply never get a feature.
   async function loadStations() {
     if (stationsLoaded) return;
-    const resp = await fetch(airfieldsUrl);
-    const json = await resp.json();
-    (json.features || []).forEach((f) => {
-      const { icao, metar } = f.properties;
-      // `metar` is set only on aerodromes with a MET office. An older snapshot
-      // predates the flag, so falling back to every aerodrome keeps the layer
-      // working rather than drawing nothing at all — the source narrows to the
-      // repliers on its next refresh either way.
-      if (icao && f.geometry && (metar || !anyFlagged(json))) {
-        positions.set(icao, fromLonLat(f.geometry.coordinates));
+    const records = await stations();
+    // `metar` marks the aerodromes worth asking about. A snapshot old enough to
+    // predate the flag carries none at all, and falling back to every aerodrome
+    // keeps the layer working rather than drawing nothing — the source narrows
+    // to the repliers on its next refresh either way.
+    const flagged = records.some((r) => r.metar);
+    records.forEach((r) => {
+      if (r.icao && r.coordinates && (r.metar || !flagged)) {
+        positions.set(r.icao, fromLonLat(r.coordinates));
       }
     });
     stationsLoaded = true;
