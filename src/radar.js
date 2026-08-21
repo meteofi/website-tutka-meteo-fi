@@ -338,8 +338,19 @@ function recomputeAllTimelineCells() {
   for (let i = 0; i < FRAME_COUNT; i++) updateTimelineCell(i);
 }
 
-// IS_DARK: null = auto (follow OS), true = user picked dark, false = user picked light
-let IS_DARK = safeParseJSON('IS_DARK', null);
+// IS_DARK: null = auto (follow OS), true = dark, false = light.
+//
+// Dark is the app's default, not "auto": radar echoes are a bright palette and
+// they read against a dark basemap the way weather displays have always shown
+// them, so a visitor who has never touched the theme chips gets dark even on a
+// light-mode OS. Auto is still one tap away — it is now an explicit choice, and
+// therefore has to persist as one. It stores the string 'auto', because the
+// absence of the key can no longer mean it: absent is dark.
+//
+// The key predates this and holds a bare boolean for everyone who already
+// picked light or dark; those keep working untouched.
+const STORED_THEME = safeParseJSON('IS_DARK', true);
+let IS_DARK = STORED_THEME === 'auto' ? null : STORED_THEME !== false;
 let IS_TRACKING = safeParseJSON('IS_TRACKING', false);
 let IS_FOLLOWING = safeParseJSON('IS_FOLLOWING', false);
 
@@ -1661,7 +1672,9 @@ function updateThemeChipsState() {
 function setUserTheme(mode) {
   if (mode === 'auto') {
     IS_DARK = null;
-    localStorage.removeItem('IS_DARK');
+    // Written, not removed: with dark as the default an absent key means dark,
+    // so "follow the OS" has to be stored to survive a reload.
+    localStorage.setItem('IS_DARK', JSON.stringify('auto'));
     setMapLayer(getEffectiveTheme());
   } else {
     IS_DARK = mode === 'dark';
