@@ -19,26 +19,27 @@ import { fileURLToPath } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const self = 'test-all.mjs';
 
+// .mjs for the app modules, .sh for the git hooks — those are bash, so their
+// tests are too rather than pretending otherwise through a node wrapper.
 const files = readdirSync(here)
-  .filter((f) => f.startsWith('test-') && f.endsWith('.mjs') && f !== self)
+  .filter((f) => f.startsWith('test-') && (f.endsWith('.mjs') || f.endsWith('.sh')) && f !== self)
   .sort();
 
 if (files.length === 0) {
-  console.error('no scripts/test-*.mjs found');
+  console.error('no scripts/test-*.{mjs,sh} found');
   process.exit(1);
 }
 
 const failed = [];
 for (const f of files) {
-  // The flag silences MODULE_TYPELESS_PACKAGE_JSON, raised because the modules
-  // under test are ESM in .js files. Do NOT "fix" that by adding
+  // The node flag silences MODULE_TYPELESS_PACKAGE_JSON, raised because the
+  // modules under test are ESM in .js files. Do NOT "fix" that by adding
   // "type": "module" to package.json — webpack.config.js is CommonJS and the
   // build would stop working.
-  const r = spawnSync(
-    process.execPath,
-    ['--disable-warning=MODULE_TYPELESS_PACKAGE_JSON', join(here, f)],
-    { stdio: 'inherit' },
-  );
+  const [bin, args] = f.endsWith('.sh')
+    ? ['bash', [join(here, f)]]
+    : [process.execPath, ['--disable-warning=MODULE_TYPELESS_PACKAGE_JSON', join(here, f)]];
+  const r = spawnSync(bin, args, { stdio: 'inherit' });
   if (r.status !== 0) failed.push(f);
 }
 

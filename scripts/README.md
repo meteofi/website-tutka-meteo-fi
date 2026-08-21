@@ -111,24 +111,29 @@ node, no build step, no dependencies.
 npm test          # -> node scripts/test-all.mjs
 ```
 
-`test-all.mjs` runs every `scripts/test-*.mjs`. **Adding a test is adding a
-file** — it is discovered by name, no package.json edit. It also runs all of
-them even when one fails, then names the failures; a runner that stops at the
-first one hides how much else broke.
+`test-all.mjs` runs every `scripts/test-*.mjs` and `scripts/test-*.sh`.
+**Adding a test is adding a file** — it is discovered by name, no package.json
+edit. It also runs all of them even when one fails, then names the failures; a
+runner that stops at the first one hides how much else broke.
 
 | File | Pins |
 |---|---|
 | `test-peaks.mjs` | `src/edr/peaks.js` — the peak-per-frame rule |
 | `test-series-fetch.mjs` | `src/edr/seriesFetch.js` — request/window bookkeeping |
+| `test-protect-master.sh` | `.claude/hooks/protect-master.sh` — the push guard |
 
-**Why only these two modules are tested**, when nothing else in the repo is: the
-probe chart and the crosshair readout must agree about every point on the map,
-they previously agreed by hand-copying the rule (issue #126), and every way this
-can break is **silent**. A wrong answer does not throw — it draws a different
-number under the reticle than in the chart, hides a real 0 dBZ echo as "no
-data", or briefly shows the value from wherever you just panned away. Lint,
-build and a browser smoke test all pass straight through every one of those.
-That is the bar for adding a test here, not "this file is important".
+**Why only these are tested**, when nothing else in the repo is: in each case
+every way the code can break is **silent**. A wrong answer does not throw. The
+probe chart and the crosshair readout must agree about every point on the map
+and previously agreed by hand-copying the rule (issue #126) — get it wrong and
+you draw a different number under the reticle than in the chart, hide a real
+0 dBZ echo as "no data", or briefly show the value from wherever you just panned
+away. The push guard is a regex over a shell command string, and a pattern it
+misses does not error either; it just permits the push. Lint, build and a
+browser smoke test pass straight through every one of those.
+
+That is the bar for adding a test here — "failure is invisible" — not "this file
+is important".
 
 What they cover: exact-0 against a floor of 0, signed moments where
 largest-magnitude and largest-value disagree, off-grid and half-step rounding,
