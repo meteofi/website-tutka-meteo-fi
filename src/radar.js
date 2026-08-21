@@ -308,6 +308,25 @@ function persistActiveLayers() {
   localStorage.setItem('ACTIVE_LAYERS', JSON.stringify(ACTIVE_LAYERS));
 }
 
+// Per-category style memory: { radarLayer: 'radar_smhi', ... }. The chosen
+// colormap outlives both the session and a product switch, which is why it is
+// kept here rather than read back off the source params: every dBZ product on
+// meteocore advertises the same five styles, so a style picked on the Finnish
+// composite is meant to follow the user to Sweden — and to survive a detour
+// through a product that advertises none of them, which resets STYLES on the
+// source but must not be taken as the user changing their mind.
+//
+// Applied wherever the params are written (updateLayer) and, for the products
+// no switch ever touches, by restoreActiveStyle once GetCapabilities says which
+// styles exist. Only pane 0 persists; other panes seed from it.
+const ACTIVE_STYLES = (() => {
+  const raw = safeParseJSON('ACTIVE_STYLES', null);
+  return (raw && typeof raw === 'object' && !Array.isArray(raw)) ? raw : {};
+})();
+function persistActiveStyles() {
+  localStorage.setItem('ACTIVE_STYLES', JSON.stringify(ACTIVE_STYLES));
+}
+
 function updateTimelineCell(i) {
   if (!timeline) return;
   let allLoaded = true;
@@ -375,7 +394,18 @@ ImageLayer.prototype.setLayerUrl = function (url) {
 ImageLayer.prototype.setLayerStyle = function (style, source) {
   debug(`Set layer style: ${style}`);
   this.getSource().updateParams({ STYLES: style });
-  if (source) trackCategory(this, { action: 'style', style, source });
+  // `source` marks a user action (today: the layer panel's style chips), which
+  // is the only thing worth remembering — the restore path re-applies a stored
+  // style without one and so cannot re-record what it just read.
+  if (source) {
+    const pane = paneOf(this);
+    const category = this.get('name');
+    if (category) {
+      pane.ACTIVE_STYLES[category] = style;
+      if (pane.index === 0) persistActiveStyles();
+    }
+    trackCategory(this, { action: 'style', style, source });
+  }
   // No pane guard: refresh re-reads pane 0's params, so a style change on
   // another pane is just a cache-hit re-render of an unchanged legend.
   if (radarLegend && this.get('name') === 'radarLayer') radarLegend.refresh();
@@ -855,6 +885,7 @@ const pane0 = createPane(document.getElementById('map'), sharedView, {
   // below point at the very same instances the rest of the file mutates.
   visible: VISIBLE,
   activeLayers: ACTIVE_LAYERS,
+  activeStyles: ACTIVE_STYLES,
   layerInRange: LAYER_IN_RANGE,
   framePools,
 });
@@ -978,6 +1009,9 @@ function clonePaneDisplay(src, dst) {
     d.setVisible(s.getVisible());
     if (s.getVisible()) dst.VISIBLE.add(name); else dst.VISIBLE.delete(name);
     dst.ACTIVE_LAYERS[name] = src.ACTIVE_LAYERS[name];
+    // The params copy above already carries STYLES; this carries the intent
+    // behind it, so the clone's next product switch honours the same choice.
+    dst.ACTIVE_STYLES[name] = src.ACTIVE_STYLES[name];
     // Single-site drill-in is transient per-pane state we deliberately don't
     // clone: the new pane gets its own radarSite instance with no drill-in
     // record, so cloning the site params would leave it stuck without an exit
@@ -1078,6 +1112,7 @@ function ensurePanes(count) {
       index: i,
       visible: new Set(pane0.VISIBLE),
       activeLayers: { ...pane0.ACTIVE_LAYERS },
+      activeStyles: { ...pane0.ACTIVE_STYLES },
       layerInRange: {},
     });
     panes.push(pane);
@@ -1755,19 +1790,20 @@ function updateLayer(layer, wmslayer, opts = {}) {
   if (wantTransparent !== undefined) {
     baseUpdate.TRANSPARENT = wantTransparent ? 'TRUE' : 'FALSE';
   }
-  if (currentStyle && info && info.style) {
-    const validStyles = info.style.map((s) => s.Name);
-    if (!validStyles.includes(currentStyle)) {
-      layer.getSource().updateParams({ ...baseUpdate, STYLES: '' });
-    } else {
-      layer.getSource().updateParams(baseUpdate);
-    }
-  } else if (currentStyle) {
-    // No style info available for new layer, reset to default
-    layer.getSource().updateParams({ ...baseUpdate, STYLES: '' });
-  } else {
-    layer.getSource().updateParams(baseUpdate);
+  // Which style the incoming product should wear: the remembered one when this
+  // product advertises it, else whatever is on screen if it survives the switch,
+  // else the server default. The remembered style wins over the on-screen one so
+  // that a product which could not honour it (STYLES was reset to '' on the way
+  // through) hands the choice back on the way out.
+  const validStyles = info && Array.isArray(info.style) ? info.style.map((s) => s.Name) : null;
+  const remembered = pane.ACTIVE_STYLES[layer.get('name')] || '';
+  let wantStyle = '';
+  if (validStyles) {
+    if (remembered && validStyles.includes(remembered)) wantStyle = remembered;
+    else if (currentStyle && validStyles.includes(currentStyle)) wantStyle = currentStyle;
   }
+  if (wantStyle !== currentStyle) baseUpdate.STYLES = wantStyle;
+  layer.getSource().updateParams(baseUpdate);
   if (!skipVisibility) {
     if (layer.getVisible()) {
       if (isPane0) updateCanonicalPage();
@@ -1834,11 +1870,37 @@ const wmsByLayerName = (() => {
   return byLayer;
 })();
 
-// Restore the user's previously selected sublayer for one category (e.g.
-// 'radarLayer') after that category's WMS GetCapabilities has populated
+// Re-apply the remembered style for one category. updateLayer already carries
+// it through every product switch; this covers the product NO switch touches —
+// the boot default, where the layer sits on its constructor-time product and
+// only GetCapabilities can say which styles it advertises.
+//
+// A style the current product doesn't advertise is left in the store rather
+// than evicted: it is a choice about the colormap, not about this product, and
+// the next product that offers it should honour it. Nothing here is persisted —
+// setLayerStyle records user choices, and this only replays them.
+function restoreActiveStyle(category, pane) {
+  const stored = pane.ACTIVE_STYLES[category];
+  if (!stored) return;
+  const olLayer = pane.layerss[category];
+  if (!olLayer) return;
+  const info = layerInfo[olLayer.getSource().getParams().LAYERS];
+  if (!info || !Array.isArray(info.style)) return;
+  if (!info.style.some((s) => s.Name === stored)) return;
+  if ((olLayer.getSource().getParams().STYLES || '') === stored) return;
+  olLayer.setLayerStyle(stored);
+}
+
+// Restore the user's previously selected sublayer and style for one category
+// (e.g. 'radarLayer') after that category's WMS GetCapabilities has populated
 // layerInfo. If the stored layer is no longer advertised by the server,
 // drop it — the layer stays at its constructor-time default.
 function restoreActiveLayer(category, pane = pane0, respondingWms = null) {
+  restoreActiveSublayer(category, pane, respondingWms);
+  restoreActiveStyle(category, pane);
+}
+
+function restoreActiveSublayer(category, pane = pane0, respondingWms = null) {
   if (!category) return;
   // While a pane is drilled into a single radar site, its radar layer runs a
   // transient `<collection>/<quantity>` product that is NOT in ACTIVE_LAYERS.
