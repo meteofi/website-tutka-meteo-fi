@@ -1,6 +1,23 @@
+// EUMETSAT ENDPOINTS ARE WORKSPACE-LEVEL, NOT PER-LAYER, AND THAT IS A CORS
+// FIX, NOT A TIDY-UP. view.eumetsat.int serves the same GeoServer under both
+// /geoserver/<workspace>/<layer>/wms and /geoserver/<workspace>/wms, and on
+// 2026-08-21 only the second one answered a GetMap with
+// `Access-Control-Allow-Origin`. The per-layer path still sent the header on
+// GetCapabilities — so the products kept appearing in the menus with a working
+// timeline — but every image the browser fetched was blocked
+// (`MissingAllowOriginHeader`), and the layers drew nothing at all. The app
+// loads frames through fetch + blob: URLs (CLAUDE.md hard rule 5), so a missing
+// header is fatal rather than merely inconvenient.
+//
+// Verified per product against both paths; the workspace path is also how
+// meteocore is addressed here, so several entries now share one
+// GetCapabilities document (seven fetches became two) and each names its own
+// `layer` so wmsByLayerName can hand it the right title.
+
 const wmsServerConfiguration = {
   eumetsat1: {
-    url: 'https://view.eumetsat.int/geoserver/msg_fes/rgb_eview/wms',
+    url: 'https://view.eumetsat.int/geoserver/msg_fes/wms',
+    layer: 'rgb_eview',
     refresh: 300000,
     category: 'satelliteLayer',
     title: 'Meteosat pilvialueet yö/päivä',
@@ -9,7 +26,8 @@ const wmsServerConfiguration = {
     disabled: false,
   },
   eumetsat2: {
-    url: 'https://view.eumetsat.int/geoserver/msg_fes/rgb_convection/wms',
+    url: 'https://view.eumetsat.int/geoserver/msg_fes/wms',
+    layer: 'rgb_convection',
     refresh: 300000,
     category: 'satelliteLayer',
     title: 'Meteosat konvektiopilvet',
@@ -18,7 +36,8 @@ const wmsServerConfiguration = {
     disabled: false,
   },
   eumetsat3: {
-    url: 'https://view.eumetsat.int/geoserver/msg_fes/rgb_naturalenhncd/wms',
+    url: 'https://view.eumetsat.int/geoserver/msg_fes/wms',
+    layer: 'rgb_naturalenhncd',
     refresh: 300000,
     category: 'satelliteLayer',
     title: 'Meteosat pilvialueet',
@@ -27,7 +46,7 @@ const wmsServerConfiguration = {
     disabled: false,
   },
   'mtg-li-afa': {
-    url: 'https://view.eumetsat.int/geoserver/mtg_fd/li_afa/ows',
+    url: 'https://view.eumetsat.int/geoserver/mtg_fd/wms',
     layer: 'li_afa',
     refresh: 300000,
     category: 'lightningLayer',
@@ -37,7 +56,7 @@ const wmsServerConfiguration = {
     disabled: false,
   },
   'mtg-rgb-geocolour': {
-    url: 'https://view.eumetsat.int/geoserver/mtg_fd/rgb_geocolour/ows',
+    url: 'https://view.eumetsat.int/geoserver/mtg_fd/wms',
     layer: 'rgb_geocolour',
     refresh: 300000,
     category: 'satelliteLayer',
@@ -47,7 +66,7 @@ const wmsServerConfiguration = {
     disabled: false,
   },
   'msg-rdt': {
-    url: 'https://view.eumetsat.int/geoserver/msg_fes/rdt/ows',
+    url: 'https://view.eumetsat.int/geoserver/msg_fes/wms',
     layer: 'rdt',
     refresh: 300000,
     // Categorised as lightning even though the source is satellite — the
@@ -64,7 +83,7 @@ const wmsServerConfiguration = {
     disabled: false,
   },
   'msg-h60b': {
-    url: 'https://view.eumetsat.int/geoserver/msg_fes/h60b/ows',
+    url: 'https://view.eumetsat.int/geoserver/msg_fes/wms',
     layer: 'h60b',
     refresh: 300000,
     category: 'radarLayer',
