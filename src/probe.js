@@ -11,6 +11,7 @@
 // Otherwise the chart row stays collapsed (height 0).
 
 import { FRAME_COUNT, FRAME_STEPS } from './constants';
+import { peaksByFrame, frameIndexAt } from './edr/peaks';
 
 const ENDPOINT = 'https://meteocore.app.meteo.fi/edr/collections';
 const PARAMETER_NAME = 'reflectivity';
@@ -218,9 +219,13 @@ export default function initProbe({ container, onValueChange }) {
   let inFlight = null; // AbortController for active fetch
   let state = 'idle'; // 'idle' | 'loading' | 'ready' | 'empty' | 'error'
 
-  // Per-cell peak sample, set in render(). Each slot is { val } — the most
-  // extreme raw value in the cell (peak dBZ, or strongest signed velocity);
-  // barFractions maps it to bar geometry per the active parameter's spec.
+  // Per-cell peak value, set in render(): `number | null` for each animation
+  // frame — the most extreme raw value in that cell (peak dBZ, or strongest
+  // signed velocity). Built by peaksByFrame, the same helper the crosshair
+  // readout calls, so the chart and the reticle cannot disagree about a point.
+  // barFractions maps a value to bar geometry per the active parameter's spec.
+  // NB: 0 is a legitimate value here — test slots with `== null`, never for
+  // truthiness.
   let peakByCell = [];
   // Sentinel value distinct from null/number so the very first transition
   // (idle → null) doesn't get short-circuited by the de-dupe check.
@@ -263,12 +268,6 @@ export default function initProbe({ container, onValueChange }) {
     while (svg.firstChild) svg.removeChild(svg.firstChild);
   }
 
-  // Frame index for an absolute timestamp, given the current window.
-  function frameIndex(t, startMs) {
-    if (!resolutionMs || resolutionMs <= 0) return null;
-    return Math.round((t - startMs) / resolutionMs);
-  }
-
   function render() {
     if (!series || !windowMs || !resolutionMs) return;
     const spec = paramSpec(parameter);
@@ -305,29 +304,19 @@ export default function initProbe({ container, onValueChange }) {
     }
 
     // Aggregate per cell: when the strip resolution is coarser than EDR
-    // cadence, multiple samples land in one cell. Keep the most extreme sample
-    // (largest magnitude) — for reflectivity that's the peak dBZ, and for a
-    // signed moment (radial velocity) it's the strongest motion; either way
-    // exactly one bar per cell. `floor` drops "no signal" samples entirely.
-    peakByCell = new Array(STRIP_CELLS).fill(null);
-    for (const p of visible) {
-      if (p.v == null) continue; // eslint-disable-line no-continue
-      if (spec.floor != null && p.v < spec.floor) continue; // eslint-disable-line no-continue
-      const idx = frameIndex(p.t, startMs);
-      if (idx == null || idx < 0 || idx >= STRIP_CELLS) continue; // eslint-disable-line no-continue
-      const prev = peakByCell[idx];
-      if (prev == null || Math.abs(p.v) > Math.abs(prev.val)) {
-        peakByCell[idx] = { val: p.v };
-      }
-    }
+    // cadence, multiple samples land in one cell. peaksByFrame keeps the most
+    // extreme sample (largest magnitude) and drops "no signal" samples below
+    // the parameter's floor — exactly one bar per cell. The crosshair readout
+    // calls the same helper, which is what keeps the two in agreement.
+    peakByCell = peaksByFrame(visible, startMs, resolutionMs, STRIP_CELLS, spec.floor);
 
     for (let idx = 0; idx < STRIP_CELLS; idx += 1) {
-      const cell = peakByCell[idx];
-      if (cell == null) continue; // eslint-disable-line no-continue
+      const cellVal = peakByCell[idx];
+      if (cellVal == null) continue; // eslint-disable-line no-continue
       const cx = idx * (cellW + CELL_GAP) + cellW / 2;
       // Bars grow from the value-0 baseline (bottom for dBZ, mid-axis for a
       // signed moment) to the sample's value.
-      const f = barFractions(cell.val, spec);
+      const f = barFractions(cellVal, spec);
       const yVal = padY + innerH * (1 - f.value);
       const yBase = padY + innerH * (1 - f.baseline);
       const h = Math.max(1.5, Math.abs(yVal - yBase));
@@ -352,15 +341,18 @@ export default function initProbe({ container, onValueChange }) {
   // top-right readout + onValueChange callback to reflect that cell.
   function updateCurrentFrame() {
     if (state !== 'ready' || cursorMs == null || !windowMs || !resolutionMs) return;
-    const idx = frameIndex(cursorMs, windowMs[0]);
+    const idx = frameIndexAt(cursorMs, windowMs[0], resolutionMs);
     const bars = svg.querySelectorAll('.probe-bar');
     bars.forEach((b) => {
       const isCurrent = Number(b.getAttribute('data-frame')) === idx;
       b.classList.toggle('current', isCurrent);
     });
     const spec = paramSpec(parameter);
-    const cell = (idx >= 0 && idx < peakByCell.length) ? peakByCell[idx] : null;
-    const val = cell ? cell.val : null;
+    // `?? null` rather than a truthiness test: a slot holding 0 is a real
+    // reading (0 dBZ sits exactly on reflectivity's floor and passes it), and
+    // `peakByCell[idx] ? … : null` would report it as no-data.
+    const inRange = idx != null && idx >= 0 && idx < peakByCell.length;
+    const val = inRange ? (peakByCell[idx] ?? null) : null;
     readout.textContent = formatReadout(val, spec);
     if (val !== lastEmittedValue) {
       lastEmittedValue = val;

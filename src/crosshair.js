@@ -22,7 +22,8 @@ import { getDistance } from 'ol/sphere';
 import {
   resolveEdrTarget, fetchSeries, normalizeLonLat, paramSpec, formatReadout,
 } from './probe';
-import { FRAME_STEPS } from './constants';
+import { FRAME_COUNT, FRAME_STEPS } from './constants';
+import { peaksByFrame, frameIndexAt } from './edr/peaks';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -233,23 +234,18 @@ export default function initCrosshair({
     updateDirection();
   }
 
-  // --- value via EDR (windowed, mirrors probe.js) ---------------------------
-  // Mirror probe.js exactly: apply the parameter's "no-signal" floor (0 dBZ for
-  // reflectivity, none for signed moments) and take the most extreme sample
-  // (largest magnitude) among those landing in the cursor's frame cell, so this
-  // readout matches what Pistemittaus shows at the same point.
+  // --- value via EDR (windowed) --------------------------------------------
+  // The aggregation rule (floor, then most-extreme-by-magnitude within the
+  // cell) lives in src/edr/peaks.js and is shared with the probe chart, so this
+  // readout and the Pistemittaus bar for the same point cannot drift apart.
+  // This used to be a hand-copy of probe.js kept in step by a comment (#126).
   function pickFrameValue() {
     if (!series || !windowMs || !stepMs || cursorMs == null) return null;
     const { floor } = paramSpec(parameter);
     const startMs = windowMs[0];
-    const idx = Math.round((cursorMs - startMs) / stepMs);
-    let peak = null;
-    series.forEach((p) => {
-      if (p.v == null || (floor != null && p.v < floor)) return;
-      if (Math.round((p.t - startMs) / stepMs) !== idx) return;
-      if (peak == null || Math.abs(p.v) > Math.abs(peak)) peak = p.v;
-    });
-    return peak;
+    const idx = frameIndexAt(cursorMs, startMs, stepMs);
+    if (idx == null || idx < 0 || idx >= FRAME_COUNT) return null;
+    return peaksByFrame(series, startMs, stepMs, FRAME_COUNT, floor)[idx];
   }
 
   function updateValue() {
