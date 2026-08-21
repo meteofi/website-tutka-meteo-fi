@@ -76,6 +76,7 @@ function makePositionFeatures() {
 //   vesivaylaAreaStyle, rangeStyle — shared Style objects / style functions
 //   visible          — Set seed for this pane's VISIBLE (used as-is, not cloned)
 //   activeLayers     — object seed for this pane's ACTIVE_LAYERS (used as-is)
+//   activeStyles     — object seed for this pane's ACTIVE_STYLES (used as-is)
 export default function createPane(targetEl, sharedView, deps) {
   const {
     options,
@@ -124,6 +125,7 @@ export default function createPane(targetEl, sharedView, deps) {
     createSearchHighlightLayer,
     visible,
     activeLayers,
+    activeStyles = {},
     layerInRange = {},
     // For pane 0 the caller passes its existing module-global framePools object
     // so radar.js's `framePools` const and `pane0.framePools` are one and the
@@ -138,6 +140,11 @@ export default function createPane(targetEl, sharedView, deps) {
 
   const VISIBLE = visible;
   const ACTIVE_LAYERS = activeLayers;
+  // Per-category style memory, alongside the sublayer memory: which colormap
+  // this pane's radar (or any other multi-style category) should wear, kept
+  // apart from the source params so it survives a product switch that cannot
+  // honour it. Pane 0's is the one radar.js persists.
+  const ACTIVE_STYLES = activeStyles;
   const LAYER_IN_RANGE = layerInRange;
 
   //
@@ -535,6 +542,7 @@ export default function createPane(targetEl, sharedView, deps) {
     // per-pane mutable state
     VISIBLE,
     ACTIVE_LAYERS,
+    ACTIVE_STYLES,
     LAYER_IN_RANGE,
     // FramePools are attached later by radar.js buildPanePools()
     framePools,

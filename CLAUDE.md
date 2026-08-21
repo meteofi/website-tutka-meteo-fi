@@ -142,7 +142,7 @@ Rules from the MeteoCore server architect — they govern **every GetMap sent to
 
 ## State & persistence
 
-- localStorage keys: `metPosition`, `metZoom`, `VISIBLE`, `ACTIVE_LAYERS`, `interpMode`, `IS_DARK`, `IS_TRACKING`, `IS_FOLLOWING`, `LP_HINT_SEEN`, `POI_STATE`, `TOOL_STATE`, `timeIsUtc`, `ownLocationSource` (`'gps'`/`'ais'`, `'nmea'` reserved; self-heals to `gps` when stored `ais` has no usable MMSI), `ownMmsi` (9-digit string, survives source flips; owned by `src/ownLocation.js`) (+ legacy `metLatitude`/`metLongitude` writes). JSON values go through `safeParseJSON` in radar.js.
+- localStorage keys: `metPosition`, `metZoom`, `VISIBLE`, `ACTIVE_LAYERS`, `ACTIVE_STYLES` (per-category WMS style memory — applied by `updateLayer` on every product switch and by `restoreActiveStyle` once GetCapabilities lands; a style the current product doesn't advertise is kept, not evicted), `interpMode`, `IS_DARK`, `IS_TRACKING`, `IS_FOLLOWING`, `LP_HINT_SEEN`, `POI_STATE`, `TOOL_STATE`, `timeIsUtc`, `ownLocationSource` (`'gps'`/`'ais'`, `'nmea'` reserved; self-heals to `gps` when stored `ais` has no usable MMSI), `ownMmsi` (9-digit string, survives source flips; owned by `src/ownLocation.js`) (+ legacy `metLatitude`/`metLongitude` writes). JSON values go through `safeParseJSON` in radar.js.
 - Map center/zoom also syncs to the URL hash via `ol-hashed`.
 - `IS_FOLLOWING` (auto-advance to newest frame) is derived in `setTime`; the 60 s GetCapabilities refresh calls `setTime('last')` while following.
 
