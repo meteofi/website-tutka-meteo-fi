@@ -977,6 +977,14 @@ function radarProductOf(pane) {
 // fires on every pane. Both are idempotent, so binding to all panes is safe and
 // keeps `isInteracting` correct no matter which pane is dragged.
 function onPanePointerDrag() { isInteracting = true; }
+// The shared view's current extent, or null before the first pane has a size.
+// Panes share one View, so pane 0 answers for all of them.
+function currentViewExtent() {
+  const size = pane0.map.getSize();
+  if (!size || !size[0] || !size[1]) return null;
+  return sharedView.calculateExtent(size);
+}
+
 function onPaneMoveEnd() {
   isInteracting = false;
   // Defer the next advance by a full step after any view change (see the
@@ -984,6 +992,10 @@ function onPaneMoveEnd() {
   lastAdvance = window.performance.now();
   const zoom = Math.min(sharedView.getZoom(), 16);
   localStorage.setItem('metZoom', zoom);
+  // Airspace ships one snapshot per country and fetches only the ones the map
+  // is actually over, so it needs to hear about every move (it ignores the ones
+  // that change nothing).
+  airspace.setViewExtent(currentViewExtent());
 }
 function wirePaneClockGating(pane) {
   pane.map.on('pointerdrag', onPanePointerDrag);
@@ -2692,9 +2704,13 @@ const poiRegistry = [
     // Aviation context, and the app's only CC BY-NC dataset — see
     // scripts/fetch-airspace.mjs. Three parts because they answer different
     // questions: where you may not go, where you must talk to someone, and
-    // where the military might be. The reservation areas are 378 of the 684
-    // polygons and are off by default; on, at synoptic zoom, they cover much of
-    // the country and bury the radar this app exists to show.
+    // where the military might be. The reservation areas are 378 of Finland's
+    // 684 polygons (and 351 of France's 1770) and are off by default; on, at
+    // synoptic zoom, they cover much of the country and bury the radar this app
+    // exists to show.
+    //
+    // Finland and France, fetched per country as the map reaches them — the
+    // gate lives in src/airspace.js and is fed from onPaneMoveEnd.
     id: 'airspace',
     section: 'ilmailu',
     label: 'Ilmatilat',
@@ -3852,6 +3868,10 @@ const main = () => {
     map.getView().fit(transformExtent([19.24, 58.5, 31.59, 71.0], 'EPSG:4326', map.getView().getProjection()));
   }
   sync(map);
+  // First word to the airspace load gate: a map that boots with the topic on
+  // and is never touched fires no moveend, so the country under it would never
+  // be fetched.
+  airspace.setViewExtent(currentViewExtent());
 };
 
 function trackBoot({ capable, mode, error }) {

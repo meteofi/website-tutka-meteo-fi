@@ -1,6 +1,16 @@
-// Finnish airspace (Ilmatilat) from a bundled openAIP snapshot — control zones
-// and terminal areas, the restricted/danger/prohibited areas, and the military
-// reservation areas, as three separately switchable parts of one POI topic.
+// Airspace (Ilmatilat) from bundled openAIP snapshots — control zones and
+// terminal areas, the restricted/danger/prohibited areas, and the reservation
+// areas, as three separately switchable parts of one POI topic. Finland and
+// France today; scripts/fetch-airspace.mjs writes one file per country.
+//
+// ONE COUNTRY AT A TIME. France is 1.2 MB to Finland's 254 kB — it has 1770
+// airspaces against 684, and they are the more intricate ones — so a snapshot is
+// fetched only once the map is actually looking at the country it covers
+// (setViewExtent, fed from radar.js's moveend). A Finnish user never downloads
+// France, a French user never downloads Finland, and someone who pans from one
+// to the other gets the second file on arrival. The gate compares the viewport
+// against a per-snapshot bounding box kept below, because it has to decide
+// before there is a file to read one out of.
 //
 // NOT NAVIGATION DATA. This is situational context on a weather map: where the
 // rain is relative to airspace a pilot would care about. The snapshot is a
@@ -34,13 +44,26 @@ import LineString from 'ol/geom/LineString';
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
 import GeoJSON from 'ol/format/GeoJSON';
+import { transformExtent } from 'ol/proj';
+import { intersects } from 'ol/extent';
 import {
   Fill, Stroke, Style, Text,
 } from 'ol/style';
 
-import airspaceUrl from './data/airspace-finland.geojson';
+import airspaceFinlandUrl from './data/airspace-finland.geojson';
+import airspaceFranceUrl from './data/airspace-france.geojson';
 
 export const AIRSPACE_GROUPS = ['controlled', 'restricted', 'reserved'];
+
+// The bundled snapshots and where each one applies, in EPSG:4326. The boxes are
+// what scripts/fetch-airspace.mjs prints for each country — rounded outward, so
+// the gate can only ever err toward fetching. France's reaches out to 8° W and
+// down to 39° N because its FIRs run out over the Atlantic and down past
+// Corsica; it is the airspace box, not the country's.
+const SNAPSHOTS = [
+  { url: airspaceFinlandUrl, extent: [19.2, 59.2, 31.6, 70.1] },
+  { url: airspaceFranceUrl, extent: [-8.1, 38.9, 10.8, 51.2] },
+];
 
 // Names appear at or below this resolution (map units per pixel in EPSG:3857) —
 // about z9 and closer. Wider than that the polygons still draw; it is only the
@@ -156,8 +179,16 @@ const CONTROLLED_COLOR = 'rgb(86, 117, 215)';
 // …but NOT the fill. Filling by group would have tinted the whole country: the
 // ADIZ is a single polygon covering all of Finnish airspace, so it is the one
 // member of this group that has to stay an outline. The fill is therefore keyed
-// on the three codes that describe somewhere you actually fly into.
-const CONTROLLED_FILL_CODES = new Set(['CTR', 'TMA', 'CTA']);
+// on the codes that describe somewhere you actually fly into — which, once
+// France joined, is the control zone alone.
+//
+// TMA and CTA were filled too while Finland's 22 terminal areas were the whole
+// dataset. France has 352, layered around every major aerodrome and stacked
+// five deep over Paris, and the tint that survived Helsinki turned the entire
+// Île-de-France purple. The rule the file opened with, applied honestly: a CTR
+// is a single volume over one aerodrome, and it is the only one of the three
+// that does not stack on itself.
+const CONTROLLED_FILL_CODES = new Set(['CTR']);
 const CONTROLLED_FILL = 'rgba(86, 117, 215, 0.08)';
 // Named the way a FIZ is: a lighter tint of its own border colour over a dark
 // halo, so boundary and text read as one thing and the text carries on both
@@ -165,27 +196,30 @@ const CONTROLLED_FILL = 'rgba(86, 117, 215, 0.08)';
 const CONTROLLED_TEXT = 'rgb(117, 146, 228)';
 const CONTROLLED_TEXT_HALO = 'rgba(6, 16, 48, 0.85)';
 
-// Restricted areas (EFR*) only — not the danger and prohibited areas they share
-// a group with. They are a different promise: entry is subject to conditions
-// rather than forbidden outright or merely hazardous, so they get their own
-// orange-red while D and P keep the group's deeper red.
+// Restricted areas (EFR*, LF-R*) only — not the danger and prohibited areas they
+// share a group with. They are a different promise: entry is subject to
+// conditions rather than forbidden outright or merely hazardous, so they get
+// their own orange-red while D and P keep the group's deeper red.
 const RESTRICTED_R_CODE = 'R';
 const RESTRICTED_R_COLOR = 'rgb(243, 86, 35)';
-// Filled at the same 8% as the controlled areas and the FIZ. These are smaller
-// and stack less than a TMA over its own CTR, so the compounding that keeps the
-// rest of this layer unfilled barely arises.
-const RESTRICTED_R_FILL = 'rgba(243, 86, 35, 0.08)';
+// These were filled at 8% when Finland's 102 restricted areas were all there
+// was to fill: they barely overlapped, so the compounding that keeps the rest of
+// this layer unfilled did not arise. France has 488 of them and they nest —
+// LF-R with lettered sub-areas inside lettered sub-areas — and the fill turned
+// the whole Paris basin orange, radar echo and all. Outline only now, in both
+// countries; see the fill note above, which France has simply proved twice.
 // Named like the controlled areas and the FIZ: a lighter tint of its own border
 // over a dark halo of the same hue.
 const RESTRICTED_R_TEXT = 'rgb(247, 145, 112)';
 const RESTRICTED_R_TEXT_HALO = 'rgba(46, 12, 4, 0.85)';
 
-// Prohibited areas (EFP*) — seven of them, over the nuclear plants, the
-// refinery and two patches of Helsinki. The only airspace here you may not
-// enter at all, so they are the one thing on this layer allowed to be loud: a
-// straight red rather than the restricted orange, and filled at 18% where
-// everything else sits at 8%. There are seven and they do not overlap, so the
-// compounding that keeps the rest faint does not apply.
+// Prohibited areas (EFP*, LF-P*) — seven in Finland over the nuclear plants,
+// the refinery and two patches of Helsinki; 108 in France, mostly its own
+// nuclear sites and central Paris. The only airspace here you may not enter at
+// all, so they are the one thing on this layer allowed to be loud: a straight
+// red rather than the restricted orange, and filled at 18% where the CTR sits
+// at 8%. They are small and do not overlap each other, so the compounding that
+// took the fill off everything else does not apply.
 const PROHIBITED_CODE = 'P';
 const PROHIBITED_COLOR = 'rgb(224, 36, 36)';
 const PROHIBITED_FILL = 'rgba(224, 36, 36, 0.18)';
@@ -195,8 +229,9 @@ const PROHIBITED_TEXT_HALO = 'rgba(48, 4, 6, 0.85)';
 const PALETTES = {
   light: {
     controlled: CONTROLLED_COLOR,
-    // R, D and P all carry their own colour now, so this dresses exactly one
-    // feature: EFNOISE01, the overflight restriction.
+    // R, D and P all carry their own colour now, so this dresses only the
+    // overflight restrictions: Finland's EFNOISE01, and France's national parks
+    // and wildlife sensitivity zones.
     restricted: 'rgba(178, 34, 34, 0.8)',
     // Dimmest of the three: they are the most numerous by far, so they are the
     // ones that decide whether the map is readable.
@@ -250,15 +285,25 @@ const DANGER_DASH = [6, 4];
 // beside. The one radio mandatory zone shares the colour: it is the same kind
 // of place, somewhere you must be heard rather than cleared.
 //
+// France brings three more of the same kind: the transponder zones (TMZ), the
+// flight information sectors (SIV — class G with an information service, which
+// is a FIZ under another name), and the five FIRs the whole country sits in.
+//
 // One colour for both themes — already light enough for the dark basemap and
 // saturated enough for the light one.
-const INFO_CODES = new Set(['FIZ', 'RMZ']);
+const INFO_CODES = new Set(['FIZ', 'RMZ', 'TMZ', 'SIV', 'FIR']);
 const FIZ_COLOR = 'rgb(112, 235, 235)';
 // The one group that carries a fill, and only just: a flight information zone is
 // a place you are inside or outside of in a way a control area is not, so the
 // hint is worth having. Kept at 8% because the general no-fill rule above still
 // applies in spirit — a FIZ UPPER and a FIZ LOWER share the same footprint, so
 // even this doubles where they stack.
+//
+// …and keyed on the codes small enough for that to mean anything, for the same
+// reason CONTROLLED_FILL_CODES exists: a SIV spans three degrees of longitude
+// and a FIR the whole country, so filling those would tint France twice over
+// and discolour the radar echo underneath — 106 SIVs at 8% each, stacked.
+const INFO_FILL_CODES = new Set(['FIZ', 'RMZ', 'TMZ']);
 const FIZ_FILL = 'rgba(112, 235, 235, 0.08)';
 // Lighter than the border so the text lifts off it rather than merging into it.
 const FIZ_TEXT = 'rgb(150, 243, 243)';
@@ -279,14 +324,22 @@ export default function initAirspace() {
     })]),
   );
 
-  let loaded = false;
-  let loading = null;
+  // Snapshot bookkeeping: each file is fetched at most once, and only when the
+  // topic is on AND the map is over the country it covers. The extents are
+  // projected once here so the per-moveend test is an extent comparison.
+  const snapshots = SNAPSHOTS.map((snapshot) => ({
+    url: snapshot.url,
+    extent: transformExtent(snapshot.extent, 'EPSG:4326', 'EPSG:3857'),
+    loading: null,
+    loaded: false,
+  }));
+  let enabled = false;
+  let viewExtent = null;
 
   // Fetched on first use rather than at startup: most visitors never switch
-  // this on, and 254 kB is not worth spending on them.
-  function load() {
-    if (loaded || loading) return loading;
-    loading = fetch(airspaceUrl)
+  // this on, and the files are not small.
+  function load(snapshot) {
+    const pending = fetch(snapshot.url)
       .then((res) => {
         if (!res.ok) throw new Error(`airspace ${res.status}`);
         return res.json();
@@ -301,14 +354,26 @@ export default function initAirspace() {
         byGroup.forEach((list, group) => {
           if (list.length) sources.get(group).addFeatures(list);
         });
-        loaded = true;
+        snapshot.loaded = true;
       })
       .catch(() => {
-        // A missing snapshot leaves empty layers. Nothing else depends on it,
-        // and retrying is one more switch of the POI.
-        loading = null;
+        // A missing snapshot leaves that country empty. Nothing else depends on
+        // it, and the next pan back into the box retries.
+        snapshot.loading = null;
       });
-    return loading;
+    snapshot.loading = pending;
+    return pending;
+  }
+
+  // Load whatever the current view needs and nothing else. Called on both
+  // inputs — the topic being switched on, and the view moving — because either
+  // can be the one that first makes a snapshot relevant.
+  function loadForView() {
+    if (!enabled || !viewExtent) return;
+    snapshots.forEach((snapshot) => {
+      if (snapshot.loaded || snapshot.loading) return;
+      if (intersects(snapshot.extent, viewExtent)) load(snapshot);
+    });
   }
 
   function makeStyleFunction(theme, group) {
@@ -327,11 +392,14 @@ export default function initAirspace() {
     // style object and a straight return.
     const isControlled = group === 'controlled';
     const fizArea = isControlled ? strokeStyle(FIZ_COLOR, FIZ_FILL) : null;
+    // The same cyan without the tint, for the information airspace that is too
+    // large to fill (SIV, FIR).
+    const infoOutline = isControlled ? strokeStyle(FIZ_COLOR) : null;
     const filledArea = isControlled
       ? strokeStyle(CONTROLLED_COLOR, CONTROLLED_FILL) : null;
     const isRestricted = group === 'restricted';
     const rArea = isRestricted
-      ? strokeStyle(RESTRICTED_R_COLOR, RESTRICTED_R_FILL) : null;
+      ? strokeStyle(RESTRICTED_R_COLOR) : null;
     const pArea = isRestricted
       ? strokeStyle(PROHIBITED_COLOR, PROHIBITED_FILL) : null;
     const dArea = isRestricted
@@ -376,7 +444,7 @@ export default function initAirspace() {
       const isR = rArea && code === RESTRICTED_R_CODE;
       const isP = pArea && code === PROHIBITED_CODE;
       const isD = dArea && code === DANGER_CODE;
-      if (isInfo) shape = fizArea;
+      if (isInfo) shape = INFO_FILL_CODES.has(code) ? fizArea : infoOutline;
       else if (filledArea && CONTROLLED_FILL_CODES.has(code)) shape = filledArea;
       else if (isP) shape = pArea;
       else if (isR) shape = rArea;
@@ -448,9 +516,20 @@ export default function initAirspace() {
     },
 
     // Called from the POI toggle. The fetch is what is being gated here, not
-    // the paint: switching the topic on is the first thing that needs the file.
+    // the paint: switching the topic on is the first thing that needs a file.
     setEnabled(on) {
-      if (on) load();
+      enabled = on;
+      if (on) loadForView();
+    },
+
+    // The map's current extent in EPSG:3857, from radar.js's moveend (and once
+    // at boot, since a map that never moves never fires one). Decides which
+    // countries' snapshots are worth fetching; cheap enough to call per move,
+    // as it does nothing at all once everything in view is loaded.
+    setViewExtent(extent) {
+      if (!extent || !extent.every(Number.isFinite)) return;
+      viewExtent = extent;
+      loadForView();
     },
   };
 }
