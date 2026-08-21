@@ -10,8 +10,11 @@
 //     the quantity, queried at the displayed elevation angle (z).
 // Otherwise the chart row stays collapsed (height 0).
 
-import { FRAME_COUNT, FRAME_STEPS } from './constants';
+import { FRAME_COUNT } from './constants';
 import { peaksByFrame, frameIndexAt } from './edr/peaks';
+import {
+  frameWindow, sameWindow, sameTarget, createFetchSlot,
+} from './edr/seriesFetch';
 
 const ENDPOINT = 'https://meteocore.app.meteo.fi/edr/collections';
 const PARAMETER_NAME = 'reflectivity';
@@ -216,7 +219,9 @@ export default function initProbe({ container, onValueChange }) {
   let windowMs = null; // [startMs, endMs] currently displayed
   let resolutionMs = null; // animation step in ms (one strip cell)
   let cursorMs = null; // current animation frame ms
-  let inFlight = null; // AbortController for active fetch
+  // Single-slot abortable fetch: starting one cancels the one before it, so a
+  // scrubbed timeline leaves exactly one live query. Shared with crosshair.js.
+  const fetchSlot = createFetchSlot();
   let state = 'idle'; // 'idle' | 'loading' | 'ready' | 'empty' | 'error'
 
   // Per-cell peak value, set in render(): `number | null` for each animation
@@ -367,32 +372,28 @@ export default function initProbe({ container, onValueChange }) {
 
   async function refetch() {
     if (!pin || !collection || !windowMs) return;
-    if (inFlight) inFlight.abort();
-    inFlight = new AbortController();
-    const myAbort = inFlight;
     setState('loading');
-    try {
-      const startISO = new Date(windowMs[0]).toISOString();
-      const endISO = new Date(windowMs[1]).toISOString();
-      const data = await fetchSeries(collection, parameter, pin[0], pin[1], startISO, endISO, z, myAbort.signal);
-      if (myAbort.signal.aborted) return;
-      series = data;
-      if (!series || series.length === 0 || series.every((p) => p.v == null)) {
-        setState('empty');
-        return;
-      }
-      render();
-    } catch (err) {
-      if (err && err.name === 'AbortError') return;
+    const startISO = new Date(windowMs[0]).toISOString();
+    const endISO = new Date(windowMs[1]).toISOString();
+    const r = await fetchSlot.run((signal) => fetchSeries(collection, parameter, pin[0], pin[1], startISO, endISO, z, signal));
+    // undefined = superseded by a newer request, which now owns the UI. Leave
+    // the 'loading' state alone; that request will resolve it.
+    if (!r) return;
+    if (!r.ok) {
       setState('error');
-    } finally {
-      if (inFlight === myAbort) inFlight = null;
+      return;
     }
+    series = r.data;
+    if (!series || series.length === 0 || series.every((p) => p.v == null)) {
+      setState('empty');
+      return;
+    }
+    render();
   }
 
   function recompute() {
     if (!pin) {
-      if (inFlight) inFlight.abort();
+      fetchSlot.abort();
       series = null;
       setOpen(false);
       setState('idle');
@@ -400,7 +401,7 @@ export default function initProbe({ container, onValueChange }) {
     }
     if (!collection) {
       // Pin set, but active layer has no EDR collection — collapse silently.
-      if (inFlight) inFlight.abort();
+      fetchSlot.abort();
       series = null;
       setOpen(false);
       setState('idle');
@@ -429,7 +430,7 @@ export default function initProbe({ container, onValueChange }) {
     },
     setActiveLayer(wmslayer, opts = {}) {
       const t = resolveEdrTarget(wmslayer, { z: opts.z });
-      if (t.collection === collection && t.parameter === parameter && t.z === z) return;
+      if (sameTarget(t, { collection, parameter, z })) return;
       collection = t.collection;
       parameter = t.parameter;
       z = t.z;
@@ -438,8 +439,8 @@ export default function initProbe({ container, onValueChange }) {
     setCursor(cursorTimeMs, windowStartMs, stepMs) {
       cursorMs = cursorTimeMs;
       resolutionMs = stepMs;
-      const w = [windowStartMs, windowStartMs + FRAME_STEPS * stepMs];
-      const changed = !windowMs || windowMs[0] !== w[0] || windowMs[1] !== w[1];
+      const w = frameWindow(windowStartMs, stepMs);
+      const changed = !sameWindow(windowMs, w);
       windowMs = w;
       if (changed && pin && collection) {
         refetch();

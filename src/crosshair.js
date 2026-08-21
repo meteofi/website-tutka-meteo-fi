@@ -22,8 +22,11 @@ import { getDistance } from 'ol/sphere';
 import {
   resolveEdrTarget, fetchSeries, normalizeLonLat, paramSpec, formatReadout,
 } from './probe';
-import { FRAME_COUNT, FRAME_STEPS } from './constants';
+import { FRAME_COUNT } from './constants';
 import { peaksByFrame, frameIndexAt } from './edr/peaks';
+import {
+  frameWindow, sameWindow, sameTarget, createFetchSlot,
+} from './edr/seriesFetch';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -123,7 +126,9 @@ export default function initCrosshair({
   let cursorMs = null;
   let stepMs = null;
   let series = null;
-  let inFlight = null;
+  // Single-slot abortable fetch: a continuous pan supersedes its own requests,
+  // leaving exactly one live query. Shared with probe.js.
+  const fetchSlot = createFetchSlot();
   let refetchTimer = 0;
 
   function setReadout(value) {
@@ -257,23 +262,21 @@ export default function initCrosshair({
       setReadout(null);
       return;
     }
-    if (inFlight) inFlight.abort();
-    inFlight = new AbortController();
-    const myAbort = inFlight;
-    try {
-      const startISO = new Date(windowMs[0]).toISOString();
-      const endISO = new Date(windowMs[1]).toISOString();
-      const data = await fetchSeries(collection, parameter, center4326[0], center4326[1], startISO, endISO, z, myAbort.signal);
-      if (myAbort.signal.aborted) return;
-      series = data;
-      updateValue();
-    } catch (err) {
-      if (err && err.name === 'AbortError') return;
+    const startISO = new Date(windowMs[0]).toISOString();
+    const endISO = new Date(windowMs[1]).toISOString();
+    const [lon, lat] = center4326;
+    const r = await fetchSlot.run((signal) => fetchSeries(collection, parameter, lon, lat, startISO, endISO, z, signal));
+    // undefined = superseded by a newer request (the common case mid-pan).
+    // Leave the readout showing the previous value rather than blanking it —
+    // a newer request is already on its way.
+    if (!r) return;
+    if (!r.ok) {
       series = null;
       setReadout(null);
-    } finally {
-      if (inFlight === myAbort) inFlight = null;
+      return;
     }
+    series = r.data;
+    updateValue();
   }
 
   function scheduleRefetch() {
@@ -325,28 +328,31 @@ export default function initCrosshair({
       if (!visible) return;
       visible = false;
       overlay.style.display = 'none';
-      if (inFlight) inFlight.abort();
+      fetchSlot.abort();
       if (refetchTimer) { clearTimeout(refetchTimer); refetchTimer = 0; }
     },
     isVisible: () => visible,
-    // Mirror probe.setActiveLayer: track the EDR collection/parameter/elevation
-    // for whatever radar product is currently displayed.
+    // Track the EDR collection/parameter/elevation for whatever radar product
+    // is currently displayed. The dedupe rule is shared with probe.js — several
+    // WMS layers resolve to the same EDR query, and refetching for those would
+    // be pure waste.
     setActiveLayer(wmslayer, opts = {}) {
       const t = resolveEdrTarget(wmslayer, { z: opts.z });
-      if (t.collection === collection && t.parameter === parameter && t.z === z) return;
+      if (sameTarget(t, { collection, parameter, z })) return;
       collection = t.collection;
       parameter = t.parameter;
       z = t.z;
       series = null;
       if (visible) refetch();
     },
-    // Mirror probe.setCursor: refetch only when the window shifts; otherwise
-    // just repick the frame from the cached series.
+    // Refetch only when the window shifts; a cursor move inside the same window
+    // just repicks the frame from the cached series. Window math shared with
+    // probe.js so the two ask the server for identical spans.
     setCursor(cursorTimeMs, windowStartMs, step) {
       cursorMs = cursorTimeMs;
       stepMs = step;
-      const w = [windowStartMs, windowStartMs + FRAME_STEPS * step];
-      const changed = !windowMs || windowMs[0] !== w[0] || windowMs[1] !== w[1];
+      const w = frameWindow(windowStartMs, step);
+      const changed = !sameWindow(windowMs, w);
       windowMs = w;
       if (!visible) return;
       if (changed) refetch();
