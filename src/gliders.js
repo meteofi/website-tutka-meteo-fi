@@ -29,9 +29,12 @@
 //     accepts being identified; aircraft whose owners opted out of tracking never
 //     reach us at all. Nothing here tries to re-identify an anonymous id, and the
 //     id itself is salted server-side for randomly-addressed devices;
-//   * the bridge is bounded to `OGN_REGION_BBOX` (currently 10,55..42,73 —
-//     Fennoscandia and the Baltic), so the whole region is a couple of dozen
-//     aircraft at night and a few hundred on a good soaring day.
+//   * the bridge is bounded to its own `OGN_REGION_BBOX`, which has grown
+//     westward and south since this was written and now reaches the
+//     Mediterranean — the client box below is kept level with it, and the
+//     bridge clamps anything wider. The whole region is a couple of dozen
+//     aircraft at night and a few hundred on a good soaring day (586 at
+//     midday on 2026-08-21).
 //
 // This layer subscribes to that whole region once rather than to the map view:
 // the payload is small enough that re-subscribing on every pan would cost more
@@ -59,7 +62,13 @@ const WS_URL = 'wss://ogn.app.meteo.fi/ogn/v1';
 // view — re-subscribing on every pan would cost a full snapshot each time.
 // Drawn on the map as a boundary (see BOUNDS below) so the edge of coverage is
 // visible rather than being mistaken for empty sky.
-const REGION_BBOX = [3.0, 45.0, 32.0, 71.5];
+//
+// The southern edge follows the bridge's: asking for 40 N returns nothing below
+// 43.19 N, so 43.0 is where its own region ends and there is nothing further to
+// ask for. Measured 2026-08-21: the box below carries 586 aircraft against 576
+// for the previous 45 N floor — the Mediterranean coast and the southern Alps,
+// which is soaring country and worth the twelve.
+const REGION_BBOX = [3.0, 43.0, 32.0, 71.5];
 
 // Reconnect backoff. The bridge holds one upstream APRS connection for all its
 // clients, but a reconnect storm from a browser tab is still rude and pointless.
