@@ -30,7 +30,6 @@ import { Fill, Style } from 'ol/style';
 import { gpsPositionStyle } from './ais/ownShipStyle';
 import { track } from './analytics';
 import { createGetMapSizeGuard } from './wms/requestShape';
-import airfieldsUrl from './data/airfields-finland.geojson';
 import turnpointsUrl from './data/turnpoints-finland.geojson';
 import railwayStationsUrl from './data/railway-stations-finland.geojson';
 import railwayTracksUrl from './data/railway-tracks-finland.geojson';
@@ -114,6 +113,9 @@ export default function createPane(targetEl, sharedView, deps) {
     // Airspace (src/airspace.js) — called once per part; panes share the three
     // VectorSources the controller fills from one bundled snapshot.
     createAirspaceLayer,
+    // Aerodromes (src/airfields.js) — panes share one VectorSource fed from the
+    // per-country eAIP snapshots; the caller supplies the label style function.
+    createAirfieldLayer,
     // Search-and-rescue vessels (src/ais/rescueVessels.js) — panes share one
     // VectorSource; the controller owns the AIS subscription.
     createRescueVesselLayer,
@@ -281,20 +283,16 @@ export default function createPane(targetEl, sharedView, deps) {
     },
   });
 
-  const icaoLayer = new VectorLayer({
-    source: new Vector({
-      format: new GeoJSON(),
-      url: airfieldsUrl,
-    }),
-    visible: false,
-    style(feature, resolution) {
-      const name = feature.get('name');
-      const withName = !!name && resolution <= AIRFIELD_NAME_MAX_RESOLUTION;
-      const text = icaoStyle.getText();
-      text.setText(withName ? `${feature.get('icao')}\n${name}` : feature.get('icao'));
-      text.setOffsetY(withName ? AIRFIELD_LABEL_OFFSET_TWO_LINE : AIRFIELD_LABEL_OFFSET);
-      return icaoStyle;
-    },
+  // Aerodromes come from src/airfields.js now that there is more than one
+  // country's snapshot to read: panes share its source, and the METAR layer
+  // reads the same records rather than parsing the files a second time.
+  const icaoLayer = createAirfieldLayer((feature, resolution) => {
+    const name = feature.get('name');
+    const withName = !!name && resolution <= AIRFIELD_NAME_MAX_RESOLUTION;
+    const text = icaoStyle.getText();
+    text.setText(withName ? `${feature.get('icao')}\n${name}` : feature.get('icao'));
+    text.setOffsetY(withName ? AIRFIELD_LABEL_OFFSET_TWO_LINE : AIRFIELD_LABEL_OFFSET);
+    return icaoStyle;
   });
 
   const turnpointLayer = new VectorLayer({

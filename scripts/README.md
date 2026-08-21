@@ -10,7 +10,7 @@ beyond node itself.
 
 | Layer | Script | Output | Source | Needs |
 |---|---|---|---|---|
-| Lentokentät | `fetch-airfields.mjs` | `airfields-finland.geojson` (12 kB) | Finnish eAIP (AD 2) | — |
+| Lentokentät | `fetch-airfields.mjs` | `airfields-finland.geojson` (12 kB), `airfields-france.geojson` (23 kB) | Finnish + French eAIP (AD 2) | — |
 | Ilmatilat | `fetch-airspace.mjs` | `airspace-finland.geojson` (254 kB) | openAIP export | — |
 | Nimistö | `fetch-placenames.mjs` | `placenames-fi.geojson` (1.2 MB) | MML place names | `MML_API_KEY` |
 | Rautatiet — asemat | `fetch-rail-stations.mjs` | `railway-stations-finland.geojson` (27 kB) | Digitraffic rail | — |
@@ -25,26 +25,45 @@ the app. A snapshot that parses is not the same as a snapshot that is right.
 ### `fetch-airfields.mjs` — aerodromes
 
 ```sh
-node scripts/fetch-airfields.mjs                      # current AIRAC cycle
+node scripts/fetch-airfields.mjs                      # both countries, current cycle
+node scripts/fetch-airfields.mjs --country fr         # just one
 node scripts/fetch-airfields.mjs --limit 5            # parse a few, write nothing
-node scripts/fetch-airfields.mjs --cycle "003-2026_2026_06_11"
+node scripts/fetch-airfields.mjs --country fi --cycle "003-2026_2026_06_11"
+node scripts/fetch-airfields.mjs --country fr --cycle 2026-08-06
 ```
 
-**Follows the AIRAC cycle.** The eAIP root lists every cycle as a folder named by
-effective date; the script takes the newest whose date has *arrived* — not simply
-the newest, since the next cycle is published in advance. The cycle and its
-effective date are written into the file's `metadata`, so the snapshot always
-says which edition it is.
+**Two countries, one file each**, because each follows its own AIRAC cycle and
+carries its own attribution. The shared machinery is the fetching and the
+refuse-to-write checks; a country adapter knows how to find its cycle, list its
+aerodromes and read one of its pages.
+
+**Follows the AIRAC cycle.** Finland's eAIP root lists every cycle as a folder
+named by effective date, and the script takes the newest whose date has
+*arrived* — not simply the newest, since the next cycle is published in advance.
+France publishes no such index, so the cycle date is derived from the 28-day
+AIRAC series and the folder probed, stepping back a cycle if the newest is not
+published yet. The cycle and its effective date go into each file's `metadata`,
+so a snapshot always says which edition it is.
 
 Re-run **after each AIRAC cycle** (every 28 days) if you care about currency;
-aerodromes themselves change rarely.
+aerodromes themselves change rarely. France only keeps the current and previous
+cycles online, so `--cycle` cannot reach further back than that.
 
-Fintraffic publishes no data feed, so this **parses HTML**. It is deliberately
-loud: fewer than 60 aerodromes, an ARP outside Finland, a missing coordinate or
-fewer than 90% carrying an elevation all abort the run rather than write. Use
-`--limit` to check the parser after the source changes shape.
+Neither authority publishes a data feed, so this **parses HTML**. It is
+deliberately loud: too few aerodromes, an ARP outside the country, a missing
+coordinate, fewer than 90% carrying an elevation or nowhere naming a MET office
+all abort the run rather than write. Use `--limit` to check the parser after a
+source changes shape.
 
-Only AD 2 is taken — AD 3 is heliports, mostly hospital pads.
+Only AD 2 is taken — AD 3 is heliports, mostly hospital pads. France's AD 2 has
+three subsections and all are taken: civil IFR, the one civil VFR field with
+heliport IFR procedures, and the 22 military aerodromes.
+
+**The `metar` flag is a per-country decision, and it was measured.** In Finland,
+AD 2.11's associated MET office predicts exactly which aerodromes answer met.no;
+in France it does not (135 name an office, 85 of those answer, and one that names
+none answers anyway), so every French AD 2 aerodrome is flagged and the METAR
+source narrows to whoever replies.
 
 ### `fetch-airspace.mjs` — airspace
 
