@@ -16,8 +16,9 @@ The app animates a **13-frame time window** on a map: WMS raster layers (radar, 
 | Dev server without opening a browser | `npm start` |
 | Production build → `dist/` | `npm run build` |
 | Lint — must pass with zero errors (airbnb-base) | `npx eslint src/` |
+| Tests — every `scripts/test-*.mjs` | `npm test` |
 
-There is no test suite. Verify every change with the checklist at the bottom of this file (the `verify-app` skill walks through it).
+There is no framework and no runner: `npm test` discovers `scripts/test-*.{mjs,sh}` and runs each in plain node (or bash). Tests exist only where a mistake would be **silent** — a rule two callers must agree on, or geometry that still draws when it is wrong (`peaks.js`, `seriesFetch.js`, the wind barb, the master-push hook). Everything else is verified with the checklist at the bottom of this file (the `verify-app` skill walks through it).
 
 Project hooks enforce two rules automatically: commits/pushes on master are blocked, and every edited `src/**/*.js` file is linted on save. If a hook blocks you, fix the cause — do not work around it.
 
@@ -154,7 +155,7 @@ Rules from the MeteoCore server architect — they govern **every GetMap sent to
 
 ## Checklist before you finish any change
 
-1. `npx eslint src/` → zero errors.
+1. `npx eslint src/` → zero errors, and `npm test` → all files pass.
 2. `npm run build` → succeeds.
 3. Exercise the changed feature in the running app (dev server) — including split-screen (2 and 4 panes) if you touched panes, layers, timing, playback, or interpolation.
 4. Hard rule 10: trace index 0 / last index / non-default params for visual or coordinate changes.
