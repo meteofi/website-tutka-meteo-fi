@@ -510,17 +510,25 @@ export default function initStormCells({ telemetry } = {}) {
         // The trend mark rides the reflectivity here exactly as it does on the
         // map label, which frees a column and keeps one visual vocabulary.
         label: 'Huippu',
-        value: Number.isFinite(dbz) ? `${dbz.toFixed(1)}${trendMark(trend)} dBZ` : '–',
+        value: Number.isFinite(dbz) ? `${dbz.toFixed(1)}${trendMark(trend)}\u2009dBZ` : '–',
         tone: trend > INTENSITY_TREND_DEADBAND ? 'up'
           : (trend < -INTENSITY_TREND_DEADBAND ? 'down' : undefined),
       },
-      { label: 'Laajuus', value: Number.isFinite(area) ? `${area.toFixed(1)} km²` : '–' },
+      {
+        label: 'Laajuus',
+        // The guide's 0.1 km² is a ceiling on precision, not a floor, and a
+        // tenth of a square kilometre means nothing on a 500 km² storm — which
+        // is also the one whose value would push past its column and over the
+        // neighbouring one.
+        value: Number.isFinite(area)
+          ? `${area >= 100 ? Math.round(area) : area.toFixed(1)}\u2009km²` : '–',
+      },
       // Motion below MIN_TRACKED_AGE is a single-displacement estimate that
       // jitters; the map draws no arrow for it and the strip says so rather
       // than printing a number the next frame will contradict.
       {
         label: 'Nopeus',
-        value: feature.get('tracked') ? `${Math.round(speed * 3.6)} km/h` : '–',
+        value: feature.get('tracked') ? `${Math.round(speed * 3.6)}\u2009km/h` : '–',
       },
       {
         label: 'Suunta',
@@ -536,14 +544,19 @@ export default function initStormCells({ telemetry } = {}) {
       metrics.push({
         label: jump ? 'Salamapiikki' : 'Salamointi',
         // null is "not measured this frame", never zero.
-        value: rate === null ? '–' : `${formatRate(rate)}/min`,
+        value: rate === null ? '–' : `${formatRate(rate)}\u2009/min`,
         tone: jump ? 'warn' : undefined,
       });
     }
 
     return {
       icon: 'flash_on',
-      title: `${SEVERITY_FI[severity] || SEVERITY_FI.weak} ukkossolu`,
+      // "Solu", not "ukkossolu": the strip's head is icon + title + subtitle +
+      // age + close on a 390 px phone, and the longest severity word already
+      // spends a third of it. The collection guide's term for the object is
+      // ukkossolu, but here the icon and the reading below it have already said
+      // what kind of thing this is.
+      title: `${SEVERITY_FI[severity] || SEVERITY_FI.weak} solu`,
       subtitle: [placePhrase(feature) || reasonPhrase(feature), volumeTrend]
         .filter(Boolean).join(' · '),
       // The reading's own age, like every other subject on this strip — except

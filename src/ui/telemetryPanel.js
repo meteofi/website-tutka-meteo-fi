@@ -24,6 +24,29 @@
 // would quietly wipe out the aircraft the user just selected. Opening always
 // takes over, because opening is an explicit user action.
 
+// A reading's unit, set smaller than its number. Every source here already
+// writes the two joined by a THIN SPACE (`${value}\u2009${unit}` — see `one()`
+// in gliders.js and `fmt()` in metarLayer.js), and that thin space exists
+// precisely because the two belong together, so it is a reliable seam: split on
+// the last one and what follows is the unit.
+//
+// Which means nothing needs a new field, and values that carry no unit are left
+// exactly as they are — a bare '–', 'CAVOK', 'tyyni', a bearing whose degree
+// sign is bound to the number without a space, or the two-word 'ei estettä',
+// which has an ordinary space rather than a thin one and so is not touched.
+//
+// The point is width as much as typography: on a 390 px phone the strip's
+// columns are 68 px wide and a value like '571.2 km²' rendered at 78, spilling
+// over its neighbours. The number is what the eye reads; the unit only has to
+// be legible.
+const THIN_SPACE = '\u2009';
+function withUnit(value) {
+  const text = String(value == null ? '' : value);
+  const at = text.lastIndexOf(THIN_SPACE);
+  if (at < 0) return text;
+  return `${text.slice(0, at)}<span class="telemetry-unit">${text.slice(at + 1)}</span>`;
+}
+
 export default function initTelemetryPanel({ container } = {}) {
   if (!container) {
     // Same degraded-but-harmless contract as crossSection.js: with no container
@@ -78,7 +101,8 @@ export default function initTelemetryPanel({ container } = {}) {
 
   // `metrics` is [{ label, value, tone }] — `value` already formatted, because
   // only the caller knows whether a number is knots or metres or degrees, and
-  // whether an absent reading should read '–' or be dropped. `tone` optionally
+  // whether an absent reading should read '–' or be dropped. Its unit, if the
+  // caller bound one to the number with a thin space, is set smaller here. `tone` optionally
   // colours the value ('up', 'down', 'warn') for readings whose sign carries
   // meaning, a glider's vertical speed being the motivating case.
   function paint({
@@ -104,7 +128,7 @@ export default function initTelemetryPanel({ container } = {}) {
     // updates about once a second, so the simple thing is also the fast thing.
     rowEl.innerHTML = metrics.map((m) => `
       <div class="telemetry-cell">
-        <span class="telemetry-value${m.tone ? ` is-${m.tone}` : ''}">${m.value}</span>
+        <span class="telemetry-value${m.tone ? ` is-${m.tone}` : ''}">${withUnit(m.value)}</span>
         <span class="telemetry-label">${m.label}</span>
       </div>`).join('');
   }
