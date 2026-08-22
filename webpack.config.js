@@ -105,7 +105,8 @@ module.exports = (env, argv) => {
           // Lazy non-JS fetches (the content-hashed *.geojson data
           // assets) are precached, so a stale page finds its old-hash
           // URL in its own SW's precache until the controllerchange
-          // reload lands.
+          // reload lands. The airspace snapshots are the exception —
+          // see the exclude list below.
           maximumFileSizeToCacheInBytes: 5000000, // 5MB
           skipWaiting: true,
           clientsClaim: true,
@@ -124,7 +125,24 @@ module.exports = (env, argv) => {
           // chunk is lazy on purpose: precaching it would make every
           // GPS-only user download it in the background, and AIS needs
           // the network anyway.
-          exclude: [/\.map$/, /manifest$/, /LICENSE/, /^mqtt[.-][^/]*\.js$/],
+          //
+          // The airspace snapshots are excluded for the same reason,
+          // and it matters more: they are 1.5 MB between them (France
+          // alone is 1.26 MB), they belong to a POI topic that is off
+          // by default, and src/airspace.js already fetches only the
+          // country the map is over. Precaching them would hand every
+          // visitor the whole of both countries' airspace in the
+          // background to pay for a layer most never switch on — the
+          // load gate would be doing its work while the service worker
+          // undid it. A post-deploy stale tab that asks for an
+          // old-hash snapshot gets a 404 instead of a cache hit; the
+          // module treats that as "that country stays empty, retry on
+          // the next pan", and the controllerchange reload lands well
+          // before then.
+          exclude: [
+            /\.map$/, /manifest$/, /LICENSE/, /^mqtt[.-][^/]*\.js$/,
+            /^airspace-[^/]*\.geojson$/,
+          ],
           runtimeCaching: [{
             urlPattern: new RegExp('^https://server\\.arcgisonline\\.com/ArcGIS/rest/services/Canvas/World_Dark_Gray_Base/MapServer/'),
             handler: 'StaleWhileRevalidate',
