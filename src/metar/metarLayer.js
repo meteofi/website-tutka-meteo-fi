@@ -126,6 +126,46 @@ export default function initMetar({ telemetry, stations } = {}) {
   const OWNER = 'metar';
   let selectedIcao = null;
 
+  // The lowest cloud layer, as the report writes it.
+  //
+  // This column used to print the CEILING, which is only ever a BKN or OVC
+  // layer — so a report of FEW or SCT cloud, which is most of them, showed a
+  // dash under a label that says "clouds" (EFHK and EFTU both, reported
+  // 2026-08-22). The ceiling is still what decides the flight category and the
+  // colour of the plot on the map; it is not what "Pilvet" promises.
+  //
+  // The group is left in the report's own notation rather than translated: it
+  // is four characters where Finnish needs a sentence, and the raw METAR sits
+  // in the subtitle directly above it, so the two read together.
+  function cloudValue(report) {
+    // CAVOK is an assertion about the sky — nothing below 5000 ft or the
+    // minimum sector altitude, and no CB — so it belongs here as much as in the
+    // visibility column. It also replaces "ei estettä", which said neither what
+    // was measured nor what it meant.
+    if (report.cavok) return 'CAVOK';
+    const clouds = report.clouds || [];
+    if (!clouds.length) return '–';
+    const convective = clouds.find((c) => c.convective);
+    const lowest = clouds
+      .filter((c) => Number.isFinite(c.baseFt))
+      .reduce((low, c) => (low === null || c.baseFt < low.baseFt ? c : low), null);
+    // SKC / NCD / NSC carry no base: the token IS the reading.
+    const group = lowest
+      ? `${lowest.cover === '///' ? '' : lowest.cover}${String(Math.round(lowest.baseFt / 100)).padStart(3, '0')}`
+      : clouds[0].cover;
+    // A CB is the one thing in a cloud group this app exists to care about, so
+    // it is appended even when it belongs to a higher layer than the one shown.
+    // Written as the report writes it, FEW030CB rather than FEW030 CB: the same
+    // token the raw line above shows, and narrower in a column that has to
+    // survive a thunderstorm's gusty wind in the column beside it.
+    return convective ? `${group}${convective.convective}` : group;
+  }
+
+  // Red for a convective cloud, and only for that: everything else here is a
+  // measurement rather than a warning.
+  const cloudTone = (report) => (!report.cavok
+    && (report.clouds || []).some((c) => c.convective) ? 'warn' : undefined);
+
   // Temperature and dew point as the report pairs them. Either one alone is
   // still worth stating, so a missing partner leaves the other standing rather
   // than blanking the column.
@@ -155,14 +195,14 @@ export default function initMetar({ telemetry, stations } = {}) {
     let windValue = '–';
     if (wind) {
       if (wind.calm) windValue = 'tyyni';
-      else if (wind.variable) windValue = `VRB ${Math.round(wind.speedKt)}\u2009kt`;
+      else if (wind.variable) windValue = `VRB ${Math.round(wind.speedKt)}`;
       else {
         // Gusts in the report's own notation — 25G38 rather than 25 (38) —
         // which reads the same way as the raw METAR sitting in the subtitle
         // above it, and is narrower, which matters in a six-column strip on a
         // phone.
         const gust = Number.isFinite(wind.gustKt) ? `G${Math.round(wind.gustKt)}` : '';
-        windValue = `${String(Math.round(wind.direction)).padStart(3, '0')}° ${Math.round(wind.speedKt)}${gust}\u2009kt`;
+        windValue = `${String(Math.round(wind.direction)).padStart(3, '0')}° ${Math.round(wind.speedKt)}${gust}`;
       }
     }
     const ageMin = Math.max(0, Math.round((cursorMs - report.timeMs) / 60000));
@@ -178,14 +218,22 @@ export default function initMetar({ telemetry, stations } = {}) {
       // it is from the frame being displayed.
       status: `${clock} UTC${ageMin > 0 ? ` · ${ageMin} min` : ''}`,
       metrics: [
-        { label: 'Tuuli', value: windValue },
+        // The unit sits in the label rather than on the number: a METAR reports
+        // wind in knots and only in knots, so it is said once, and the widest
+        // column on the strip gets 14 px back for the gusty wind that a
+        // thunderstorm brings along with the CB group two columns over.
+        { label: 'Tuuli (kt)', value: windValue },
         // Temperature and dew point share a column, in the report's own
         // notation: a METAR writes them as one pair, 16/14, and a reader who
         // wants the spread wants them side by side anyway. It is also what
         // makes the row fit a phone — six columns need 379 px of the 342 a
         // 390 px screen has, and merging these two gives back 61 without
         // dropping a reading or shrinking a number.
-        { label: 'Lämpö/kaste', value: tempPair(report.tempC, report.dewpC) },
+        // "Lämpö" rather than "Lämpö/kaste": the value states the pair the way
+        // the report does, and the longer label was 71 px against its own
+        // value's 60 — the one column on the strip whose label, not its
+        // reading, decided how wide it had to be.
+        { label: 'Lämpö', value: tempPair(report.tempC, report.dewpC) },
         {
           // Kilometres from 5 km up, metres below it — which is how an aerodrome
           // states visibility anyway, and how the AIP and ATIS read: the metre
@@ -198,12 +246,7 @@ export default function initMetar({ telemetry, stations } = {}) {
           label: 'Näkyvyys',
           value: report.cavok ? 'CAVOK' : visibility(report.visM),
         },
-        {
-          label: 'Pilvet',
-          value: report.ceilingFt === null
-            ? (report.cavok ? 'ei estettä' : '–')
-            : `${report.ceilingFt}\u2009ft`,
-        },
+        { label: 'Pilvet', value: cloudValue(report), tone: cloudTone(report) },
         // No unit: QNH is hectopascals wherever this app is read, the label
         // already names the reading, and the four digits are unmistakable. The
         // unit was the widest part of the widest column.
