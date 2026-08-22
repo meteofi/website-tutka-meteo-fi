@@ -30,6 +30,19 @@
 // `bearing_deg` as the server reports them, projected 30 min ahead as an
 // annotation, and only for tracks old enough to carry a smoothed velocity.
 //
+// TAPPING A CELL puts its readings on the shared bottom strip (ui/telemetryPanel),
+// the same one the aircraft and the METAR plots use. This is the first subject
+// on that strip whose numbers change because the CLOCK moved rather than because
+// the subject did, which is what shapes the selection code below: the cell shown
+// for one frame is a different Feature object from the cell shown for the next,
+// so the selection is held as a track id and re-resolved on every render. The
+// fields the strip needs but the map does not — impact municipality, ETA,
+// significance reasons, volume trend, flash count — are carried on the feature
+// for that purpose alone. Everything the strip says about a cell comes from the
+// collection guide's vocabulary and rounding rules
+// (docs/meteocore-storm-cells.md §§5-7), including its warning to keep Finnish
+// place names in the nominative rather than inflecting them.
+//
 // Server contract notes (measured against the live API on 2026-07-25):
 //   * retention is read, never assumed, because it changed under the client:
 //     the server first held ONE analysis instant (any other `datetime=`
@@ -150,6 +163,34 @@ const SEVERITY_RANK = {
   very_severe: 3,
 };
 
+// Finnish for the server's enums, taken verbatim from the collection guide
+// (docs/meteocore-storm-cells.md §7) rather than invented here, so the strip and
+// any future generated text say the same words.
+const SEVERITY_FI = {
+  weak: 'Heikko',
+  moderate: 'Kohtalainen',
+  severe: 'Voimakas',
+  very_severe: 'Erittäin voimakas',
+};
+const VOLUME_TREND_FI = {
+  growing: 'voimistuva',
+  decaying: 'heikkenevä',
+};
+
+// Why the server ranked this cell where it did. The reasons are the terms that
+// drove the score, strongest first, and they are what turns a number a
+// forecaster dismisses into one they can check.
+const REASON_FI = {
+  severity: 'voimakkuus',
+  max_dbz: 'heijastavuus',
+  area: 'laajuus',
+  trend: 'kehityssuunta',
+  lightning: 'salamointi',
+  lightning_jump: 'salamapiikki',
+  impact: 'vaikutusalue',
+  deviant_mover: 'poikkeava liikesuunta',
+};
+
 // Trend badge after the reflectivity: ▲ intensifying, ▼ weakening, nothing
 // while a cell is holding steady. A word ("voimistuu") would double the label
 // width on every marker, so it stays one character.
@@ -199,6 +240,10 @@ const PALETTES = {
     },
     textFill: '#222222',
     textHalo: '#ffffff',
+    // Selection band. Dark and translucent on the light theme, light and
+    // translucent on the dark one — it has to show up under rings of every
+    // severity colour without competing with any of them.
+    selected: 'rgba(20, 24, 30, 0.35)',
     // Lightning jump. Deliberately outside the severity ramp — violet cannot be
     // mistaken for "one step more severe", which is exactly what an electric
     // yellow next to the amber/orange tiers would look like.
@@ -214,6 +259,7 @@ const PALETTES = {
     },
     textFill: '#e8e8e8',
     textHalo: '#000000',
+    selected: 'rgba(255, 255, 255, 0.45)',
     jump: '#c77dff',
   },
 };
@@ -263,10 +309,19 @@ function footprintRadiusM(areaKm2) {
   return Math.sqrt(Math.max(areaKm2, 0) / Math.PI) * 1000;
 }
 
-export default function initStormCells() {
+export default function initStormCells({ telemetry } = {}) {
   const source = new VectorSource({
     attributions: 'Soluntunnistus © FMI (CC BY 4.0)',
   });
+
+  // Whoever owns the shared bottom strip. Storm cells are the first clock-
+  // coupled subject to use it: an aircraft's readings change because the
+  // aircraft moved, a cell's change because the CLOCK moved, and the cell for
+  // one frame is a different Feature object from the cell for the next.
+  const OWNER = 'stormcells';
+  // So the selection is held as a track id and re-resolved against whatever
+  // frame is on screen (syncSelection, called from render).
+  let selectedId = null;
 
   // frame instant (ISO) -> snapshot, PENDING while a request is in flight, or
   // MISS when the server has no snapshot for that frame. The three states must
@@ -312,11 +367,32 @@ export default function initStormCells() {
     feature.setProperties({
       lon,
       lat,
+      // The track id, as a string, and the one thing that survives a frame
+      // change: every frame is a fresh set of Feature objects, so a selection
+      // can only be carried by id (see syncSelection). Stable across analyses
+      // within a session and never reused; NOT stable across a server restart,
+      // which is why nothing persists it.
+      trackId: json.id != null ? String(json.id) : null,
       severity: p.severity || 'weak',
       maxDbz: Number.isFinite(p.max_dbz) ? p.max_dbz : null,
       areaKm2: Number.isFinite(p.area_km2) ? p.area_km2 : 0,
       trackAge: age,
       deviant: !!p.deviant_mover,
+      // Everything below this line is carried for the selection strip rather
+      // than for the map: the marker says severity, size, motion and lightning,
+      // and the strip answers "what else does the server know about this one".
+      // Kept as the server sent them — null is "not measured this frame" and
+      // must never render as 0 or "no" (the collection's absent/null/value
+      // rule; docs/meteocore-storm-cells.md §5).
+      observed: typeof p.observed === 'string' ? p.observed : null,
+      significanceRank: Number.isFinite(p.significance_rank) ? p.significance_rank : null,
+      significanceReasons: Array.isArray(p.significance_reasons) ? p.significance_reasons : [],
+      volumeTrend: typeof p.volume_trend === 'string' ? p.volume_trend : null,
+      intensityTrend: Number.isFinite(p.intensity_trend_dbz_min) ? p.intensity_trend_dbz_min : null,
+      flashCount: Number.isFinite(p.flash_count) ? p.flash_count : null,
+      impactOver: typeof p.impact_over === 'string' ? p.impact_over : null,
+      impactApproaching: typeof p.impact_approaching === 'string' ? p.impact_approaching : null,
+      impactEtaMin: Number.isFinite(p.impact_eta_minutes) ? p.impact_eta_minutes : null,
       // Intensity trend as a badge. Absent on servers before the property
       // existed, and null until the tracker has two analyses of the cell —
       // both mean "no badge".
@@ -369,6 +445,187 @@ export default function initStormCells() {
     };
   }
 
+  //
+  // SELECTION — the tapped cell's readings on the shared bottom strip.
+  //
+  // Everything here follows gliders.js, with one difference that drives the
+  // rest: the subject is tied to the clock. Scrubbing a frame does not move
+  // this cell, it replaces it with the same storm as the server analysed it
+  // five minutes earlier — a different Feature, the same track id.
+  const cellById = (id) => (id === null ? null
+    : source.getFeatures().find((f) => f.get('trackId') === id) || null);
+
+  function markSelected(id) {
+    if (selectedId === id) return;
+    const previous = cellById(selectedId);
+    if (previous) previous.set('selected', false);
+    selectedId = id;
+    const next = cellById(id);
+    if (next) next.set('selected', true);
+  }
+
+  function clearSelection() {
+    markSelected(null);
+  }
+
+  // A place phrase for the strip's subtitle. Finnish locative cases on proper
+  // nouns are exactly where generated text goes wrong (the collection guide
+  // §7 says so, and it is right), so the municipality name is always left in
+  // the nominative and the relationship carried by the label in front of it.
+  function placePhrase(feature) {
+    const over = feature.get('impactOver');
+    if (over) return `Alueella: ${over}`;
+    const approaching = feature.get('impactApproaching');
+    if (!approaching) return '';
+    const eta = feature.get('impactEtaMin');
+    return Number.isFinite(eta)
+      ? `Kohti: ${approaching} · ${Math.round(eta)} min`
+      : `Kohti: ${approaching}`;
+  }
+
+  // …and when the cell is over open sea or outside Finland, the reasons the
+  // server ranked it where it did are the more useful thing to show. Untranslated
+  // terms are dropped rather than printed raw: a new term appearing server-side
+  // must not put an English word in a Finnish strip.
+  function reasonPhrase(feature) {
+    const reasons = feature.get('significanceReasons') || [];
+    const words = reasons.map((r) => REASON_FI[r]).filter(Boolean);
+    return words.length ? `Huomioitavaa: ${words.join(', ')}` : '';
+  }
+
+  function payloadFor(feature) {
+    const severity = feature.get('severity');
+    const dbz = feature.get('maxDbz');
+    const area = feature.get('areaKm2');
+    const speed = feature.get('speedMs');
+    const bearing = feature.get('bearingDeg');
+    const trend = feature.get('intensityTrend');
+    const volumeTrend = VOLUME_TREND_FI[feature.get('volumeTrend')] || '';
+    const observedMs = Date.parse(feature.get('observed') || '');
+    const ageMin = Number.isFinite(observedMs)
+      ? Math.max(0, Math.round((Date.now() - observedMs) / 60000)) : null;
+
+    const metrics = [
+      {
+        // The trend mark rides the reflectivity here exactly as it does on the
+        // map label, which frees a column and keeps one visual vocabulary.
+        label: 'Huippu',
+        value: Number.isFinite(dbz) ? `${dbz.toFixed(1)}${trendMark(trend)} dBZ` : '–',
+        tone: trend > INTENSITY_TREND_DEADBAND ? 'up'
+          : (trend < -INTENSITY_TREND_DEADBAND ? 'down' : undefined),
+      },
+      { label: 'Laajuus', value: Number.isFinite(area) ? `${area.toFixed(1)} km²` : '–' },
+      // Motion below MIN_TRACKED_AGE is a single-displacement estimate that
+      // jitters; the map draws no arrow for it and the strip says so rather
+      // than printing a number the next frame will contradict.
+      {
+        label: 'Nopeus',
+        value: feature.get('tracked') ? `${Math.round(speed * 3.6)} km/h` : '–',
+      },
+      {
+        label: 'Suunta',
+        value: feature.get('tracked') ? `${Math.round(bearing)}°` : '–',
+      },
+    ];
+    // Lightning is tri-state: absent means no lightning source is wired to the
+    // collection at all, and then the topic is omitted entirely rather than
+    // shown as a dash — a dash would claim the question was asked.
+    if (feature.get('hasLightning')) {
+      const rate = feature.get('flashRate');
+      const jump = feature.get('jump') === true;
+      metrics.push({
+        label: jump ? 'Salamapiikki' : 'Salamointi',
+        // null is "not measured this frame", never zero.
+        value: rate === null ? '–' : `${formatRate(rate)}/min`,
+        tone: jump ? 'warn' : undefined,
+      });
+    }
+
+    return {
+      icon: 'flash_on',
+      title: `${SEVERITY_FI[severity] || SEVERITY_FI.weak} ukkossolu`,
+      subtitle: [placePhrase(feature) || reasonPhrase(feature), volumeTrend]
+        .filter(Boolean).join(' · '),
+      // The reading's own age, like every other subject on this strip — except
+      // that here it also moves when the user scrubs, because the cell shown is
+      // the one the server analysed for the displayed frame.
+      status: ageMin === null ? '' : (ageMin < 1 ? 'juuri nyt' : `${ageMin} min sitten`),
+      metrics,
+    };
+  }
+
+  // The last payload built from a real feature, so a frame the storm is not in
+  // can keep its identity on the strip while blanking its numbers.
+  let lastPayload = null;
+
+  // A cell exists for the frames the tracker saw it in and no others, so
+  // scrubbing — or simply letting playback run — walks off both ends of its
+  // life several times a minute. Closing the strip there was the first
+  // attempt and it is unusable: the panel vanishes seconds after you open it.
+  //
+  // So the selection outlives the gap. The storm keeps the strip, its numbers
+  // blank rather than freezing (numbers from another analysis under a clock
+  // showing this one would be the quiet lie this app avoids), and they come
+  // back the moment the clock re-enters its life.
+  function absentPayload() {
+    if (!lastPayload) return null;
+    return {
+      ...lastPayload,
+      status: 'ei tässä ruudussa',
+      metrics: lastPayload.metrics.map((m) => ({ label: m.label, value: '–' })),
+    };
+  }
+
+  function selectFeature(feature) {
+    markSelected(feature.get('trackId'));
+    lastPayload = payloadFor(feature);
+    telemetry.open(OWNER, lastPayload, clearSelection);
+  }
+
+  // Called after every render, i.e. on every frame the clock lands on and every
+  // refresh that lands new cells. Three things can have happened: the panel was
+  // taken over or closed by someone else, the storm is no longer in the frame
+  // on screen, or it is there with new numbers.
+  function syncSelection() {
+    if (selectedId === null) return;
+    // Someone else took the strip, or the user closed it: the ring on the map
+    // has to go with it, or the map claims a selection nothing is showing.
+    if (!telemetry || !telemetry.ownerIs(OWNER)) { clearSelection(); return; }
+    const feature = cellById(selectedId);
+    if (!feature) {
+      // Not drawn in this frame, for any of three reasons that look the same to
+      // a reader: the analysis has no such cell yet (or any more), the server
+      // has no analysis for that instant at all — measured, 06:45 was empty
+      // while 06:40 and 06:50 were not — or the storm was in the noise tier
+      // that frame and the client dropped it. The selection survives all three
+      // — see absentPayload — because the alternative closes the panel every
+      // time playback passes the moment the storm formed.
+      const payload = absentPayload();
+      if (payload) telemetry.update(OWNER, payload);
+      return;
+    }
+    feature.set('selected', true);
+    lastPayload = payloadFor(feature);
+    telemetry.update(OWNER, lastPayload);
+  }
+
+  function attachPane(map, layer) {
+    function findAtPixel(pixel) {
+      if (!layer.getVisible()) return null;
+      let hit = null;
+      // A cell is a Point drawn as a ring, so the tap target is the centre plus
+      // a tolerance rather than the outline: tapping the ring itself would ask
+      // the user to hit a 2 px circle, and tapping the middle is what everyone
+      // tries first.
+      map.forEachFeatureAtPixel(pixel, (f, l) => {
+        if (l === layer && f.get('trackId')) { hit = f; return true; }
+        return false;
+      }, { hitTolerance: 10 });
+      return hit;
+    }
+    return { findAtPixel, open: selectFeature };
+  }
+
   function fetchSnapshot(frameIso) {
     const url = frameIso ? `${ITEMS_URL}&datetime=${encodeURIComponent(frameIso)}` : ITEMS_URL;
     return fetch(url)
@@ -396,6 +653,10 @@ export default function initStormCells() {
     shown = snapshot;
     source.clear(true);
     if (snapshot) source.addFeatures(snapshot.features);
+    // The features on screen are new objects, so a selection made on the
+    // previous frame has to be re-attached to this frame's copy of the same
+    // storm — or given up, if this frame does not have it.
+    syncSelection();
   }
 
   // Fetch queue: the displayed frame first, then the rest of the window
@@ -563,6 +824,12 @@ export default function initStormCells() {
     // declutter because it is geometry rather than a symbol.
     const jumpHalo = new Style({ stroke: new Stroke({ color: palette.halo, width: 5 }) });
     const jumpRing = new Style({ stroke: new Stroke({ color: palette.jump, width: 2.5 }) });
+    // Selection: a wide soft band under the cell's own ring, in the theme's
+    // halo colour, so the mark keeps saying severity while the selection says
+    // only "this is the one on the strip".
+    const selectedGlow = new Style({
+      stroke: new Stroke({ color: palette.selected, width: 9 }),
+    });
     const chipText = (color, weight) => new Style({
       text: new Text({
         font: `${weight}11px Roboto, sans-serif`,
@@ -593,6 +860,15 @@ export default function initStormCells() {
       entry.ringHalo.setGeometry(ring);
       entry.ring.setGeometry(ring);
       const out = [entry.ringHalo, entry.ring];
+
+      // The selected cell wears a wide halo INSIDE its own ring rather than a
+      // second ring outside it: outside is where the lightning-jump ring goes,
+      // and two concentric outlines would read as one more severity tier. It is
+      // deliberately colour-neutral for the same reason.
+      if (feature.get('selected')) {
+        selectedGlow.setGeometry(new CircleGeom(center, radiusUnits));
+        out.unshift(selectedGlow);
+      }
 
       const speed = feature.get('speedMs');
       const bearing = feature.get('bearingDeg');
@@ -676,6 +952,7 @@ export default function initStormCells() {
   return {
     styleLight,
     styleDark,
+    attachPane,
 
     // Pane factory for paneDeps. Starts hidden and on the light style; POI
     // visibility and setMapLayer take over immediately after pane creation.
@@ -701,6 +978,13 @@ export default function initStormCells() {
       enabled = on;
       if (!on) {
         stopPolling();
+        // Switching the topic off has to take the strip with it: the readings
+        // belong to a cell that is no longer drawn, and leaving them up would
+        // claim a selection the user can no longer see on the map.
+        if (selectedId !== null) {
+          clearSelection();
+          if (telemetry) telemetry.close(OWNER);
+        }
         return;
       }
       if (Date.now() - lastRefreshMs >= REFRESH_MS) refresh();

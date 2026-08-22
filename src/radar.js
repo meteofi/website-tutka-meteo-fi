@@ -788,12 +788,6 @@ const lightningController = initLightningLayer({
 // before pane 0 is built; the search UI itself is wired later in main().
 const searchHighlight = initSearchHighlight();
 
-// Storm cells (Soluntunnistus): OGC API Features cell identification + tracking,
-// toggled from the POI menu. Module scope like the obs/lightning controllers so
-// its per-pane layer factory can join paneDeps; fetching starts only when the
-// POI is switched on (applyPoiVisibility), and setTime feeds it the clock.
-const stormCells = initStormCells();
-
 // Liikennetiedotteet (Fintraffic road traffic announcements): same shape as the
 // storm-cell controller — module scope so its per-pane layer factory can join
 // paneDeps, fetching gated on the POI toggle, and setTime feeds it the clock.
@@ -820,6 +814,12 @@ const telemetry = initTelemetryPanel({
 });
 
 const gliders = initGliders({ telemetry });
+
+// Storm cells (Soluntunnistus): OGC API Features cell identification + tracking,
+// toggled from the POI menu. Module scope like the obs/lightning controllers so
+// its per-pane layer factory can join paneDeps; fetching starts only when the
+// POI is switched on (applyPoiVisibility), and setTime feeds it the clock.
+const stormCells = initStormCells({ telemetry });
 
 // Departure board for a tapped railway station. Wall-clock live rather than
 // clock-coupled — a board is about what is next, and no radar frame can
@@ -1122,7 +1122,15 @@ function initNewPane(pane) {
       return;
     }
     const trafficHit = pane.traffic.findAtPixel(evt.pixel);
-    if (trafficHit) pane.traffic.openFor(trafficHit);
+    if (trafficHit) {
+      pane.traffic.openFor(trafficHit);
+      return;
+    }
+    // Cells last: a cell's tap target is its whole footprint, which is far
+    // bigger than any marker and would otherwise swallow taps meant for the
+    // aerodrome or the train underneath the storm.
+    const cellHit = pane.stormCells.findAtPixel(evt.pixel);
+    if (cellHit) pane.stormCells.open(cellHit);
   });
   setMapLayer(getEffectiveTheme());
   applyPoiVisibility();
@@ -2072,6 +2080,10 @@ function initPaneTraffic(pane) {
   pane.trainLocations = trainLocations.attachPane(pane.map, pane.trainLocationLayer);
   pane.rescueVessels = rescueVessels.attachPane(pane.map, pane.rescueVesselLayer);
   pane.metar = metar.attachPane(pane.map, pane.metarLayer);
+  // Storm cells share the strip too, and they are the first subject on it that
+  // follows the clock rather than a live feed — scrubbing a frame re-reads the
+  // same storm from that frame's analysis.
+  pane.stormCells = stormCells.attachPane(pane.map, pane.stormCellsLayer);
   // Own position/vessel drives the same strip; only the hit-test is per-pane.
   if (ownLocation) pane.ownTelemetry = ownLocation.attachPane(pane);
 }
@@ -3820,6 +3832,18 @@ const main = () => {
       const trafficHit = pane0.traffic.findAtPixel(evt.pixel);
       if (trafficHit) {
         pane0.traffic.openFor(trafficHit);
+        return;
+      }
+    }
+
+    // Tap on a storm cell → open its readings in the telemetry strip. Last of
+    // the POI hit-tests: a cell's target is its whole footprint, kilometres
+    // across, so it would otherwise swallow taps meant for the small markers
+    // that sit under the storm.
+    if (pane0.stormCells) {
+      const cellHit = pane0.stormCells.findAtPixel(evt.pixel);
+      if (cellHit) {
+        pane0.stormCells.open(cellHit);
         return;
       }
     }
