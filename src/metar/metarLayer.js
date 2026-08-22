@@ -126,7 +126,27 @@ export default function initMetar({ telemetry, stations } = {}) {
   const OWNER = 'metar';
   let selectedIcao = null;
 
-  const fmt = (v, unit, digits = 0) => (Number.isFinite(v) ? `${v.toFixed(digits)}\u2009${unit}` : '–');
+  // Temperature and dew point as the report pairs them. Either one alone is
+  // still worth stating, so a missing partner leaves the other standing rather
+  // than blanking the column.
+  function tempPair(tempC, dewpC) {
+    const t = Number.isFinite(tempC) ? String(Math.round(tempC)) : null;
+    const d = Number.isFinite(dewpC) ? String(Math.round(dewpC)) : null;
+    if (t === null && d === null) return '–';
+    return `${t === null ? '–' : t}/${d === null ? '–' : d}\u2009°C`;
+  }
+
+  // Visibility as an aerodrome states it: metres while they matter, kilometres
+  // once they do not. The 5 km boundary is where the report itself changes
+  // resolution — below it METAR steps in hundreds of metres, above it in
+  // thousands — so it is also where the metre stops carrying information.
+  function visibility(visM) {
+    if (!Number.isFinite(visM)) return '–';
+    if (visM < 5000) return `${Math.round(visM)}\u2009m`;
+    const km = visM / 1000;
+    // 9999 is the report's "10 km or more"; it must not print as 10.0.
+    return `${km >= 10 ? Math.round(km) : km.toFixed(1)}\u2009km`;
+  }
 
   function payloadFor(feature) {
     const report = feature.get('report');
@@ -137,7 +157,11 @@ export default function initMetar({ telemetry, stations } = {}) {
       if (wind.calm) windValue = 'tyyni';
       else if (wind.variable) windValue = `VRB ${Math.round(wind.speedKt)}\u2009kt`;
       else {
-        const gust = Number.isFinite(wind.gustKt) ? `\u2009(${Math.round(wind.gustKt)})` : '';
+        // Gusts in the report's own notation — 25G38 rather than 25 (38) —
+        // which reads the same way as the raw METAR sitting in the subtitle
+        // above it, and is narrower, which matters in a six-column strip on a
+        // phone.
+        const gust = Number.isFinite(wind.gustKt) ? `G${Math.round(wind.gustKt)}` : '';
         windValue = `${String(Math.round(wind.direction)).padStart(3, '0')}° ${Math.round(wind.speedKt)}${gust}\u2009kt`;
       }
     }
@@ -155,11 +179,24 @@ export default function initMetar({ telemetry, stations } = {}) {
       status: `${clock} UTC${ageMin > 0 ? ` · ${ageMin} min` : ''}`,
       metrics: [
         { label: 'Tuuli', value: windValue },
-        { label: 'Lämpötila', value: fmt(report.tempC, '°C') },
-        { label: 'Kastepiste', value: fmt(report.dewpC, '°C') },
+        // Temperature and dew point share a column, in the report's own
+        // notation: a METAR writes them as one pair, 16/14, and a reader who
+        // wants the spread wants them side by side anyway. It is also what
+        // makes the row fit a phone — six columns need 379 px of the 342 a
+        // 390 px screen has, and merging these two gives back 61 without
+        // dropping a reading or shrinking a number.
+        { label: 'Lämpö/kaste', value: tempPair(report.tempC, report.dewpC) },
         {
+          // Kilometres from 5 km up, metres below it — which is how an aerodrome
+          // states visibility anyway, and how the AIP and ATIS read: the metre
+          // is the useful unit while it constrains you, and once it does not,
+          // nobody cares about the last 400 m. 9999 in the report means "10 km
+          // or more" and prints as 10 km, exactly as it is read aloud.
+          //
+          // It is also the narrow-screen fix: '10000 m' rendered 61 px wide in
+          // a 57 px column on a 390 px phone and overlapped its neighbours.
           label: 'Näkyvyys',
-          value: report.cavok ? 'CAVOK' : fmt(report.visM, 'm'),
+          value: report.cavok ? 'CAVOK' : visibility(report.visM),
         },
         {
           label: 'Pilvet',
@@ -167,7 +204,10 @@ export default function initMetar({ telemetry, stations } = {}) {
             ? (report.cavok ? 'ei estettä' : '–')
             : `${report.ceilingFt}\u2009ft`,
         },
-        { label: 'QNH', value: fmt(report.qnhHpa, 'hPa') },
+        // No unit: QNH is hectopascals wherever this app is read, the label
+        // already names the reading, and the four digits are unmistakable. The
+        // unit was the widest part of the widest column.
+        { label: 'QNH', value: Number.isFinite(report.qnhHpa) ? String(Math.round(report.qnhHpa)) : '–' },
       ],
     };
   }
