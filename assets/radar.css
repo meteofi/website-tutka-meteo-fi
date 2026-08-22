@@ -1957,7 +1957,15 @@ body.split-4 #placeSearchButton {
        inside the columns. */
     column-gap: 8px;
     padding: 2px 8px 3px;
+    /* Last resort rather than layout: with min-content columns the row fits
+       every measured case, but a report can always be wider than the one you
+       measured — a thunderstorm brings a gusty wind AND a CB group at once —
+       and a row that scrolls is still readable where one that overlaps is not.
+       No scrollbar: it would sit on the numbers in a 60 px panel. */
+    overflow-x: auto;
+    scrollbar-width: none;
   }
+  .telemetry-row::-webkit-scrollbar { display: none; }
   .telemetry-cell {
     display: flex;
     flex-direction: column;

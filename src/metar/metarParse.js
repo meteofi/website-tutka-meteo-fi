@@ -106,6 +106,22 @@ function parseCloud(token) {
       cover: token, oktas: 0, baseFt: null, ceiling: false, convective: null,
     };
   }
+  // An automatic station that sees a convective cloud it cannot measure reports
+  // the amount and the base as slashes: `//////CB`. Dropping it lost the one
+  // token in the report that matters most to this app — EFTU was carrying
+  // `FEW043 //////CB` while the panel said nothing about a CB at all. Kept with
+  // an unknown cover, and at 0 oktas so it cannot inflate the station circle,
+  // which draws total sky cover.
+  const auto = /^\/{3}(\d{3}|\/{3})(CB|TCU)?$/.exec(token);
+  if (auto) {
+    return {
+      cover: '///',
+      oktas: 0,
+      baseFt: auto[1] === '///' ? null : Number(auto[1]) * 100,
+      ceiling: false,
+      convective: auto[2] || null,
+    };
+  }
   const m = /^(FEW|SCT|BKN|OVC)(\d{3}|\/\/\/)(CB|TCU)?$/.exec(token);
   if (!m) return null;
   return {
