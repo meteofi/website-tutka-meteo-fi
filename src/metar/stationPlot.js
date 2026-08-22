@@ -26,15 +26,12 @@ import Polygon from 'ol/geom/Polygon';
 import {
   Circle as CircleStyle, Fill, Stroke, Style, Text,
 } from 'ol/style';
+import { barbShape, CIRCLE_R } from './barbShape';
 
 // Screen pixels. The plot is sized so the four text slots clear the circle and
 // the barb at the label font size, and so two adjacent aerodromes do not touch
-// at the zoom where the layer appears.
-const CIRCLE_R = 6;
-const BARB_LEN = 26;
-const FEATHER_LEN = 9;
-const FEATHER_STEP = 4.5;
-const PENNANT_W = 5;
+// at the zoom where the layer appears. CIRCLE_R comes from barbShape.js, which
+// needs it to know where the staff starts.
 // The text slots. Three rows, two columns, around the circle:
 //
 //   TEXT_DY is half the row spacing. At 9 it was tighter than the 11px font is
@@ -58,70 +55,16 @@ export const CATEGORY_COLORS = {
   LIFR: 'rgb(191, 63, 191)',
 };
 
-// How many pennants (50 kt), full feathers (10) and half feathers (5) a speed
-// makes. Rounded to the nearest 5 kt, which is how barbs are always drawn.
-//
-// Pure and exported for the tests: this is the function whose off-by-one would
-// be a silent 5-knot lie.
-export function barbParts(speedKt) {
-  const rounded = Math.round((Number.isFinite(speedKt) ? speedKt : 0) / 5) * 5;
-  return {
-    rounded,
-    pennants: Math.floor(rounded / 50),
-    full: Math.floor((rounded % 50) / 10),
-    half: Math.floor((rounded % 10) / 5),
-  };
-}
-
-// The barb, as line segments and pennant triangles in map coordinates.
-//
-// Points FROM the direction the wind blows from — the meteorological convention,
-// and the opposite of an arrow showing where air is going. `stormCells.js` draws
-// motion vectors the other way round for exactly that reason.
-//
-// The feathers sit on the LEFT of the shaft looking outward in the northern
-// hemisphere. Since this app is Finland-only that is unconditional here.
+// The barb, as OpenLayers geometry in map coordinates: src/metar/barbShape.js
+// works out where every feather goes — in pixel offsets from the station, and
+// without an `ol` import so it can be tested — and this scales it to the map.
 function barbGeometry(center, directionDeg, speedKt, resolution) {
-  const parts = barbParts(speedKt);
-  const px = (n) => n * resolution;
-  // Direction the wind comes FROM, as a unit vector pointing outward from the
-  // station. Screen y is up in map coordinates, so cos/sin land as usual.
-  const rad = (directionDeg * Math.PI) / 180;
-  const ux = Math.sin(rad);
-  const uy = Math.cos(rad);
-  // Perpendicular, for the feathers.
-  const vx = -uy;
-  const vy = ux;
-  const at = (along, across) => [
-    center[0] + ux * px(along) + vx * px(across),
-    center[1] + uy * px(along) + vy * px(across),
-  ];
-
-  const lines = [];
-  const polygons = [];
-  const shaftStart = at(CIRCLE_R + 1, 0);
-  const shaftEnd = at(CIRCLE_R + 1 + BARB_LEN, 0);
-  lines.push(new LineString([shaftStart, shaftEnd]));
-
-  // Feathers are laid from the OUTER end inward, which is the convention and
-  // also what keeps a 5 kt half-feather off the circle.
-  let along = CIRCLE_R + 1 + BARB_LEN;
-  for (let i = 0; i < parts.pennants; i += 1) {
-    polygons.push(new Polygon([[
-      at(along, 0), at(along, FEATHER_LEN), at(along - PENNANT_W, 0), at(along, 0),
-    ]]));
-    along -= PENNANT_W + FEATHER_STEP * 0.5;
-  }
-  for (let i = 0; i < parts.full; i += 1) {
-    lines.push(new LineString([at(along, 0), at(along - FEATHER_STEP, FEATHER_LEN)]));
-    along -= FEATHER_STEP;
-  }
-  if (parts.half) {
-    // A lone half feather is set in from the end, or it reads as a full one.
-    if (parts.pennants === 0 && parts.full === 0) along -= FEATHER_STEP;
-    lines.push(new LineString([at(along, 0), at(along - FEATHER_STEP / 2, FEATHER_LEN / 2)]));
-  }
-  return { lines, polygons };
+  const shape = barbShape(directionDeg, speedKt);
+  const place = (point) => [center[0] + point[0] * resolution, center[1] + point[1] * resolution];
+  return {
+    lines: shape.lines.map((line) => new LineString(line.map(place))),
+    polygons: shape.polygons.map((ring) => new Polygon([ring.map(place)])),
+  };
 }
 
 // The sky-cover symbol: how much of the circle is filled says how much of the
