@@ -1934,12 +1934,28 @@ body.split-4 #placeSearchButton {
     color: rgba(255, 255, 255, 0.82);
   }
   /* Equal columns so the numbers hold their place as they change — a row that
-     reflows on every update is unreadable at a glance. */
+     reflows on every update is unreadable at a glance.
+
+     `minmax(min-content, 1fr)` rather than a bare `1fr`, because equal columns
+     alone could not keep a promise they implied: a value wider than its share
+     did not shrink the column, it overflowed it and printed over its
+     neighbours. On a 390 px phone a METAR's six columns are 57 px each and its
+     wind reads "020° 11 kt" at 71. The min-content floor lets that one column
+     take what it needs from the columns that are not using theirs — the wind
+     keeps its 71, the others still have more than they need — and the equal-
+     column behaviour is unchanged whenever everything fits, which is every
+     other strip and every wider screen. */
   .telemetry-row {
     display: grid;
     grid-auto-flow: column;
-    grid-auto-columns: 1fr;
+    grid-auto-columns: minmax(min-content, 1fr);
     align-items: center;
+    /* A gutter, because columns that merely touch have no gap between the words
+       in them: at phone width a METAR's labels ran together into
+       "LÄMPÖTILAKASTEPISTENÄKYVYYS", each one inside its own column and none of
+       them readable. Wide screens never noticed, since 1fr left the slack
+       inside the columns. */
+    column-gap: 8px;
     padding: 2px 8px 3px;
   }
   .telemetry-cell {
@@ -1982,6 +1998,23 @@ body.split-4 #placeSearchButton {
     text-transform: uppercase;
     color: var(--dark-medium-emphasis-text-color);
     white-space: nowrap;
+  }
+  /* On a phone the labels are what runs out of room first — a METAR's six of
+     them ask for 327 px of the 358 the strip has, before any gutters. They are
+     secondary text next to the numbers they name, so they give up the width
+     rather than the readings: a point smaller and tighter, which buys back
+     enough for the gutters and for a gusty wind's wider value. Shortening the
+     words themselves was the alternative and it loses more —
+     "Kastepiste" says something "Kaste" does not. */
+  @media (max-width: 480px) {
+    .telemetry-label {
+      font-size: 9.5px;
+      letter-spacing: 0.01em;
+    }
+    /* A narrower gutter too — enough to separate two labels, and the 20 px it
+       returns is what leaves the worst case (gusty wind, sub-zero temperatures,
+       reduced visibility, a cloud base) with room rather than exactly none. */
+    .telemetry-row { column-gap: 4px; }
   }
 
   /* Radar colour-scale legend — the hairline's expanded form: Finnish title,
