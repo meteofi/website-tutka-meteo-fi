@@ -7,6 +7,7 @@ import VectorLayer from 'ol/layer/Vector';
 import GeoJSON from 'ol/format/GeoJSON';
 import Vector from 'ol/source/Vector';
 import { fromLonLat, transform, transformExtent } from 'ol/proj';
+import { intersects } from 'ol/extent';
 import sync from 'ol-hashed';
 import Feature from 'ol/Feature';
 import Polygon, { circular } from 'ol/geom/Polygon';
@@ -1875,6 +1876,18 @@ function fitToLayerExtent(wmslayer) {
   const view = map.getView();
   const extent = transformExtent(info.bbox, 'EPSG:4326', view.getProjection());
   if (!extent || !extent.every(Number.isFinite)) return;
+  // Only when the pick would otherwise leave the user looking at nothing.
+  //
+  // The recentre exists for the case where it is the only sensible move: you
+  // are over Finland, you pick Puola, and without it the map shows empty
+  // country while the data is 1500 km away. But it was firing on every pick,
+  // including the ones where the new product already covers what is on screen
+  // — switching between the Finnish composite and the European one over
+  // Helsinki threw the view out to the whole of Europe and made the user pan
+  // back. Any overlap at all means the answer is on screen already, so the
+  // view is left exactly where the user put it.
+  const view3857 = currentViewExtent();
+  if (view3857 && intersects(view3857, extent)) return;
   view.fit(extent, {
     size: map.getSize(),
     // Leave room for the top toolbar and bottom timeline so the footprint
