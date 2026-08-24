@@ -83,7 +83,18 @@ export default function initAirfields() {
     // split screen costs no extra fetch. Starts hidden; the POI toggle decides.
     createPaneLayer(style) {
       load();
-      return new VectorLayer({ source, visible: false, style });
+      return new VectorLayer({
+        source,
+        visible: false,
+        // France's VFR fields took this layer from 221 aerodromes to 572, and
+        // in the Alps their codes started printing over each other. Decluttered
+        // now, in its own group so aerodrome codes never knock out place names —
+        // layers sharing a group are decluttered together, topmost first. The
+        // marks are exempt (declutterMode: 'none' on the style's image), so what
+        // gives way is a label, never an aerodrome.
+        declutter: 'airfields',
+        style,
+      });
     },
 
     // The aerodrome records, once loaded. Resolves to the same array for every
