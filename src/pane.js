@@ -48,6 +48,11 @@ const RAILWAY_NAME_MAX_RESOLUTION = 320;
 // called on a chart and on the radio, and it is the shorter thing to read once
 // you already know which airfield you are looking at.
 const AIRFIELD_NAME_MAX_RESOLUTION = 320;
+// …and drop the code too once the map is wider than z6, leaving the discs on
+// their own. Resolutions here are EPSG:3857 map units per pixel, where z6 is
+// 2446 and z7 is 1223, so this cut sits between them: labels from z7 in,
+// nothing but marks at z6 and out.
+const AIRFIELD_LABEL_MAX_RESOLUTION = 1500;
 // Two lines need the label lifted clear of the mark, since the text block is
 // centred on its offset — at -16 the lower line would sit on the disc.
 const AIRFIELD_LABEL_OFFSET = -16;
@@ -288,8 +293,16 @@ export default function createPane(targetEl, sharedView, deps) {
   // reads the same records rather than parsing the files a second time.
   const icaoLayer = createAirfieldLayer((feature, resolution) => {
     const name = feature.get('name');
-    const withName = !!name && resolution <= AIRFIELD_NAME_MAX_RESOLUTION;
     const text = icaoStyle.getText();
+    // Marks only once the map is wider than z6. Two countries' aerodromes is
+    // 221 four-letter codes, and at synoptic zoom they stop being labels and
+    // become a texture over the radar — the codes are unreadable at that size
+    // anyway, and the discs alone still answer "is there an aerodrome there".
+    if (resolution > AIRFIELD_LABEL_MAX_RESOLUTION) {
+      text.setText('');
+      return icaoStyle;
+    }
+    const withName = !!name && resolution <= AIRFIELD_NAME_MAX_RESOLUTION;
     text.setText(withName ? `${feature.get('icao')}\n${name}` : feature.get('icao'));
     text.setOffsetY(withName ? AIRFIELD_LABEL_OFFSET_TWO_LINE : AIRFIELD_LABEL_OFFSET);
     return icaoStyle;
