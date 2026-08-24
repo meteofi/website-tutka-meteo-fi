@@ -1,6 +1,7 @@
-// Aerodromes (Lentokentät) from the bundled eAIP snapshots — Finland and France
-// today, one file per country because each follows its own AIRAC cycle and
-// carries its own attribution (scripts/fetch-airfields.mjs writes both).
+// Aerodromes (Lentokentät) from bundled snapshots — Finland, France and
+// Switzerland today, one file per country because each follows its own AIRAC
+// cycle (or, for openAIP, none at all) and carries its own attribution.
+// scripts/fetch-airfields.mjs writes all three.
 //
 // This exists because the layer outgrew a URL. It was a per-pane VectorSource
 // pointed at one file, which was exactly right while there was one file: adding
@@ -14,8 +15,8 @@
 // airspace; the METAR layer takes the plain records.
 //
 // EVERYTHING, NOT JUST THE VIEWPORT. Unlike the airspace snapshots — 1.5 MB
-// between them, and gated on the map reaching the country — these are 12 kB and
-// 23 kB. Gating them would cost more in complexity than it could ever save, and
+// between them, and gated on the map reaching the country — these are 12, 23 and
+// 9 kB. Gating them would cost more in complexity than it could ever save, and
 // an aerodrome label is the kind of thing that should already be there when you
 // pan onto it.
 //
@@ -28,10 +29,16 @@ import GeoJSON from 'ol/format/GeoJSON';
 
 import finlandUrl from './data/airfields-finland.geojson';
 import franceUrl from './data/airfields-france.geojson';
+import switzerlandUrl from './data/airfields-switzerland.geojson';
 
+// Two of these come from a national eAIP and one from openAIP, and that is a
+// licence difference as much as a data one: openAIP is CC BY-NC, so its credit
+// is a condition rather than a courtesy — the same constraint the airspace layer
+// already carries (src/airspace.js).
 const SNAPSHOTS = [
   { url: finlandUrl, attribution: 'Lentopaikat © <a href="https://www.ais.fi/">Fintraffic ANS</a>' },
   { url: franceUrl, attribution: 'Lentopaikat © <a href="https://www.sia.aviation-civile.gouv.fr/">SIA</a>' },
+  { url: switzerlandUrl, attribution: 'Lentopaikat © <a href="https://www.openaip.net/">openAIP</a> (CC BY-NC)' },
 ];
 
 export default function initAirfields() {

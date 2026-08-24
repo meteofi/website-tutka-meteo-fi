@@ -3973,7 +3973,9 @@ function shareAttributions() {
     }
   }
   // POI vector layers carry no layerInfo — credit the ones that need it while on.
-  if (POI_STATE.airfields) parts.add('Lentopaikat © Fintraffic ANS / SIA');
+  // openAIP is CC BY-NC, so its share of this layer makes the credit a licence
+  // condition rather than a courtesy — see the airspace line below.
+  if (POI_STATE.airfields) parts.add('Lentopaikat © Fintraffic ANS / SIA / openAIP (CC BY-NC 4.0)');
   if (POI_STATE.turnpoints) parts.add('Käännöspisteet © Ilmailuliitto');
   // Required: openAIP is CC BY-NC, so the credit is a licence condition rather
   // than a courtesy.
