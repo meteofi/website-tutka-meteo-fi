@@ -500,6 +500,11 @@ const icaoStyle = new Style({
     radius: ICAO_RADIUS,
     fill: new Fill({ color: ICAO_COLOR }),
     stroke: new Stroke({ color: '#ffffff', width: 1.5 }),
+    // The layer declutters its labels (see createPaneLayer) and the mark must
+    // not take part: a disc that disappears because its neighbour's code got
+    // there first would be an aerodrome the map denies exists. Only the text
+    // competes for space.
+    declutterMode: 'none',
   }),
   text: new Text({
     // A step smaller than the other POI labels: this one is coloured, and
