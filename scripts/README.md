@@ -10,7 +10,7 @@ beyond node itself.
 
 | Layer | Script | Output | Source | Needs |
 |---|---|---|---|---|
-| Lentokentät | `fetch-airfields.mjs` | `airfields-finland.geojson` (12 kB), `airfields-france.geojson` (23 kB) | Finnish + French eAIP (AD 2) | — |
+| Lentokentät | `fetch-airfields.mjs` | `airfields-finland.geojson` (12 kB), `airfields-france.geojson` (23 kB), `airfields-switzerland.geojson` (9 kB) | Finnish + French eAIP (AD 2), Swiss from openAIP | — |
 | Ilmatilat | `fetch-airspace.mjs` | `airspace-finland.geojson` (254 kB) | openAIP export | — |
 | Nimistö | `fetch-placenames.mjs` | `placenames-fi.geojson` (1.2 MB) | MML place names | `MML_API_KEY` |
 | Rautatiet — asemat | `fetch-rail-stations.mjs` | `railway-stations-finland.geojson` (27 kB) | Digitraffic rail | — |
@@ -63,7 +63,29 @@ heliport IFR procedures, and the 22 military aerodromes.
 AD 2.11's associated MET office predicts exactly which aerodromes answer met.no;
 in France it does not (135 name an office, 85 of those answer, and one that names
 none answers anyway), so every French AD 2 aerodrome is flagged and the METAR
-source narrows to whoever replies.
+source narrows to whoever replies. Switzerland has no MET office field at all,
+but its openAIP *type* turns out to predict it almost exactly: 16 of the 17
+IFR-capable and major aerodromes report, 0 of the 43 glider and VFR-civil ones
+do, so the type is the flag and it wastes one code rather than 44.
+
+### openAIP instead of an eAIP, and what it costs
+
+Switzerland comes from openAIP because Skyguide publishes no eAIP a script can
+read. Measured against France, where both sources exist (2026-08-25):
+
+| | |
+|---|---|
+| ICAO coverage | openAIP knew all 141 French AD 2 aerodromes, plus 9 more (mostly military) |
+| position | **not the ARP** — median 154 m away, p90 649 m, worst 1.7 km (LFOK) |
+| elevation | median agrees to 1 ft, but 38 of 141 differ by >20 ft, up to 154 ft (LFKC 210 vs 56) |
+| currency | **no AIRAC cycle recorded at all**; half the French records last touched 2024 or earlier |
+
+So: eAIP where one can be read, openAIP where it cannot, and the Swiss file's
+own `note` says its positions are not published reference points. Good enough to
+put a marker and a code on a weather map; not good enough to plan a flight with.
+
+**openAIP is CC BY-NC**, unlike the eAIP sources, so the aerodrome layer's credit
+is now a licence condition — the same constraint the airspace layer carries.
 
 ### `fetch-airspace.mjs` — airspace
 

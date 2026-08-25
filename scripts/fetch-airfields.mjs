@@ -121,6 +121,9 @@ import { writeFile } from 'node:fs/promises';
 
 const FI_ROOT = 'https://www.ais.fi/eaip/';
 const FR_ROOT = 'https://www.sia.aviation-civile.gouv.fr/media/dvd/';
+// openAIP's public export bucket, the same one the airspace snapshots come from
+// (scripts/fetch-airspace.mjs): no key, no signature, one file per country.
+const OPENAIP_ROOT = 'https://s3.openaip.net/openaip-system-exports/';
 
 // Fetched in parallel, but gently: these are public authorities' web servers
 // publishing a legal document, not an API, and one regeneration should not look
@@ -157,6 +160,15 @@ async function fetchText(url, what) {
     }
   }
   throw new Error(`${what}: ${lastError.message}\n  ${url}`);
+}
+
+async function fetchJson(url, what) {
+  const text = await fetchText(url, what);
+  try {
+    return JSON.parse(text);
+  } catch (err) {
+    throw new Error(`${what}: response was not JSON (${err.message})\n  ${url}`);
+  }
 }
 
 // Each path segment is encoded separately: cycle folders contain spaces, and so
@@ -432,6 +444,78 @@ async function mapWithConcurrency(items, worker) {
   return out;
 }
 
+// One aerodrome, in the shape every snapshot carries.
+//
+// `icao` is what the map labels with at a distance, `name` once there is room
+// for it, and `elevationFt` is carried for whatever wants it next. `metar` is
+// set only on the aerodromes worth asking MET Norway about, so its absence is
+// the common case and no file carries a crowd of `metar: false`.
+function feature(icao, name, coordinates, elevFt, metar) {
+  return {
+    type: 'Feature',
+    properties: {
+      icao,
+      name,
+      ...(elevFt === null || elevFt === undefined ? {} : { elevationFt: elevFt }),
+      ...(metar ? { metar: true } : {}),
+    },
+    geometry: { type: 'Point', coordinates },
+  };
+}
+
+// openAIP states elevation in metres (unit 0) or feet (unit 1); this app keeps
+// feet, the unit an aerodrome's elevation is quoted in everywhere else.
+//
+// Worth knowing before trusting it: measured against the French eAIP, openAIP's
+// elevations agree to within a foot for most fields but run tens of feet low at
+// the big ones — Paris-CDG 331 against a published 392, Zurich 1378 against
+// 1416 — and disagree by more than 20 ft on 27% of French aerodromes.
+function openAipElevationFt(elevation) {
+  if (!elevation || !Number.isFinite(elevation.value)) return null;
+  return Math.round(elevation.unit === 0 ? elevation.value / 0.3048 : elevation.value);
+}
+
+// openAIP airport `type` -> what it is, and whether this app calls it an
+// aerodrome. The enum carries no legend in the export, so it was read off the
+// names in the Swiss and French exports, and the two agree on every value
+// present in both (counts CH/FR, 2026-08-25):
+//
+//   0  LSZC BUOCHS, LSGS SION / LFXA AMBERIEU      5 / 12   civil + military
+//   1  LSPA AMLIKON "R", LSZJ COURTELARY           9 /  7   glider site
+//   2  LSZF BIRRFELD / LFOI ABBEVILLE             35 / 384  civil airfield
+//   3  LSZH ZUERICH / LFML MARSEILLE PROVENCE      3 /  8   international
+//   4  MARSEILLE LAVERAN HOPITAL                   — /  1   military heliport
+//   5  LSMD DUEBENDORF / LFOA AVORD                4 / 19   military aerodrome
+//   6  AIGNES ET PUYPEROUX                         — / 553  ultralight site
+//   7  LSVE AESCHHORN / hospital pads             96 / 296  heliport, and the
+//                                                           Swiss mountain
+//                                                           landing sites
+//   8  LSMI INTERLAKEN AIR BASE                    4 / 42   closed
+//   9  LSZS SAMEDAN / LFBA AGEN LA GARENNE         5 / 112  IFR airfield
+//   10 LSPW LACHEN / LFHB BISCAROSSE HYDROBASE     1 / 18   water
+//   13 LFLJ COURCHEVEL                             — /  52  altiport
+//
+// `aerodrome` is what this app draws: somewhere with a runway you could land a
+// aeroplane on. Heliports are out for the same reason AD 3 is out of the eAIP
+// countries — 96 Swiss mountain landing sites would swamp the Alps — and so are
+// the closed fields, which are not places you can go.
+const OPENAIP_TYPES = {
+  0: { label: 'civil + military', aerodrome: true },
+  1: { label: 'glider site', aerodrome: true },
+  2: { label: 'civil airfield', aerodrome: true },
+  3: { label: 'international', aerodrome: true },
+  4: { label: 'military heliport', aerodrome: false },
+  5: { label: 'military aerodrome', aerodrome: true },
+  6: { label: 'ultralight site', aerodrome: false },
+  7: { label: 'heliport / mountain landing site', aerodrome: false },
+  8: { label: 'closed', aerodrome: false },
+  9: { label: 'IFR airfield', aerodrome: true },
+  10: { label: 'water', aerodrome: false },
+  11: { label: 'landing strip', aerodrome: true },
+  12: { label: 'agricultural strip', aerodrome: false },
+  13: { label: 'altiport', aerodrome: true },
+};
+
 // ---------------------------------------------------------------------------
 // The countries. Everything above is machinery; everything a country does
 // differently is here.
@@ -441,7 +525,10 @@ const FINLAND = {
   key: 'fi',
   name: 'Finland',
   out: 'airfields-finland.geojson',
+  source: 'eaip',
   attribution: 'Aerodromes © Fintraffic ANS / Finnish eAIP',
+  note: 'Not for navigation. Aerodrome reference points only, from AD 2.2; '
+    + 'consult the current AIP and NOTAMs for flight planning.',
   // Finland including Åland, with room to spare.
   bounds: {
     minLon: 19.0, maxLon: 32.0, minLat: 59.0, maxLat: 70.5,
@@ -476,7 +563,10 @@ const FRANCE = {
   key: 'fr',
   name: 'France',
   out: 'airfields-france.geojson',
+  source: 'eaip',
   attribution: 'Aerodromes © SIA / DGAC — French eAIP',
+  note: 'Not for navigation. Aerodrome reference points only, from AD 2.2; '
+    + 'consult the current AIP and NOTAMs for flight planning.',
   // Metropolitan France and Corsica. The overseas territories are published as
   // separate eAIP volumes (Antilles-Guyane, Nouvelle-Calédonie, …) and are not
   // in this one: every aerodrome here has an LF ICAO code.
@@ -507,7 +597,39 @@ const FRANCE = {
   metarFlag: () => true,
 };
 
-const COUNTRIES = [FINLAND, FRANCE];
+// Switzerland comes from openAIP rather than an eAIP, because Skyguide does not
+// publish one a script can read. That trade is measured rather than assumed —
+// see the note on buildFromOpenAip — and it shows in this file's metadata: no
+// AIRAC cycle, a CC BY-NC licence, and positions that are somewhere on the
+// aerodrome rather than its published reference point.
+const SWITZERLAND = {
+  key: 'ch',
+  name: 'Switzerland',
+  out: 'airfields-switzerland.geojson',
+  source: 'openaip',
+  export: 'ch',
+  attribution: 'Aerodromes © openAIP (CC BY-NC 4.0)',
+  note: 'Not for navigation. Aerodrome positions are openAIP\'s, which are not '
+    + 'the published reference points and carry no AIRAC cycle; consult the '
+    + 'current AIP and NOTAMs for flight planning.',
+  // Switzerland with room to spare. The kept aerodromes span 6.11-9.95 E,
+  // 46.00-47.69 N.
+  bounds: {
+    minLon: 5.5, maxLon: 10.7, minLat: 45.5, maxLat: 48.0,
+  },
+  // 60 in the 2026-08-25 export: 5 civil+military, 9 glider, 35 civil, 3
+  // international, 4 military, 5 IFR.
+  minAerodromes: 45,
+  // WHICH ONES GET ASKED FOR A METAR, and this one was measured rather than
+  // guessed: of the 60 kept, exactly 16 answer MET Norway, and the openAIP type
+  // predicts them almost perfectly — 16 of the 17 aerodromes of the IFR-capable
+  // and major types report, and 0 of the 43 glider and VFR-civil ones do. So the
+  // type is the flag here, the way AD 2.11 is in Finland, and it wastes one code
+  // (LSZM Mollis) rather than the 44 that flagging everything would.
+  metarTypes: new Set([0, 3, 5, 9]),
+};
+
+const COUNTRIES = [FINLAND, FRANCE, SWITZERLAND];
 
 const wanted = argValue('--country');
 const selected = wanted
@@ -521,14 +643,14 @@ if (explicitCycle && selected.length > 1) {
   throw new Error('--cycle applies to one country at a time; name it with --country.');
 }
 
-for (const country of selected) {
-  console.log(`\n${country.name}:`);
+// One country's aerodromes out of its eAIP: resolve the cycle, list what AD 2
+// holds, then read every page.
+async function buildFromEaip(country) {
   const cycle = await country.resolveCycle(explicitCycle);
   console.log(`  AIRAC cycle: ${cycle.folder}  (effective ${cycle.date})`);
 
   const { base, aerodromes: listed } = await country.listAerodromes(cycle);
   console.log(`  AD 2 aerodromes listed: ${listed.length}`);
-
   if (!limit && listed.length < country.minAerodromes) {
     throw new Error(
       `Only ${listed.length} aerodromes found in the table of contents, expected at `
@@ -553,47 +675,22 @@ for (const country of selected) {
     const metar = country.metarFlag(metOffice);
     done += 1;
     if (done % 20 === 0) console.log(`  …${done}/${aerodromes.length}`);
-    return {
-      type: 'Feature',
-      // `icao` is what the map labels with at a distance, `name` once there is
-      // room for it, and `elevationFt` is carried for whatever wants it next.
-      properties: {
-        icao: ad.icao,
-        name: ad.name,
-        ...(elevationFt === null ? {} : { elevationFt }),
-        // Only on the aerodromes worth asking METAR about, so in Finland its
-        // absence is the common case and the file carries no 56 `metar: false`
-        // entries.
-        ...(metar ? { metar: true } : {}),
-      },
-      geometry: { type: 'Point', coordinates },
-    };
+    return feature(ad.icao, ad.name, coordinates, elevationFt, metar);
   });
 
-  const withOffice = offices.size;
-  const withMetar = features.filter((f) => f.properties.metar).length;
   // A cycle in which NO aerodrome names a MET office means AD 2.11 has changed
   // shape, not that a country stopped reporting weather. Checked on the parsed
   // office rather than on the flag, because France's flag does not come from it
   // and so could never fail this.
-  if (!limit && !withOffice) {
+  if (!limit && !offices.size) {
     throw new Error(
       'No aerodrome named an associated MET office. AD 2.11 item 1 has probably '
       + 'changed shape — refusing to write a file whose METAR list was built blind.',
     );
   }
 
-  const withElevation = features.filter((f) => f.properties.elevationFt !== undefined).length;
-  if (!limit && withElevation < features.length * 0.9) {
-    throw new Error(
-      `Only ${withElevation} of ${features.length} aerodromes yielded an elevation. `
-      + 'AD 2.2 item 3 has probably changed shape — refusing to write a file that '
-      + 'is mostly missing it.',
-    );
-  }
-
-  const out = {
-    type: 'FeatureCollection',
+  return {
+    features,
     metadata: {
       source: country.sourceUrl(cycle),
       airacCycle: cycle.folder,
@@ -601,10 +698,108 @@ for (const country of selected) {
       // which is the whole reason for preferring the eAIP over a dataset that
       // records neither.
       effective: cycle.date,
+    },
+    summary: `effective ${cycle.date}, ${offices.size} name a MET office`,
+  };
+}
+
+// …and out of an openAIP country export, for the countries whose eAIP is not
+// published as anything a script can read. One GeoJSON file, no cycle, no pages.
+//
+// WHAT THIS COSTS, measured against France where we have both (2026-08-25):
+// openAIP knew every one of the 141 aerodromes the French eAIP lists, and nine
+// more. But its positions are not the ARP — half of them sit more than 154 m
+// from it, a tenth more than 649 m, the worst 1.7 km — and its elevations
+// disagree with the published figure by more than 20 ft on 38 of the 141, by as
+// much as 154 ft. It also records no AIRAC cycle at all, so a snapshot cannot
+// say which edition it is; half of France's records had not been touched since
+// 2024. Good enough to put a marker and a code on a weather map, not good
+// enough to plan a flight with, which is what the file's own note says.
+async function buildFromOpenAip(country) {
+  const url = `${OPENAIP_ROOT}${country.export}_apt.geojson`;
+  const json = await fetchJson(url, `openAIP ${country.key} airport export`);
+  if (!Array.isArray(json.features)) throw new Error(`unexpected ${country.key} export shape`);
+
+  const unknown = new Set();
+  const skipped = { type: 0, noIcao: 0 };
+  const features = [];
+  json.features.forEach((f) => {
+    const p = f.properties || {};
+    const spec = OPENAIP_TYPES[p.type];
+    if (!spec) { unknown.add(p.type); return; }
+    if (!spec.aerodrome) { skipped.type += 1; return; }
+    // The layer labels by ICAO code and the METAR layer asks by it, so an entry
+    // without one has nothing this app can do with it.
+    if (!p.icaoCode) { skipped.noIcao += 1; return; }
+    const [lon, lat] = f.geometry.coordinates;
+    features.push(feature(
+      p.icaoCode,
+      (p.name || '').trim(),
+      withinBounds(lon, lat, p.icaoCode, country),
+      openAipElevationFt(p.elevation),
+      country.metarTypes.has(p.type),
+    ));
+  });
+
+  if (unknown.size) {
+    throw new Error(
+      `openAIP ${country.key} export contains unmapped airport types: ${[...unknown].join(', ')}. `
+      + 'Add them to OPENAIP_TYPES (check the names in the export to identify them) '
+      + 'rather than letting them disappear from the map.',
+    );
+  }
+
+  features.sort((a, b) => a.properties.icao.localeCompare(b.properties.icao));
+  console.log(`  ${features.length} aerodromes kept; skipped ${skipped.type} by type, `
+    + `${skipped.noIcao} with no ICAO code`);
+  if (!limit && features.length < country.minAerodromes) {
+    throw new Error(
+      `Only ${features.length} aerodromes kept, expected at least ${country.minAerodromes}. `
+      + 'The export or its type enum has probably changed — refusing to overwrite the '
+      + 'bundled file with a short list.',
+    );
+  }
+
+  return {
+    features: limit ? features.slice(0, limit) : features,
+    metadata: {
+      source: url,
+      // No AIRAC cycle, and saying so is the point: openAIP records none, so
+      // unlike the eAIP snapshots this file cannot state which edition it is.
+      airacCycle: null,
+      license: 'CC BY-NC 4.0',
+    },
+    summary: 'openAIP export, no AIRAC cycle recorded',
+  };
+}
+
+for (const country of selected) {
+  console.log(`\n${country.name}:`);
+  if (explicitCycle && country.source === 'openaip') {
+    throw new Error(`--cycle does not apply to ${country.name}: openAIP publishes no cycles.`);
+  }
+  const built = country.source === 'openaip'
+    ? await buildFromOpenAip(country)
+    : await buildFromEaip(country);
+  const { features } = built;
+
+  const withMetar = features.filter((f) => f.properties.metar).length;
+  const withElevation = features.filter((f) => f.properties.elevationFt !== undefined).length;
+  if (!limit && withElevation < features.length * 0.9) {
+    throw new Error(
+      `Only ${withElevation} of ${features.length} aerodromes yielded an elevation. `
+      + 'The source has probably changed shape — refusing to write a file that '
+      + 'is mostly missing it.',
+    );
+  }
+
+  const out = {
+    type: 'FeatureCollection',
+    metadata: {
+      ...built.metadata,
       generated: new Date().toISOString().slice(0, 10),
       attribution: country.attribution,
-      note: 'Not for navigation. Aerodrome reference points only, from AD 2.2; '
-        + 'consult the current AIP and NOTAMs for flight planning.',
+      note: country.note,
     },
     features,
   };
@@ -617,7 +812,6 @@ for (const country of selected) {
   } else {
     await writeFile(new URL(`../src/data/${country.out}`, import.meta.url), JSON.stringify(out));
     console.log(`  ${features.length} aerodromes -> ${(JSON.stringify(out).length / 1024).toFixed(0)} kB`);
-    console.log(`  effective ${cycle.date}, ${withElevation} with elevation, `
-      + `${withOffice} name a MET office, ${withMetar} flagged for METAR`);
+    console.log(`  ${built.summary}, ${withElevation} with elevation, ${withMetar} flagged for METAR`);
   }
 }
