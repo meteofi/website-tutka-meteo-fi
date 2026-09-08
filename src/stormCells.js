@@ -37,8 +37,8 @@
 // for one frame is a different Feature object from the cell shown for the next,
 // so the selection is held as a track id and re-resolved on every render. The
 // fields the strip needs but the map does not — impact municipality, ETA,
-// significance reasons, volume trend, flash count — are carried on the feature
-// for that purpose alone. Everything the strip says about a cell comes from the
+// significance reasons, volume trend, flash count, and the nearest radar's beam
+// geometry — are carried on the feature for that purpose alone. Everything the strip says about a cell comes from the
 // collection guide's vocabulary and rounding rules
 // (docs/meteocore-storm-cells.md §§5-7), including its warning to keep Finnish
 // place names in the nominative rather than inflecting them.
@@ -488,9 +488,19 @@ export default function initStormCells({ telemetry } = {}) {
       // The clutter verdict, null for a cell that reads as weather. The two
       // tiers are kept apart because they differ in confidence, not in kind:
       // the confirmed one names itself on the map, the suspected one only on
-      // the strip. The fields it was read from stay in the response — nothing
-      // downstream needs them, so nothing carries them.
+      // the strip.
       clutter,
+      // Nearest-radar beam geometry (MeteoCore #658), for the strip. All of it
+      // is `null` together on a frame whose radar catalog was empty, and
+      // `in_radar_coverage` has a third state the other two lack: `null` is the
+      // site declining to say, which the guide is emphatic is NOT "outside
+      // coverage" (§6). Kept tri-state here so the strip can stay silent about
+      // a question the server did not answer.
+      radarName: typeof p.nearest_radar_name === 'string' ? p.nearest_radar_name : null,
+      radarDistanceKm: Number.isFinite(p.nearest_radar_distance_km)
+        ? p.nearest_radar_distance_km : null,
+      inRadarCoverage: typeof p.in_radar_coverage === 'boolean' ? p.in_radar_coverage : null,
+      beamHeightM: Number.isFinite(p.beam_height_m) ? p.beam_height_m : null,
       // Everything below this line is carried for the selection strip rather
       // than for the map: the marker says severity, size, motion and lightning,
       // and the strip answers "what else does the server know about this one".
@@ -628,6 +638,46 @@ export default function initStormCells({ telemetry } = {}) {
     return words.length ? `Huomioitavaa: ${words.join(', ')}` : '';
   }
 
+  // Which radar is looking at this cell, how far away it is, and how high the
+  // lowest beam passes over it — the guide's §8 phrase, and the context that
+  // turns two of its rules from advice into something the reader can check: a
+  // low beam close to a radar is where ground clutter lives (§4 rule 2), and a
+  // beam kilometres up says the low levels of this storm are simply unobserved
+  // (§7.6), not empty.
+  //
+  // Metres rather than the guide's "0,7 km". The strip already writes 53.5 dBZ
+  // with a decimal point, and a decimal comma two columns away would read as a
+  // typo; whole metres need no separator at all and lose nothing — the value is
+  // an antenna-geometry estimate, not a measurement to a tenth of a kilometre.
+  //
+  // Every field is independently absent-able, and each absence is silence
+  // rather than a dash: unknown geometry is not a reading the panel promised.
+  // `beam_elevation_deg` is carried by the server too but stays out of here —
+  // "alin keila 0,3°" answers a question no one reading a storm strip is
+  // asking, and the height it produces is already shown.
+  function radarPhrase(feature) {
+    const name = feature.get('radarName');
+    if (!name) return '';
+    // Name and distance are one phrase ("Kuopio 56 km"), the guide's own
+    // spelling; the commas separate the facts after it.
+    const distance = feature.get('radarDistanceKm');
+    const parts = [distance === null ? name : `${name} ${Math.round(distance)} km`];
+    // Only the measured `false` speaks. `null` is the site declining to answer,
+    // and saying it is out of range would turn that into a claim.
+    //
+    // The guide's §8 vocabulary gives this as "tutkan kantaman ulkopuolella",
+    // written for prose that stands on its own. Here the phrase it joins has
+    // already named the radar and its distance, so the possessive would repeat
+    // it — "Tutka: Korpo 229 km, tutkan kantaman ulkopuolella". Same words,
+    // minus the one the sentence has already said.
+    if (feature.get('inRadarCoverage') === false) parts.push('kantaman ulkopuolella');
+    const beam = feature.get('beamHeightM');
+    // Above mean sea level, and only where the lowest sweep actually reaches;
+    // `null` means no beam statement is available, so none is made.
+    if (beam !== null) parts.push(`alin keila ${Math.round(beam)} m`);
+    return `Tutka: ${parts.join(', ')}`;
+  }
+
   function payloadFor(feature) {
     const severity = feature.get('severity');
     const dbz = feature.get('maxDbz');
@@ -703,11 +753,21 @@ export default function initStormCells({ telemetry } = {}) {
       // A clutter echo's volume trend is dropped rather than shown: "voimistuva
       // häiriökaiku" reads as a growing storm, when it is a mast that returned
       // a few more pixels this sweep.
-      subtitle: [
-        clutterPhrase(feature),
-        placePhrase(feature) || reasonPhrase(feature),
-        clutter ? '' : volumeTrend,
-      ].filter(Boolean).join(' · '),
+      //
+      // Two orderings, because the subtitle is what ellipsizes first on a phone
+      // and the half that survives should be the half that matters. For a storm
+      // that is where it is and where it is heading, so the municipality leads
+      // and the radar geometry follows as context. For a clutter verdict the
+      // radar geometry IS the evidence — "Kuopio 57 km, alin keila 758 m" is
+      // why the ring went grey — so it comes second, ahead of the place.
+      subtitle: (clutter
+        ? [clutterPhrase(feature), radarPhrase(feature), placePhrase(feature)]
+        : [
+          clutterPhrase(feature),
+          placePhrase(feature) || reasonPhrase(feature),
+          radarPhrase(feature),
+          volumeTrend,
+        ]).filter(Boolean).join(' · '),
       // The reading's own age, like every other subject on this strip — except
       // that here it also moves when the user scrubs, because the cell shown is
       // the one the server analysed for the displayed frame.
