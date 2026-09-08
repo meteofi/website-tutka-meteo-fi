@@ -43,7 +43,8 @@
 // (docs/meteocore-storm-cells.md §§5-7), including its warning to keep Finnish
 // place names in the nominative rather than inflecting them.
 //
-// Server contract notes (measured against the live API on 2026-07-25):
+// Server contract notes (measured against the live API on 2026-07-25, re-checked
+// against the collection guide's 2026-09-08 rewrite):
 //   * retention is read, never assumed, because it changed under the client:
 //     the server first held ONE analysis instant (any other `datetime=`
 //     returned numberMatched 0, in every spelling), then gained ~4 h of
@@ -61,8 +62,12 @@
 //     its /queryables response is empty. Filtering is the client's job;
 //   * a snapshot is ~200 features / ~13 kB gzipped, requested whole — no bbox
 //     slicing, which would defeat cache reuse for no real gain;
-//   * responses carry NO ETag/Cache-Control, so a refresh is always a full
-//     transfer — poll only while the layer is actually on and the tab visible;
+//   * responses NOW carry `ETag` + `Cache-Control: public, max-age=60`
+//     (measured 2026-09-08: `If-None-Match` answers 304), so a repeated request
+//     inside the minute costs nothing and the browser revalidates the rest. The
+//     poll still runs only while the layer is on and the tab visible — a 304 is
+//     cheap, not free — and the in-memory snapshot cache still does the real
+//     work, since a frame's cells never change once analysed;
 //   * `id` is a persistent track id (same storm keeps it across refreshes,
 //     never reused). Verified after the 2026-07-25 track-association fix: of
 //     190 ids common to two consecutive analyses, every single one advanced
@@ -78,6 +83,15 @@
 // live check), motion arrows only for `track_age >= 3` (age-2 velocities are
 // single-displacement estimates that jitter), and no extra hysteresis on
 // `deviant_mover` (it already encodes 2+ generations of persistence).
+//
+// CLUTTER IS READ BEFORE INTENSITY (guide §4, and see clutterVerdict below).
+// The server flags persistent stationary echoes but does not remove them, and
+// its flag needs 6 frames — so wind farms reach this layer bright, `severe` and
+// unflagged. They are demoted here in two tiers, grey ring and dotted stroke,
+// no motion arrow, no synoptic-zoom label, and named as häiriökaiku on the
+// strip. The same reading governs track quality: a velocity from a wandering
+// track (`path_straightness` at or below 0.4) is an association artefact, and
+// the strip shows a dash rather than a number the next frame will contradict.
 //
 // Lightning (`flash_rate_per_min` / `lightning_jump`) is feature-detected: the
 // properties appear only once a lightning source is wired to the collection,
@@ -127,6 +141,55 @@ const REFRESH_MS = 60000;
 // motion arrow — its position is still exactly where the server put it.
 const MIN_TRACKED_AGE = 3;
 
+// CLUTTER (guide §4). Wind farms, masts and anomalous propagation make bright,
+// compact, stationary echoes that score high on every intensity term, and the
+// server does not remove them — it flags and demotes. Two tiers here, because
+// the flag alone is not enough:
+//
+//   CONFIRMED — `likely_clutter: true`. The server has watched the echo sit
+//     still for 6 frames. Certain, and half an hour late.
+//   SUSPECTED — the guide's rule-2 signature, which works on the FIRST frame
+//     the flag cannot judge: a bright echo close to a radar that has not
+//     demonstrated any displacement. Measured live on 2026-09-08 09:00Z, the
+//     two top-ranked cells in the whole country were the fresh ids of the same
+//     wind farms the server had already flagged 2 km away under older ids
+//     (Kuopio 62.40N/26.99E and Utajärvi) — rank 1 and 2, `severe`, unflagged
+//     at track_age 1. The tracker drops and reacquires these sites for hours,
+//     so without this tier the map's loudest mark is regularly a wind farm.
+//
+// Measured over one whole retained window (38 frames, 731 drawn cells,
+// 2026-09-08 06:05-09:10Z): 94 cells came back confirmed — 13% of everything
+// this layer draws, previously drawn as ordinary storms, several of them
+// `severe` with a label the zoom gate could not silence. The suspected tier
+// fired 71 times; of the 42 that lived long enough to test, 24 were flagged by
+// the server within the hour and 11 sat still for as long as they existed.
+//
+// The cost, accepted deliberately: 7 of those 71 later moved off — every one
+// of them at `track_age: 1`, where there is no measured displacement to judge
+// and the verdict rests on "bright, and close to a radar" alone. So a genuine
+// new pulse storm born within ~70 km of a radar can read grey for a frame or
+// two before its first motion clears it. The alternative was the state this
+// replaces: on 2026-09-08 at 06:25Z the loudest mark in Finland — rank 1, 60
+// dBZ, labelled at every zoom — was the Kuopio wind farm, and the server did
+// not flag it for another twenty minutes.
+//
+// The verdict is a grey ring and a word on the strip, never a hidden cell: the
+// radar image underneath still says exactly what is there.
+const CLUTTER_MIN_DBZ = 45;
+const CLUTTER_MAX_SPEED_MS = 3;
+const CLUTTER_MAX_NET_KM = 1;
+// Beam height is pure geometry — range and tilt, no terrain model — so a low
+// beam means "close to a radar", which is where ground clutter lives. 1000 m
+// is roughly the 70-80 km the lowest sweeps reach at 0.3-0.5°; the guide's
+// "a few hundred metres" examples all sit between 500 and 800 m.
+const CLUTTER_MAX_BEAM_M = 1000;
+
+// Guide §4 rule 3: net displacement over path-integrated distance. At or below
+// this the track wandered without arriving — usually two fixed echoes sharing
+// one id — and its speed and bearing are noise, whatever their magnitude.
+// `null` (path under 1 km) is no verdict rather than a bad one.
+const MAX_WANDER_STRAIGHTNESS = 0.4;
+
 // Noise tier (client-guide rule): weak cells under this footprint are real
 // 35 dBZ specks, but at map zooms they read as markers detached from any echo.
 const NOISE_TIER_MAX_AREA_KM2 = 10;
@@ -162,6 +225,27 @@ const SEVERITY_RANK = {
   severe: 2,
   very_severe: 3,
 };
+
+const CLUTTER_CONFIRMED = 'confirmed';
+const CLUTTER_SUSPECTED = 'suspected';
+
+// Which of the two tiers above a cell falls in, or null for "reads as weather".
+//
+// Every null here is read as "not demonstrated", never as a clearance: a cell
+// on its first frame has no speed and no displacement, and that absence is
+// precisely the state rule 2 exists to judge. A measured value that clears the
+// threshold, on the other hand, IS a clearance — an echo that has moved 3 m/s
+// or travelled a kilometre is not a mast.
+function clutterVerdict(p) {
+  if (p.likely_clutter === true) return CLUTTER_CONFIRMED;
+  if (!(p.max_dbz >= CLUTTER_MIN_DBZ)) return null;
+  if (!Number.isFinite(p.beam_height_m) || p.beam_height_m > CLUTTER_MAX_BEAM_M) return null;
+  if (Number.isFinite(p.speed_ms) && p.speed_ms >= CLUTTER_MAX_SPEED_MS) return null;
+  if (Number.isFinite(p.net_displacement_km) && p.net_displacement_km >= CLUTTER_MAX_NET_KM) {
+    return null;
+  }
+  return CLUTTER_SUSPECTED;
+}
 
 // Finnish for the server's enums, taken verbatim from the collection guide
 // (docs/meteocore-storm-cells.md §7) rather than invented here, so the strip and
@@ -255,6 +339,11 @@ const PALETTES = {
     // mistaken for "one step more severe", which is exactly what an electric
     // yellow next to the amber/orange tiers would look like.
     jump: '#7b1fd6',
+    // Clutter leaves the ramp entirely. A demoted wind farm must not read as a
+    // quieter storm — it is not weather at all — so it drops the warm hues the
+    // severity tiers own and goes grey, drawn with a dotted stroke that says
+    // "not a real edge" before any word is read.
+    clutter: '#6f7885',
   },
   dark: {
     halo: 'rgba(0,0,0,0.6)',
@@ -268,6 +357,7 @@ const PALETTES = {
     textHalo: '#000000',
     selected: 'rgba(255, 255, 255, 0.45)',
     jump: '#c77dff',
+    clutter: '#8a929e',
   },
 };
 
@@ -368,6 +458,16 @@ export default function initStormCells({ telemetry } = {}) {
     const speed = Number.isFinite(p.speed_ms) ? p.speed_ms : null;
     const bearing = Number.isFinite(p.bearing_deg) ? p.bearing_deg : null;
     const age = Number.isFinite(p.track_age) ? p.track_age : 1;
+    const straightness = Number.isFinite(p.path_straightness) ? p.path_straightness : null;
+    const clutter = clutterVerdict(p);
+    // A track that wandered without arriving. Its velocity is an association
+    // artefact, not advection.
+    const wandering = straightness !== null && straightness <= MAX_WANDER_STRAIGHTNESS;
+    // Whether this cell's speed and bearing describe a storm going somewhere.
+    // Both clutter tiers fail it: a mast's motion is the tracker jittering
+    // between two bright pixels, and drawing an arrow on it states a direction
+    // the echo does not have.
+    const motionIsReal = !clutter && !wandering;
     const feature = new Feature({
       geometry: new Point(fromLonLat([lon, lat])),
     });
@@ -385,6 +485,12 @@ export default function initStormCells({ telemetry } = {}) {
       areaKm2: Number.isFinite(p.area_km2) ? p.area_km2 : 0,
       trackAge: age,
       deviant: !!p.deviant_mover,
+      // The clutter verdict, null for a cell that reads as weather. The two
+      // tiers are kept apart because they differ in confidence, not in kind:
+      // the confirmed one names itself on the map, the suspected one only on
+      // the strip. The fields it was read from stay in the response — nothing
+      // downstream needs them, so nothing carries them.
+      clutter,
       // Everything below this line is carried for the selection strip rather
       // than for the map: the marker says severity, size, motion and lightning,
       // and the strip answers "what else does the server know about this one".
@@ -407,10 +513,12 @@ export default function initStormCells({ telemetry } = {}) {
       // Motion is only meaningful once the tracker has two analyses of the
       // cell; before that the server sends nulls rather than zeros. `tracked`
       // is the stronger test the arrows use — the velocity is EMA-smoothed only
-      // from the third generation on.
+      // from the third generation on, and a velocity belonging to clutter or to
+      // a wandering track is not a direction at all.
       speedMs: speed,
       bearingDeg: bearing,
-      tracked: speed !== null && bearing !== null && age >= MIN_TRACKED_AGE,
+      motionIsReal,
+      tracked: speed !== null && bearing !== null && age >= MIN_TRACKED_AGE && motionIsReal,
       // Lightning is tri-state and the three states mean different things:
       //   ABSENT — no lightning source wired to the collection. Render no
       //            lightning UI at all, which is why presence is captured
@@ -490,6 +598,26 @@ export default function initStormCells({ telemetry } = {}) {
       : `Kohti: ${approaching}`;
   }
 
+  // The clutter verdict, in the guide's own words (§8). It goes FIRST in the
+  // subtitle, ahead of the municipality: the subtitle is the element that
+  // ellipsizes when the head runs out of room on a phone, and of everything
+  // said about a wind farm the one thing that must survive truncation is that
+  // it is not weather.
+  function clutterPhrase(feature) {
+    const clutter = feature.get('clutter');
+    if (clutter === CLUTTER_CONFIRMED) return 'Ei sadetta — häiriökaiku';
+    // Hedged on purpose. This tier is the first-frame signature, and the honest
+    // statement about a bright stationary echo that has not moved YET is that
+    // it looks like clutter, not that it is.
+    if (clutter === CLUTTER_SUSPECTED) return 'Todennäköisesti häiriökaiku';
+    // Not clutter, but the track wandered without arriving, so the strip has
+    // just blanked its speed and direction. Without a word here that reads as a
+    // panel that lost two numbers; with it, as the tracker admitting it cannot
+    // follow this one.
+    if (!feature.get('motionIsReal')) return 'Liikerata epäselvä';
+    return '';
+  }
+
   // …and when the cell is over open sea or outside Finland, the reasons the
   // server ranked it where it did are the more useful thing to show. Untranslated
   // terms are dropped rather than printed raw: a new term appearing server-side
@@ -556,16 +684,30 @@ export default function initStormCells({ telemetry } = {}) {
       });
     }
 
+    const clutter = feature.get('clutter');
     return {
-      icon: 'flash_on',
+      // A mast is not a thunderbolt. The confirmed tier drops the lightning
+      // icon for the fuzz the echo actually is.
+      icon: clutter === CLUTTER_CONFIRMED ? 'blur_on' : 'flash_on',
       // "Solu", not "ukkossolu": the strip's head is icon + title + subtitle +
       // age + close on a 390 px phone, and the longest severity word already
       // spends a third of it. The collection guide's term for the object is
       // ukkossolu, but here the icon and the reading below it have already said
       // what kind of thing this is.
-      title: `${SEVERITY_FI[severity] || SEVERITY_FI.weak} solu`,
-      subtitle: [placePhrase(feature) || reasonPhrase(feature), volumeTrend]
-        .filter(Boolean).join(' · '),
+      // "Voimakas solu" over a wind farm is the sentence the collection guide
+      // exists to prevent, so a confirmed clutter echo is titled for what it
+      // is. The suspected tier keeps the severity title and carries its hedge
+      // in the subtitle — it may yet turn out to be a storm.
+      title: clutter === CLUTTER_CONFIRMED ? 'Häiriökaiku'
+        : `${SEVERITY_FI[severity] || SEVERITY_FI.weak} solu`,
+      // A clutter echo's volume trend is dropped rather than shown: "voimistuva
+      // häiriökaiku" reads as a growing storm, when it is a mast that returned
+      // a few more pixels this sweep.
+      subtitle: [
+        clutterPhrase(feature),
+        placePhrase(feature) || reasonPhrase(feature),
+        clutter ? '' : volumeTrend,
+      ].filter(Boolean).join(' · '),
       // The reading's own age, like every other subject on this strip — except
       // that here it also moves when the user scrubs, because the cell shown is
       // the one the server analysed for the displayed frame.
@@ -811,14 +953,23 @@ export default function initStormCells({ telemetry } = {}) {
     const palette = PALETTES[theme];
     const cache = new Map();
 
-    const styles = (severity, deviant) => {
-      const key = `${severity}/${deviant}`;
+    const styles = (severity, deviant, clutter) => {
+      const key = `${severity}/${deviant}/${clutter}`;
       let entry = cache.get(key);
       if (!entry) {
-        const color = palette.severity[severity] || palette.severity.weak;
+        // Clutter overrides the severity colour rather than shading it: the
+        // ramp answers "how strong an echo", and for a mast that question has
+        // no useful answer. The label still prints the dBZ — it was measured —
+        // but the ring stops claiming a storm.
+        const color = clutter ? palette.clutter
+          : (palette.severity[severity] || palette.severity.weak);
         // A deviant mover is a cell tracking off the mean flow (splitting or
         // rotating storms do this) — worth flagging, so its ring is dashed.
-        const dash = deviant ? [5, 4] : undefined;
+        // Clutter takes a finer dotted stroke instead, and takes precedence:
+        // "moving oddly" is not a thing an echo that never moves can be doing.
+        let dash;
+        if (clutter) dash = [2, 3];
+        else if (deviant) dash = [5, 4];
         entry = {
           ringHalo: new Style({ stroke: new Stroke({ color: palette.halo, width: 4, lineDash: dash }) }),
           ring: new Style({ stroke: new Stroke({ color, width: 2, lineDash: dash }) }),
@@ -867,10 +1018,11 @@ export default function initStormCells({ telemetry } = {}) {
     return (feature, resolution) => {
       const severity = feature.get('severity');
       const rank = SEVERITY_RANK[severity] ?? 0;
+      const clutter = feature.get('clutter');
       const lon = feature.get('lon');
       const lat = feature.get('lat');
       const center = feature.getGeometry().getCoordinates();
-      const entry = styles(severity, feature.get('deviant'));
+      const entry = styles(severity, feature.get('deviant'), clutter);
 
       const radiusUnits = Math.max(
         metersToMapUnits(footprintRadiusM(feature.get('areaKm2')), lat),
@@ -933,10 +1085,21 @@ export default function initStormCells({ telemetry } = {}) {
         out.push(jumpHalo, jumpRing);
       }
 
-      if (resolution <= LABEL_MAX_RESOLUTION || rank >= SEVERITY_RANK.severe) {
+      // Severe cells keep their label at every zoom — unless the severe cell is
+      // a wind farm, which is exactly the mark that must NOT be the one thing
+      // labelled on a synoptic-zoom map of the whole country.
+      if (resolution <= LABEL_MAX_RESOLUTION || (rank >= SEVERITY_RANK.severe && !clutter)) {
         const dbz = feature.get('maxDbz');
         const lines = [dbz === null ? '' : `${Math.round(dbz)} dBZ${feature.get('trend')}`];
-        if (speed !== null) lines.push(`${Math.round(speed * 3.6)} km/h`);
+        // The confirmed tier names itself, since the server has watched it sit
+        // still for six frames and the word is the whole point of the mark. The
+        // suspected tier does not: at track_age 1 the same signature belongs to
+        // a new pulse storm, and a wrong word on the map is worse than a grey
+        // ring the strip explains when tapped.
+        if (clutter === CLUTTER_CONFIRMED) lines.push('häiriökaiku');
+        else if (speed !== null && feature.get('motionIsReal')) {
+          lines.push(`${Math.round(speed * 3.6)} km/h`);
+        }
         entry.label.setGeometry(new Point(center));
         entry.label.getText().setText(lines.filter(Boolean).join('\n'));
         // Hug the bottom of the ring — the ring grows with the map, the label
