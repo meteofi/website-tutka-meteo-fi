@@ -911,6 +911,14 @@ export default function initStormCells({ telemetry } = {}) {
     if (id === null) return [];
     const segments = [];
     let run = [];
+    // The cell as the newest frame at or before the cursor knew it. This is what
+    // the trail takes its colours from, and it must come from the SCAN rather
+    // than from the features currently on screen: a storm the displayed frame
+    // has no cell for is a supported state — the strip stays open on it and
+    // says "ei tässä ruudussa" — and asking the source for it there returns
+    // nothing, which silently repainted a very_severe storm's hour of track in
+    // the weak tier's grey. Verified: it did exactly that.
+    let head = null;
     for (const iso of windowFrames) {
       if (Date.parse(iso) > cursorMs) break;
       const entry = snapshots.get(iso);
@@ -923,19 +931,23 @@ export default function initStormCells({ telemetry } = {}) {
         run = [];
       } else {
         run.push(cell.getGeometry().getCoordinates());
+        head = cell;
       }
     }
     if (run.length > 1) segments.push(run);
     // The trail wears the cell's own colours, so it reads as that storm's past
     // rather than as a new kind of object — and a clutter echo's few hundred
     // metres of jitter stays grey, which is the honest picture of it.
-    const head = segments.length ? cellById(id) : null;
+    //
+    // A segment needs two positions and every position sets `head`, so segments
+    // without one cannot happen; the map below reads it unguarded rather than
+    // carrying a default that would be another way to render the wrong colour.
     return segments.map((coords) => {
       const feature = new Feature({ geometry: new LineString(coords) });
       feature.setProperties({
         trail: true,
-        severity: head ? head.get('severity') : 'weak',
-        clutter: head ? head.get('clutter') : null,
+        severity: head.get('severity'),
+        clutter: head.get('clutter'),
         // Sorts ahead of every ranked cell, so the path draws UNDER the rings
         // instead of across them (renderOrder is z-order here).
         significanceRank: -1,
