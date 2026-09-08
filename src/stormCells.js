@@ -600,6 +600,9 @@ export default function initStormCells({ telemetry } = {}) {
 
   function clearSelection() {
     markSelected(null);
+    // Closing the strip takes the path with it — it belongs to the selection,
+    // not to the map.
+    updateTrail();
   }
 
   // A place phrase for the strip's subtitle. Finnish locative cases on proper
@@ -809,6 +812,9 @@ export default function initStormCells({ telemetry } = {}) {
 
   function selectFeature(feature) {
     markSelected(feature.get('trackId'));
+    // Tapping is the one moment the trail appears without the clock moving, so
+    // it is drawn here rather than waiting for the next render.
+    updateTrail();
     lastPayload = payloadFor(feature);
     telemetry.open(OWNER, lastPayload, clearSelection);
   }
@@ -876,6 +882,78 @@ export default function initStormCells({ telemetry } = {}) {
   // stay up rather than blanking for the length of a fetch (the StickyImageWMS
   // rule the raster layers follow). Nothing stale ever *settles* on screen —
   // the moment the answer arrives the display is exactly that answer.
+  //
+  // TRACK TRAIL — where the selected storm has been, drawn from frames this
+  // client already holds.
+  //
+  // The layer is called Soluntunnistus and every frame of it carries a tracked
+  // identity, but until now that identity did nothing visible: it held a
+  // selection across a frame change and stopped there. The window cache is
+  // thirteen analyses of the same storm keyed by the id that connects them, so
+  // the path costs no request at all — it is a read of what is already in
+  // memory.
+  //
+  // ONLY BACKWARDS FROM THE CURSOR. The cache usually holds frames ahead of the
+  // displayed one too, and they are observations rather than a forecast, so
+  // drawing them would not be a lie — but a line running ahead of the mark
+  // reads as one, and the guide is explicit that this collection never shows
+  // where a cell is going (§7.4). So the trail ends at the frame on screen and
+  // grows behind it as playback runs.
+  //
+  // A gap in the middle is left as a gap rather than bridged: a frame the
+  // server has nothing for, or one the storm dropped out of, is a break in the
+  // observation, and a straight line across it would invent the positions it
+  // did not have. Segments are therefore separate features, not one polyline
+  // with holes.
+  let trailFeatures = [];
+
+  function trailFor(id) {
+    if (id === null) return [];
+    const segments = [];
+    let run = [];
+    for (const iso of windowFrames) {
+      if (Date.parse(iso) > cursorMs) break;
+      const entry = snapshots.get(iso);
+      const cell = entry && entry !== PENDING && entry !== MISS
+        ? entry.features.find((f) => f.get('trackId') === id) : null;
+      if (!cell) {
+        // End the run: the next position, whenever it comes, is on the far side
+        // of a frame we cannot speak for.
+        if (run.length > 1) segments.push(run);
+        run = [];
+      } else {
+        run.push(cell.getGeometry().getCoordinates());
+      }
+    }
+    if (run.length > 1) segments.push(run);
+    // The trail wears the cell's own colours, so it reads as that storm's past
+    // rather than as a new kind of object — and a clutter echo's few hundred
+    // metres of jitter stays grey, which is the honest picture of it.
+    const head = segments.length ? cellById(id) : null;
+    return segments.map((coords) => {
+      const feature = new Feature({ geometry: new LineString(coords) });
+      feature.setProperties({
+        trail: true,
+        severity: head ? head.get('severity') : 'weak',
+        clutter: head ? head.get('clutter') : null,
+        // Sorts ahead of every ranked cell, so the path draws UNDER the rings
+        // instead of across them (renderOrder is z-order here).
+        significanceRank: -1,
+      });
+      return feature;
+    });
+  }
+
+  function updateTrail() {
+    if (trailFeatures.length) {
+      trailFeatures.forEach((f) => source.removeFeature(f));
+      trailFeatures = [];
+    }
+    if (selectedId === null) return;
+    trailFeatures = trailFor(selectedId);
+    if (trailFeatures.length) source.addFeatures(trailFeatures);
+  }
+
   function render() {
     const entry = snapshots.get(isoOf(cursorMs));
     if (entry === PENDING) return;
@@ -883,11 +961,17 @@ export default function initStormCells({ telemetry } = {}) {
     if (snapshot === shown) return;
     shown = snapshot;
     source.clear(true);
+    // Cleared with everything else, so the list must not keep pointing at
+    // features the source no longer holds.
+    trailFeatures = [];
     if (snapshot) source.addFeatures(snapshot.features);
     // The features on screen are new objects, so a selection made on the
     // previous frame has to be re-attached to this frame's copy of the same
     // storm — or given up, if this frame does not have it.
     syncSelection();
+    // After syncSelection, which is what decides whether there is still a
+    // selection to draw a path for.
+    updateTrail();
   }
 
   // Fetch queue: the displayed frame first, then the rest of the window
@@ -1084,10 +1168,39 @@ export default function initStormCells({ telemetry } = {}) {
     const chip = chipText(palette.textFill, '');
     const chipJump = chipText(palette.jump, '700 ');
 
+    // The selected storm's past positions. Thinner than a cell ring and dashed,
+    // so it never competes with the marks themselves, and drawn in the cell's
+    // own colour so it reads as that storm's history rather than as a new kind
+    // of object on the map. The halo underneath is the same trick the rings
+    // use: these lines cross radar imagery of every colour.
+    const trailStyles = (severity, clutter) => {
+      const key = `trail/${severity}/${clutter}`;
+      let entry = cache.get(key);
+      if (!entry) {
+        const color = clutter ? palette.clutter
+          : (palette.severity[severity] || palette.severity.weak);
+        entry = [
+          new Style({
+            stroke: new Stroke({ color: palette.halo, width: 3.5, lineCap: 'round' }),
+          }),
+          new Style({
+            stroke: new Stroke({
+              color, width: 1.5, lineDash: [4, 3], lineCap: 'round',
+            }),
+          }),
+        ];
+        cache.set(key, entry);
+      }
+      return entry;
+    };
+
     return (feature, resolution) => {
       const severity = feature.get('severity');
       const rank = SEVERITY_RANK[severity] ?? 0;
       const clutter = feature.get('clutter');
+      // The trail carries its own geometry and needs none of the ring, arrow,
+      // label or lightning work below it.
+      if (feature.get('trail')) return trailStyles(severity, clutter);
       const lon = feature.get('lon');
       const lat = feature.get('lat');
       const center = feature.getGeometry().getCoordinates();
