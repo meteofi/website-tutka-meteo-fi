@@ -1,259 +1,362 @@
 # MeteoCore storm cells — reference for LLM consumers
 
-Reference for a model reading MeteoCore's tracked storm-cell layer, either to
-build UI in this repo or to describe the weather situation in text.
+For a model reading MeteoCore's tracked storm-cell layer: plotting it in this
+repo, or describing the weather situation in text.
 
-Everything below is a contract, not a suggestion. The failure mode this
-document exists to prevent is a model producing a **fluent, confident sentence
-that the data does not support** — a `null` read as zero, a ranking read as a
-warning, a single frame read as a trend.
+This is a contract, not a suggestion. The failure mode it prevents is a
+**fluent, confident sentence the data does not support** — a `null` read as
+zero, a ranking read as a warning, a ground echo read as a storm.
+
+Verified against the production server on 2026-09-08 (MeteoCore `main` at
+#660). When this document and the server disagree, the server is right and
+this document needs a PR.
 
 ---
 
-## 1. What the layer is
+## 1. What it is
 
 Every 5 minutes MeteoCore segments the FMI radar composite at 35 dBZ into
-tracked cells, carries their identity across frames, and for each one computes:
+tracked cells, carries their identity across frames, and computes per cell:
+radar attributes, lifecycle, motion quality, nearest-radar beam geometry,
+lightning attribution, impact context, and a composite **significance** score
+with the reasons behind it.
 
-- radar attributes (peak reflectivity, area, motion),
-- lifecycle (age, growing/decaying, intensity trend),
-- lightning attribution (flash count/rate, jump flag),
-- impact context (which municipality it is over or heading toward),
-- a composite **significance** score and rank.
+Cells are **analysis only** — observed frames, never forecast positions. The
+same collection also serves motion-extrapolated *raster* imagery to 2 h ahead;
+that is a different product and has no cells.
 
-Cells describe **observed** frames only. The same collection also serves
-motion-extrapolated *raster* imagery up to 2 h ahead, but there are no cells for
-future times.
-
-## 2. Endpoint
+## 2. Access
 
 ```
 GET https://meteocore.app.meteo.fi/features/collections/fmi-radar-nowcast/items
 ```
 
-GeoJSON `FeatureCollection`, `Point` geometry, CRS84 (`[lon, lat]`).
-Feature `id` = track id as a string.
+GeoJSON `FeatureCollection`, `Point` geometry, CRS84 (`[lon, lat]`). Feature
+`id` is the track id as a string.
 
 | Parameter | Values | Notes |
 |---|---|---|
-| `limit` | 1–1000, default 100 | Use `limit=1000` to get a whole frame |
-| `bbox` | `west,south,east,north` | WGS84, filters on centroid |
-| `datetime` | RFC 3339 instant or interval | Newest retained frame inside the interval |
+| `limit` | 1–1000 | A whole frame is a few hundred cells at most; `limit=1000` fetches it all |
+| `sortby` | `-significance`, `+max_dbz`, … | `-` descending, `+` ascending. Any property in the collection's `sortable_properties`; anything else is **HTTP 400** naming the valid ones |
+| `bbox` | `west,south,east,north` | WGS84, filters on the centroid |
+| `datetime` | RFC 3339 instant or `start/end` | The frame at that instant, or the newest retained frame inside the interval. Future instants return **0 features** |
 | `offset` | ≥ 0 | Paging |
 
-Standard request for "the current situation":
+The current situation, most significant first:
 
 ```
-/items?limit=1000
+/items?sortby=-significance&limit=1000
 ```
 
-For one animation frame:
+One animation frame (pass the frame instant, 5-minute aligned):
 
 ```
-/items?datetime=2026-08-21T14:25:00Z&limit=1000
+/items?datetime=2026-09-08T06:10:00Z&sortby=-significance&limit=1000
 ```
 
-Responses carry an `ETag` and `Cache-Control: public, max-age=60`. Send
-`If-None-Match` and expect `304`. Data changes only every 5 minutes, so polling
+Responses carry `ETag` and `Cache-Control: public, max-age=60`; send
+`If-None-Match` and expect `304`. Data changes every 5 minutes, so polling
 faster than 60 s yields nothing.
 
-### There is no server-side sorting
+**Sorting and rank agree.** `sortby=-significance&limit=N` returns exactly
+ranks 1…N (MeteoCore #644). Earlier a limited page could hold ranks 1–29
+then 31; that is fixed and the caveat can be dropped.
 
-`sortby` is **not implemented**. Passing it returns HTTP 200 with results in
-arbitrary track order — it fails silently and looks like it worked.
+**Retention** is the last ~4 h of frames (48 at 5 min) and **empties on a
+server restart** — every track then restarts at `track_age: 1` and ids restart
+from 1. Read the retained span from the collection's `extent.temporal` (or the
+MCP `retained_frames`) rather than assuming it.
 
-Therefore `limit=10` returns ten arbitrary cells, **not** the ten most
-significant. To rank: fetch the whole frame with `limit=1000` and sort locally
-on `significance_rank`. Tracking issue: MeteoCore #605.
+### MCP
+
+The same cells are available to a model over MCP (`/mcp`, bearer token):
+`list_collections`, `get_collection_info` (tracked count, retained span,
+`sortable_properties`), `get_storm_cells` (`at`, `limit` ≤ 50, `sort_by`,
+`order`, `min_significance`) and `get_cell_track` (one cell's history, newest
+first). Known limit: `get_cell_track` can answer "not present in any retained
+frame" for a cell that died before the newest frames when the walk budget runs
+out (MeteoCore #646) — treat that note as "not found within the walk", not as
+proof the cell never existed.
 
 ## 3. Fields
 
-All fields are inside `properties`.
+All inside `properties`. Everything except `id`, `observed`, `severity`,
+`max_dbz`, `area_km2`, `track_age`, `significance*`, `likely_clutter` and
+`volume_trend`'s presence may be `null`; see §6 for what a `null` means.
 
-| Field | Type | Unit | Meaning |
-|---|---|---|---|
-| `significance` | float | 0–1 | Composite "is this worth attention" score |
-| `significance_rank` | int | — | 1-based position **within this frame** |
-| `significance_reasons` | string[] | — | Up to 3 top contributing terms, strongest first |
-| `severity` | string | — | `weak` \| `moderate` \| `severe` \| `very_severe` |
-| `max_dbz` | float | dBZ | Peak reflectivity |
-| `area_km2` | float | km² | Footprint above 35 dBZ |
-| `observed` | string | RFC 3339 | Analysis instant of this frame |
-| `track_age` | int | frames | 1 = first seen this frame |
-| `speed_ms` | float \| null | m/s | Ground speed |
-| `bearing_deg` | float \| null | ° | Compass bearing moved **toward** |
-| `volume_trend` | string \| null | — | `growing` \| `decaying` |
-| `intensity_trend_dbz_min` | float \| null | dBZ/min | Signed measured trend |
-| `deviant_mover` | bool | — | Sustained motion off the ambient flow |
-| `flash_count` | int \| null | strikes | Since previous frame |
-| `flash_rate_per_min` | float \| null | 1/min | Same window |
-| `lightning_jump` | bool \| null | — | Schultz-style 2σ flash-rate jump |
-| `impact_over` | string \| null | — | Municipality beneath the cell |
-| `impact_approaching` | string \| null | — | Next municipality within 60 min |
-| `impact_eta_minutes` | float \| null | min | Time to `impact_approaching` |
+### Radar and lifecycle
 
-## 4. severity and significance are different questions
+| Field | Unit | Meaning |
+|---|---|---|
+| `severity` | — | `weak` \| `moderate` \| `severe` \| `very_severe` — see §5 |
+| `max_dbz`, `area_km2` | dBZ, km² | Peak composite reflectivity; footprint above 35 dBZ |
+| `observed` | RFC 3339 | Analysis instant of this frame |
+| `track_age` | frames | 1 = first seen. Frames, not minutes (5-min cadence) |
+| `volume_trend` | — | `growing` \| `decaying` \| `null` (too new, or change inside the deadband). Hysteretic, so it does not flap frame to frame |
+| `intensity_trend_dbz_min` | dBZ/min | Signed, smoothed, clamped to ±0.4 (the tracker's own cap). `null` until the second frame |
 
-Do not use them interchangeably. They disagree often, and the disagreement
-carries the information.
+### Motion and track quality
 
-### severity — coarse label, radar only
+| Field | Unit | Meaning |
+|---|---|---|
+| `speed_ms`, `bearing_deg` | m/s, ° | Ground speed; compass bearing moved **toward**. `null` until the second frame |
+| `net_displacement_km` | km | Straight-line distance from where the track was first seen. Cannot be inflated by an association mistake, unlike `track_age` |
+| `path_straightness` | 0–1 | Net ÷ path-integrated distance. **~1 = real advection, ≲0.4 = a track wandering without arriving.** `null` while the path is under 1 km |
+| `deviant_mover` | bool | Sustained motion ≥ 5 m/s off the ambient flow over 2+ frames, on a coherent track. `null` until there is a velocity |
+| `likely_clutter` | bool | Persistent near-stationary echo (speed < 3 m/s for ≥ 6 frames, and not travelled > 3 km net). Never `null` — but `false` means *not yet demonstrated*, see §4 |
 
-One point each for `max_dbz ≥ 45`, `≥ 50`, `≥ 55`, and `area_km2 ≥ 50`:
+### Nearest-radar beam geometry (MeteoCore #658)
 
-| Points | `severity` |
-|---|---|
-| 0 | `weak` |
-| 1 | `moderate` |
-| 2 | `severe` |
-| 3–4 | `very_severe` |
+| Field | Unit | Meaning |
+|---|---|---|
+| `nearest_radar_id`, `nearest_radar_name` | — | Nearest site by great-circle distance (ODIM NOD code, e.g. `fivih`) and its place name |
+| `nearest_radar_distance_km` | km | From that radar to the centroid |
+| `in_radar_coverage` | bool | Inside that radar's surveyed range. **`null` = the site advertised no range ("cannot say"), which is not "not covered"** |
+| `beam_height_m` | m | Centre of the lowest sweep over the cell, **above mean sea level** — there is no terrain model. Present only inside coverage and within the lowest sweep's own range; otherwise `null` |
+| `beam_elevation_deg` | ° | That lowest sweep's tilt. Same presence rule |
 
-Intensity and size are interchangeable, so a 46 dBZ / 300 km² cell and a
-56 dBZ / 20 km² cell are both `severe`. On an active day most of the top of the
-list is `very_severe`, at which point the label stops discriminating.
+All six exist only because the collection has a radar source wired; they are
+all `null` together for a frame in which the radar catalog was empty.
 
-### significance — weighted score, includes impact
+### Lightning (present only with a lightning source wired — it is)
 
-Weighted mean of normalized terms; `impact` carries the largest weight, which is
-why a moderate cell over a town outranks a very severe cell over open sea.
+| Field | Unit | Meaning |
+|---|---|---|
+| `flash_count`, `flash_rate_per_min`, `flash_density_per_km2` | strikes, 1/min, 1/km²/min | Since the previous frame |
+| `ic_count`, `cg_count` | counts | Intra-cloud / cloud-to-ground split. `0` with `flash_count: 0`; `null` only when the network reported no discriminator |
+| `cg_polarity_known`, `positive_cg_fraction` | count, 0–1 | CG flashes with a known polarity, and the positive share of those. Fraction is `null` with no classifiable CG flashes (0/0 is not 0 %) |
+| `first_flash` | RFC 3339 | First flash on this track, **ever** — with `flash_count: 0` it means "flashed earlier, quiet now" |
+| `lightning_jump`, `jump_sigma` | bool, σ | Schultz-style 2σ flash-rate jump and its magnitude. Both `null` until two prior frames give a baseline |
 
-Two hard rules:
+### Impact (present only with an impact source wired — it is, Finnish municipalities)
 
-- **Compare ranks, not scores, across frames or configurations.** Terms with no
-  data drop out of the calculation entirely, so absolute scores shift when a
-  source is added or a cell lacks coverage. Ordering within one frame is sound.
-- **`significance_rank` is scoped to its frame.** Rank 1 means "highest in this
-  frame", not a persistent property of that storm.
+| Field | Unit | Meaning |
+|---|---|---|
+| `impact_over` | — | Municipality under the **centroid**. `null` = sea or outside Finland (measured) |
+| `impact_approaching` | — | First *different* municipality the centroid reaches along its motion within 60 min. `null` with no velocity, or none ahead |
+| `impact_eta_minutes` | min | Time to that municipality's **boundary**, in 2-minute steps — not to its town centre (MeteoCore #622) |
 
-`significance_reasons` names the terms that drove the score. Use it for the
-"why" — it is the difference between a number a forecaster trusts and one they
-dismiss.
+### Significance
 
-## 5. Absent vs null vs value
+| Field | Unit | Meaning |
+|---|---|---|
+| `significance` | 0–1 | The ranking score, 4 decimals — see §5 |
+| `significance_rank` | int | 1-based, **within this frame** |
+| `significance_reasons` | string[] | Up to 3 terms that moved the score most, strongest first. **Two of the possible names are demotions:** `clutter` and `weakening` mean the cell ranked *lower* because of them. The rest (`severity`, `max_dbz`, `area`, `impact`, `intensifying`, `deviant_mover`, `lightning_jump`, `flash_rate`, `positive_cg`) promoted it |
 
-Three states, three meanings. Collapsing them into two produces false
-statements.
+`sortable_properties` on the collection lists what `sortby` accepts: every
+numeric or boolean field above except `severity` (as a string it would sort
+`moderate < severe < very_severe < weak`).
+
+## 4. Clutter — read this before plotting anything as a storm
+
+Wind farms, masts and anomalous propagation produce bright, compact,
+stationary echoes that score high on *every* intensity term. The server does
+not remove them: it flags and demotes, and a first-frame detection is
+indistinguishable from a new pulse storm on radar alone.
+
+**`likely_clutter: false` does NOT mean meteorological.** It means "not yet
+demonstrated otherwise": the test needs 6 frames of history, so after every
+server restart nothing can be flagged for half an hour.
+
+Read these together, in this order:
+
+1. `likely_clutter: true` → a persistent stationary echo. Do not present it as
+   weather. (Also demoted: `clutter` leads its `significance_reasons` and the
+   score keeps a tenth of what it would otherwise be.)
+2. `beam_height_m` of a few hundred metres, `speed_ms` under ~3 and
+   `net_displacement_km` under ~1 on a bright cell → the wind-farm signature.
+   This works on the **first frame**, which the flag cannot judge. Say
+   "todennäköisesti häiriökaiku", not "ukkossolu".
+3. `path_straightness` ≲ 0.4 with a small `net_displacement_km` → a track
+   that wanders without arriving, usually two fixed echoes sharing one id.
+   Treat its speed and bearing as noise.
+4. `track_age` is **not** evidence of a real storm; an association mistake
+   can manufacture a long track out of stationary echoes. Displacement is.
+
+Live example, 2026-09-08 06:10Z, right after a restart: the two top-ranked
+cells were `very_severe` 55.5 dBZ at 26.98E 62.40N (rank 1, speed 1.1 m/s,
+net 0.3 km, beam 741 m, Kuopio) and `severe` 53.5 dBZ at 26.07E 65.31N (rank
+2, speed 2.1 m/s, net 0.6 km, beam 651 m, Utajärvi). Both are sites that
+recur under fresh ids for hours at a time; both were `likely_clutter: false`
+at `track_age: 2`. Rule 2 catches them; rule 1 catches them half an hour
+later.
+
+## 5. severity vs significance
+
+Different questions; the disagreement carries information.
+
+**`severity`** — radar only. One point each for `max_dbz` ≥ 45, ≥ 50, ≥ 55
+and `area_km2` ≥ 50; 0 → `weak`, 1 → `moderate`, 2 → `severe`, 3–4 →
+`very_severe`. Rising is immediate; falling needs the peak to clear the step
+by a deadband, so a cell parked at a boundary does not flap. On an active day
+most of the top of the list is `very_severe`, where the label stops
+discriminating. It is a reflectivity class, not a hazard assessment: a
+bright band or a wind farm earns it too.
+
+**`significance`** (MeteoCore #645) — a weighted mean of the *graded* terms
+(severity, max_dbz, area, flash_rate, positive_cg, impact; `impact` has the
+largest weight, so a moderate cell over a town outranks a very severe one
+over sea), with signals composed on top and the total bounded to 0–1 by
+construction:
+
+- `intensifying`, `deviant_mover` and `lightning_jump` each fill part of the
+  remaining headroom; several at once cannot push a cell past 1.0;
+- `clutter` removes 90 % of the score, `weakening` up to 15 %.
+
+A signal that did not fire contributes nothing and dilutes nothing, so an
+ordinary unflagged cell can reach the top of the range (before #645 it was
+capped near 0.5). A steady cell has no trend term at all.
+
+Rules:
+
+- **Compare ranks within a frame, never scores across frames or days.**
+  Graded terms with no data drop out, so absolute scores shift.
+- **Rank is per-frame**, not a property of the storm.
+- **Ranks compress at high cell counts.** Below roughly rank 10 on a
+  widespread-rain frame the ordering is separated by hundredths and is not
+  stable frame to frame (MeteoCore #636). Do not read fine rank differences
+  as meaningful.
+- Use `significance_reasons` for the "why", and read `clutter` / `weakening`
+  there as the reasons it ranked *lower*.
+
+## 6. Absent vs null vs value
 
 | State | Meaning | What you may say |
 |---|---|---|
-| Key **absent** | Source not configured on this collection | Nothing. Omit the topic entirely |
-| Key present, **`null`** | Configured but not measured this frame | "Unknown" / omit. **Never** "no", "none" or "0" |
-| Key present, **value** | Measured | State it. `flash_count: 0` means genuinely quiet |
+| Key **absent** | Source not configured on this collection | Nothing — omit the topic |
+| Key **`null`** | Configured, not measured for this cell/frame | "Unknown", or omit. **Never** "no", "none", "0" |
+| Key has a **value** | Measured | State it. `flash_count: 0` means genuinely quiet |
 
-Concretely:
+- `speed_ms: null` → new track, no velocity yet. **Not** "stationary".
+- `deviant_mover: null` / `lightning_jump: null` → not computable yet. Not
+  "false".
+- `in_radar_coverage: null` → the radar could not say. Not "not covered".
+- `beam_height_m: null` with `in_radar_coverage: true` → beyond the lowest
+  sweep's reach, or the site advertised no sweep angles. No beam statement.
+- `impact_over: null` → over sea or outside Finland. This *is* measured; you
+  may say "not over any municipality".
+- `first_flash` set with `flash_count: 0` → it flashed earlier, not now.
+  Correct, not a contradiction.
+- Lightning outside the network's coverage still reads `0`, not `null`
+  (MeteoCore #621 is open). Cells far outside Finland's radar domain — over
+  Russia, the Baltic states, the open Baltic — should not be described as
+  lightning-free on that basis.
 
-- `lightning_jump: null` does **not** mean no jump. It means unknown.
-- `impact_over: null` means the cell is over sea or outside Finland — that is a
-  measured fact, and you may say "not over any municipality".
-- `speed_ms: null` means the track is new (`track_age: 1`) and has no velocity
-  yet. Do not say it is stationary.
+## 7. Generating text
 
-## 6. Rules for generating text about cells
+1. **Only numbers present in the response.** No rainfall rate, hail size,
+   wind speed or probability — none are in the data.
+2. **Never present significance as a warning.** It is a hand-tuned ranking
+   heuristic. Official warnings are the CAP collection `meteoalarm-finland`.
+3. **No trend from one frame.** Use `volume_trend` / `intensity_trend_dbz_min`
+   and the `intensifying` / `weakening` reasons; `null` means too new.
+4. **No forecast positions.** `bearing_deg` and `impact_eta_minutes` are the
+   only forward-looking values, and the ETA is to a municipal *boundary*
+   under constant motion. Do not extrapolate further.
+5. **Clutter before intensity.** Apply §4 before calling anything a storm.
+6. **Beam height is above sea level**, not above ground, and says nothing
+   below the beam. A 3 km beam height at 200 km range means the low levels
+   are unobserved, not empty.
+7. **Track ids restart on a server restart.** "Cell 47" is not durable across
+   sessions.
+8. **Precision.** `max_dbz` 0.1 dBZ, `area_km2` 0.1 km² (whole km² above
+   100), speeds whole km/h, bearings whole degrees, ETA whole minutes,
+   `significance` two decimals in prose. Do not print the server's four.
 
-1. **Only state numbers present in the response.** Every figure you write must
-   be traceable to a field. Do not compute derived quantities such as rainfall
-   rate, hail size, wind speed or probability — none are in the data.
-2. **Never present significance as a warning.** It is a ranking heuristic tuned
-   by hand, not an issued alert and not a probability. Official warnings come
-   from the CAP collection (`meteoalarm-finland`), which carries real severity,
-   certainty and urgency. Never merge the two vocabularies.
-3. **Do not infer a trend from one frame.** Use `volume_trend` and
-   `intensity_trend_dbz_min`. If they are `null`, the cell is too new to have a
-   trend — say nothing about intensification.
-4. **Do not forecast cell positions.** Cells are analysis-only. `bearing_deg` and
-   `impact_eta_minutes` are the only forward-looking values, and the ETA already
-   assumes constant motion. Do not extrapolate further yourself.
-5. **Respect the horizon.** The extrapolated raster imagery runs 2 h ahead with
-   no growth or decay applied; convective skill decays after roughly an hour.
-   Do not describe a 2 h lead with the same confidence as the analysis.
-6. **Track ids are not stable across a server restart.** They restart from 1 on
-   reload. Do not treat "cell 47" as a durable identifier across sessions.
-7. **Rounding.** `max_dbz` to 0.1 dBZ, `area_km2` to 0.1, `speed_ms` to 0.1,
-   `bearing_deg` to whole degrees, ETA to whole minutes. Do not present more
-   precision than that.
+## 8. Finnish output
 
-## 7. Finnish output
+UI text is Finnish; existing vocabulary uses **ukkossolu** (see the MSG RDT
+layer in `src/config.js`) and the strip's reason words live in `REASON_FI`
+in `src/stormCells.js`.
 
-UI text in this repo is Finnish. Existing vocabulary here uses **ukkossolu** for
-a thunderstorm cell (see the MSG RDT layer in `src/config.js`).
-
-| Field value | Finnish |
+| Value | Finnish |
 |---|---|
-| `weak` | heikko |
-| `moderate` | kohtalainen |
-| `severe` | voimakas |
-| `very_severe` | erittäin voimakas |
-| `growing` | voimistuva |
-| `decaying` | heikkenevä |
+| `weak` / `moderate` / `severe` / `very_severe` | heikko / kohtalainen / voimakas / erittäin voimakas |
+| `growing` / `decaying` | voimistuva / heikkenevä |
+| reason `intensifying` / `weakening` | voimistuu / heikkenee |
+| reason `clutter`, `likely_clutter: true` | häiriökaiku · "ei sadetta — häiriökaiku" |
 | `deviant_mover: true` | poikkeava liikesuunta |
 | `lightning_jump: true` | salamointi voimistunut äkillisesti |
+| `in_radar_coverage: false` | tutkan kantaman ulkopuolella |
+| `nearest_radar_name`, `beam_height_m` | "Tutka: Kuopio 56 km, alin keila 0,7 km" |
 
-**Place names must not be inflected by generation.** Finnish locative cases on
-proper nouns are where small models fail — *Tampereen / Tampereelle /
-Tampereella* are easy to get wrong, and a wrong case reads as broken Finnish.
-Use a construction that keeps the name in the nominative:
+**Never inflect place names in generation.** Finnish locative cases on proper
+nouns are where small models fail, and a wrong case reads as broken Finnish.
+Keep the name nominative:
 
 - Good: `Ukkossolu alueella: Hyvinkää` · `Voimakas ukkossolu — Hyvinkää`
-- Risky: `Ukkossolu lähestyy Hyvinkäätä` (inflection generated, may be wrong)
+- Risky: `Ukkossolu lähestyy Hyvinkäätä`
 
-If inflected forms are needed, they must come from a lookup table, not from the
-model.
+Inflected forms must come from a lookup table, not the model.
 
-## 8. Worked example
+## 9. Worked example
 
-Response fragment:
+Live response fragment, 2026-09-08 06:10Z (rank 1 of 40, a minute after a
+server restart):
 
 ```json
 {
-  "id": "82",
-  "geometry": { "type": "Point", "coordinates": [24.277, 61.080] },
+  "id": "18",
+  "geometry": { "type": "Point", "coordinates": [26.98454, 62.39731] },
   "properties": {
-    "significance": 0.4636, "significance_rank": 4,
-    "significance_reasons": ["severity", "max_dbz", "trend"],
-    "severity": "very_severe", "max_dbz": 61.5, "area_km2": 43.3,
-    "track_age": 3, "speed_ms": 6.6, "bearing_deg": 69,
-    "volume_trend": "growing", "intensity_trend_dbz_min": 0.42,
-    "deviant_mover": false,
-    "flash_count": 9, "flash_rate_per_min": 1.8, "lightning_jump": false,
-    "impact_over": "Hämeenlinna", "impact_approaching": null,
-    "impact_eta_minutes": null, "observed": "2026-08-21T14:05:00Z"
+    "significance": 0.634, "significance_rank": 1,
+    "significance_reasons": ["severity", "impact", "max_dbz"],
+    "severity": "very_severe", "max_dbz": 55.5, "area_km2": 16.4,
+    "track_age": 2, "speed_ms": 1.1, "bearing_deg": 297,
+    "net_displacement_km": 0.3, "path_straightness": null,
+    "likely_clutter": false, "deviant_mover": false,
+    "volume_trend": "growing", "intensity_trend_dbz_min": 0.176,
+    "nearest_radar_id": "fikuo", "nearest_radar_name": "Kuopio",
+    "nearest_radar_distance_km": 55.6, "in_radar_coverage": true,
+    "beam_height_m": 741.0, "beam_elevation_deg": 0.3,
+    "flash_count": 0, "flash_rate_per_min": 0.0, "ic_count": 0, "cg_count": 0,
+    "cg_polarity_known": 0, "positive_cg_fraction": null, "first_flash": null,
+    "lightning_jump": null, "jump_sigma": null,
+    "impact_over": "Pieksämäki", "impact_approaching": null,
+    "impact_eta_minutes": null, "observed": "2026-09-08T06:10:00Z"
   }
 }
 ```
 
 **Correct:**
 
-> Erittäin voimakas ukkossolu, alueella Hämeenlinna. Huippuheijastavuus
-> 61,5 dBZ, pinta-ala 43 km², voimistuva. Salamointia 9 iskua viime
-> viiteen minuuttiin. Havaittu klo 14:05 UTC.
+> Voimakas, lähes paikallaan pysyvä kaiku alueella Pieksämäki — 55,5 dBZ,
+> 16 km², nopeus 4 km/h, siirtymä 0,3 km. Tutka: Kuopio 56 km, alin keila
+> 0,7 km. Ei salamointia. Tunnettu häiriökaikupaikka; todennäköisesti ei
+> sadetta. Havaittu klo 06:10 UTC.
 
 **Incorrect, and why:**
 
 | Statement | Fault |
 |---|---|
+| "Erittäin voimakas ukkossolu Pieksämäellä" | A stationary 55 dBZ echo under a 741 m beam with 0.3 km of displacement is the wind-farm signature (§4 rule 2); also inflects the name |
 | "Rankkasadetta 30 mm/h" | Rainfall rate is not in the data |
-| "Varoitus: rajuilma Hämeenlinnassa" | Turns a ranking into a warning; also inflects the place name |
-| "Ei salamointia" | `lightning_jump: false` is not "no lightning"; `flash_count` is 9 |
-| "Solu saapuu Tampereelle 20 min kuluttua" | `impact_approaching` is `null` — no arrival is predicted |
-| "Neljänneksi vaarallisin solu Suomessa" | Rank is per-frame ordering, not a danger league table |
+| "Varoitus: rajuilma" | Turns a ranking into a warning |
+| "Salamointi ei ole voimistunut" | `lightning_jump: null` is unknown, not "no" |
+| "Ei häiriökaikua, koska `likely_clutter` on false" | `false` at `track_age: 2` means untested, not cleared |
+| "Merkittävin solu Suomessa" | Rank is per-frame ordering, and the frame is one minute old after a restart |
 
-## 9. Known limits
+## 10. Known limits
 
-- Sorting is client-side only (MeteoCore #605).
-- `impact_approaching` / `impact_eta_minutes` need a velocity, so they are absent
-  for `track_age: 1`. After a server reload every track is new and ETAs are
-  missing for a few frames.
-- Municipality polygons are **land-only**, so a cell offshore correctly reports
-  `impact_over: null` rather than claiming the nearest coastal municipality.
-- Roughly 4 h of frames are retained for `datetime` queries; the buffer empties
-  on reload.
-- Exposure is weighted by municipal population on a log scale. Municipalities
-  near 100 inhabitants carry almost no weight, so a cell over the very smallest
-  ones ranks close to one over open sea.
+- Retention and track ids reset on every server restart; the clutter flag
+  cannot fire for the first 6 frames afterwards.
+- `impact_eta_minutes` is time to a municipal boundary, not to the town
+  (MeteoCore #622). `impact_over` is the centroid's municipality even when
+  the cell's edge is somewhere else.
+- Lightning fields read `0` outside the network's coverage (MeteoCore #621).
+- Cells are points with an area; footprint polygons are not served
+  (MeteoCore #551).
+- `beam_height_m` is above mean sea level and models the lowest sweep only.
+- Exposure weights municipal population on a log scale; the smallest
+  municipalities carry almost no weight.
+- Municipality polygons are land-only, so an offshore cell reports
+  `impact_over: null` rather than the nearest coast.
 
-## 10. Related
+## 11. Related
 
-- WMS/EDR request-shape rules for this server: `CLAUDE.md`, section "MeteoCore
-  request-shape rules".
+- WMS/EDR request-shape rules for this server: `CLAUDE.md`, section
+  "MeteoCore request-shape rules".
 - Official warnings: `meteoalarm-finland` collection (CAP).
-- Server-side design: `crates/engine-nowcast/CLAUDE.md` in the MeteoCore repo.
+- Server-side design: `crates/engine-nowcast/CLAUDE.md` in the MeteoCore
+  repo; open work: MeteoCore issues #620, #621, #622, #646, #649, #650.
