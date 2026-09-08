@@ -451,6 +451,13 @@ export default function initStormCells({ telemetry } = {}) {
   let timerId = 0;
   let refreshInFlight = null;
   let lastRefreshMs = 0;
+  // Bumped when the retained history is replaced (a server restart). A response
+  // is stored only if the world it was requested in still exists — the
+  // createFetchSlot rule from src/edr/seriesFetch.js, applied across a restart
+  // rather than across a cursor move: a stale answer must never repaint fresh
+  // UI. Here "stale" is sharper than usual, since the cells in that answer
+  // carry track ids the server has already handed to other storms.
+  let generation = 0;
 
   // Frame instants are the request key, so they must round-trip exactly: the
   // clock hands out 5-minute steps, and `toISOString` gives the millisecond
@@ -1059,10 +1066,20 @@ export default function initStormCells({ telemetry } = {}) {
   // for the frame in front of them). Cursor moves never cancel work in flight;
   // a queued frame that scrolled out of the window is dropped when it surfaces.
   function startFetch(frameIso) {
+    const requestedIn = generation;
     inFlight += 1;
     snapshots.set(frameIso, PENDING); // reserve, so it is not queued twice
     fetchSnapshot(frameIso)
       .then((snapshot) => {
+        if (requestedIn !== generation) {
+          // The history this describes was replaced while it was in flight.
+          // Drop it — storing it would put pre-restart cells back into a cache
+          // that was deliberately emptied — and let the window ask again, since
+          // this frame was skipped as in-flight while everything else reset.
+          snapshots.delete(frameIso);
+          requestWindow();
+          return;
+        }
         // A frame the server has nothing for is recorded as a miss rather than
         // dropped, so it is not asked for again until a new analysis lands.
         snapshots.set(frameIso, snapshot || MISS);
@@ -1150,6 +1167,8 @@ export default function initStormCells({ telemetry } = {}) {
         retainedStartMs = startMs;
         retainedEndMs = endMs;
         lastRefreshMs = Date.now();
+        // Everything in flight belongs to the old history now.
+        if (restarted) generation += 1;
         if (restarted && selectedId !== null) {
           clearSelection();
           if (telemetry) telemetry.close(OWNER);
@@ -1157,10 +1176,13 @@ export default function initStormCells({ telemetry } = {}) {
         if (!changed) return;
         // Frames the server had nothing for may have a snapshot now — and after
         // a restart, so is everything else we hold. Requests still in flight
-        // (PENDING) are deliberately left alone in both cases: clearing those
-        // re-queued them and fetched the same frame twice.
+        // (PENDING) are left alone in BOTH cases, including the restart: this
+        // loop used to delete them too, contradicting the line it is written
+        // under, which re-queued frames that were already on the wire. What a
+        // restart needs is not their entries removed but their answers refused,
+        // and the generation check in startFetch does that.
         for (const [key, value] of [...snapshots.entries()]) {
-          if (value === MISS || restarted) snapshots.delete(key);
+          if (value !== PENDING && (value === MISS || restarted)) snapshots.delete(key);
         }
         // Blank now rather than leaving a cell on screen that the server has
         // forgotten under an id it has already reissued. Done here rather than
