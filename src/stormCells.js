@@ -547,6 +547,19 @@ export default function initStormCells({ telemetry } = {}) {
       //   0      — measured, and the cell is quiet. Shows nothing.
       hasLightning: has(p, 'flash_rate_per_min'),
       flashRate: Number.isFinite(p.flash_rate_per_min) ? p.flash_rate_per_min : null,
+      // The first flash on this TRACK, ever — not in this frame. With
+      // `flash_count: 0` it is the guide's "flashed earlier, quiet now" (§6),
+      // which is a different thing from a cell that has never flashed and the
+      // only way to tell them apart.
+      firstFlash: typeof p.first_flash === 'string' ? p.first_flash : null,
+      // How far over its own baseline the rate jumped, in sigma. Null until two
+      // prior frames give a baseline — the same null as `lightning_jump`.
+      jumpSigma: Number.isFinite(p.jump_sigma) ? p.jump_sigma : null,
+      // The positive share of the CG flashes whose polarity was classified.
+      // Null with no classifiable CG flashes, because 0/0 is not 0 % — so this
+      // is one of the fields where a dash and a zero say opposite things.
+      positiveCgFraction: Number.isFinite(p.positive_cg_fraction)
+        ? p.positive_cg_fraction : null,
       // Same tri-state. `null` is unknown-this-snapshot and must never be read
       // as "no jump", so the escalation tests `=== true` rather than truthiness.
       jump: has(p, 'lightning_jump') && typeof p.lightning_jump === 'boolean'
@@ -690,6 +703,47 @@ export default function initStormCells({ telemetry } = {}) {
     return `Tutka: ${parts.join(', ')}`;
   }
 
+  // What the lightning has been doing, as a phrase rather than a number — the
+  // two states the flash-rate column cannot express.
+  //
+  // A JUMP with its magnitude. `lightning_jump` already gates the map's violet
+  // ring, but the rate column shows the same "14 /min" whether the storm has
+  // been at 14 for an hour or got there in five minutes, and 2σ against 4σ is
+  // the difference between a step up and something going off. The magnitude
+  // lives here rather than on the column label because the labels are
+  // uppercased by CSS, and `text-transform` turns a lower-case sigma into a
+  // capital one — a different symbol, and the wrong one.
+  //
+  // AND "IT FLASHED EARLIER" — the guide's §6 reading of a `first_flash` that
+  // exists while `flash_count` is a measured zero. Without it the strip says
+  // "0 /min" about a cell that was throwing lightning ten minutes ago and about
+  // one that has never flashed in its life, in identical words.
+  //
+  // AND THE POSITIVE CG SHARE, which is a severe-weather signal and one of the
+  // terms the server's own ranking uses. It is prose rather than a sixth
+  // reading because six readings do not fit: measured at 390 px the row runs
+  // 35 px past its own width and starts scrolling silently, and a column the
+  // user has to discover by dragging is worse than a phrase they can read.
+  // `null` is "no classifiable CG flash", not 0 % — 0/0 is not zero — so it
+  // says nothing at all rather than claiming a measured share.
+  //
+  // Decimal comma, unlike the numeric columns' point: this is prose, and Finnish
+  // prose writes 3,4.
+  function lightningPhrase(feature) {
+    if (!feature.get('hasLightning')) return '';
+    const parts = [];
+    if (feature.get('jump') === true) {
+      const sigma = feature.get('jumpSigma');
+      parts.push(sigma === null ? 'salamapiikki'
+        : `salamapiikki ${sigma.toFixed(1).replace('.', ',')}σ`);
+    } else if (feature.get('flashCount') === 0 && feature.get('firstFlash')) {
+      parts.push('salamoinut aiemmin');
+    }
+    const positive = feature.get('positiveCgFraction');
+    if (positive !== null) parts.push(`positiivisia maasalamoita ${Math.round(positive * 100)} %`);
+    return parts.join(', ');
+  }
+
   function payloadFor(feature) {
     const severity = feature.get('severity');
     const dbz = feature.get('maxDbz');
@@ -777,6 +831,9 @@ export default function initStormCells({ telemetry } = {}) {
         : [
           clutterPhrase(feature),
           placePhrase(feature) || reasonPhrase(feature),
+          // Ahead of the radar geometry: this is about the storm, that is about
+          // how we are looking at it.
+          lightningPhrase(feature),
           radarPhrase(feature),
           volumeTrend,
         ]).filter(Boolean).join(' · '),
@@ -1054,15 +1111,43 @@ export default function initStormCells({ telemetry } = {}) {
         const endMs = Date.parse(interval[1]);
         if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return;
         const changed = startMs !== retainedStartMs || endMs !== retainedEndMs;
+        // A SERVER RESTART empties retention: the range collapses to the newest
+        // analysis alone and, critically, track ids restart from 1 (guide §10).
+        // A normal slide moves both ends forward while still overlapping what
+        // we hold, so a new range that starts after our old end — or ends
+        // before it — is the history being replaced rather than extended.
+        //
+        // Everything cached is then about storms that no longer exist under
+        // those ids, and the selection is the sharp edge: a strip left open
+        // across a restart would keep reporting "cell 47" while the server has
+        // handed 47 to a different storm on the other side of the country. It
+        // is dropped rather than re-resolved, since there is nothing to
+        // re-resolve it against.
+        const restarted = retainedEndMs > 0 && (startMs > retainedEndMs || endMs < retainedEndMs);
         retainedStartMs = startMs;
         retainedEndMs = endMs;
         lastRefreshMs = Date.now();
+        if (restarted && selectedId !== null) {
+          clearSelection();
+          if (telemetry) telemetry.close(OWNER);
+        }
         if (!changed) return;
-        // Frames the server had nothing for may have a snapshot now. Requests
-        // still in flight (PENDING) are deliberately left alone — clearing
-        // those re-queued them and fetched the same frame twice.
+        // Frames the server had nothing for may have a snapshot now — and after
+        // a restart, so is everything else we hold. Requests still in flight
+        // (PENDING) are deliberately left alone in both cases: clearing those
+        // re-queued them and fetched the same frame twice.
         for (const [key, value] of [...snapshots.entries()]) {
-          if (value === MISS) snapshots.delete(key);
+          if (value === MISS || restarted) snapshots.delete(key);
+        }
+        // Blank now rather than leaving a cell on screen that the server has
+        // forgotten under an id it has already reissued. Done here rather than
+        // through render(), which short-circuits when the frame it would draw
+        // is the same object it drew last — and after a restart the frame it
+        // would draw is nothing at all.
+        if (restarted) {
+          source.clear(true);
+          trailFeatures = [];
+          shown = null;
         }
         requestWindow();
       })
