@@ -602,13 +602,25 @@ export default function initStormCells({ telemetry } = {}) {
   const cellById = (id) => (id === null ? null
     : source.getFeatures().find((f) => f.get('trackId') === id) || null);
 
+  // The selection lives HERE and nowhere else — one track id, and the style
+  // function asks whether the feature it is drawing carries it.
+  //
+  // It used to be mirrored onto the features as a `selected` property, which is
+  // one copy per frame: the same storm has a separate Feature object in each of
+  // the thirteen cached snapshots, and the flag was set on each one as the clock
+  // passed through it but cleared only on the one that happened to be on screen
+  // when the strip closed. Every other copy kept it, so scrubbing back onto an
+  // earlier frame brought up a selection halo around a cell with no strip open
+  // and nothing selected. Reproduced before deleting it: select, step back two
+  // frames, close the strip, step forward one — the halo was there.
+  //
+  // Asking the id at render time cannot go stale, because there is nothing to
+  // keep in sync; the redraw has to be asked for explicitly instead, since no
+  // feature changed.
   function markSelected(id) {
     if (selectedId === id) return;
-    const previous = cellById(selectedId);
-    if (previous) previous.set('selected', false);
     selectedId = id;
-    const next = cellById(id);
-    if (next) next.set('selected', true);
+    source.changed();
   }
 
   function clearSelection() {
@@ -898,7 +910,6 @@ export default function initStormCells({ telemetry } = {}) {
       if (payload) telemetry.update(OWNER, payload);
       return;
     }
-    feature.set('selected', true);
     lastPayload = payloadFor(feature);
     telemetry.update(OWNER, lastPayload);
   }
@@ -1316,7 +1327,9 @@ export default function initStormCells({ telemetry } = {}) {
       // second ring outside it: outside is where the lightning-jump ring goes,
       // and two concentric outlines would read as one more severity tier. It is
       // deliberately colour-neutral for the same reason.
-      if (feature.get('selected')) {
+      // `selectedId !== null` first: a feature whose `trackId` is null would
+      // otherwise match "nothing is selected" and wear the band.
+      if (selectedId !== null && feature.get('trackId') === selectedId) {
         selectedGlow.setGeometry(new CircleGeom(center, radiusUnits));
         out.unshift(selectedGlow);
       }
