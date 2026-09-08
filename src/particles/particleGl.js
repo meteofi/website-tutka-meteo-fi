@@ -196,13 +196,19 @@ function createState(gl, width, height, count) {
 
 // Tunables. Rates are per 60 Hz step; the renderer scales them by the actual
 // frame interval so a 120 Hz display and a struggling 30 Hz phone flow alike.
-const FADE = 0.96;
-const DROP_RATE = 0.003;
-const DROP_RATE_BUMP = 0.02;
+//
+// Tuned toward calm: this layer sits OVER the radar and the reader must still
+// see the echoes through it, and the first cut (twice the speed, three times
+// the respawn rate, fuller colour) read as restless next to Windy. Long-lived
+// particles with a slow fade give smooth continuous streamlines; a high drop
+// rate gives popping.
+const FADE = 0.97;
+const DROP_RATE = 0.001;
+const DROP_RATE_BUMP = 0.004;
 // Screen pixels per step per m/s at pixel ratio 1: a 10 m/s wind moves a
-// particle 1.2 px per 60 Hz step, 72 px/s.
-const SPEED_FACTOR = 0.12;
-const POINT_SIZE = 1.4;
+// particle 0.6 px per 60 Hz step, 36 px/s.
+const SPEED_FACTOR = 0.06;
+const POINT_SIZE = 1.1;
 
 export default class ParticleRenderer {
   constructor() {

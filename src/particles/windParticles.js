@@ -90,7 +90,7 @@ const FIELD_CACHE_SIZE = 4;
 // battery. The area cap bounds the desktop retina case.
 const MAX_SIM_RATIO = 1.5;
 const MAX_SIM_PX = 2e6;
-const PARTICLES_PER_MPX = 3500;
+const PARTICLES_PER_MPX = 1500;
 const MIN_PARTICLES = 1024;
 const MAX_PARTICLES = 16384;
 // A pane that has not asked for a frame in this long is off-screen (layout
@@ -99,9 +99,11 @@ const IDLE_RELEASE_MS = 5000;
 
 // Particle colour per theme, premultiplied by the renderer. White over the
 // dark basemap (the windy look); ink over the light one, where white vanishes.
+// Alpha is kept low on purpose: the radar underneath is the product, the wind
+// is context over it.
 const COLORS = {
-  dark: [1, 1, 1, 0.75],
-  light: [0.1, 0.15, 0.25, 0.9],
+  dark: [1, 1, 1, 0.45],
+  light: [0.1, 0.15, 0.25, 0.55],
 };
 
 function readSourceOverride() {
