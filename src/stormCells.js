@@ -180,15 +180,22 @@ const VOLUME_TREND_FI = {
 // Why the server ranked this cell where it did. The reasons are the terms that
 // drove the score, strongest first, and they are what turns a number a
 // forecaster dismisses into one they can check.
+// The server's own term names, as of MeteoCore #645: `trend` split into
+// `intensifying` / `weakening`, and two of the names are DEMOTIONS — the
+// server lists `clutter` and `weakening` among the reasons a cell ranked
+// where it did because they pulled it DOWN. The strip prints them next to
+// the promoting reasons, so their words must read as verdicts, not merits.
 const REASON_FI = {
   severity: 'voimakkuus',
   max_dbz: 'heijastavuus',
   area: 'laajuus',
-  trend: 'kehityssuunta',
+  intensifying: 'voimistuu',
+  weakening: 'heikkenee',
   lightning: 'salamointi',
   lightning_jump: 'salamapiikki',
   impact: 'vaikutusalue',
   deviant_mover: 'poikkeava liikesuunta',
+  clutter: 'häiriökaiku',
 };
 
 // Trend badge after the reflectivity: ▲ intensifying, ▼ weakening, nothing
