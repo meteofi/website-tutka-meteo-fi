@@ -269,14 +269,23 @@ const VOLUME_TREND_FI = {
 // server lists `clutter` and `weakening` among the reasons a cell ranked
 // where it did because they pulled it DOWN. The strip prints them next to
 // the promoting reasons, so their words must read as verdicts, not merits.
+//
+// Untranslated terms are DROPPED by reasonPhrase rather than printed raw, which
+// makes a missing name silent: `flash_rate` and `positive_cg` are in the
+// server's vocabulary (guide §5) and were absent from this table, so on a
+// thundery day the two reasons a forecaster most wants to see simply did not
+// appear. Both are here now. `lightning` is the pre-#645 spelling of
+// `flash_rate`, kept so an older server still says something.
 const REASON_FI = {
   severity: 'voimakkuus',
   max_dbz: 'heijastavuus',
   area: 'laajuus',
   intensifying: 'voimistuu',
   weakening: 'heikkenee',
+  flash_rate: 'salamointi',
   lightning: 'salamointi',
   lightning_jump: 'salamapiikki',
+  positive_cg: 'positiiviset maasalamat',
   impact: 'vaikutusalue',
   deviant_mover: 'poikkeava liikesuunta',
   clutter: 'häiriökaiku',
@@ -1206,9 +1215,26 @@ export default function initStormCells({ telemetry } = {}) {
         // Labels only — see the style function. Own group so cell labels never
         // knock out place names (OL declutters shared groups together).
         declutter: 'storm-cells',
-        // Strongest cells render first so declutter keeps their labels when
-        // they collide with a weaker neighbour's.
-        renderOrder: (a, b) => (SEVERITY_RANK[b.get('severity')] ?? 0) - (SEVERITY_RANK[a.get('severity')] ?? 0),
+        // Most significant cells render first, so declutter keeps their labels
+        // when they collide with a neighbour's.
+        //
+        // The server's rank, not severity. Severity is a reflectivity class and
+        // nothing else — a bright band and a wind farm earn `very_severe` too
+        // (guide §5) — so ordering by it handed label priority to whatever was
+        // brightest. `significance` grades the same intensity terms but weights
+        // impact highest and applies the clutter demotion, so a moderate cell
+        // over a town now outranks a severe one over open sea, and a flagged
+        // wind farm loses to both. Rank is per-frame, which is exactly the
+        // scope of a declutter decision.
+        //
+        // Ranks are 1-based; a cell without one sorts last rather than first,
+        // which is what `Infinity` buys over a `?? 0`. Severity breaks ties, so
+        // the ordering is still total on a server that sends no ranks at all.
+        renderOrder: (a, b) => {
+          const rank = (f) => (Number.isFinite(f.get('significanceRank')) ? f.get('significanceRank') : Infinity);
+          return rank(a) - rank(b)
+            || (SEVERITY_RANK[b.get('severity')] ?? 0) - (SEVERITY_RANK[a.get('severity')] ?? 0);
+        },
         style: styleLight,
       });
       return layer;
