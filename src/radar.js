@@ -41,6 +41,7 @@ import initObsLayer from './obs/obsLayer';
 import initLightningLayer from './lightning/lightningLayer';
 import { createPlaceNamesLayer, placeNamesStyleLight, placeNamesStyleDark } from './placeNames';
 import initStormCells from './stormCells';
+import initWindParticles from './particles/windParticles';
 import initTrafficMessages from './trafficMessages';
 import initWeatherCameras from './weatherCameras';
 import initTrains from './trains';
@@ -826,6 +827,10 @@ const gliders = initGliders({ telemetry });
 // its per-pane layer factory can join paneDeps; fetching starts only when the
 // POI is switched on (applyPoiVisibility), and setTime feeds it the clock.
 const stormCells = initStormCells({ telemetry });
+// Wind particles (Tuuli): model 10 m wind as flowing particles, one shared
+// WebGL context for every pane. Fetching and the frame loop are gated by the
+// POI toggle (applyPoiVisibility); the clock only picks the model step.
+const wind = initWindParticles();
 
 // Departure board for a tapped railway station. Wall-clock live rather than
 // clock-coupled — a board is about what is next, and no radar frame can
@@ -891,6 +896,7 @@ const paneDeps = {
   createLightningLayer: lightningController.createPaneLayer,
   createPlaceNamesLayer,
   createStormCellsLayer: stormCells.createPaneLayer,
+  createWindLayer: wind.createPaneLayer,
   createTrafficLayer: trafficMessages.createPaneLayer,
   createWeatherCameraLayer: weatherCameras.createPaneLayer,
   createGliderLayer: gliders.createPaneLayer,
@@ -1403,6 +1409,9 @@ function setTime(action = 'next', seekIndex = 0) {
   // extrapolated, and empty on frames it has none for. The window is passed so
   // the controller knows which frames to prefetch.
   stormCells.setCursor(startDate.getTime(), start, resolution);
+  // Wind particles follow the window's newest frame to the nearest model step
+  // — a refetch once per step, never a flip mid-loop.
+  wind.setCursor(startDate.getTime(), start, resolution);
   // Traffic announcements show only where the displayed frame falls inside the
   // announcement's validity, so scrubbing back hides an incident that had not
   // happened yet at that frame. Filter only — no fetch on a cursor move.
@@ -1720,6 +1729,7 @@ function setMapLayer(maplayer) {
     pane.airspaceReservedLayer.setStyle(airspace.styleFor('reserved', airspaceTheme));
     pane.metarLayer.setStyle(light ? metar.styleLight : metar.styleDark);
   }
+  wind.setTheme(light ? 'light' : 'dark');
   applyIcaoTheme(maplayer);
   applyVesivaylatTheme(maplayer);
 }
@@ -2695,6 +2705,17 @@ const poiRegistry = [
     layerKeys: ['radarSiteLayer'],
   },
   {
+    // Live data like stormcells: applyPoiVisibility drives the controller
+    // (setEnabled) — the WebGL context, the frame loop and the field fetches
+    // exist only while this is on. Model wind, and labelled as such: the
+    // radar-motion source planned for the same layer is not wind (#256).
+    id: 'tuuli',
+    label: wind.label,
+    icon: 'air',
+    defaultOn: false,
+    layerKeys: ['windLayer'],
+  },
+  {
     id: 'airfields',
     section: 'ilmailu',
     label: 'Lentokentät',
@@ -2905,6 +2926,7 @@ function applyPoiVisibility() {
   });
   // Storm cells poll a live API — the toggle gates fetching, not just paint.
   stormCells.setEnabled(!!POI_STATE.stormcells);
+  wind.setEnabled(!!POI_STATE.tuuli);
   trafficMessages.setEnabled(!!POI_STATE.liikennetiedotteet);
   weatherCameras.setEnabled(!!POI_STATE.kelikamerat);
   gliders.setEnabled(!!POI_STATE.gliders);
@@ -3982,6 +4004,7 @@ function shareAttributions() {
   // condition rather than a courtesy — see the airspace line below.
   if (POI_STATE.airfields) parts.add('Lentopaikat © Fintraffic ANS / SIA / openAIP (CC BY-NC 4.0)');
   if (POI_STATE.turnpoints) parts.add('Käännöspisteet © Ilmailuliitto');
+  if (POI_STATE.tuuli) parts.add(wind.attribution);
   // Required: openAIP is CC BY-NC, so the credit is a licence condition rather
   // than a courtesy.
   if (POI_STATE.airspace) parts.add('Ilmatilat © openAIP (CC BY-NC 4.0)');

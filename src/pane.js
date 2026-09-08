@@ -103,6 +103,9 @@ export default function createPane(targetEl, sharedView, deps) {
     // Storm cells (src/stormCells.js) — panes share one VectorSource; the
     // controller in radar.js owns fetching and the clock-driven advection.
     createStormCellsLayer,
+    // Wind particles (src/particles/windParticles.js) — one ImageCanvas layer
+    // per pane, repainted from the controller's shared WebGL context.
+    createWindLayer,
     // Traffic announcements (src/trafficMessages.js) — panes share one
     // VectorSource; the controller owns fetching and the clock filter.
     createTrafficLayer,
@@ -244,6 +247,12 @@ export default function createPane(targetEl, sharedView, deps) {
   radarLayer.set('defaultFormat', 'image/png');
   // Opt out of the webp wire format for radar specifically (see radar.js notes).
   radarLayer.set('disableWebp', true);
+
+  // Flowing wind particles sit directly over the radar and under the place
+  // names, so the labels stay legible through the trails. Not a FramePool
+  // layer: the controller drives it from its own frame loop and follows the
+  // clock only to pick the model step.
+  const windLayer = createWindLayer(index);
 
   // FMI lightning is an EDR-backed vector layer (src/lightning/); this
   // companion raster carries the category's WMS products (li_afa/rdt from
@@ -476,6 +485,7 @@ export default function createPane(targetEl, sharedView, deps) {
     darkGrayBaseLayer,
     satelliteLayer,
     radarLayer,
+    windLayer,
     placeNamesLayer,
     guideLayer,
     lightningWmsLayer,
@@ -524,6 +534,7 @@ export default function createPane(targetEl, sharedView, deps) {
     placeNamesLayer,
     satelliteLayer,
     radarLayer,
+    windLayer,
     lightningLayer,
     lightningWmsLayer,
     observationLayer,
