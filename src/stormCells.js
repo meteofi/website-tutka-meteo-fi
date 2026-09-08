@@ -663,7 +663,13 @@ export default function initStormCells({ telemetry } = {}) {
     const distance = feature.get('radarDistanceKm');
     const parts = [distance === null ? name : `${name} ${Math.round(distance)} km`];
     // Only the measured `false` speaks. `null` is the site declining to answer,
-    // and "tutkan kantaman ulkopuolella" would turn that into a claim.
+    // and saying it is out of range would turn that into a claim.
+    //
+    // The guide's §8 vocabulary gives this as "tutkan kantaman ulkopuolella",
+    // written for prose that stands on its own. Here the phrase it joins has
+    // already named the radar and its distance, so the possessive would repeat
+    // it — "Tutka: Korpo 229 km, tutkan kantaman ulkopuolella". Same words,
+    // minus the one the sentence has already said.
     if (feature.get('inRadarCoverage') === false) parts.push('kantaman ulkopuolella');
     const beam = feature.get('beamHeightM');
     // Above mean sea level, and only where the lowest sweep actually reaches;
