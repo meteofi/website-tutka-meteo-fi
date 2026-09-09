@@ -342,7 +342,9 @@ export default class ParticleRenderer {
   //   extent     — EPSG:3857 extent the canvas covers
   //   pixelRatio — simulation pixels per CSS pixel (scales speed and size)
   //   nowMs      — performance.now()
-  render(key, extent, pixelRatio, nowMs) {
+  //   look       — { pointScale, alphaScale }: the caller's per-device
+  //                emphasis (phones draw bigger and brighter)
+  render(key, extent, pixelRatio, nowMs, { pointScale = 1, alphaScale = 1 } = {}) {
     if (!this.hasField()) return false;
     const state = this.states.get(key);
     if (!state) return false;
@@ -381,8 +383,8 @@ export default class ParticleRenderer {
     gl.uniform1i(this.drawU.u_particles, 0);
     this._bindFieldUniforms(this.drawU, extent, pixelRatio);
     gl.uniform1f(this.drawU.u_particlesRes, state.res);
-    gl.uniform1f(this.drawU.u_pointSize, POINT_SIZE * pixelRatio);
-    gl.uniform4f(this.drawU.u_color, this.color[0], this.color[1], this.color[2], this.color[3]);
+    gl.uniform1f(this.drawU.u_pointSize, POINT_SIZE * pixelRatio * pointScale);
+    gl.uniform4f(this.drawU.u_color, this.color[0], this.color[1], this.color[2], Math.min(1, this.color[3] * alphaScale));
     gl.disableVertexAttribArray(this.updateAttrib);
     gl.drawArrays(gl.POINTS, 0, state.count);
     gl.disable(gl.BLEND);

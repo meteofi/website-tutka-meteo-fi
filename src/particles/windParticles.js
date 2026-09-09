@@ -119,9 +119,20 @@ const FIELD_CACHE_SIZE = 4;
 // Simulation size: the particle canvas is rendered at a capped pixel ratio and
 // upscaled in the 2D copy. Trails are soft lines and survive the upscale; the
 // fade pass over a DPR-3 phone screen at full size would not survive the
-// battery. The area cap bounds the desktop retina case.
-const MAX_SIM_RATIO = 1.5;
+// battery. The area cap bounds the desktop retina case (a 2× laptop lands
+// near ratio 1.2 from the cap alone); the ratio cap is what a phone hits —
+// at 2 a DPR-3 iPhone simulates 780 × 1690, 1.3 Mpx, and a point is still
+// crisp after the 1.5× copy, where at 1.5 it blurred into a faint smudge.
+const MAX_SIM_RATIO = 2;
 const MAX_SIM_PX = 2e6;
+// Phones get larger, brighter particles: a 1 px line at arm's length on a
+// bright screen outdoors is the thing users called "very small and not very
+// visible", while the same line on a desktop is the calm look asked for. A
+// coarse pointer on a small viewport is the phone test; a tablet keeps the
+// desktop look.
+const PHONE_POINT_SCALE = 1.6;
+const PHONE_ALPHA_SCALE = 1.35;
+const PHONE_MAX_CSS_PX = 600;
 const PARTICLES_PER_MPX = 1500;
 const MIN_PARTICLES = 1024;
 const MAX_PARTICLES = 16384;
@@ -330,6 +341,10 @@ export default function initWindParticles() {
   //
   // DRAWING
   //
+  const coarsePointer = typeof window.matchMedia === 'function'
+    && window.matchMedia('(pointer: coarse)').matches;
+  const isPhone = (cssW, cssH) => coarsePointer && Math.min(cssW, cssH) <= PHONE_MAX_CSS_PX;
+
   function simPixelRatio(cssW, cssH, pixelRatio) {
     const byArea = Math.sqrt(MAX_SIM_PX / Math.max(1, cssW * cssH));
     return Math.max(0.5, Math.min(pixelRatio, MAX_SIM_RATIO, byArea));
@@ -367,7 +382,11 @@ export default function initWindParticles() {
       renderer.clearTrails(entry.index);
       entry.extent = extent.slice();
     }
-    if (renderer.render(entry.index, extent, ratio, now)) {
+    const phone = isPhone(cssW, cssH);
+    const look = phone
+      ? { pointScale: PHONE_POINT_SCALE, alphaScale: PHONE_ALPHA_SCALE }
+      : { pointScale: 1, alphaScale: 1 };
+    if (renderer.render(entry.index, extent, ratio, now, look)) {
       entry.ctx.drawImage(renderer.canvas, 0, 0, w, h);
     }
     return entry.canvas;
