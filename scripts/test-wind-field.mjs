@@ -189,6 +189,25 @@ expectCanonical('length-1 time axis is accepted', parseGridCoverage(grid({
       + '&coords=POLYGON((19.5%2059.0%2C32.0%2059.0%2C32.0%2070.5%2C19.5%2070.5%2C19.5%2059.0))', area);
 }
 
+{
+  // The radar source's quality mask rides in as a third parameter and lands
+  // in the B channel; a model field (no quality asked for) is full quality.
+  const g = grid({ xs: [20, 21, 22], ys: [60, 61], axisNames: ['y', 'x'], extraAxis: 't' });
+  g.ranges.motion_quality = { type: 'NdArray', axisNames: ['t', 'y', 'x'], shape: [1, 2, 3], values: [1, 0, 1, 0, null, 1] };
+  const f = parseGridCoverage(g, '10u', '10v', 'motion_quality');
+  check('quality parsed per cell, null → 0', f && f.q[0] === 1 && f.q[1] === 0 && f.q[4] === 0 && f.q[5] === 1);
+  const enc = encodeField(f);
+  check('quality encodes into B', enc.data[0 * 4 + 2] === 255 && enc.data[1 * 4 + 2] === 0);
+  check('motion is untouched by the mask', enc.data[1 * 4 + 3] === 255 && decodeComponent(enc.data[1 * 4], enc.range) > 9);
+  check('asked-for quality that is missing rejects the document', parseGridCoverage(g, '10u', '10v', 'nope') === null);
+  const model = parseGridCoverage(grid({ xs: [20, 21, 22], ys: [60, 61], axisNames: ['y', 'x'] }), '10u', '10v');
+  check('no quality parameter → full quality', model.q.every((v) => v === 1) && encodeField(model).data[2] === 255);
+  const flipped = grid({ xs: [20, 21, 22], ys: [61, 60], axisNames: ['y', 'x'] });
+  flipped.ranges.motion_quality = { type: 'NdArray', axisNames: ['y', 'x'], shape: [2, 3], values: [0, 0, 0, 1, 1, 1] };
+  const ff = parseGridCoverage(flipped, '10u', '10v', 'motion_quality');
+  check('quality rows flip with the motion rows', ff && ff.q[0] === 1 && ff.q[3] === 0);
+}
+
 if (failures > 0) {
   console.log(`\n${failures} failure(s)`);
   process.exit(1);

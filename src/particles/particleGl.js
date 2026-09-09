@@ -47,8 +47,9 @@ void main() {
 }`;
 
 // Shared by the update and draw shaders: canvas fraction → m/s at that point.
-// Returns (u, v, valid). valid = 0 outside the fetched field or on a cell
-// without data; the callers let such a particle die.
+// Returns (u, v, quality, valid). valid = 0 outside the fetched field or on a
+// cell without data; the callers let such a particle die. quality is the
+// field's B channel (1 measured … 0 filled), alpha in the draw pass.
 const FIELD_GLSL = `
 uniform sampler2D u_field;
 uniform vec4 u_extent;      // EPSG:3857 minx, miny, maxx, maxy of the canvas
@@ -58,16 +59,16 @@ uniform vec2 u_fieldSize;   // cells
 uniform float u_speedRange; // m/s encoded as byte 255 (byte 0 = -range)
 const float R = 6378137.0;
 const float PI = 3.141592653589793;
-vec3 sampleField(vec2 pos) {
+vec4 sampleField(vec2 pos) {
   vec2 m = u_extent.xy + pos * (u_extent.zw - u_extent.xy);
   float lon = degrees(m.x / R);
   lon = mod(lon + 180.0, 360.0) - 180.0;
   float lat = degrees(2.0 * atan(exp(m.y / R)) - PI * 0.5);
   vec2 idx = (vec2(lon, lat) - u_fieldOrigin) / u_fieldStep;
-  if (any(lessThan(idx, vec2(-0.5))) || any(greaterThan(idx, u_fieldSize - 0.5))) return vec3(0.0);
+  if (any(lessThan(idx, vec2(-0.5))) || any(greaterThan(idx, u_fieldSize - 0.5))) return vec4(0.0);
   vec4 f = texture(u_field, (idx + 0.5) / u_fieldSize);
-  if (f.a < 0.5) return vec3(0.0);
-  return vec3((f.rg * 2.0 - 1.0) * u_speedRange, 1.0);
+  if (f.a < 0.5) return vec4(0.0);
+  return vec4((f.rg * 2.0 - 1.0) * u_speedRange, f.b, 1.0);
 }
 vec2 decodePos(vec4 c) { return c.ba + c.rg / 255.0; }
 `;
@@ -88,11 +89,11 @@ float rand(vec2 co) {
 }
 void main() {
   vec2 pos = decodePos(texture(u_particles, v_uv));
-  vec3 s = sampleField(pos);
+  vec4 s = sampleField(pos);
   vec2 next = pos + s.xy * u_speedFactor / u_canvasSize;
   vec2 seed = (pos + v_uv) * u_seed;
   float speedT = min(length(s.xy) / u_speedRange, 1.0);
-  float drop = s.z < 0.5 ? 1.0 : u_dropRate + speedT * u_dropRateBump;
+  float drop = s.w < 0.5 ? 1.0 : u_dropRate + speedT * u_dropRateBump;
   bool gone = any(lessThan(next, vec2(0.0))) || any(greaterThan(next, vec2(1.0)));
   if (gone || rand(seed) < drop) {
     next = vec2(rand(seed + 1.3), rand(seed + 2.1));
@@ -103,7 +104,11 @@ void main() {
 // gl_VertexID indexes the position texture, so the draw needs no vertex
 // buffer at all (WebGL2 permits a draw with no enabled attributes). The speed
 // normaliser is a fixed 15 m/s rather than the field's range so calm regions
-// look calm on every field, not relative to the day's strongest gust.
+// look calm on every field, not relative to the day's strongest gust. Quality
+// scales alpha too: a radar block filled from its neighbours (no echo to
+// match) draws at a third, so particles concentrate where it is raining and
+// go faint over clear sky — the issue's "masked for radar" styling — while a
+// model field (quality 1 everywhere) is untouched.
 const DRAW_VS = `#version 300 es
 precision highp float;
 ${FIELD_GLSL}
@@ -115,9 +120,9 @@ void main() {
   float i = float(gl_VertexID);
   vec2 uv = (vec2(mod(i, u_particlesRes), floor(i / u_particlesRes)) + 0.5) / u_particlesRes;
   vec2 pos = decodePos(texture(u_particles, uv));
-  vec3 s = sampleField(pos);
+  vec4 s = sampleField(pos);
   float t = min(length(s.xy) / 15.0, 1.0);
-  v_alpha = mix(0.35, 1.0, t) * s.z;
+  v_alpha = mix(0.35, 1.0, t) * mix(0.33, 1.0, s.z) * s.w;
   gl_Position = vec4(pos * 2.0 - 1.0, 0.0, 1.0);
   gl_PointSize = u_pointSize;
 }`;

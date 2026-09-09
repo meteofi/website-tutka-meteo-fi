@@ -827,9 +827,10 @@ const gliders = initGliders({ telemetry });
 // its per-pane layer factory can join paneDeps; fetching starts only when the
 // POI is switched on (applyPoiVisibility), and setTime feeds it the clock.
 const stormCells = initStormCells({ telemetry });
-// Wind particles (Tuuli): model 10 m wind as flowing particles, one shared
-// WebGL context for every pane. Fetching and the frame loop are gated by the
-// POI toggle (applyPoiVisibility); the clock only picks the model step.
+// Flowing particles (Tuuli / Sateen liike): model 10 m wind or the radar's
+// precipitation-motion field, one shared WebGL context for every pane. The two
+// POI rows are exclusive; applyPoiVisibility picks the source and gates the
+// fetching and the frame loop. The clock only picks the field's time.
 const wind = initWindParticles();
 
 // Departure board for a tapped railway station. Wall-clock live rather than
@@ -2707,13 +2708,27 @@ const poiRegistry = [
   {
     // Live data like stormcells: applyPoiVisibility drives the controller
     // (setEnabled) — the WebGL context, the frame loop and the field fetches
-    // exist only while this is on. Model wind, and labelled as such: the
-    // radar-motion source planned for the same layer is not wind (#256).
+    // exist only while one of the two particle rows is on. They are one layer
+    // with two sources, so they are `exclusive`: switching one on switches
+    // the other off (togglePoi / setPoiGroup), and the layer's visibility is
+    // the pair's OR, fanned out by hand in applyPoiVisibility rather than
+    // through layerKeys, where the second row's `false` would win.
     id: 'tuuli',
-    label: wind.label,
+    label: wind.modelLabel,
     icon: 'air',
     defaultOn: false,
-    layerKeys: ['windLayer'],
+    exclusive: 'particles',
+    layerKeys: [],
+  },
+  {
+    // The same particles over the radar's own motion field. Not wind — echo
+    // motion is steering flow plus propagation — hence the name (#256).
+    id: 'sateenliike',
+    label: wind.radarLabel,
+    icon: 'umbrella',
+    defaultOn: false,
+    exclusive: 'particles',
+    layerKeys: [],
   },
   {
     id: 'airfields',
@@ -2926,7 +2941,11 @@ function applyPoiVisibility() {
   });
   // Storm cells poll a live API — the toggle gates fetching, not just paint.
   stormCells.setEnabled(!!POI_STATE.stormcells);
-  wind.setEnabled(!!POI_STATE.tuuli);
+  // The particle rows: one layer, two exclusive sources. Source first, so a
+  // switch while on refetches rather than keeping the other field flowing.
+  wind.setSource(POI_STATE.sateenliike ? 'radar' : 'model');
+  wind.setEnabled(!!POI_STATE.tuuli || !!POI_STATE.sateenliike);
+  for (const pane of panes) pane.windLayer.setVisible(!!POI_STATE.tuuli || !!POI_STATE.sateenliike);
   trafficMessages.setEnabled(!!POI_STATE.liikennetiedotteet);
   weatherCameras.setEnabled(!!POI_STATE.kelikamerat);
   gliders.setEnabled(!!POI_STATE.gliders);
@@ -2940,6 +2959,18 @@ function applyPoiVisibility() {
   // The AIS subscription lives only while the layer is on.
   rescueVessels.setEnabled(!!POI_STATE.pelastusalukset);
   metar.setEnabled(!!POI_STATE.metar);
+}
+
+// Topics sharing an `exclusive` tag are one layer with several sources (the
+// particle rows): switching one on switches its siblings off. Called after the
+// state change and before applyPoiVisibility by every gesture that can turn a
+// topic on.
+function applyPoiExclusive(id) {
+  const entry = poiRegistry.find((e) => e.id === id);
+  if (!entry || !entry.exclusive || !POI_STATE[id]) return;
+  poiRegistry.forEach((other) => {
+    if (other !== entry && other.exclusive === entry.exclusive) POI_STATE[other.id] = false;
+  });
 }
 
 // Pressing the ROW is the remembering toggle: it hides or shows a topic without
@@ -2957,6 +2988,7 @@ function togglePoi(id) {
     && children.every((c) => !POI_STATE[poiChildKey(entry, c)])) {
     children.forEach((c) => { POI_STATE[poiChildKey(entry, c)] = true; });
   }
+  applyPoiExclusive(id);
   applyPoiVisibility();
   persistPoiState();
   if (poiMenu) poiMenu.refresh();
@@ -2976,6 +3008,7 @@ function setPoiGroup(id, on) {
   const children = (entry && entry.children) || [];
   POI_STATE[id] = on;
   if (on) children.forEach((c) => { POI_STATE[poiChildKey(entry, c)] = true; });
+  applyPoiExclusive(id);
   applyPoiVisibility();
   persistPoiState();
   if (poiMenu) poiMenu.refresh();
@@ -4004,7 +4037,7 @@ function shareAttributions() {
   // condition rather than a courtesy — see the airspace line below.
   if (POI_STATE.airfields) parts.add('Lentopaikat © Fintraffic ANS / SIA / openAIP (CC BY-NC 4.0)');
   if (POI_STATE.turnpoints) parts.add('Käännöspisteet © Ilmailuliitto');
-  if (POI_STATE.tuuli) parts.add(wind.attribution);
+  if (POI_STATE.tuuli || POI_STATE.sateenliike) parts.add(wind.attribution);
   // Required: openAIP is CC BY-NC, so the credit is a licence condition rather
   // than a courtesy.
   if (POI_STATE.airspace) parts.add('Ilmatilat © openAIP (CC BY-NC 4.0)');

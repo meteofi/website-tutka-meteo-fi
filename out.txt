@@ -1,0 +1,580 @@
+# HELP collections_degraded Collections in degraded state
+# TYPE collections_degraded gauge
+collections_degraded 2
+# HELP collections_failed Collections in failed state
+# TYPE collections_failed gauge
+collections_failed 0
+# HELP collections_healthy Collections in ready state
+# TYPE collections_healthy gauge
+collections_healthy 62
+# HELP collections_total Total configured collections
+# TYPE collections_total gauge
+collections_total 64
+# HELP geotiff_decoded_chunk_cache_bytes Bytes currently held in the GeoTIFF decoded-chunk cache
+# TYPE geotiff_decoded_chunk_cache_bytes gauge
+geotiff_decoded_chunk_cache_bytes 313996208
+# HELP geotiff_decoded_chunk_cache_capacity_bytes Configured GeoTIFF decoded-chunk cache capacity in bytes
+# TYPE geotiff_decoded_chunk_cache_capacity_bytes gauge
+geotiff_decoded_chunk_cache_capacity_bytes 2147483648
+# HELP geotiff_decoded_chunk_cache_hits_total GeoTIFF decoded-chunk cache hits (local sources)
+# TYPE geotiff_decoded_chunk_cache_hits_total counter
+geotiff_decoded_chunk_cache_hits_total 25560
+# HELP geotiff_decoded_chunk_cache_misses_total GeoTIFF decoded-chunk cache misses (tile decompressions)
+# TYPE geotiff_decoded_chunk_cache_misses_total counter
+geotiff_decoded_chunk_cache_misses_total 5298
+# HELP grid_cache_bytes Bytes currently held in the GRIB grid cache
+# TYPE grid_cache_bytes gauge
+grid_cache_bytes{collection="ecmwf-ifs"} 157813696
+grid_cache_bytes{collection="noaa-gfs"} 107977792
+# HELP grid_cache_capacity_bytes Configured GRIB grid cache capacity in bytes
+# TYPE grid_cache_capacity_bytes gauge
+grid_cache_capacity_bytes{collection="ecmwf-ifs"} 268435456
+grid_cache_capacity_bytes{collection="noaa-gfs"} 268435456
+# HELP grid_cache_entries Number of entries currently in the GRIB grid cache
+# TYPE grid_cache_entries gauge
+grid_cache_entries{collection="ecmwf-ifs"} 19
+grid_cache_entries{collection="noaa-gfs"} 13
+# HELP grid_cache_hits_total GRIB grid cache hits
+# TYPE grid_cache_hits_total counter
+grid_cache_hits_total{collection="ecmwf-ifs"} 1
+# HELP grid_cache_misses_total GRIB grid cache misses
+# TYPE grid_cache_misses_total counter
+grid_cache_misses_total{collection="ecmwf-ifs"} 19
+grid_cache_misses_total{collection="noaa-gfs"} 13
+# HELP http_request_duration_seconds HTTP request duration in seconds
+# TYPE http_request_duration_seconds histogram
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections",le="0.001"} 0
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections",le="0.005"} 0
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections",le="0.01"} 3
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections",le="0.025"} 3
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections",le="0.05"} 3
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections",le="0.1"} 3
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections",le="0.25"} 3
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections",le="0.5"} 3
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections",le="1"} 3
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections",le="1.5"} 3
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections",le="2"} 3
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections",le="3"} 3
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections",le="4"} 3
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections",le="5"} 3
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections",le="10"} 3
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections",le="+Inf"} 3
+http_request_duration_seconds_sum{method="GET",path="/edr/collections"} 0.025029766000000002
+http_request_duration_seconds_count{method="GET",path="/edr/collections"} 3
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}",le="0.001"} 4
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}",le="0.005"} 4
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}",le="0.01"} 4
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}",le="0.025"} 4
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}",le="0.05"} 4
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}",le="0.1"} 4
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}",le="0.25"} 4
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}",le="0.5"} 4
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}",le="1"} 4
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}",le="1.5"} 4
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}",le="2"} 4
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}",le="3"} 4
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}",le="4"} 4
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}",le="5"} 4
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}",le="10"} 4
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}",le="+Inf"} 4
+http_request_duration_seconds_sum{method="GET",path="/edr/collections/{id}"} 0.000146139
+http_request_duration_seconds_count{method="GET",path="/edr/collections/{id}"} 4
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/area",le="0.001"} 21
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/area",le="0.005"} 79
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/area",le="0.01"} 91
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/area",le="0.025"} 102
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/area",le="0.05"} 112
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/area",le="0.1"} 114
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/area",le="0.25"} 119
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/area",le="0.5"} 126
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/area",le="1"} 126
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/area",le="1.5"} 126
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/area",le="2"} 127
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/area",le="3"} 127
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/area",le="4"} 127
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/area",le="5"} 127
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/area",le="10"} 127
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/area",le="+Inf"} 127
+http_request_duration_seconds_sum{method="GET",path="/edr/collections/{id}/area"} 5.884014294999999
+http_request_duration_seconds_count{method="GET",path="/edr/collections/{id}/area"} 127
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/instances",le="0.001"} 2
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/instances",le="0.005"} 2
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/instances",le="0.01"} 2
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/instances",le="0.025"} 2
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/instances",le="0.05"} 2
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/instances",le="0.1"} 2
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/instances",le="0.25"} 2
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/instances",le="0.5"} 2
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/instances",le="1"} 2
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/instances",le="1.5"} 2
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/instances",le="2"} 2
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/instances",le="3"} 2
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/instances",le="4"} 2
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/instances",le="5"} 2
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/instances",le="10"} 2
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/instances",le="+Inf"} 2
+http_request_duration_seconds_sum{method="GET",path="/edr/collections/{id}/instances"} 0.000038855999999999995
+http_request_duration_seconds_count{method="GET",path="/edr/collections/{id}/instances"} 2
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/position",le="0.001"} 7
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/position",le="0.005"} 9
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/position",le="0.01"} 9
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/position",le="0.025"} 9
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/position",le="0.05"} 9
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/position",le="0.1"} 9
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/position",le="0.25"} 9
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/position",le="0.5"} 9
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/position",le="1"} 9
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/position",le="1.5"} 9
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/position",le="2"} 9
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/position",le="3"} 9
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/position",le="4"} 9
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/position",le="5"} 9
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/position",le="10"} 9
+http_request_duration_seconds_bucket{method="GET",path="/edr/collections/{id}/position",le="+Inf"} 9
+http_request_duration_seconds_sum{method="GET",path="/edr/collections/{id}/position"} 0.00555244
+http_request_duration_seconds_count{method="GET",path="/edr/collections/{id}/position"} 9
+http_request_duration_seconds_bucket{method="GET",path="/features/collections",le="0.001"} 1
+http_request_duration_seconds_bucket{method="GET",path="/features/collections",le="0.005"} 1
+http_request_duration_seconds_bucket{method="GET",path="/features/collections",le="0.01"} 1
+http_request_duration_seconds_bucket{method="GET",path="/features/collections",le="0.025"} 1
+http_request_duration_seconds_bucket{method="GET",path="/features/collections",le="0.05"} 1
+http_request_duration_seconds_bucket{method="GET",path="/features/collections",le="0.1"} 1
+http_request_duration_seconds_bucket{method="GET",path="/features/collections",le="0.25"} 1
+http_request_duration_seconds_bucket{method="GET",path="/features/collections",le="0.5"} 1
+http_request_duration_seconds_bucket{method="GET",path="/features/collections",le="1"} 1
+http_request_duration_seconds_bucket{method="GET",path="/features/collections",le="1.5"} 1
+http_request_duration_seconds_bucket{method="GET",path="/features/collections",le="2"} 1
+http_request_duration_seconds_bucket{method="GET",path="/features/collections",le="3"} 1
+http_request_duration_seconds_bucket{method="GET",path="/features/collections",le="4"} 1
+http_request_duration_seconds_bucket{method="GET",path="/features/collections",le="5"} 1
+http_request_duration_seconds_bucket{method="GET",path="/features/collections",le="10"} 1
+http_request_duration_seconds_bucket{method="GET",path="/features/collections",le="+Inf"} 1
+http_request_duration_seconds_sum{method="GET",path="/features/collections"} 0.000260018
+http_request_duration_seconds_count{method="GET",path="/features/collections"} 1
+http_request_duration_seconds_bucket{method="GET",path="/features/collections/{id}",le="0.001"} 17
+http_request_duration_seconds_bucket{method="GET",path="/features/collections/{id}",le="0.005"} 17
+http_request_duration_seconds_bucket{method="GET",path="/features/collections/{id}",le="0.01"} 17
+http_request_duration_seconds_bucket{method="GET",path="/features/collections/{id}",le="0.025"} 17
+http_request_duration_seconds_bucket{method="GET",path="/features/collections/{id}",le="0.05"} 17
+http_request_duration_seconds_bucket{method="GET",path="/features/collections/{id}",le="0.1"} 17
+http_request_duration_seconds_bucket{method="GET",path="/features/collections/{id}",le="0.25"} 17
+http_request_duration_seconds_bucket{method="GET",path="/features/collections/{id}",le="0.5"} 17
+http_request_duration_seconds_bucket{method="GET",path="/features/collections/{id}",le="1"} 17
+http_request_duration_seconds_bucket{method="GET",path="/features/collections/{id}",le="1.5"} 17
+http_request_duration_seconds_bucket{method="GET",path="/features/collections/{id}",le="2"} 17
+http_request_duration_seconds_bucket{method="GET",path="/features/collections/{id}",le="3"} 17
+http_request_duration_seconds_bucket{method="GET",path="/features/collections/{id}",le="4"} 17
+http_request_duration_seconds_bucket{method="GET",path="/features/collections/{id}",le="5"} 17
+http_request_duration_seconds_bucket{method="GET",path="/features/collections/{id}",le="10"} 17
+http_request_duration_seconds_bucket{method="GET",path="/features/collections/{id}",le="+Inf"} 17
+http_request_duration_seconds_sum{method="GET",path="/features/collections/{id}"} 0.001941622
+http_request_duration_seconds_count{method="GET",path="/features/collections/{id}"} 17
+http_request_duration_seconds_bucket{method="GET",path="/features/collections/{id}/items",le="0.001"} 62
+http_request_duration_seconds_bucket{method="GET",path="/features/collections/{id}/items",le="0.005"} 69
+http_request_duration_seconds_bucket{method="GET",path="/features/collections/{id}/items",le="0.01"} 70
+http_request_duration_seconds_bucket{method="GET",path="/features/collections/{id}/items",le="0.025"} 70
+http_request_duration_seconds_bucket{method="GET",path="/features/collections/{id}/items",le="0.05"} 70
+http_request_duration_seconds_bucket{method="GET",path="/features/collections/{id}/items",le="0.1"} 70
+http_request_duration_seconds_bucket{method="GET",path="/features/collections/{id}/items",le="0.25"} 70
+http_request_duration_seconds_bucket{method="GET",path="/features/collections/{id}/items",le="0.5"} 70
+http_request_duration_seconds_bucket{method="GET",path="/features/collections/{id}/items",le="1"} 70
+http_request_duration_seconds_bucket{method="GET",path="/features/collections/{id}/items",le="1.5"} 70
+http_request_duration_seconds_bucket{method="GET",path="/features/collections/{id}/items",le="2"} 70
+http_request_duration_seconds_bucket{method="GET",path="/features/collections/{id}/items",le="3"} 70
+http_request_duration_seconds_bucket{method="GET",path="/features/collections/{id}/items",le="4"} 70
+http_request_duration_seconds_bucket{method="GET",path="/features/collections/{id}/items",le="5"} 70
+http_request_duration_seconds_bucket{method="GET",path="/features/collections/{id}/items",le="10"} 70
+http_request_duration_seconds_bucket{method="GET",path="/features/collections/{id}/items",le="+Inf"} 70
+http_request_duration_seconds_sum{method="GET",path="/features/collections/{id}/items"} 0.041958827
+http_request_duration_seconds_count{method="GET",path="/features/collections/{id}/items"} 70
+http_request_duration_seconds_bucket{method="GET",path="/health",le="0.001"} 4
+http_request_duration_seconds_bucket{method="GET",path="/health",le="0.005"} 15
+http_request_duration_seconds_bucket{method="GET",path="/health",le="0.01"} 15
+http_request_duration_seconds_bucket{method="GET",path="/health",le="0.025"} 15
+http_request_duration_seconds_bucket{method="GET",path="/health",le="0.05"} 15
+http_request_duration_seconds_bucket{method="GET",path="/health",le="0.1"} 15
+http_request_duration_seconds_bucket{method="GET",path="/health",le="0.25"} 15
+http_request_duration_seconds_bucket{method="GET",path="/health",le="0.5"} 15
+http_request_duration_seconds_bucket{method="GET",path="/health",le="1"} 15
+http_request_duration_seconds_bucket{method="GET",path="/health",le="1.5"} 15
+http_request_duration_seconds_bucket{method="GET",path="/health",le="2"} 15
+http_request_duration_seconds_bucket{method="GET",path="/health",le="3"} 15
+http_request_duration_seconds_bucket{method="GET",path="/health",le="4"} 15
+http_request_duration_seconds_bucket{method="GET",path="/health",le="5"} 15
+http_request_duration_seconds_bucket{method="GET",path="/health",le="10"} 15
+http_request_duration_seconds_bucket{method="GET",path="/health",le="+Inf"} 15
+http_request_duration_seconds_sum{method="GET",path="/health"} 0.018189781999999998
+http_request_duration_seconds_count{method="GET",path="/health"} 15
+http_request_duration_seconds_bucket{method="GET",path="/metrics",le="0.001"} 24
+http_request_duration_seconds_bucket{method="GET",path="/metrics",le="0.005"} 42
+http_request_duration_seconds_bucket{method="GET",path="/metrics",le="0.01"} 42
+http_request_duration_seconds_bucket{method="GET",path="/metrics",le="0.025"} 42
+http_request_duration_seconds_bucket{method="GET",path="/metrics",le="0.05"} 42
+http_request_duration_seconds_bucket{method="GET",path="/metrics",le="0.1"} 42
+http_request_duration_seconds_bucket{method="GET",path="/metrics",le="0.25"} 42
+http_request_duration_seconds_bucket{method="GET",path="/metrics",le="0.5"} 42
+http_request_duration_seconds_bucket{method="GET",path="/metrics",le="1"} 42
+http_request_duration_seconds_bucket{method="GET",path="/metrics",le="1.5"} 42
+http_request_duration_seconds_bucket{method="GET",path="/metrics",le="2"} 42
+http_request_duration_seconds_bucket{method="GET",path="/metrics",le="3"} 42
+http_request_duration_seconds_bucket{method="GET",path="/metrics",le="4"} 42
+http_request_duration_seconds_bucket{method="GET",path="/metrics",le="5"} 42
+http_request_duration_seconds_bucket{method="GET",path="/metrics",le="10"} 42
+http_request_duration_seconds_bucket{method="GET",path="/metrics",le="+Inf"} 42
+http_request_duration_seconds_sum{method="GET",path="/metrics"} 0.052168613
+http_request_duration_seconds_count{method="GET",path="/metrics"} 42
+http_request_duration_seconds_bucket{method="GET",path="/tiles/collections/{id}/tiles/{tileMatrixSetId}/{tileMatrix}/{tileRow}/{tileCol}",le="0.001"} 8
+http_request_duration_seconds_bucket{method="GET",path="/tiles/collections/{id}/tiles/{tileMatrixSetId}/{tileMatrix}/{tileRow}/{tileCol}",le="0.005"} 14
+http_request_duration_seconds_bucket{method="GET",path="/tiles/collections/{id}/tiles/{tileMatrixSetId}/{tileMatrix}/{tileRow}/{tileCol}",le="0.01"} 15
+http_request_duration_seconds_bucket{method="GET",path="/tiles/collections/{id}/tiles/{tileMatrixSetId}/{tileMatrix}/{tileRow}/{tileCol}",le="0.025"} 20
+http_request_duration_seconds_bucket{method="GET",path="/tiles/collections/{id}/tiles/{tileMatrixSetId}/{tileMatrix}/{tileRow}/{tileCol}",le="0.05"} 22
+http_request_duration_seconds_bucket{method="GET",path="/tiles/collections/{id}/tiles/{tileMatrixSetId}/{tileMatrix}/{tileRow}/{tileCol}",le="0.1"} 24
+http_request_duration_seconds_bucket{method="GET",path="/tiles/collections/{id}/tiles/{tileMatrixSetId}/{tileMatrix}/{tileRow}/{tileCol}",le="0.25"} 24
+http_request_duration_seconds_bucket{method="GET",path="/tiles/collections/{id}/tiles/{tileMatrixSetId}/{tileMatrix}/{tileRow}/{tileCol}",le="0.5"} 24
+http_request_duration_seconds_bucket{method="GET",path="/tiles/collections/{id}/tiles/{tileMatrixSetId}/{tileMatrix}/{tileRow}/{tileCol}",le="1"} 24
+http_request_duration_seconds_bucket{method="GET",path="/tiles/collections/{id}/tiles/{tileMatrixSetId}/{tileMatrix}/{tileRow}/{tileCol}",le="1.5"} 24
+http_request_duration_seconds_bucket{method="GET",path="/tiles/collections/{id}/tiles/{tileMatrixSetId}/{tileMatrix}/{tileRow}/{tileCol}",le="2"} 24
+http_request_duration_seconds_bucket{method="GET",path="/tiles/collections/{id}/tiles/{tileMatrixSetId}/{tileMatrix}/{tileRow}/{tileCol}",le="3"} 24
+http_request_duration_seconds_bucket{method="GET",path="/tiles/collections/{id}/tiles/{tileMatrixSetId}/{tileMatrix}/{tileRow}/{tileCol}",le="4"} 24
+http_request_duration_seconds_bucket{method="GET",path="/tiles/collections/{id}/tiles/{tileMatrixSetId}/{tileMatrix}/{tileRow}/{tileCol}",le="5"} 24
+http_request_duration_seconds_bucket{method="GET",path="/tiles/collections/{id}/tiles/{tileMatrixSetId}/{tileMatrix}/{tileRow}/{tileCol}",le="10"} 24
+http_request_duration_seconds_bucket{method="GET",path="/tiles/collections/{id}/tiles/{tileMatrixSetId}/{tileMatrix}/{tileRow}/{tileCol}",le="+Inf"} 24
+http_request_duration_seconds_sum{method="GET",path="/tiles/collections/{id}/tiles/{tileMatrixSetId}/{tileMatrix}/{tileRow}/{tileCol}"} 0.310499411
+http_request_duration_seconds_count{method="GET",path="/tiles/collections/{id}/tiles/{tileMatrixSetId}/{tileMatrix}/{tileRow}/{tileCol}"} 24
+http_request_duration_seconds_bucket{method="GET",path="/wms",le="0.001"} 35
+http_request_duration_seconds_bucket{method="GET",path="/wms",le="0.005"} 168
+http_request_duration_seconds_bucket{method="GET",path="/wms",le="0.01"} 193
+http_request_duration_seconds_bucket{method="GET",path="/wms",le="0.025"} 339
+http_request_duration_seconds_bucket{method="GET",path="/wms",le="0.05"} 421
+http_request_duration_seconds_bucket{method="GET",path="/wms",le="0.1"} 607
+http_request_duration_seconds_bucket{method="GET",path="/wms",le="0.25"} 708
+http_request_duration_seconds_bucket{method="GET",path="/wms",le="0.5"} 725
+http_request_duration_seconds_bucket{method="GET",path="/wms",le="1"} 738
+http_request_duration_seconds_bucket{method="GET",path="/wms",le="1.5"} 738
+http_request_duration_seconds_bucket{method="GET",path="/wms",le="2"} 738
+http_request_duration_seconds_bucket{method="GET",path="/wms",le="3"} 738
+http_request_duration_seconds_bucket{method="GET",path="/wms",le="4"} 738
+http_request_duration_seconds_bucket{method="GET",path="/wms",le="5"} 738
+http_request_duration_seconds_bucket{method="GET",path="/wms",le="10"} 738
+http_request_duration_seconds_bucket{method="GET",path="/wms",le="+Inf"} 738
+http_request_duration_seconds_sum{method="GET",path="/wms"} 48.272751653000036
+http_request_duration_seconds_count{method="GET",path="/wms"} 738
+http_request_duration_seconds_bucket{method="GET",path="unmatched",le="0.001"} 4
+http_request_duration_seconds_bucket{method="GET",path="unmatched",le="0.005"} 4
+http_request_duration_seconds_bucket{method="GET",path="unmatched",le="0.01"} 4
+http_request_duration_seconds_bucket{method="GET",path="unmatched",le="0.025"} 4
+http_request_duration_seconds_bucket{method="GET",path="unmatched",le="0.05"} 4
+http_request_duration_seconds_bucket{method="GET",path="unmatched",le="0.1"} 4
+http_request_duration_seconds_bucket{method="GET",path="unmatched",le="0.25"} 4
+http_request_duration_seconds_bucket{method="GET",path="unmatched",le="0.5"} 4
+http_request_duration_seconds_bucket{method="GET",path="unmatched",le="1"} 4
+http_request_duration_seconds_bucket{method="GET",path="unmatched",le="1.5"} 4
+http_request_duration_seconds_bucket{method="GET",path="unmatched",le="2"} 4
+http_request_duration_seconds_bucket{method="GET",path="unmatched",le="3"} 4
+http_request_duration_seconds_bucket{method="GET",path="unmatched",le="4"} 4
+http_request_duration_seconds_bucket{method="GET",path="unmatched",le="5"} 4
+http_request_duration_seconds_bucket{method="GET",path="unmatched",le="10"} 4
+http_request_duration_seconds_bucket{method="GET",path="unmatched",le="+Inf"} 4
+http_request_duration_seconds_sum{method="GET",path="unmatched"} 0.000012502999999999999
+http_request_duration_seconds_count{method="GET",path="unmatched"} 4
+http_request_duration_seconds_bucket{method="HEAD",path="/edr/collections",le="0.001"} 0
+http_request_duration_seconds_bucket{method="HEAD",path="/edr/collections",le="0.005"} 1
+http_request_duration_seconds_bucket{method="HEAD",path="/edr/collections",le="0.01"} 1
+http_request_duration_seconds_bucket{method="HEAD",path="/edr/collections",le="0.025"} 1
+http_request_duration_seconds_bucket{method="HEAD",path="/edr/collections",le="0.05"} 1
+http_request_duration_seconds_bucket{method="HEAD",path="/edr/collections",le="0.1"} 1
+http_request_duration_seconds_bucket{method="HEAD",path="/edr/collections",le="0.25"} 1
+http_request_duration_seconds_bucket{method="HEAD",path="/edr/collections",le="0.5"} 1
+http_request_duration_seconds_bucket{method="HEAD",path="/edr/collections",le="1"} 1
+http_request_duration_seconds_bucket{method="HEAD",path="/edr/collections",le="1.5"} 1
+http_request_duration_seconds_bucket{method="HEAD",path="/edr/collections",le="2"} 1
+http_request_duration_seconds_bucket{method="HEAD",path="/edr/collections",le="3"} 1
+http_request_duration_seconds_bucket{method="HEAD",path="/edr/collections",le="4"} 1
+http_request_duration_seconds_bucket{method="HEAD",path="/edr/collections",le="5"} 1
+http_request_duration_seconds_bucket{method="HEAD",path="/edr/collections",le="10"} 1
+http_request_duration_seconds_bucket{method="HEAD",path="/edr/collections",le="+Inf"} 1
+http_request_duration_seconds_sum{method="HEAD",path="/edr/collections"} 0.004595136
+http_request_duration_seconds_count{method="HEAD",path="/edr/collections"} 1
+# HELP http_requests_total Total HTTP requests
+# TYPE http_requests_total counter
+http_requests_total{method="GET",path="/edr/collections",status="200"} 3
+http_requests_total{method="GET",path="/edr/collections/{id}",status="404"} 4
+http_requests_total{method="GET",path="/edr/collections/{id}/area",status="200"} 125
+http_requests_total{method="GET",path="/edr/collections/{id}/area",status="304"} 1
+http_requests_total{method="GET",path="/edr/collections/{id}/area",status="404"} 1
+http_requests_total{method="GET",path="/edr/collections/{id}/instances",status="404"} 2
+http_requests_total{method="GET",path="/edr/collections/{id}/position",status="200"} 9
+http_requests_total{method="GET",path="/features/collections",status="200"} 1
+http_requests_total{method="GET",path="/features/collections/{id}",status="200"} 10
+http_requests_total{method="GET",path="/features/collections/{id}",status="304"} 6
+http_requests_total{method="GET",path="/features/collections/{id}",status="404"} 1
+http_requests_total{method="GET",path="/features/collections/{id}/items",status="200"} 70
+http_requests_total{method="GET",path="/health",status="200"} 15
+http_requests_total{method="GET",path="/metrics",status="200"} 42
+http_requests_total{method="GET",path="/tiles/collections/{id}/tiles/{tileMatrixSetId}/{tileMatrix}/{tileRow}/{tileCol}",status="200"} 20
+http_requests_total{method="GET",path="/tiles/collections/{id}/tiles/{tileMatrixSetId}/{tileMatrix}/{tileRow}/{tileCol}",status="304"} 4
+http_requests_total{method="GET",path="/wms",status="200"} 738
+http_requests_total{method="GET",path="unmatched",status="404"} 4
+http_requests_total{method="HEAD",path="/edr/collections",status="200"} 1
+# HELP http_response_bytes_total Total HTTP response body bytes sent
+# TYPE http_response_bytes_total counter
+http_response_bytes_total{method="GET",path="/edr/collections"} 551214
+http_response_bytes_total{method="GET",path="/edr/collections/{id}"} 302
+http_response_bytes_total{method="GET",path="/edr/collections/{id}/area"} 18359878
+http_response_bytes_total{method="GET",path="/edr/collections/{id}/instances"} 151
+http_response_bytes_total{method="GET",path="/edr/collections/{id}/position"} 10382
+http_response_bytes_total{method="GET",path="/features/collections"} 17047
+http_response_bytes_total{method="GET",path="/features/collections/{id}"} 15472
+http_response_bytes_total{method="GET",path="/features/collections/{id}/items"} 957857
+http_response_bytes_total{method="GET",path="/health"} 885924
+http_response_bytes_total{method="GET",path="/metrics"} 1382716
+http_response_bytes_total{method="GET",path="/tiles/collections/{id}/tiles/{tileMatrixSetId}/{tileMatrix}/{tileRow}/{tileCol}"} 1115736
+http_response_bytes_total{method="GET",path="/wms"} 188378059
+http_response_bytes_total{method="GET",path="unmatched"} 0
+http_response_bytes_total{method="HEAD",path="/edr/collections"} 183738
+# HELP jemalloc_active_bytes Bytes in active pages backing allocations (>= allocated; gap = internal fragmentation)
+# TYPE jemalloc_active_bytes gauge
+jemalloc_active_bytes 7838056448
+# HELP jemalloc_allocated_bytes Bytes in live allocations (application-held)
+# TYPE jemalloc_allocated_bytes gauge
+jemalloc_allocated_bytes 7727326448
+# HELP jemalloc_mapped_bytes Total bytes in jemalloc extent mappings
+# TYPE jemalloc_mapped_bytes gauge
+jemalloc_mapped_bytes 8121630720
+# HELP jemalloc_resident_bytes Physical bytes jemalloc keeps mapped (>= active; gap = dirty pages awaiting decay)
+# TYPE jemalloc_resident_bytes gauge
+jemalloc_resident_bytes 8027250688
+# HELP jemalloc_retained_bytes Virtual address space retained for reuse (not physically backed)
+# TYPE jemalloc_retained_bytes gauge
+jemalloc_retained_bytes 4121018368
+# HELP lightning_strike_cache_bytes Bytes currently held in the Lightning strike-window cache
+# TYPE lightning_strike_cache_bytes gauge
+lightning_strike_cache_bytes 0
+# HELP lightning_strike_cache_capacity_bytes Configured Lightning strike-window cache capacity in bytes
+# TYPE lightning_strike_cache_capacity_bytes gauge
+lightning_strike_cache_capacity_bytes 33554432
+# HELP lightning_strike_cache_hits_total Lightning strike-window cache hits (events map layers)
+# TYPE lightning_strike_cache_hits_total counter
+lightning_strike_cache_hits_total 0
+# HELP lightning_strike_cache_misses_total Lightning strike-window cache misses (window DB fetches)
+# TYPE lightning_strike_cache_misses_total counter
+lightning_strike_cache_misses_total 0
+# HELP metatile_cache_bytes Bytes currently held in the meta-tile pixel cache
+# TYPE metatile_cache_bytes gauge
+metatile_cache_bytes 1672073074
+# HELP metatile_cache_capacity_bytes Configured meta-tile pixel cache capacity in bytes
+# TYPE metatile_cache_capacity_bytes gauge
+metatile_cache_capacity_bytes 8589934592
+# HELP metatile_cache_entries Number of entries currently in the meta-tile pixel cache
+# TYPE metatile_cache_entries gauge
+metatile_cache_entries 11375
+# HELP metatile_cache_hits_total Meta-tile pixel cache hits
+# TYPE metatile_cache_hits_total counter
+metatile_cache_hits_total 13148
+# HELP metatile_cache_misses_total Meta-tile pixel cache misses
+# TYPE metatile_cache_misses_total counter
+metatile_cache_misses_total 11465
+# HELP metatile_declines_total WMS renders where meta-tiling declined because the covering tile count exceeded the pixel-proportional budget, falling back to an uncached direct render (#491). A sustained rate means clients are sending viewports outside the cacheable envelope (extreme bbox/pixel aspect mismatch) and re-render every frame
+# TYPE metatile_declines_total counter
+metatile_declines_total 0
+# HELP nowcast_cell_births_total Storm-cell tracks born (blob matched no previous track) — #643
+# TYPE nowcast_cell_births_total counter
+nowcast_cell_births_total{collection="fmi-radar-nowcast"} 98
+# HELP nowcast_cell_deaths_total Storm-cell tracks retired (previous track matched no blob) — #643
+# TYPE nowcast_cell_deaths_total counter
+nowcast_cell_deaths_total{collection="fmi-radar-nowcast"} 15
+# HELP nowcast_cell_pass1_matches_total Storm-cell matches made on the motion-compensated pass; the denominator for the pass-2 share
+# TYPE nowcast_cell_pass1_matches_total counter
+nowcast_cell_pass1_matches_total{collection="fmi-radar-nowcast"} 55
+# HELP nowcast_cell_pass2_matches_total Storm-cell matches made on the raw-position fallback pass; a rising share of all matches is the first sign of identity swaps (#639)
+# TYPE nowcast_cell_pass2_matches_total counter
+nowcast_cell_pass2_matches_total{collection="fmi-radar-nowcast"} 8
+# HELP nowcast_cell_velocity_clamps_total Storm-cell displacements clamped at MAX_CELL_SPEED_MS before the velocity EMA — jumps the tracker already rejected as motion
+# TYPE nowcast_cell_velocity_clamps_total counter
+nowcast_cell_velocity_clamps_total{collection="fmi-radar-nowcast"} 6
+# HELP nowcast_frames Frames (analysis + leads) in the latest nowcast generation
+# TYPE nowcast_frames gauge
+nowcast_frames{collection="fmi-radar-nowcast"} 25
+# HELP nowcast_generations_total Nowcast generations produced (one per new source frame)
+# TYPE nowcast_generations_total counter
+nowcast_generations_total{collection="fmi-radar-nowcast"} 2
+# HELP nowcast_last_generation_duration_ms Wall-clock duration of the most recent nowcast generation
+# TYPE nowcast_last_generation_duration_ms gauge
+nowcast_last_generation_duration_ms{collection="fmi-radar-nowcast"} 28227
+# HELP nowcast_lead1_csi_permille Realized lead-1 skill: CSI x1000 of the previous generation's prediction scored against the newest analysis frame (#542)
+# TYPE nowcast_lead1_csi_permille gauge
+nowcast_lead1_csi_permille{collection="fmi-radar-nowcast"} 840
+# HELP nowcast_lead1_persistence_csi_permille Persistence baseline for nowcast_lead1_csi_permille: CSI x1000 of the previous analysis frame scored against the newest one
+# TYPE nowcast_lead1_persistence_csi_permille gauge
+nowcast_lead1_persistence_csi_permille{collection="fmi-radar-nowcast"} 766
+# HELP nowcast_retained_generations Generations currently retained (reference_time pinning window)
+# TYPE nowcast_retained_generations gauge
+nowcast_retained_generations{collection="fmi-radar-nowcast"} 2
+# HELP nowcast_source_lag_seconds Age of the source anchor frame when the last generation finished
+# TYPE nowcast_source_lag_seconds gauge
+nowcast_source_lag_seconds{collection="fmi-radar-nowcast"} 556
+# HELP postgis_metadata_refresh_failures_total Total failed metadata refreshes
+# TYPE postgis_metadata_refresh_failures_total counter
+postgis_metadata_refresh_failures_total{collection="fmi-lightning"} 0
+postgis_metadata_refresh_failures_total{collection="fmi-obs"} 0
+# HELP postgis_metadata_refresh_seconds Duration of the most recent PostGIS metadata refresh, seconds
+# TYPE postgis_metadata_refresh_seconds gauge
+postgis_metadata_refresh_seconds{collection="fmi-lightning"} 0.342
+postgis_metadata_refresh_seconds{collection="fmi-obs"} 1.056
+# HELP postgis_metadata_refreshes_total Total metadata refreshes
+# TYPE postgis_metadata_refreshes_total counter
+postgis_metadata_refreshes_total{collection="fmi-lightning"} 2
+postgis_metadata_refreshes_total{collection="fmi-obs"} 2
+# HELP postgis_ping_failures_total Total failed SELECT 1 health pings
+# TYPE postgis_ping_failures_total counter
+postgis_ping_failures_total{collection="fmi-lightning"} 0
+postgis_ping_failures_total{collection="fmi-obs"} 0
+# HELP postgis_pings_total Total SELECT 1 health pings (failure ratio = failures_total / pings_total)
+# TYPE postgis_pings_total counter
+postgis_pings_total{collection="fmi-lightning"} 11
+postgis_pings_total{collection="fmi-obs"} 11
+# HELP postgis_pool_available Connections acquirable now without waiting (open-idle + unallocated slots up to max)
+# TYPE postgis_pool_available gauge
+postgis_pool_available{pool_key="meteocore_ro@geoserver-lightning-db:5432/weather"} 15
+# HELP postgis_pool_max_size Configured PostGIS pool capacity (max connections)
+# TYPE postgis_pool_max_size gauge
+postgis_pool_max_size{pool_key="meteocore_ro@geoserver-lightning-db:5432/weather"} 16
+# HELP postgis_pool_size Currently open/managed connections in the PostGIS pool
+# TYPE postgis_pool_size gauge
+postgis_pool_size{pool_key="meteocore_ro@geoserver-lightning-db:5432/weather"} 15
+# HELP postgis_pool_waiting Tasks waiting for a PostGIS connection
+# TYPE postgis_pool_waiting gauge
+postgis_pool_waiting{pool_key="meteocore_ro@geoserver-lightning-db:5432/weather"} 0
+# HELP postgis_up 1 if the PostGIS collection's DB is reachable (latest 30s SELECT 1 ping), else 0
+# TYPE postgis_up gauge
+postgis_up{collection="fmi-lightning"} 1
+postgis_up{collection="fmi-obs"} 1
+# HELP process_resident_memory_bytes Resident set size (VmRSS) of the server process
+# TYPE process_resident_memory_bytes gauge
+process_resident_memory_bytes 7829725184
+# HELP process_swap_memory_bytes Swapped-out anonymous memory (VmSwap) of the server process
+# TYPE process_swap_memory_bytes gauge
+process_swap_memory_bytes 0
+# HELP pvol_cell_set_cache_bytes Bytes currently held in the PVOL storm-cell set cache
+# TYPE pvol_cell_set_cache_bytes gauge
+pvol_cell_set_cache_bytes 0
+# HELP pvol_cell_set_cache_capacity_bytes Configured PVOL storm-cell set cache capacity in bytes
+# TYPE pvol_cell_set_cache_capacity_bytes gauge
+pvol_cell_set_cache_capacity_bytes 67108864
+# HELP pvol_cell_set_cache_hits_total PVOL storm-cell set cache hits
+# TYPE pvol_cell_set_cache_hits_total counter
+pvol_cell_set_cache_hits_total 0
+# HELP pvol_cell_set_cache_misses_total PVOL storm-cell set cache misses (full segmentations)
+# TYPE pvol_cell_set_cache_misses_total counter
+pvol_cell_set_cache_misses_total 0
+# HELP pvol_pixel_cache_bytes Bytes currently held in the PVOL pixel cache
+# TYPE pvol_pixel_cache_bytes gauge
+pvol_pixel_cache_bytes 4283333206
+# HELP pvol_pixel_cache_capacity_bytes Configured PVOL pixel cache capacity in bytes
+# TYPE pvol_pixel_cache_capacity_bytes gauge
+pvol_pixel_cache_capacity_bytes 4294967296
+# HELP pvol_pixel_cache_entries Number of entries currently in the PVOL pixel cache
+# TYPE pvol_pixel_cache_entries gauge
+pvol_pixel_cache_entries 7882
+# HELP pvol_pixel_cache_hits_total PVOL pixel cache hits
+# TYPE pvol_pixel_cache_hits_total counter
+pvol_pixel_cache_hits_total 0
+# HELP pvol_pixel_cache_inserts_total PVOL pixel cache inserts (request-time decodes + poll-time pre-warm). Sustained inserts while entries/bytes sit at capacity = LRU eviction churn: the pre-warmed working set exceeds MC_PVOL_PIXEL_CACHE_MB (#476)
+# TYPE pvol_pixel_cache_inserts_total counter
+pvol_pixel_cache_inserts_total 20640
+# HELP pvol_pixel_cache_misses_total PVOL pixel cache misses
+# TYPE pvol_pixel_cache_misses_total counter
+pvol_pixel_cache_misses_total 0
+# HELP pvol_pixel_read_failures_total PVOL lazy pixel reads that failed (I/O or decode) and degraded to nodata
+# TYPE pvol_pixel_read_failures_total counter
+pvol_pixel_read_failures_total 0
+# HELP pvol_voxel_grid_cache_bytes Bytes currently held in the PVOL voxel-grid cache
+# TYPE pvol_voxel_grid_cache_bytes gauge
+pvol_voxel_grid_cache_bytes 0
+# HELP pvol_voxel_grid_cache_capacity_bytes Configured PVOL voxel-grid cache capacity in bytes
+# TYPE pvol_voxel_grid_cache_capacity_bytes gauge
+pvol_voxel_grid_cache_capacity_bytes 536870912
+# HELP pvol_voxel_grid_cache_hits_total PVOL voxel-grid cache hits
+# TYPE pvol_voxel_grid_cache_hits_total counter
+pvol_voxel_grid_cache_hits_total 0
+# HELP pvol_voxel_grid_cache_misses_total PVOL voxel-grid cache misses (full polar resamples)
+# TYPE pvol_voxel_grid_cache_misses_total counter
+pvol_voxel_grid_cache_misses_total 0
+# HELP render_semaphore_available Available render semaphore permits
+# TYPE render_semaphore_available gauge
+render_semaphore_available 24
+# HELP render_semaphore_total Total render semaphore permits
+# TYPE render_semaphore_total gauge
+render_semaphore_total 24
+# HELP rendered_cache_bytes Bytes currently held in the rendered image cache
+# TYPE rendered_cache_bytes gauge
+rendered_cache_bytes 115663276
+# HELP rendered_cache_capacity_bytes Configured rendered image cache capacity in bytes
+# TYPE rendered_cache_capacity_bytes gauge
+rendered_cache_capacity_bytes 536870912
+# HELP rendered_cache_entries Number of entries currently in the rendered image cache
+# TYPE rendered_cache_entries gauge
+rendered_cache_entries 544
+# HELP rendered_cache_hits_total Rendered image cache hits
+# TYPE rendered_cache_hits_total counter
+rendered_cache_hits_total 26
+# HELP rendered_cache_misses_total Rendered image cache misses
+# TYPE rendered_cache_misses_total counter
+rendered_cache_misses_total 548
+# HELP storage_bytes_read_total Total bytes read from storage by engine
+# TYPE storage_bytes_read_total counter
+storage_bytes_read_total{collection="ecmwf-ifs",engine_type="grib"} 15654787
+storage_bytes_read_total{collection="noaa-gfs",engine_type="grib"} 82703567
+storage_bytes_read_total{collection="opera-precipitation",engine_type="geotiff"} 4194304
+storage_bytes_read_total{collection="opera-reflectivity",engine_type="geotiff"} 12582912
+# HELP tile_cache_bytes Bytes currently held in the GeoTIFF tile cache
+# TYPE tile_cache_bytes gauge
+tile_cache_bytes{collection="chmi-radar-composite-dbz"} 0
+tile_cache_bytes{collection="dmi-radar-composite-dbz"} 0
+tile_cache_bytes{collection="dwd-radar-composite-dbz"} 0
+tile_cache_bytes{collection="fmi-radar"} 0
+tile_cache_bytes{collection="fmi-radar-composite-dbz"} 0
+tile_cache_bytes{collection="imgw-radar-composite-dbz"} 0
+tile_cache_bytes{collection="met-norway-radar"} 0
+tile_cache_bytes{collection="met-radar-composite-dbz"} 0
+tile_cache_bytes{collection="opera-precipitation"} 0
+tile_cache_bytes{collection="opera-reflectivity"} 0
+tile_cache_bytes{collection="smhi-radar-composite-dbz"} 0
+# HELP tile_cache_capacity_bytes Configured GeoTIFF tile cache capacity in bytes
+# TYPE tile_cache_capacity_bytes gauge
+tile_cache_capacity_bytes{collection="chmi-radar-composite-dbz"} 268435456
+tile_cache_capacity_bytes{collection="dmi-radar-composite-dbz"} 268435456
+tile_cache_capacity_bytes{collection="dwd-radar-composite-dbz"} 268435456
+tile_cache_capacity_bytes{collection="fmi-radar"} 268435456
+tile_cache_capacity_bytes{collection="fmi-radar-composite-dbz"} 268435456
+tile_cache_capacity_bytes{collection="imgw-radar-composite-dbz"} 268435456
+tile_cache_capacity_bytes{collection="met-norway-radar"} 268435456
+tile_cache_capacity_bytes{collection="met-radar-composite-dbz"} 268435456
+tile_cache_capacity_bytes{collection="opera-precipitation"} 268435456
+tile_cache_capacity_bytes{collection="opera-reflectivity"} 268435456
+tile_cache_capacity_bytes{collection="smhi-radar-composite-dbz"} 268435456
+# HELP tile_cache_entries Number of entries currently in the GeoTIFF tile cache
+# TYPE tile_cache_entries gauge
+tile_cache_entries{collection="chmi-radar-composite-dbz"} 0
+tile_cache_entries{collection="dmi-radar-composite-dbz"} 0
+tile_cache_entries{collection="dwd-radar-composite-dbz"} 0
+tile_cache_entries{collection="fmi-radar"} 0
+tile_cache_entries{collection="fmi-radar-composite-dbz"} 0
+tile_cache_entries{collection="imgw-radar-composite-dbz"} 0
+tile_cache_entries{collection="met-norway-radar"} 0
+tile_cache_entries{collection="met-radar-composite-dbz"} 0
+tile_cache_entries{collection="opera-precipitation"} 0
+tile_cache_entries{collection="opera-reflectivity"} 0
+tile_cache_entries{collection="smhi-radar-composite-dbz"} 0
+# HELP tiles3d_content_cache_bytes Bytes currently held in the 3D Tiles encoded-content cache
+# TYPE tiles3d_content_cache_bytes gauge
+tiles3d_content_cache_bytes 0
+# HELP tiles3d_content_cache_capacity_bytes Configured 3D Tiles encoded-content cache capacity in bytes
+# TYPE tiles3d_content_cache_capacity_bytes gauge
+tiles3d_content_cache_capacity_bytes 536870912
+# HELP tiles3d_content_cache_hits_total 3D Tiles encoded-content cache hits
+# TYPE tiles3d_content_cache_hits_total counter
+tiles3d_content_cache_hits_total 0
+# HELP tiles3d_content_cache_misses_total 3D Tiles encoded-content cache misses (full engine read + encode)
+# TYPE tiles3d_content_cache_misses_total counter
+tiles3d_content_cache_misses_total 0

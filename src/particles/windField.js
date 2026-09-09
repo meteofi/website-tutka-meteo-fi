@@ -135,13 +135,20 @@ function gridReader(range, nx, ny) {
   return (iy, ix) => values[iy * strideY + ix * strideX];
 }
 
-// Grid coverage → { nx, ny, lon0, lat0, dLon, dLat, u, v, valid } with the
+// Grid coverage → { nx, ny, lon0, lat0, dLon, dLat, u, v, q, valid } with the
 // rows normalised to ASCENDING latitude (row 0 = south) and the columns to
 // ascending longitude, whatever order the server used — the shaders assume
 // exactly that, and lon0/lat0 are the CENTRE of cell (0, 0). Returns null for
 // anything that is not a readable two-component grid (the caller then keeps
 // the previous field on screen, the StickyImageWMS philosophy).
-export function parseGridCoverage(json, uName, vName) {
+//
+// `qName` is the optional quality parameter (the radar source's
+// motion_quality: 1 where a block was matched, 0 where it was filled from its
+// neighbours). `q` is 0..1 per cell, 1 when no quality parameter was asked
+// for. A quality array that is missing or unreadable when asked for is a
+// server contract change worth failing loudly on: the whole document is
+// rejected rather than drawn without its mask.
+export function parseGridCoverage(json, uName, vName, qName = null) {
   if (!json || json.type !== 'Coverage' || !json.domain) return null;
   if (json.domain.domainType !== 'Grid') return null;
   const axes = json.domain.axes || {};
@@ -156,10 +163,13 @@ export function parseGridCoverage(json, uName, vName) {
   const readU = gridReader(json.ranges && json.ranges[uName], nx, ny);
   const readV = gridReader(json.ranges && json.ranges[vName], nx, ny);
   if (!readU || !readV) return null;
+  const readQ = qName ? gridReader(json.ranges && json.ranges[qName], nx, ny) : null;
+  if (qName && !readQ) return null;
   const flipX = dx < 0;
   const flipY = dy < 0;
   const u = new Float32Array(nx * ny);
   const v = new Float32Array(nx * ny);
+  const q = new Float32Array(nx * ny);
   const valid = new Uint8Array(nx * ny);
   for (let row = 0; row < ny; row++) {
     const iy = flipY ? ny - 1 - row : row;
@@ -172,6 +182,10 @@ export function parseGridCoverage(json, uName, vName) {
         u[i] = a;
         v[i] = b;
         valid[i] = 1;
+        // A null quality on a cell that has motion reads as "unknown", which
+        // is drawn like filled: the block was not confirmed by matching.
+        const c = readQ ? readQ(iy, ix) : 1;
+        q[i] = typeof c === 'number' && Number.isFinite(c) ? Math.min(1, Math.max(0, c)) : 0;
       }
     }
   }
@@ -184,16 +198,19 @@ export function parseGridCoverage(json, uName, vName) {
     dLat: Math.abs(dy),
     u,
     v,
+    q,
     valid,
   };
 }
 
 // Field → RGBA8 texture bytes. R/G hold the east/north components mapped from
 // [-range, +range] onto [0, 255] (a symmetric range so calm is the same byte
-// on both channels); B is reserved for the radar source's quality mask; A is
-// 255 where the cell has data and 0 where it does not — the shaders treat a
-// sample under 0.5 as "no field here" and let the particle die, which is what
-// keeps particles out of a masked region instead of smearing its edge inward.
+// on both channels); B is the quality (255 matched … 0 filled; 255 for a
+// model field), which the draw shader turns into particle alpha so filled
+// radar blocks read fainter than measured ones; A is 255 where the cell has
+// data and 0 where it does not — the shaders treat a sample under 0.5 as "no
+// field here" and let the particle die, which is what keeps particles out of
+// a masked region instead of smearing its edge inward.
 // Cells without data carry the calm byte in R/G so bilinear filtering across a
 // mask edge biases toward stillness rather than toward garbage.
 //
@@ -218,6 +235,7 @@ export function encodeField(field) {
     if (field.valid[i]) {
       data[o] = Math.round((field.u[i] + range) * scale);
       data[o + 1] = Math.round((field.v[i] + range) * scale);
+      data[o + 2] = field.q ? Math.round(field.q[i] * 255) : 255;
       data[o + 3] = 255;
     } else {
       data[o] = 128;
