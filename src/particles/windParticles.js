@@ -130,23 +130,25 @@ const MAX_SIM_PX = 2e6;
 // visible", while the same line on a desktop is the calm look asked for. A
 // coarse pointer on a small viewport is the phone test; a tablet keeps the
 // desktop look.
-const PHONE_POINT_SCALE = 1.6;
-const PHONE_ALPHA_SCALE = 1.35;
+const PHONE_POINT_SCALE = 1.3;
+const PHONE_ALPHA_SCALE = 1.2;
 const PHONE_MAX_CSS_PX = 600;
-const PARTICLES_PER_MPX = 1500;
+const PARTICLES_PER_MPX = 2000;
 const MIN_PARTICLES = 1024;
 const MAX_PARTICLES = 16384;
 // A pane that has not asked for a frame in this long is off-screen (layout
 // shrank) — free its textures.
 const IDLE_RELEASE_MS = 5000;
 
-// Particle colour per theme, premultiplied by the renderer. White over the
-// dark basemap (the windy look); ink over the light one, where white vanishes.
-// Alpha is kept low on purpose: the radar underneath is the product, the wind
-// is context over it.
+// Particle colours per theme, premultiplied by the renderer: a core and the
+// opposite-tone halo around it (particleGl.js DRAW_FS). White over the dark
+// basemap (the windy look); ink over the light one, where white vanishes. The
+// halo is what keeps the core readable over a satellite cloud or light-theme
+// water; it stays faint so the pair never reads as an outlined dot. Alpha is
+// moderate on purpose: the radar underneath is the product.
 const COLORS = {
-  dark: [1, 1, 1, 0.45],
-  light: [0.1, 0.15, 0.25, 0.55],
+  dark: { core: [1, 1, 1, 0.7], halo: [0, 0, 0, 0.3] },
+  light: { core: [0.1, 0.15, 0.25, 0.7], halo: [1, 1, 1, 0.35] },
 };
 
 // `?wind=ecmwf|gfs` chooses the model behind the Tuuli row; `?wind=radar`
@@ -209,7 +211,7 @@ export default function initWindParticles() {
       warn(`renderer unavailable: ${err.message}`);
       return;
     }
-    renderer.setColor(COLORS[theme]);
+    renderer.setColor(COLORS[theme].core, COLORS[theme].halo);
     const field = currentUrl ? fieldCache.get(currentUrl) : null;
     if (field) renderer.setField(field);
   }
@@ -541,7 +543,7 @@ export default function initWindParticles() {
     setTheme(next) {
       if (!COLORS[next]) return;
       theme = next;
-      if (renderer) renderer.setColor(COLORS[theme]);
+      if (renderer) renderer.setColor(COLORS[theme].core, COLORS[theme].halo);
     },
   };
 }

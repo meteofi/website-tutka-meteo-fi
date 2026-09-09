@@ -127,14 +127,27 @@ void main() {
   gl_PointSize = u_pointSize;
 }`;
 
+// A round two-tone sprite rather than a square: a bright core (the particle)
+// inside a faint halo of the opposite tone. The halo is what keeps a white
+// particle readable over a bright satellite cloud and an ink one over a
+// light basemap's water, without making the core heavy over the radar.
+// Radii are fractions of the point: the core fills the inner ~55 %, the halo
+// feathers to the edge. Output is premultiplied.
 const DRAW_FS = `#version 300 es
 precision mediump float;
 uniform vec4 u_color;
+uniform vec4 u_halo;
 in float v_alpha;
 out vec4 fragColor;
 void main() {
-  float a = u_color.a * v_alpha;
-  fragColor = vec4(u_color.rgb * a, a);
+  float r = length(gl_PointCoord - 0.5) * 2.0;
+  float core = 1.0 - smoothstep(0.4, 0.7, r);
+  float halo = (1.0 - smoothstep(0.7, 1.0, r)) * (1.0 - core);
+  float aCore = u_color.a * core;
+  float aHalo = u_halo.a * halo;
+  float a = (aCore + aHalo) * v_alpha;
+  vec3 rgb = (u_color.rgb * aCore + u_halo.rgb * aHalo) * v_alpha;
+  fragColor = vec4(rgb, a);
 }`;
 
 const FADE_FS = `#version 300 es
@@ -204,16 +217,19 @@ function createState(gl, width, height, count) {
 //
 // Tuned toward calm: this layer sits OVER the radar and the reader must still
 // see the echoes through it, and the first cut (twice the speed, three times
-// the respawn rate, fuller colour) read as restless next to Windy. Long-lived
-// particles with a slow fade give smooth continuous streamlines; a high drop
-// rate gives popping.
-const FADE = 0.97;
+// the respawn rate) read as restless next to Windy. Long-lived particles give
+// smooth continuous streamlines; a high drop rate gives popping. The Windy
+// look is a clearly visible HEAD with a short tail, not a long thin streak —
+// hence a fast fade (a tail of ~20 frames, 10–25 px at 10 m/s) and a fat, bright sprite: the
+// tail is what covers the radar, the head is what the eye follows.
+const FADE = 0.95;
 const DROP_RATE = 0.001;
 const DROP_RATE_BUMP = 0.004;
 // Screen pixels per step per m/s at pixel ratio 1: a 10 m/s wind moves a
 // particle 0.6 px per 60 Hz step, 36 px/s.
 const SPEED_FACTOR = 0.06;
-const POINT_SIZE = 1.1;
+// Sprite diameter in CSS px, halo included (the core is ~55 % of it).
+const POINT_SIZE = 3.2;
 
 export default class ParticleRenderer {
   constructor() {
@@ -245,7 +261,7 @@ export default class ParticleRenderer {
     ]);
     this.updateAttrib = gl.getAttribLocation(this.updateProgram, 'a_pos');
     this.drawProgram = createProgram(gl, DRAW_VS, DRAW_FS);
-    this.drawU = uniforms(gl, this.drawProgram, [...FIELD_UNIFORMS, 'u_particles', 'u_particlesRes', 'u_pointSize', 'u_color']);
+    this.drawU = uniforms(gl, this.drawProgram, [...FIELD_UNIFORMS, 'u_particles', 'u_particlesRes', 'u_pointSize', 'u_color', 'u_halo']);
     this.fadeProgram = createProgram(gl, FULLSCREEN_VS, FADE_FS);
     this.fadeU = uniforms(gl, this.fadeProgram, ['u_tex', 'u_opacity']);
     this.fadeAttrib = gl.getAttribLocation(this.fadeProgram, 'a_pos');
@@ -253,6 +269,7 @@ export default class ParticleRenderer {
     this.field = null;
     this.fieldTexture = null;
     this.color = [1, 1, 1, 0.85];
+    this.halo = [0, 0, 0, 0.3];
     this.states = new Map();
   }
 
@@ -277,9 +294,10 @@ export default class ParticleRenderer {
     this.field = null;
   }
 
-  // [r, g, b, a] in 0..1 — the theme's particle colour.
-  setColor(color) {
+  // [r, g, b, a] in 0..1 each — the theme's particle core and halo colours.
+  setColor(color, halo) {
     this.color = color;
+    this.halo = halo;
   }
 
   // The pane's simulation state, rebuilt when its size changes.
@@ -385,6 +403,7 @@ export default class ParticleRenderer {
     gl.uniform1f(this.drawU.u_particlesRes, state.res);
     gl.uniform1f(this.drawU.u_pointSize, POINT_SIZE * pixelRatio * pointScale);
     gl.uniform4f(this.drawU.u_color, this.color[0], this.color[1], this.color[2], Math.min(1, this.color[3] * alphaScale));
+    gl.uniform4f(this.drawU.u_halo, this.halo[0], this.halo[1], this.halo[2], Math.min(1, this.halo[3] * alphaScale));
     gl.disableVertexAttribArray(this.updateAttrib);
     gl.drawArrays(gl.POINTS, 0, state.count);
     gl.disable(gl.BLEND);
