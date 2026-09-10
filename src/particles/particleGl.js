@@ -109,20 +109,34 @@ void main() {
 // match) draws at a third, so particles concentrate where it is raining and
 // go faint over clear sky — the issue's "masked for radar" styling — while a
 // model field (quality 1 everywhere) is untouched.
+//
+// Speed colouring (SPEED_COLORS below): the core takes its colour from a
+// 1-D ramp texture over the speed instead of the theme's single tone. The
+// ramp is the same in both themes; the halo still follows the theme, which
+// is what keeps the mid-tone colours legible over both basemaps.
 const DRAW_VS = `#version 300 es
 precision highp float;
 ${FIELD_GLSL}
 uniform sampler2D u_particles;
+uniform sampler2D u_ramp;
+uniform float u_rampMax;
 uniform float u_particlesRes;
 uniform float u_pointSize;
+uniform float u_speedColor;
 out float v_alpha;
+out vec3 v_rgb;
 void main() {
   float i = float(gl_VertexID);
   vec2 uv = (vec2(mod(i, u_particlesRes), floor(i / u_particlesRes)) + 0.5) / u_particlesRes;
   vec2 pos = decodePos(texture(u_particles, uv));
   vec4 s = sampleField(pos);
-  float t = min(length(s.xy) / 15.0, 1.0);
-  v_alpha = mix(0.35, 1.0, t) * mix(0.33, 1.0, s.z) * s.w;
+  float ms = length(s.xy);
+  float t = min(ms / 15.0, 1.0);
+  // With colour carrying the speed, calm particles are dimmed less — the
+  // blue already says calm, and a faint blue over the radar reads as noise.
+  float calm = u_speedColor > 0.5 ? mix(0.55, 1.0, t) : mix(0.35, 1.0, t);
+  v_alpha = calm * mix(0.33, 1.0, s.z) * s.w;
+  v_rgb = texture(u_ramp, vec2(clamp(ms / u_rampMax, 0.0, 1.0), 0.5)).rgb;
   gl_Position = vec4(pos * 2.0 - 1.0, 0.0, 1.0);
   gl_PointSize = u_pointSize;
 }`;
@@ -133,11 +147,15 @@ void main() {
 // light basemap's water, without making the core heavy over the radar.
 // Radii are fractions of the point: the core fills the inner ~55 %, the halo
 // feathers to the edge. Output is premultiplied.
+// highp to match the vertex shader: a uniform declared in both stages must
+// agree on precision or the program fails to link.
 const DRAW_FS = `#version 300 es
-precision mediump float;
+precision highp float;
 uniform vec4 u_color;
 uniform vec4 u_halo;
+uniform float u_speedColor;
 in float v_alpha;
+in vec3 v_rgb;
 out vec4 fragColor;
 void main() {
   float r = length(gl_PointCoord - 0.5) * 2.0;
@@ -146,7 +164,8 @@ void main() {
   float aCore = u_color.a * core;
   float aHalo = u_halo.a * halo;
   float a = (aCore + aHalo) * v_alpha;
-  vec3 rgb = (u_color.rgb * aCore + u_halo.rgb * aHalo) * v_alpha;
+  vec3 coreRgb = u_speedColor > 0.5 ? v_rgb : u_color.rgb;
+  vec3 rgb = (coreRgb * aCore + u_halo.rgb * aHalo) * v_alpha;
   fragColor = vec4(rgb, a);
 }`;
 
@@ -230,6 +249,57 @@ const DROP_RATE_BUMP = 0.004;
 const SPEED_FACTOR = 0.06;
 // Sprite diameter in CSS px, halo included (the core is ~55 % of it).
 const POINT_SIZE = 3.2;
+// Colour the core by speed instead of the theme tone. A code switch, not a
+// user setting — flip it here to compare the two looks.
+const SPEED_COLORS = true;
+// The ramp, in m/s → [r, g, b], taken verbatim from Mapbox GL's
+// raster-particle-layer example (docs.mapbox.com/mapbox-gl-js/example/
+// raster-particle-layer): grey-blue calm, teal, green at 9, ochre at 12,
+// orange-red at 15, crimson at 18, magenta, violet, slate, then lime from
+// 33 m/s — a stepped ramp, each colour held over a band, so a reader can name
+// the band. Clamped at RAMP_MAX like the example's raster-particle-max-speed.
+const SPEED_RAMP = [
+  [1.5, [134, 163, 171]],
+  [2.5, [126, 152, 188]],
+  [4.12, [110, 143, 208]],
+  [4.63, [110, 143, 208]],
+  [6.17, [15, 147, 167]],
+  [7.72, [15, 147, 167]],
+  [9.26, [57, 163, 57]],
+  [10.29, [57, 163, 57]],
+  [11.83, [194, 134, 62]],
+  [13.37, [194, 134, 63]],
+  [14.92, [200, 66, 13]],
+  [16.46, [200, 66, 13]],
+  [18.0, [210, 0, 50]],
+  [20.06, [215, 0, 50]],
+  [21.6, [175, 80, 136]],
+  [23.66, [175, 80, 136]],
+  [25.21, [117, 74, 147]],
+  [27.78, [117, 74, 147]],
+  [29.32, [68, 105, 141]],
+  [31.89, [68, 105, 141]],
+  [33.44, [194, 251, 119]],
+  [42.18, [194, 251, 119]],
+];
+const RAMP_MAX = 40;
+const RAMP_WIDTH = 256;
+
+// The ramp as RGBA8 texels: linear between stops, held flat past the ends.
+function buildRamp() {
+  const data = new Uint8Array(RAMP_WIDTH * 4);
+  for (let i = 0; i < RAMP_WIDTH; i++) {
+    const ms = (i / (RAMP_WIDTH - 1)) * RAMP_MAX;
+    let k = 0;
+    while (k < SPEED_RAMP.length - 1 && SPEED_RAMP[k + 1][0] <= ms) k++;
+    const [s0, c0] = SPEED_RAMP[k];
+    const [s1, c1] = SPEED_RAMP[Math.min(k + 1, SPEED_RAMP.length - 1)];
+    const f = s1 > s0 ? Math.min(1, Math.max(0, (ms - s0) / (s1 - s0))) : 0;
+    for (let ch = 0; ch < 3; ch++) data[i * 4 + ch] = Math.round(c0[ch] + (c1[ch] - c0[ch]) * f);
+    data[i * 4 + 3] = 255;
+  }
+  return data;
+}
 
 export default class ParticleRenderer {
   constructor() {
@@ -261,7 +331,10 @@ export default class ParticleRenderer {
     ]);
     this.updateAttrib = gl.getAttribLocation(this.updateProgram, 'a_pos');
     this.drawProgram = createProgram(gl, DRAW_VS, DRAW_FS);
-    this.drawU = uniforms(gl, this.drawProgram, [...FIELD_UNIFORMS, 'u_particles', 'u_particlesRes', 'u_pointSize', 'u_color', 'u_halo']);
+    this.drawU = uniforms(gl, this.drawProgram, [
+      ...FIELD_UNIFORMS, 'u_particles', 'u_particlesRes', 'u_pointSize', 'u_color', 'u_halo', 'u_speedColor', 'u_ramp', 'u_rampMax',
+    ]);
+    this.rampTexture = createRgba8Texture(gl, RAMP_WIDTH, 1, buildRamp(), gl.LINEAR);
     this.fadeProgram = createProgram(gl, FULLSCREEN_VS, FADE_FS);
     this.fadeU = uniforms(gl, this.fadeProgram, ['u_tex', 'u_opacity']);
     this.fadeAttrib = gl.getAttribLocation(this.fadeProgram, 'a_pos');
@@ -404,6 +477,11 @@ export default class ParticleRenderer {
     gl.uniform1f(this.drawU.u_pointSize, POINT_SIZE * pixelRatio * pointScale);
     gl.uniform4f(this.drawU.u_color, this.color[0], this.color[1], this.color[2], Math.min(1, this.color[3] * alphaScale));
     gl.uniform4f(this.drawU.u_halo, this.halo[0], this.halo[1], this.halo[2], Math.min(1, this.halo[3] * alphaScale));
+    gl.uniform1f(this.drawU.u_speedColor, SPEED_COLORS ? 1 : 0);
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, this.rampTexture);
+    gl.uniform1i(this.drawU.u_ramp, 2);
+    gl.uniform1f(this.drawU.u_rampMax, RAMP_MAX);
     gl.disableVertexAttribArray(this.updateAttrib);
     gl.drawArrays(gl.POINTS, 0, state.count);
     gl.disable(gl.BLEND);
@@ -446,6 +524,7 @@ export default class ParticleRenderer {
     if (!this.contextLost) {
       for (const s of this.states.values()) s.dispose();
       if (this.fieldTexture) gl.deleteTexture(this.fieldTexture);
+      gl.deleteTexture(this.rampTexture);
       gl.deleteBuffer(this.triangle);
       gl.deleteProgram(this.updateProgram);
       gl.deleteProgram(this.drawProgram);
