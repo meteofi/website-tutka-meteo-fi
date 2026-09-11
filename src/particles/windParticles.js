@@ -13,13 +13,24 @@
 //
 // Shape of the thing:
 //   - one controller, one WebGL2 context (src/particles/particleGl.js), one
-//     field texture; a per-pane ol/layer/Image over an ImageCanvas source whose
-//     canvas the controller repaints from the shared context. Panes share a
-//     view, so they share a field and differ only in canvas size;
-//   - a requestAnimationFrame loop that marks every visible pane's source
-//     changed, which makes OpenLayers call the canvasFunction — where the
-//     simulation actually steps. The loop runs while the layer is on, playing
-//     or paused: the flow is the point, not the frame;
+//     field texture; a per-pane OVERLAY CANVAS over the pane's OpenLayers
+//     viewport (a `canvas.ol-layer` sibling of `.ol-layers`, so share.js
+//     composites it like any layer canvas), repainted from the shared context.
+//     Panes share a view, so they share a field and differ only in canvas
+//     size;
+//   - a requestAnimationFrame loop of its own that steps and repaints every
+//     visible pane's canvas, reading the view extent straight off the map.
+//     OpenLayers is NOT re-rendered per frame: the first version went through
+//     an ImageCanvas source and marked it changed every frame, which made OL
+//     redraw the whole map at 60 Hz — with the radar on that is a 16 Mpx
+//     image blit per frame on a 4K canvas, the frame rate collapsed, the
+//     simulation took 3× steps to keep pace and every tail smeared. Now the
+//     map renders only when it has a reason to, and the particles run at the
+//     display's rate whatever else is on. The loop runs while the layer is
+//     on, playing or paused: the flow is the point, not the frame. The
+//     overlay sits above every OL layer (labels included) and below OL
+//     overlays; the sprites are small and mostly transparent, so a label
+//     under a passing particle stays readable;
 //   - one field per (view box, time). The box is the viewport plus a pan
 //     margin quantized to the shared 0.5° grid (src/edr/areaQuery.js), so
 //     panning away and back reuses a URL the browser cached. The time is the
@@ -36,8 +47,6 @@
 // Coordinates, colour and the shaders are documented in particleGl.js; the
 // wire format and its pitfalls in windField.js.
 
-import ImageLayer from 'ol/layer/Image';
-import ImageCanvasSource from 'ol/source/ImageCanvas';
 import { transformExtent } from 'ol/proj';
 import { FRAME_STEPS } from '../constants';
 import { quantizedAreaBounds } from '../edr/areaQuery';
@@ -231,13 +240,6 @@ export default function initWindParticles({ radarCoverage = () => [] } = {}) {
   const fieldSlot = createFetchSlot();
   const metadataSlot = createFetchSlot();
 
-  // Returned from the canvasFunction when there is nothing to draw. Returning
-  // null would make ol/source/ImageCanvas keep its last canvas (the FramePool
-  // lesson), so an empty one is handed back instead.
-  const emptyCanvas = document.createElement('canvas');
-  emptyCanvas.width = 1;
-  emptyCanvas.height = 1;
-
   function warn(msg) {
     console.warn(`Tuuli: ${msg}`); // eslint-disable-line no-console
   }
@@ -382,7 +384,7 @@ export default function initWindParticles({ radarCoverage = () => [] } = {}) {
     planFetch();
   }
 
-  // Called from the canvasFunction with the extent the pane is drawing.
+  // Called from the frame loop with the extent the pane is drawing.
   // Debounced: a pan streams a new extent every frame, and the fetch belongs
   // after the last one.
   function noteView(extent) {
@@ -409,14 +411,13 @@ export default function initWindParticles({ radarCoverage = () => [] } = {}) {
     return Math.max(0.5, Math.min(pixelRatio, MAX_SIM_RATIO, byArea));
   }
 
-  // ol/source/ImageCanvas contract: `size` is the canvas size in device
-  // pixels for `extent` at `resolution`; with ratio 1 the extent is exactly
-  // the pane's view. Steps this pane's particles and paints the result.
-  function draw(entry, extent, resolution, pixelRatio, size) {
-    if (!enabled || !renderer || renderer.contextLost) return emptyCanvas;
-    const w = Math.round(size[0]);
-    const h = Math.round(size[1]);
-    if (w < 1 || h < 1) return emptyCanvas;
+  // One frame for one pane: `extent` is the view's EPSG:3857 extent, the
+  // canvas is sized to the viewport at the device pixel ratio. Steps the
+  // pane's particles and paints them.
+  function draw(entry, extent, cssW, cssH, pixelRatio) {
+    const w = Math.round(cssW * pixelRatio);
+    const h = Math.round(cssH * pixelRatio);
+    if (w < 1 || h < 1) return;
     noteView(extent);
     if (entry.canvas.width !== w || entry.canvas.height !== h) {
       entry.canvas.width = w;
@@ -425,10 +426,8 @@ export default function initWindParticles({ radarCoverage = () => [] } = {}) {
     const now = performance.now();
     entry.lastRenderMs = now;
     entry.ctx.clearRect(0, 0, w, h);
-    if (!renderer.hasField()) return entry.canvas;
+    if (!renderer.hasField()) return;
 
-    const cssW = w / pixelRatio;
-    const cssH = h / pixelRatio;
     const ratio = simPixelRatio(cssW, cssH, pixelRatio);
     const simW = Math.max(1, Math.round(cssW * ratio));
     const simH = Math.max(1, Math.round(cssH * ratio));
@@ -450,7 +449,6 @@ export default function initWindParticles({ radarCoverage = () => [] } = {}) {
     if (renderer.render(entry.index, extent, ratio, now, look)) {
       entry.ctx.drawImage(renderer.canvas, 0, 0, w, h);
     }
-    return entry.canvas;
   }
 
   //
@@ -471,7 +469,18 @@ export default function initWindParticles({ radarCoverage = () => [] } = {}) {
     }
     const now = performance.now();
     for (const entry of entries) {
-      if (entry.layer.getVisible()) entry.source.changed();
+      // An attached, visible pane with a real size (inactive split panes
+      // are display:none and report no size) gets a frame.
+      const size = entry.map && entry.visible && renderer && !renderer.contextLost ? entry.map.getSize() : null;
+      if (size && size[0] > 0 && size[1] > 0) {
+        const extent = entry.map.getView().calculateExtent(size);
+        draw(entry, extent, size[0], size[1], window.devicePixelRatio || 1);
+      } else if (entry.canvas.width > 1) {
+        // Hidden or detached: blank the canvas once so nothing stale shows
+        // when it comes back, and let its GPU state go below.
+        entry.canvas.width = 1;
+        entry.canvas.height = 1;
+      }
       if (renderer && renderer.hasState(entry.index) && now - entry.lastRenderMs > IDLE_RELEASE_MS) {
         renderer.releaseState(entry.index);
         entry.extent = null;
@@ -521,31 +530,57 @@ export default function initWindParticles({ radarCoverage = () => [] } = {}) {
     // The credit for whichever source is drawing right now.
     get attribution() { return source.attribution; },
 
-    // Pane factory for paneDeps. Starts hidden; the POI toggle fans visibility
-    // out per pane and setEnabled gates everything that costs.
+    // Pane factory for paneDeps: the pane's overlay canvas, wrapped in the
+    // two methods the POI fan-out uses on a layer. Not an OL layer and not in
+    // the pane's layer stack — attachPane puts it into the viewport once the
+    // map exists. Starts hidden; the POI toggle fans visibility out per pane
+    // and setEnabled gates everything that costs.
     createPaneLayer(index) {
       const canvas = document.createElement('canvas');
+      canvas.width = 1;
+      canvas.height = 1;
+      // `ol-layer` so share.js composites it (it scales a transform-less
+      // canvas by the viewport rect, which is exactly this canvas's mapping).
+      canvas.className = 'ol-layer wind-canvas';
+      Object.assign(canvas.style, {
+        position: 'absolute',
+        top: '0',
+        left: '0',
+        width: '100%',
+        height: '100%',
+        pointerEvents: 'none',
+        zIndex: '0',
+      });
+      canvas.hidden = true;
       const entry = {
         index,
         canvas,
         ctx: canvas.getContext('2d'),
+        map: null,
+        visible: false,
         extent: null,
         lastRenderMs: 0,
-        source: null,
-        layer: null,
       };
-      entry.source = new ImageCanvasSource({
-        canvasFunction: (extent, resolution, pixelRatio, size) => draw(entry, extent, resolution, pixelRatio, size),
-        ratio: 1,
-        attributions: source.attribution,
-      });
-      entry.layer = new ImageLayer({
-        name: 'windLayer',
-        visible: false,
-        source: entry.source,
-      });
       entries.push(entry);
-      return entry.layer;
+      return {
+        setVisible(on) {
+          entry.visible = !!on;
+          canvas.hidden = !on;
+        },
+        getVisible: () => entry.visible,
+      };
+    },
+
+    // Called once the pane's map exists (radar.js initPaneTraffic): the
+    // canvas goes into the OL viewport after the layers container and before
+    // the overlay containers, so it draws over every layer and under popups.
+    attachPane(map, index) {
+      const entry = entries.find((e) => e.index === index);
+      if (!entry || entry.map) return;
+      entry.map = map;
+      const viewport = map.getViewport();
+      const overlays = viewport.querySelector('.ol-overlaycontainer');
+      viewport.insertBefore(entry.canvas, overlays || null);
     },
 
     // Called from the POI toggle. On: build the GL context, start the loop,

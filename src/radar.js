@@ -2128,6 +2128,8 @@ function initPaneTraffic(pane) {
   pane.stormCells = stormCells.attachPane(pane.map, pane.stormCellsLayer);
   // Own position/vessel drives the same strip; only the hit-test is per-pane.
   if (ownLocation) pane.ownTelemetry = ownLocation.attachPane(pane);
+  // The particle overlay canvas goes into the viewport now that the map exists.
+  wind.attachPane(pane.map, pane.index);
 }
 
 // One crosshair ("Tähtäin") instance per pane: the reticle overlays the
