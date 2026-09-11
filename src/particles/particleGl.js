@@ -116,9 +116,15 @@ float rand(vec2 co) {
 void main() {
   vec2 pos = decodePos(texture(u_particles, v_uv));
   vec4 s = sampleField(pos);
-  vec2 next = pos + s.xy * u_speedFactor / u_canvasSize;
+  // Gentle gamma on the speed: linear motion makes a 3 m/s breeze crawl at
+  // a quarter of a 12 m/s wind and leave no tail, and a calm day over
+  // Finland then looks like nothing is happening. Exponent 0.75 about
+  // 10 m/s lifts 3 m/s to 40 % of it while keeping 20 m/s clearly faster.
+  float ms = length(s.xy);
+  float shaped = ms > 0.0 ? pow(ms / 10.0, 0.75) * 10.0 / ms : 0.0;
+  vec2 next = pos + s.xy * shaped * u_speedFactor / u_canvasSize;
   vec2 seed = (pos + v_uv) * u_seed;
-  float speedT = min(length(s.xy) / u_speedRange, 1.0);
+  float speedT = min(ms / u_speedRange, 1.0);
   float drop = s.w < 0.5 ? 1.0 : u_dropRate + speedT * u_dropRateBump;
   bool gone = any(lessThan(next, vec2(0.0))) || any(greaterThan(next, vec2(1.0)));
   if (gone || rand(seed) < drop) {
@@ -158,9 +164,11 @@ void main() {
   vec4 s = sampleField(pos);
   float ms = length(s.xy);
   float t = min(ms / 15.0, 1.0);
-  // With colour carrying the speed, calm particles are dimmed less — the
-  // blue already says calm, and a faint blue over the radar reads as noise.
-  float calm = u_speedColor > 0.5 ? mix(0.55, 1.0, t) : mix(0.35, 1.0, t);
+  // With colour carrying the speed, calm particles are barely dimmed — the
+  // grey-blue already says calm, and dimming it too made a calm day over
+  // Finland vanish against the dark basemap. The mono look keeps a mild
+  // speed cue in the alpha.
+  float calm = u_speedColor > 0.5 ? mix(0.85, 1.0, t) : mix(0.5, 1.0, t);
   v_alpha = calm * mix(0.33, 1.0, s.z) * s.w;
   v_rgb = texture(u_ramp, vec2(clamp(ms / u_rampMax, 0.0, 1.0), 0.5)).rgb;
   gl_Position = vec4(pos * 2.0 - 1.0, 0.0, 1.0);
@@ -270,9 +278,10 @@ function createState(gl, width, height, count) {
 const FADE = 0.95;
 const DROP_RATE = 0.001;
 const DROP_RATE_BUMP = 0.004;
-// Screen pixels per step per m/s at pixel ratio 1: a 10 m/s wind moves a
-// particle 0.6 px per 60 Hz step, 36 px/s.
-const SPEED_FACTOR = 0.06;
+// Screen pixels per step per m/s at pixel ratio 1 (before the gamma in the
+// update shader): a 10 m/s wind moves a particle 0.8 px per 60 Hz step,
+// 48 px/s; 3 m/s about 20 px/s.
+const SPEED_FACTOR = 0.08;
 // Sprite diameter in CSS px, halo included (the core is ~55 % of it).
 const POINT_SIZE = 3.2;
 // Colour the core by speed instead of the theme tone. A code switch, not a

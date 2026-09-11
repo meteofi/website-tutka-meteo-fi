@@ -171,8 +171,8 @@ const IDLE_RELEASE_MS = 5000;
 // water; it stays faint so the pair never reads as an outlined dot. Alpha is
 // moderate on purpose: the radar underneath is the product.
 const COLORS = {
-  dark: { core: [1, 1, 1, 0.7], halo: [0, 0, 0, 0.3] },
-  light: { core: [0.1, 0.15, 0.25, 0.7], halo: [1, 1, 1, 0.35] },
+  dark: { core: [1, 1, 1, 0.8], halo: [0, 0, 0, 0.3] },
+  light: { core: [0.1, 0.15, 0.25, 0.8], halo: [1, 1, 1, 0.35] },
 };
 
 // `?wind=ecmwf|gfs` chooses the model behind the Tuuli row; `?wind=radar`
