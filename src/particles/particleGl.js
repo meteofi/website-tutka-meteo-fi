@@ -336,9 +336,19 @@ function buildRamp() {
   return data;
 }
 
+// The drawing buffer is handed to a pane's overlay canvas with
+// transferToImageBitmap → transferFromImageBitmap when the browser has
+// OffscreenCanvas + bitmaprenderer (Chrome, Firefox ≥ 105, Safari ≥ 17): a
+// GPU-side move of the buffer, no copy, no readback. Without them the GL
+// canvas is a DOM canvas and the pane draws it with a 2D drawImage — which on
+// some desktop Chrome configurations is a full-screen readback per frame, the
+// thing that made a 4K display stutter with the radar on.
+export const ZERO_COPY = typeof OffscreenCanvas === 'function'
+  && typeof ImageBitmapRenderingContext === 'function';
+
 export default class ParticleRenderer {
   constructor() {
-    this.canvas = document.createElement('canvas');
+    this.canvas = ZERO_COPY ? new OffscreenCanvas(1, 1) : document.createElement('canvas');
     this.canvas.width = 1;
     this.canvas.height = 1;
     this.gl = this.canvas.getContext('webgl2', {
@@ -493,9 +503,12 @@ export default class ParticleRenderer {
     const { gl } = this;
     // Steps per 60 Hz frame, clamped: a long gap (tab hidden, GC pause) must
     // not fling every particle across the map, and a 120 Hz display must not
-    // double the fade.
+    // double the fade. The upper clamp is deliberately tight: at 1.5 a frame
+    // rate that halves under a heavy map slows the flow by a quarter, where
+    // the earlier 3 kept the pace by tripling every step and turned each tail
+    // into a smear — the "blurred when the radar is on" of 4K desktops.
     const dtScale = state.lastStepMs
-      ? Math.min(Math.max((nowMs - state.lastStepMs) / (1000 / 60), 0.25), 3)
+      ? Math.min(Math.max((nowMs - state.lastStepMs) / (1000 / 60), 0.25), 1.5)
       : 1;
     state.lastStepMs = nowMs;
 
@@ -567,6 +580,42 @@ export default class ParticleRenderer {
     state.trails.reverse();
     state.positions.reverse();
     return true;
+  }
+
+  // Hand the frame just rendered to a pane's overlay canvas. `target` is the
+  // pane's ImageBitmapRenderingContext on the zero-copy path or its 2D
+  // context otherwise; either way the overlay ends up at the simulation size
+  // (the bitmap sets it; the 2D path resizes) and CSS scales it to the pane.
+  present(target) {
+    if (this.contextLost) return;
+    if (ZERO_COPY) {
+      let bitmap;
+      try {
+        bitmap = this.canvas.transferToImageBitmap();
+      } catch (e) {
+        // Only a lost context throws here; the tick rebuilds the renderer.
+        this.contextLost = true;
+        return;
+      }
+      // transferFromImageBitmap sizes the drawn bitmap but leaves the
+      // canvas's width/height attributes alone; share.js scales an exported
+      // canvas by them, so keep them at the simulation size (only on change
+      // — assigning width clears a bitmaprenderer canvas).
+      if (target.canvas.width !== bitmap.width || target.canvas.height !== bitmap.height) {
+        target.canvas.width = bitmap.width;
+        target.canvas.height = bitmap.height;
+      }
+      target.transferFromImageBitmap(bitmap);
+      return;
+    }
+    const { width, height } = this.canvas;
+    if (target.canvas.width !== width || target.canvas.height !== height) {
+      target.canvas.width = width;
+      target.canvas.height = height;
+    } else {
+      target.clearRect(0, 0, width, height);
+    }
+    target.drawImage(this.canvas, 0, 0);
   }
 
   dispose() {

@@ -20,6 +20,14 @@
 //     size;
 //   - a requestAnimationFrame loop of its own that steps and repaints every
 //     visible pane's canvas, reading the view extent straight off the map.
+//     Particles are ANCHORED to the map: the overlay is drawn for the view as
+//     it was when the move began and, while the view moves, carries the same
+//     translate/scale OL puts on its own layer canvases (an OL drag is a CSS
+//     transform between renders, so this is what "moving with the map" is);
+//     when the move ends the trails re-anchor to the new view. The frame is
+//     handed over as an ImageBitmap where the browser can (particleGl.js
+//     ZERO_COPY) and the overlay is CSS-scaled from the simulation size, so
+//     no full-screen copy or upscale pass runs per frame.
 //     OpenLayers is NOT re-rendered per frame: the first version went through
 //     an ImageCanvas source and marked it changed every frame, which made OL
 //     redraw the whole map at 60 Hz — with the radar on that is a 16 Mpx
@@ -54,7 +62,7 @@ import { createFetchSlot } from '../edr/seriesFetch';
 import {
   buildGridUrl, timeRangeIso, parseTemporalValues, pickFieldTime, parseGridCoverage, encodeField,
 } from './windField';
-import ParticleRenderer from './particleGl';
+import ParticleRenderer, { ZERO_COPY } from './particleGl';
 
 const EDR = 'https://meteocore.app.meteo.fi/edr/collections';
 
@@ -411,22 +419,27 @@ export default function initWindParticles({ radarCoverage = () => [] } = {}) {
     return Math.max(0.5, Math.min(pixelRatio, MAX_SIM_RATIO, byArea));
   }
 
-  // One frame for one pane: `extent` is the view's EPSG:3857 extent, the
-  // canvas is sized to the viewport at the device pixel ratio. Steps the
-  // pane's particles and paints them.
-  function draw(entry, extent, cssW, cssH, pixelRatio) {
-    const w = Math.round(cssW * pixelRatio);
-    const h = Math.round(cssH * pixelRatio);
-    if (w < 1 || h < 1) return;
-    noteView(extent);
-    if (entry.canvas.width !== w || entry.canvas.height !== h) {
-      entry.canvas.width = w;
-      entry.canvas.height = h;
+  // Blank a pane's overlay (nothing to show, or hidden).
+  function blank(entry) {
+    if (entry.canvas.width === 1 && entry.canvas.height === 1) return;
+    if (ZERO_COPY) {
+      entry.ctx.transferFromImageBitmap(null);
     }
+    entry.canvas.width = 1;
+    entry.canvas.height = 1;
+  }
+
+  // One frame for one pane: `extent` is the ANCHORED view extent (EPSG:3857)
+  // the overlay is drawn for, `cssW`/`cssH` its size in CSS px. Steps the
+  // pane's particles and hands the frame to the overlay.
+  function draw(entry, extent, cssW, cssH, pixelRatio) {
+    if (cssW < 1 || cssH < 1) return;
     const now = performance.now();
     entry.lastRenderMs = now;
-    entry.ctx.clearRect(0, 0, w, h);
-    if (!renderer.hasField()) return;
+    if (!renderer.hasField()) {
+      blank(entry);
+      return;
+    }
 
     const ratio = simPixelRatio(cssW, cssH, pixelRatio);
     const simW = Math.max(1, Math.round(cssW * ratio));
@@ -447,8 +460,37 @@ export default function initWindParticles({ radarCoverage = () => [] } = {}) {
       ? { pointScale: PHONE_POINT_SCALE, alphaScale: PHONE_ALPHA_SCALE }
       : { pointScale: screenScale, alphaScale: 1 };
     if (renderer.render(entry.index, extent, ratio, now, look)) {
-      entry.ctx.drawImage(renderer.canvas, 0, 0, w, h);
+      renderer.present(entry.ctx);
+    } else {
+      blank(entry);
     }
+  }
+
+  // The view as the overlay is drawn for it. Re-anchored when a move ends
+  // (moveend clears it) or the pane changes size; in between, the overlay
+  // is transformed to follow the live view exactly as OL transforms its
+  // layer canvases during a drag or an animated zoom.
+  function anchorFor(entry, size) {
+    const view = entry.map.getView();
+    const center = view.getCenter();
+    const resolution = view.getResolution();
+    const a = entry.anchor;
+    if (a && a.size[0] === size[0] && a.size[1] === size[1]) {
+      const scale = a.resolution / resolution;
+      const dx = (a.center[0] - center[0]) / resolution;
+      const dy = (center[1] - a.center[1]) / resolution;
+      const moving = Math.abs(dx) > 0.01 || Math.abs(dy) > 0.01 || Math.abs(scale - 1) > 1e-6;
+      const transform = moving ? `translate(${dx.toFixed(2)}px, ${dy.toFixed(2)}px) scale(${scale.toFixed(6)})` : '';
+      if (entry.canvas.style.transform !== transform) entry.canvas.style.transform = transform;
+      return a;
+    }
+    entry.anchor = {
+      center: center.slice(), resolution, size: size.slice(), extent: view.calculateExtent(size),
+    };
+    // A fresh anchor means fresh trails: the old ones belong to another view.
+    entry.extent = null;
+    if (entry.canvas.style.transform) entry.canvas.style.transform = '';
+    return entry.anchor;
   }
 
   //
@@ -473,13 +515,15 @@ export default function initWindParticles({ radarCoverage = () => [] } = {}) {
       // are display:none and report no size) gets a frame.
       const size = entry.map && entry.visible && renderer && !renderer.contextLost ? entry.map.getSize() : null;
       if (size && size[0] > 0 && size[1] > 0) {
-        const extent = entry.map.getView().calculateExtent(size);
-        draw(entry, extent, size[0], size[1], window.devicePixelRatio || 1);
-      } else if (entry.canvas.width > 1) {
+        // Fetching follows the live view; drawing follows the anchor.
+        noteView(entry.map.getView().calculateExtent(size));
+        const anchor = anchorFor(entry, size);
+        draw(entry, anchor.extent, anchor.size[0], anchor.size[1], window.devicePixelRatio || 1);
+      } else {
         // Hidden or detached: blank the canvas once so nothing stale shows
         // when it comes back, and let its GPU state go below.
-        entry.canvas.width = 1;
-        entry.canvas.height = 1;
+        blank(entry);
+        entry.anchor = null;
       }
       if (renderer && renderer.hasState(entry.index) && now - entry.lastRenderMs > IDLE_RELEASE_MS) {
         renderer.releaseState(entry.index);
@@ -555,9 +599,10 @@ export default function initWindParticles({ radarCoverage = () => [] } = {}) {
       const entry = {
         index,
         canvas,
-        ctx: canvas.getContext('2d'),
+        ctx: canvas.getContext(ZERO_COPY ? 'bitmaprenderer' : '2d'),
         map: null,
         visible: false,
+        anchor: null,
         extent: null,
         lastRenderMs: 0,
       };
@@ -581,6 +626,9 @@ export default function initWindParticles({ radarCoverage = () => [] } = {}) {
       const viewport = map.getViewport();
       const overlays = viewport.querySelector('.ol-overlaycontainer');
       viewport.insertBefore(entry.canvas, overlays || null);
+      // A finished move (drag, animated zoom, programmatic jump) re-anchors
+      // the overlay to the new view on the next frame.
+      map.on('moveend', () => { entry.anchor = null; });
     },
 
     // Called from the POI toggle. On: build the GL context, start the loop,
