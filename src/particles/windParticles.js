@@ -148,7 +148,21 @@ const FIELD_CACHE_SIZE = 4;
 // at 2 a DPR-3 iPhone simulates 780 × 1690, 1.3 Mpx, and a point is still
 // crisp after the 1.5× copy, where at 1.5 it blurred into a faint smudge.
 const MAX_SIM_RATIO = 2;
-const MAX_SIM_PX = 2e6;
+// 4 Mpx: a 4K monitor at DPR 1 (8.3 M CSS px) simulates at ratio 0.7 rather
+// than the 0.5 a 2 Mpx budget forced, which blurred every sprite into a
+// smudge on exactly the screens with the smallest pixels. Phones never get
+// near it — the ratio cap holds them at ~1.3 Mpx.
+const MAX_SIM_PX = 4e6;
+// Particles per million CSS pixels of VIEWPORT — not of simulation pixels,
+// which made a 4K viewport (simulated small) six times sparser than a laptop.
+const PARTICLES_PER_MPX = 3000;
+// Bigger viewports get bigger sprites: nothing reports physical pixel size,
+// but a viewport far wider than a laptop's is a big monitor whose pixels are
+// smaller and which is read from farther away, and a sprite sized in CSS px
+// alone was "so thin that even the strong wind areas are hard to see" on one.
+// Scale with the square root of the area ratio to a 1440 × 900 laptop, capped.
+const LAPTOP_CSS_PX = 1440 * 900;
+const MAX_SCREEN_POINT_SCALE = 1.8;
 // Phones get larger, brighter particles: a 1 px line at arm's length on a
 // bright screen outdoors is the thing users called "very small and not very
 // visible", while the same line on a desktop is the calm look asked for. A
@@ -157,9 +171,8 @@ const MAX_SIM_PX = 2e6;
 const PHONE_POINT_SCALE = 1.3;
 const PHONE_ALPHA_SCALE = 1.2;
 const PHONE_MAX_CSS_PX = 600;
-const PARTICLES_PER_MPX = 2000;
 const MIN_PARTICLES = 1024;
-const MAX_PARTICLES = 16384;
+const MAX_PARTICLES = 32768;
 // A pane that has not asked for a frame in this long is off-screen (layout
 // shrank) — free its textures.
 const IDLE_RELEASE_MS = 5000;
@@ -419,7 +432,8 @@ export default function initWindParticles({ radarCoverage = () => [] } = {}) {
     const ratio = simPixelRatio(cssW, cssH, pixelRatio);
     const simW = Math.max(1, Math.round(cssW * ratio));
     const simH = Math.max(1, Math.round(cssH * ratio));
-    const count = Math.round(Math.min(MAX_PARTICLES, Math.max(MIN_PARTICLES, (simW * simH * PARTICLES_PER_MPX) / 1e6)));
+    const cssArea = cssW * cssH;
+    const count = Math.round(Math.min(MAX_PARTICLES, Math.max(MIN_PARTICLES, (cssArea * PARTICLES_PER_MPX) / 1e6)));
     renderer.stateFor(entry.index, simW, simH, count);
     // A moved view: positions are canvas fractions and stay put, but the
     // trails drawn for the old extent would smear across the jump.
@@ -429,9 +443,10 @@ export default function initWindParticles({ radarCoverage = () => [] } = {}) {
       entry.extent = extent.slice();
     }
     const phone = isPhone(cssW, cssH);
+    const screenScale = Math.min(MAX_SCREEN_POINT_SCALE, Math.max(1, Math.sqrt(cssArea / LAPTOP_CSS_PX)));
     const look = phone
       ? { pointScale: PHONE_POINT_SCALE, alphaScale: PHONE_ALPHA_SCALE }
-      : { pointScale: 1, alphaScale: 1 };
+      : { pointScale: screenScale, alphaScale: 1 };
     if (renderer.render(entry.index, extent, ratio, now, look)) {
       entry.ctx.drawImage(renderer.canvas, 0, 0, w, h);
     }
