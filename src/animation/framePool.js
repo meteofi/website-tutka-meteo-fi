@@ -1,7 +1,7 @@
 import ImageLayer from 'ol/layer/Image';
-import ImageCanvasSource from 'ol/source/ImageCanvas';
 import ImageState from 'ol/ImageState';
 import { containsExtent } from 'ol/extent';
+import BudgetedCanvasSource, { WARP_RATIO } from './budgetedCanvasSource';
 import StickyImageWMS from './stickyImageWMS';
 import computeRequestShape from '../wms/requestShape';
 import { FRAME_COUNT } from '../constants';
@@ -27,18 +27,6 @@ function overrideKeyOf(o) {
   if (o.skip) return 'skip';
   if (!o.params) return '';
   return `L=${o.params.LAYERS}|R=${o.params.DIM_REFERENCE_TIME}`;
-}
-
-// Given a padded canvas extent and the padding ratio (e.g., 1.5),
-// return the inner 1× view extent (canvas minus buffer) with the
-// same center.
-function deriveViewExtent(paddedExtent, ratio) {
-  if (!paddedExtent || !ratio) return paddedExtent;
-  const cx = (paddedExtent[0] + paddedExtent[2]) / 2;
-  const cy = (paddedExtent[1] + paddedExtent[3]) / 2;
-  const hw = ((paddedExtent[2] - paddedExtent[0]) * 0.5) / ratio;
-  const hh = ((paddedExtent[3] - paddedExtent[1]) * 0.5) / ratio;
-  return [cx - hw, cy - hh, cx + hw, cy + hh];
 }
 
 // Pool of N invisible ImageLayers, each with its own ImageWMS source
@@ -497,12 +485,13 @@ export default class FramePool {
     return anchor;
   }
 
-  // Fan a newly computed shape out to every slot source, and keep the
-  // pool's `ratio` + the warp source's buffer ratio in lockstep with it —
-  // deriveViewExtent unpads canvas extents by this.ratio, so a mismatch
-  // would misplace the interpolation's extent checks. A shape change
-  // re-keys every slot's next request (new WIDTH/HEIGHT), costing one
-  // window refetch — the same price as the zoom/resize that caused it.
+  // Fan a newly computed shape out to every slot source and keep the
+  // pool's `ratio` with it. The warp source does NOT follow: it renders
+  // the view at WARP_RATIO 1 whatever the fetch buffer is (renderAt maps
+  // the view onto the buffered frames), so it only needs a repaint. A
+  // shape change re-keys every slot's next request (new WIDTH/HEIGHT),
+  // costing one window refetch — the same price as the zoom/resize that
+  // caused it.
   _applyRequestShape(shape) {
     const prev = this._shape;
     if (prev && prev.dpr === shape.dpr && prev.ratio === shape.ratio) return;
@@ -511,11 +500,7 @@ export default class FramePool {
     for (const slot of this.slots) {
       slot.source.setRequestShape(shape);
     }
-    if (this.warpLayer) {
-      const warpSource = this.warpLayer.getSource();
-      warpSource.ratio_ = shape.ratio;
-      warpSource.changed();
-    }
+    if (this.warpLayer) this.warpLayer.getSource().changed();
   }
 
   _slotAtIndex(idx) {
@@ -707,22 +692,26 @@ export default class FramePool {
     this._emptyCanvas.width = 1;
     this._emptyCanvas.height = 1;
 
-    // canvasFunction is given the size OL wants rendered, in device
-    // pixels. That's usually viewSize × ratio × devicePixelRatio —
-    // larger than A's native bitmap on retina because the slot's
-    // StickyImageWMS uses hidpi:false. Render at that size so the
-    // canvas covers the requested extent; the shader upscales from
-    // A's bitmap with bilinear filtering.
+    // canvasFunction is given the size to render, in canvas pixels:
+    // the view's CSS size at most (BudgetedCanvasSource caps it — the
+    // slot bitmaps are DPR 1, so anything larger only upscales), and
+    // smaller still under the pixel budget. The canvas covers the
+    // requested extent at that size; the layer renderer scales it onto
+    // the screen through the image pixel ratio the source reports.
     const canvasFunction = (extent, resolution, pixelRatio, size) => {
       if (!this.interpActive) return this._emptyCanvas;
       const { timeA, timeB, t } = this._warpState;
       if (!timeA || !timeB) return this._emptyCanvas;
-      // Derive the 1× view extent from OL's requested 1.5× canvas
-      // extent. hasFlow checks whether the stored frames cover the
-      // 1× view (not the 1.5× buffer area) so small pans within the
-      // buffer keep flow active.
-      const viewExtent = deriveViewExtent(extent, this.ratio);
-      if (!interpolator.hasFlow(timeA, timeB, viewExtent)) return this._emptyCanvas;
+      // hasFlow checks whether the stored frames cover the VIEW (not the
+      // fetch buffer) so small pans within the buffer keep flow active.
+      // The view comes from the map, not from the extent OL requests
+      // here: the image-layer renderer asks for more than the view, and
+      // with the old 1.5× warp ratio that padding happened to be hidden
+      // inside the division back to a "view" extent — at ratio 1 it is
+      // not, and a padded extent is never inside a buffer sized for the
+      // view, so flow would silently never engage.
+      const viewExtent = this._viewExtent();
+      if (!viewExtent || !interpolator.hasFlow(timeA, timeB, viewExtent)) return this._emptyCanvas;
       // Pass the canvas extent so renderAt can compute the UV
       // transform that places content at the correct world position.
       return interpolator.renderAt(timeA, timeB, t, size[0], size[1], extent);
@@ -735,10 +724,10 @@ export default class FramePool {
       // playback is paused, which lets the GPU process actually idle.
       visible: false,
       opacity: this._userOpacity,
-      // Match the primary's WMS ratio (1.5 by default in radar.js)
-      // so OL asks canvasFunction for the same extent-and-size the
-      // primary's slot images were fetched at.
-      source: new ImageCanvasSource({ canvasFunction, ratio: this.ratio }),
+      // The view alone, under a pixel budget — see WARP_RATIO and
+      // WARP_PIXEL_BUDGET. The slot images keep their own 1.5× fetch
+      // ratio (this.ratio); renderAt maps the view onto them.
+      source: new BudgetedCanvasSource({ canvasFunction, ratio: WARP_RATIO }),
     });
 
     this._primaryVisListener = () => {
