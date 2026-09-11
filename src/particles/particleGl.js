@@ -47,9 +47,21 @@ void main() {
 }`;
 
 // Shared by the update and draw shaders: canvas fraction → m/s at that point.
-// Returns (u, v, quality, valid). valid = 0 outside the fetched field or on a
-// cell without data; the callers let such a particle die. quality is the
-// field's B channel (1 measured … 0 filled), alpha in the draw pass.
+// Returns (u, v, quality, coverage). coverage = 0 outside the fetched field,
+// on a cell without data, or outside every coverage disc (below); the
+// callers let such a particle die. quality is the field's B channel
+// (1 measured … 0 filled), alpha in the draw pass.
+//
+// COVERAGE DISCS (u_sites): the radar motion field is served over the
+// composite's whole raster rectangle, filled from neighbours wherever there
+// was no echo to match — 96 % of it on a typical day, corners over the
+// Norwegian Sea and Russia included. The composite itself only holds data
+// within each radar's range, so the particles are confined to the union of
+// the sites' coverage discs, feathered over the outer 8 %. Discs are in
+// EPSG:3857 units with the radius scaled by 1/cos(lat) at the site (the
+// Mercator stretch varies ~6 % across a 250 km disc at 60°N — fine for a
+// soft edge). No sites (a model field) means no mask.
+const MAX_SITES = 16;
 const FIELD_GLSL = `
 uniform sampler2D u_field;
 uniform vec4 u_extent;      // EPSG:3857 minx, miny, maxx, maxy of the canvas
@@ -57,8 +69,20 @@ uniform vec2 u_fieldOrigin; // lon, lat of the centre of cell (0, 0)
 uniform vec2 u_fieldStep;   // degrees per cell
 uniform vec2 u_fieldSize;   // cells
 uniform float u_speedRange; // m/s encoded as byte 255 (byte 0 = -range)
+uniform vec3 u_sites[${MAX_SITES}]; // x, y, radius in map units
+uniform int u_siteCount;
 const float R = 6378137.0;
 const float PI = 3.141592653589793;
+float coverage(vec2 m) {
+  if (u_siteCount == 0) return 1.0;
+  float c = 0.0;
+  for (int i = 0; i < ${MAX_SITES}; i++) {
+    if (i >= u_siteCount) break;
+    float r = u_sites[i].z;
+    c = max(c, 1.0 - smoothstep(r * 0.92, r, distance(m, u_sites[i].xy)));
+  }
+  return c;
+}
 vec4 sampleField(vec2 pos) {
   vec2 m = u_extent.xy + pos * (u_extent.zw - u_extent.xy);
   float lon = degrees(m.x / R);
@@ -68,7 +92,9 @@ vec4 sampleField(vec2 pos) {
   if (any(lessThan(idx, vec2(-0.5))) || any(greaterThan(idx, u_fieldSize - 0.5))) return vec4(0.0);
   vec4 f = texture(u_field, (idx + 0.5) / u_fieldSize);
   if (f.a < 0.5) return vec4(0.0);
-  return vec4((f.rg * 2.0 - 1.0) * u_speedRange, f.b, 1.0);
+  float cov = coverage(m);
+  if (cov <= 0.0) return vec4(0.0);
+  return vec4((f.rg * 2.0 - 1.0) * u_speedRange, f.b, cov);
 }
 vec2 decodePos(vec4 c) { return c.ba + c.rg / 255.0; }
 `;
@@ -197,7 +223,7 @@ function uniforms(gl, program, names) {
   return out;
 }
 
-const FIELD_UNIFORMS = ['u_field', 'u_extent', 'u_fieldOrigin', 'u_fieldStep', 'u_fieldSize', 'u_speedRange'];
+const FIELD_UNIFORMS = ['u_field', 'u_extent', 'u_fieldOrigin', 'u_fieldStep', 'u_fieldSize', 'u_speedRange', 'u_sites', 'u_siteCount'];
 
 // Per-pane simulation state: `count` particles in a res × res position
 // texture (rounded up to a square), trails at the pane's simulation size.
@@ -341,6 +367,8 @@ export default class ParticleRenderer {
 
     this.field = null;
     this.fieldTexture = null;
+    this.sites = new Float32Array(MAX_SITES * 3);
+    this.siteCount = 0;
     this.color = [1, 1, 1, 0.85];
     this.halo = [0, 0, 0, 0.3];
     this.states = new Map();
@@ -365,6 +393,18 @@ export default class ParticleRenderer {
     if (this.fieldTexture && !this.contextLost) this.gl.deleteTexture(this.fieldTexture);
     this.fieldTexture = null;
     this.field = null;
+  }
+
+  // Coverage discs, [{ x, y, radius }] in EPSG:3857 units; [] for no mask.
+  // Beyond MAX_SITES the rest are dropped.
+  setMask(sites) {
+    this.siteCount = Math.min(MAX_SITES, sites.length);
+    this.sites.fill(0);
+    for (let i = 0; i < this.siteCount; i++) {
+      this.sites[i * 3] = sites[i].x;
+      this.sites[i * 3 + 1] = sites[i].y;
+      this.sites[i * 3 + 2] = sites[i].radius;
+    }
   }
 
   // [r, g, b, a] in 0..1 each — the theme's particle core and halo colours.
@@ -424,6 +464,8 @@ export default class ParticleRenderer {
     gl.uniform2f(u.u_fieldStep, field.dLon, field.dLat);
     gl.uniform2f(u.u_fieldSize, field.nx, field.ny);
     gl.uniform1f(u.u_speedRange, field.range);
+    gl.uniform3fv(u.u_sites, this.sites);
+    gl.uniform1i(u.u_siteCount, this.siteCount);
     return pixelRatio;
   }
 

@@ -40,10 +40,10 @@ import ImageLayer from 'ol/layer/Image';
 import ImageCanvasSource from 'ol/source/ImageCanvas';
 import { transformExtent } from 'ol/proj';
 import { FRAME_STEPS } from '../constants';
-import { quantizedAreaBounds, isoSeconds } from '../edr/areaQuery';
+import { quantizedAreaBounds } from '../edr/areaQuery';
 import { createFetchSlot } from '../edr/seriesFetch';
 import {
-  buildGridUrl, parseTemporalValues, pickFieldTime, parseGridCoverage, encodeField,
+  buildGridUrl, timeRangeIso, parseTemporalValues, pickFieldTime, parseGridCoverage, encodeField,
 } from './windField';
 import ParticleRenderer from './particleGl';
 
@@ -79,14 +79,26 @@ const MODEL_SOURCES = {
 // The radar source: the nowcast engine's block motion field (~16 km blocks,
 // outlier-rejected, filled, smoothed, EMA-blended across generations). The
 // collection id is the production one (the storm-cell layer reads the same
-// collection's features). Contract, from meteocore#662: area query → Grid
-// [t, y, x] with one t (the generation anchor); motion in m/s east/north;
-// motion_quality 1 where the block was matched, 0 where it was filled from
-// its neighbours (drawn fainter — the shader's alpha); `datetime` picks the
-// newest generation at or before the given time, a time before every kept
-// generation is a 404. Needs `edr` in the collection's `apis` server-side —
-// until the production config has it the collection is not on /edr at all
-// and every request 404s (poisoned per URL, one try per frame slide).
+// collection's features). Contract as measured live on 2026-09-11:
+//   - area query → Grid [t, y, x] with one t (the generation anchor), 78 × 115
+//     cells over the composite's whole raster rectangle, 0.47° × 0.118°, no
+//     nulls: every cell is either block-matched (motion_quality 1 — 317 of
+//     8 970 that day) or filled from its neighbours (0). The fill is honest
+//     motion for advection but says nothing about where there is rain, which
+//     is why particles are dimmed on filled blocks AND confined to the
+//     radars' coverage discs (radar.js supplies them; particleGl.js masks);
+//   - `datetime` MUST be an interval — the server answers with the newest
+//     generation anchored inside it, and reads an instant as the empty
+//     interval t/t (404 "no nowcast generation anchored inside"). The
+//     animation window is the interval sent: its newest frame is the time the
+//     particles are meant to describe, and a generation anchored at or just
+//     before it is always inside the hour. The URL then slides with the frame
+//     pool's cadence, and the browser cache (max-age 60) covers the rest;
+//   - a polygon outside the collection's bbox is a 400, so the request box is
+//     the domain itself — 19 kB gzipped for the whole thing, one URL per
+//     window instead of one per pan;
+//   - the whole rectangle is bigger than the radars see (corners over the
+//     Norwegian Sea and Russia); see the coverage mask.
 const RADAR_SOURCE = {
   id: 'radar',
   kind: 'radar',
@@ -94,22 +106,34 @@ const RADAR_SOURCE = {
   u: 'motion_u',
   v: 'motion_v',
   quality: 'motion_quality',
+  // The collection's advertised bbox ([6.68, 55.93, 43.12, 72.86]) snapped
+  // outward to the shared 0.5° grid.
+  bbox: [6.5, 55.5, 43.5, 73],
   label: 'Sateen liike (tutka)',
   attribution: 'Sateen liike © FMI (CC BY 4.0)',
 };
 
-// Both models are global; the box is clamped only by the area budget. At the
-// models' 0.25° spacing 1 200 deg² is 19 200 points × 2 components — about
-// 70 kB gzipped, the most a zoomed-out view is allowed to cost. Finland at z5
-// is ~380 deg² with the margin.
+// Both models are global; the box is clamped only by the area budget. The
+// budget must hold the VIEW, not just a comfortable margin: quantizedAreaBounds
+// shrinks an over-budget box around the view centre, and a box smaller than
+// the view leaves its edges without a field — particles simply do not exist
+// there, and a small pan does not move the quantized box, so the gap stays
+// "until panned a lot". 1 200 deg² did exactly that from z4 out (a Nordic
+// view is ~2 400 deg² with the margin). At the models' 0.25° spacing 4 000
+// deg² is 64 000 points × 2 components, ~2.4 MB raw / ~250 kB gzipped, and
+// the ECMWF engine answers a 3 600 deg² box in 1.5 s — affordable for the
+// rare continent-scale view, and still inside the server's 500k-value limit.
+// Only a world-scale view (z ≤ 3) is left partially covered.
 const WORLD_BBOX = [-180, -90, 180, 90];
-const MAX_AREA_DEG2 = 1200;
+const MAX_AREA_DEG2 = 4000;
 
 // Metadata (the advertised time steps) refreshes on this timer while the layer
 // is on — a new model run appears four times a day.
 const METADATA_REFRESH_MS = 30 * 60 * 1000;
 // A failed request (5xx, network) is retried after this; 4xx is poisoned.
-const RETRY_MS = 60 * 1000;
+// Short, because the layer has nothing else to show while it waits and the
+// ECMWF engine does hiccup (502s for whole days have happened).
+const RETRY_MS = 15 * 1000;
 // Fetch after the view has stopped moving for this long (the moveend idea,
 // read off the canvasFunction's extent so no map wiring is needed).
 const VIEW_SETTLE_MS = 300;
@@ -161,7 +185,11 @@ function readSourceOverride() {
   }
 }
 
-export default function initWindParticles() {
+//   radarCoverage — () => [{ x, y, radius }] in EPSG:3857 units, the discs
+//     the composite's radars actually see; read whenever a radar field is
+//     applied, so a site list that loads after the layer is switched on is
+//     picked up on the next field. [] (or absent) draws the whole field.
+export default function initWindParticles({ radarCoverage = () => [] } = {}) {
   const override = readSourceOverride();
   const modelSource = MODEL_SOURCES[override] || MODEL_SOURCES.ecmwf;
   const forceRadar = override === 'radar';
@@ -179,6 +207,7 @@ export default function initWindParticles() {
   // Fetch state.
   let steps = [];
   let targetMs = NaN;
+  let windowStartMs = NaN;
   let pendingView = null;
   let settleTimer = null;
   let retryTimer = null;
@@ -234,7 +263,9 @@ export default function initWindParticles() {
 
   function applyField(url) {
     currentUrl = url;
-    if (renderer) renderer.setField(fieldCache.get(url));
+    if (!renderer) return;
+    renderer.setField(fieldCache.get(url));
+    renderer.setMask(source.kind === 'radar' ? radarCoverage() : []);
   }
 
   function scheduleRetry() {
@@ -280,17 +311,30 @@ export default function initWindParticles() {
   // model step, metadata arrived, retry timer), decide which field the layer
   // should be showing and fetch it if it is not the one on screen.
   // The datetime for the field: a model's advertised step nearest the window's
-  // newest frame, or for the radar that frame's own time (see the header).
+  // newest frame, or for the radar the window itself as an interval (see the
+  // RADAR_SOURCE notes).
   function timeFor() {
     if (!Number.isFinite(targetMs)) return null;
-    if (source.kind === 'radar') return isoSeconds(targetMs);
+    if (source.kind === 'radar') return timeRangeIso(windowStartMs, targetMs);
     const step = pickFieldTime(steps, targetMs);
     return step ? step.iso : null;
   }
 
+  // The polygon: the buffered, quantized view for a model; the whole domain
+  // for the radar (one URL per window, and a box outside the domain is a
+  // 400), but only while the view touches it — nothing is fetched for a view
+  // over central Europe.
+  function boundsFor() {
+    if (source.kind !== 'radar') {
+      return quantizedAreaBounds(pendingView, { coverageBbox: WORLD_BBOX, maxAreaDeg2: MAX_AREA_DEG2 });
+    }
+    const touches = quantizedAreaBounds(pendingView, { coverageBbox: source.bbox, maxAreaDeg2: Infinity });
+    return touches ? source.bbox : null;
+  }
+
   function planFetch() {
     if (!enabled || !renderer || !pendingView) return;
-    const bounds = quantizedAreaBounds(pendingView, { coverageBbox: WORLD_BBOX, maxAreaDeg2: MAX_AREA_DEG2 });
+    const bounds = boundsFor();
     const time = timeFor();
     if (!bounds || !time) return;
     const params = source.quality ? [source.u, source.v, source.quality] : [source.u, source.v];
@@ -532,9 +576,10 @@ export default function initWindParticles() {
 
     // Routed from setTime (radar.js) on every clock move — the probe /
     // stormCells signature. The field follows the window's newest frame.
-    setCursor(timeMs, windowStartMs, stepMs) {
-      const next = windowStartMs + FRAME_STEPS * stepMs;
+    setCursor(timeMs, startMs, stepMs) {
+      const next = startMs + FRAME_STEPS * stepMs;
       if (next === targetMs) return;
+      windowStartMs = startMs;
       targetMs = next;
       planFetch();
     },

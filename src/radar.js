@@ -831,7 +831,20 @@ const stormCells = initStormCells({ telemetry });
 // precipitation-motion field, one shared WebGL context for every pane. The two
 // POI rows are exclusive; applyPoiVisibility picks the source and gates the
 // fetching and the frame loop. The clock only picks the field's time.
-const wind = initWindParticles();
+const wind = initWindParticles({
+  // The composite is FMI's own radars, so the radar motion field is confined
+  // to their coverage discs (the server fills the rest of the rectangle).
+  // Site geometries are already in the view projection (EPSG:3857); the
+  // radius is stretched by the Mercator factor at the site's latitude.
+  radarCoverage: () => radarSiteSource.getFeatures()
+    .filter((f) => /^fi/.test(f.get('nod') || ''))
+    .map((f) => {
+      const [x, y] = f.getGeometry().getCoordinates();
+      const lat = f.get('latitude');
+      const radiusM = f.get('coverage_radius_m') || 250000;
+      return { x, y, radius: radiusM / Math.cos((lat * Math.PI) / 180) };
+    }),
+});
 
 // Departure board for a tapped railway station. Wall-clock live rather than
 // clock-coupled — a board is about what is next, and no radar frame can

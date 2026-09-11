@@ -29,7 +29,7 @@
 // from scripts/test-wind-field.mjs (the seriesFetch.js precedent). Do not
 // "tidy" it away.
 // eslint-disable-next-line import/extensions
-import { polygonWkt } from '../edr/areaQuery.js';
+import { polygonWkt, isoSeconds } from '../edr/areaQuery.js';
 
 // Deterministic URL for one field: sorted parameter names, the model step
 // VERBATIM from the collection metadata (never a rounded local guess — the
@@ -41,6 +41,15 @@ export function buildGridUrl(endpoint, bounds, params, timeIso) {
     + `&parameter-name=${encodeURIComponent(names)}`
     + `&datetime=${encodeURIComponent(timeIso)}`
     + `&coords=${encodeURIComponent(polygonWkt(bounds))}`;
+}
+
+// A datetime interval for the nowcast area query: the animation window
+// itself, so the server answers with the newest generation anchored inside
+// it. An instant is NOT accepted there — the server reads `t` as the empty
+// interval t/t and 404s with "no nowcast generation anchored inside" unless
+// a generation sits on that exact second (measured 2026-09-11).
+export function timeRangeIso(startMs, endMs) {
+  return `${isoSeconds(startMs)}/${isoSeconds(endMs)}`;
 }
 
 // Collection metadata → the advertised time steps, ascending, each kept as
@@ -93,17 +102,44 @@ function axisValues(axis) {
   return null;
 }
 
-// Spacing of a regular axis, or null when the axis has fewer than two points
-// or is not regular (a texture can only hold a regular grid).
-function regularStep(values) {
-  if (values.length < 2) return null;
-  const step = (values[values.length - 1] - values[0]) / (values.length - 1);
+// A regular axis → { step, origin }, with `origin` the centre of the cell at
+// index 0 of the ASCENDING order and `step` signed as the values run; null
+// when the axis has fewer than two points or is not regular (a texture can
+// only hold a regular grid).
+//
+// The first and last cells may be narrower than the rest: the radar motion
+// grid is a block grid over the composite raster, and the raster's edge
+// blocks are clipped — live, the first row was 0.118° tall against 0.148°
+// for every other row (2026-09-11). Their centres sit inside the regular
+// lattice's edge cell, so the lattice is anchored on the interior (the
+// second cell) and the clipped cell is sampled a little off its true centre,
+// which is nothing at 15 km blocks. Anything irregular INSIDE the axis is
+// still refused: that is the signal a server change would send.
+function regularAxis(values) {
+  const n = values.length;
+  if (n < 2) return null;
+  const diffs = [];
+  for (let i = 1; i < n; i++) diffs.push(values[i] - values[i - 1]);
+  // Median spacing of the INTERIOR — robust to the clipped ends. An axis too
+  // short to have an interior (three points or fewer) has no way to tell a
+  // clipped edge from an irregular axis, so it must be regular throughout.
+  const interior = diffs.length >= 3 ? diffs.slice(1, -1) : diffs;
+  const sorted = [...interior].sort((a, b) => a - b);
+  const step = sorted[Math.floor(sorted.length / 2)];
   if (!Number.isFinite(step) || step === 0) return null;
-  const tol = Math.abs(step) * 1e-3;
-  for (let i = 1; i < values.length; i++) {
-    if (Math.abs(values[i] - values[i - 1] - step) > tol) return null;
+  const tol = Math.abs(step) * 1e-2;
+  const sameSign = (d) => Math.sign(d) === Math.sign(step);
+  const fits = (d) => Math.abs(d - step) <= tol;
+  // A clipped edge cell is narrower than a regular one, never wider.
+  const clipped = (d) => sameSign(d) && Math.abs(d) <= Math.abs(step) + tol;
+  for (let i = 0; i < diffs.length; i++) {
+    const edge = diffs.length >= 3 && (i === 0 || i === diffs.length - 1);
+    if (!fits(diffs[i]) && !(edge && clipped(diffs[i]))) return null;
   }
-  return step;
+  const ascending = step > 0 ? values : [...values].reverse();
+  const first = ascending[1] - ascending[0];
+  const origin = Math.abs(first - Math.abs(step)) <= tol ? ascending[0] : ascending[1] - Math.abs(step);
+  return { step, origin };
 }
 
 // One NdArray → a reader `(iy, ix) => value` honouring its axisNames, or null
@@ -155,9 +191,11 @@ export function parseGridCoverage(json, uName, vName, qName = null) {
   const xs = axisValues(axes.x);
   const ys = axisValues(axes.y);
   if (!xs || !ys) return null;
-  const dx = regularStep(xs);
-  const dy = regularStep(ys);
-  if (dx == null || dy == null) return null;
+  const ax = regularAxis(xs);
+  const ay = regularAxis(ys);
+  if (!ax || !ay) return null;
+  const dx = ax.step;
+  const dy = ay.step;
   const nx = xs.length;
   const ny = ys.length;
   const readU = gridReader(json.ranges && json.ranges[uName], nx, ny);
@@ -192,8 +230,8 @@ export function parseGridCoverage(json, uName, vName, qName = null) {
   return {
     nx,
     ny,
-    lon0: flipX ? xs[nx - 1] : xs[0],
-    lat0: flipY ? ys[ny - 1] : ys[0],
+    lon0: ax.origin,
+    lat0: ay.origin,
     dLon: Math.abs(dx),
     dLat: Math.abs(dy),
     u,

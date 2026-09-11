@@ -15,7 +15,7 @@
 // and this runs in bare node, not through webpack.
 /* eslint-disable import/extensions */
 import {
-  buildGridUrl, parseTemporalValues, pickFieldTime, parseGridCoverage, encodeField, decodeComponent,
+  buildGridUrl, timeRangeIso, parseTemporalValues, pickFieldTime, parseGridCoverage, encodeField, decodeComponent,
 } from '../src/particles/windField.js';
 import { buildAreaUrl } from '../src/edr/areaQuery.js';
 /* eslint-enable import/extensions */
@@ -206,6 +206,46 @@ expectCanonical('length-1 time axis is accepted', parseGridCoverage(grid({
   flipped.ranges.motion_quality = { type: 'NdArray', axisNames: ['y', 'x'], shape: [2, 3], values: [0, 0, 0, 1, 1, 1] };
   const ff = parseGridCoverage(flipped, '10u', '10v', 'motion_quality');
   check('quality rows flip with the motion rows', ff && ff.q[0] === 1 && ff.q[3] === 0);
+}
+
+{
+  // The radar's datetime is the animation window as an interval, seconds
+  // precision, and it survives the URL builder intact.
+  const range = timeRangeIso(Date.parse('2026-09-11T10:20:00.000Z'), Date.parse('2026-09-11T11:20:00.000Z'));
+  check('window interval', range === '2026-09-11T10:20:00Z/2026-09-11T11:20:00Z', range);
+  const url = buildGridUrl('https://x/area', [6.5, 55.5, 43.5, 73], ['motion_v', 'motion_u', 'motion_quality'], range);
+  check('radar URL carries the interval and the sorted quality parameter',
+    url === 'https://x/area?f=CoverageJSON&parameter-name=motion_quality%2Cmotion_u%2Cmotion_v'
+      + '&datetime=2026-09-11T10%3A20%3A00Z%2F2026-09-11T11%3A20%3A00Z'
+      + '&coords=POLYGON((6.5%2055.5%2C43.5%2055.5%2C43.5%2073.0%2C6.5%2073.0%2C6.5%2055.5))', url);
+}
+
+{
+  // Clipped edge cells (the live radar grid's first row) are accepted with
+  // the lattice anchored on the interior; an irregular interior is not.
+  const g = grid({ xs: [20, 21, 22], ys: [60, 61], axisNames: ['y', 'x'] });
+  g.domain.axes.y.values = [60.2, 61, 62, 63];
+  g.ranges['10u'].shape = [4, 3]; g.ranges['10v'].shape = [4, 3];
+  g.ranges['10u'].values = [0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3, 3];
+  g.ranges['10v'].values = g.ranges['10u'].values.map((v) => -v);
+  const f = parseGridCoverage(g, '10u', '10v');
+  check('clipped first row accepted', !!f && f.ny === 4);
+  check('lattice anchored on the interior', f && near(f.lat0, 60) && near(f.dLat, 1), f && `${f.lat0} ${f.dLat}`);
+  g.domain.axes.y.values = [63, 62, 61, 60.2];
+  g.ranges['10u'].values.reverse(); g.ranges['10v'].values.reverse();
+  const fd = parseGridCoverage(g, '10u', '10v');
+  check('clipped edge on a descending axis', !!fd && near(fd.lat0, 60) && fd.u[0] === 0 && fd.u[9] === 3);
+  // Irregularity inside the axis is still refused — on an axis long enough
+  // to have an interior (four points give the edge rule nothing to check
+  // against, which is fine: a four-cell field is not a field).
+  g.domain.axes.y.values = [60, 61, 62, 62.4, 64, 65];
+  g.ranges['10u'].shape = [6, 3]; g.ranges['10v'].shape = [6, 3];
+  g.ranges['10u'].values = new Array(18).fill(1); g.ranges['10v'].values = new Array(18).fill(1);
+  check('irregular interior still rejected', parseGridCoverage(g, '10u', '10v') === null);
+  g.domain.axes.y.values = [60, 61, 62, 63, 64, 65.8];
+  check('an edge cell wider than the step is not a clipped cell', parseGridCoverage(g, '10u', '10v') === null);
+  g.domain.axes.y.values = [60.3, 61, 62, 63, 64, 64.7];
+  check('both edges clipped is fine', parseGridCoverage(g, '10u', '10v') !== null);
 }
 
 if (failures > 0) {
