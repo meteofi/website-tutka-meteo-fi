@@ -357,6 +357,14 @@ export default function initWindParticles({ radarCoverage = () => [] } = {}) {
 
   function planFetch() {
     if (!enabled || !renderer || !pendingView) return;
+    // A model with no steps yet needs its metadata before any field can be
+    // named — including after a failed metadata load, whose retry lands
+    // here through scheduleRetry. Without this a transient metadata failure
+    // left the layer empty until the 30-minute refresh.
+    if (source.kind !== 'radar' && steps.length === 0) {
+      if (!metadataSlot.isBusy()) loadMetadata();
+      return;
+    }
     const bounds = boundsFor();
     const time = timeFor();
     if (!bounds || !time) return;
@@ -640,6 +648,13 @@ export default function initWindParticles({ radarCoverage = () => [] } = {}) {
       if (on) {
         rebuilds = 0;
         createRenderer();
+        if (!renderer) {
+          // No WebGL2: nothing can ever draw, so no loop, no timers, no
+          // requests. Left disabled; the next applyPoiVisibility tries again,
+          // which is cheap and covers a context budget that frees up later.
+          enabled = false;
+          return;
+        }
         startLoop();
         startSource();
         return;
