@@ -103,6 +103,9 @@ export default function createPane(targetEl, sharedView, deps) {
     // Storm cells (src/stormCells.js) — panes share one VectorSource; the
     // controller in radar.js owns fetching and the clock-driven advection.
     createStormCellsLayer,
+    // Wind particles (src/particles/windParticles.js) — an overlay canvas per
+    // pane, animated by the controller from its shared WebGL context.
+    createWindLayer,
     // Traffic announcements (src/trafficMessages.js) — panes share one
     // VectorSource; the controller owns fetching and the clock filter.
     createTrafficLayer,
@@ -244,6 +247,13 @@ export default function createPane(targetEl, sharedView, deps) {
   radarLayer.set('defaultFormat', 'image/png');
   // Opt out of the webp wire format for radar specifically (see radar.js notes).
   radarLayer.set('disableWebp', true);
+
+  // Flowing wind / precipitation-motion particles. NOT an OL layer and not in
+  // the `layers` array below: it is an overlay canvas the controller animates
+  // from its own frame loop (re-rendering OL per frame was what made the
+  // radar stutter it), attached to this map's viewport by radar.js once the
+  // Map exists. This handle only carries the POI visibility fan-out.
+  const windLayer = createWindLayer(index);
 
   // FMI lightning is an EDR-backed vector layer (src/lightning/); this
   // companion raster carries the category's WMS products (li_afa/rdt from
@@ -524,6 +534,7 @@ export default function createPane(targetEl, sharedView, deps) {
     placeNamesLayer,
     satelliteLayer,
     radarLayer,
+    windLayer,
     lightningLayer,
     lightningWmsLayer,
     observationLayer,

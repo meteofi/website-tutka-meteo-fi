@@ -41,6 +41,7 @@ import initObsLayer from './obs/obsLayer';
 import initLightningLayer from './lightning/lightningLayer';
 import { createPlaceNamesLayer, placeNamesStyleLight, placeNamesStyleDark } from './placeNames';
 import initStormCells from './stormCells';
+import initWindParticles from './particles/windParticles';
 import initTrafficMessages from './trafficMessages';
 import initWeatherCameras from './weatherCameras';
 import initTrains from './trains';
@@ -826,6 +827,24 @@ const gliders = initGliders({ telemetry });
 // its per-pane layer factory can join paneDeps; fetching starts only when the
 // POI is switched on (applyPoiVisibility), and setTime feeds it the clock.
 const stormCells = initStormCells({ telemetry });
+// Flowing particles (Tuuli / Sateen liike): model 10 m wind or the radar's
+// precipitation-motion field, one shared WebGL context for every pane. The two
+// POI rows are exclusive; applyPoiVisibility picks the source and gates the
+// fetching and the frame loop. The clock only picks the field's time.
+const wind = initWindParticles({
+  // The composite is FMI's own radars, so the radar motion field is confined
+  // to their coverage discs (the server fills the rest of the rectangle).
+  // Site geometries are already in the view projection (EPSG:3857); the
+  // radius is stretched by the Mercator factor at the site's latitude.
+  radarCoverage: () => radarSiteSource.getFeatures()
+    .filter((f) => /^fi/.test(f.get('nod') || ''))
+    .map((f) => {
+      const [x, y] = f.getGeometry().getCoordinates();
+      const lat = f.get('latitude');
+      const radiusM = f.get('coverage_radius_m') || 250000;
+      return { x, y, radius: radiusM / Math.cos((lat * Math.PI) / 180) };
+    }),
+});
 
 // Departure board for a tapped railway station. Wall-clock live rather than
 // clock-coupled — a board is about what is next, and no radar frame can
@@ -891,6 +910,7 @@ const paneDeps = {
   createLightningLayer: lightningController.createPaneLayer,
   createPlaceNamesLayer,
   createStormCellsLayer: stormCells.createPaneLayer,
+  createWindLayer: wind.createPaneLayer,
   createTrafficLayer: trafficMessages.createPaneLayer,
   createWeatherCameraLayer: weatherCameras.createPaneLayer,
   createGliderLayer: gliders.createPaneLayer,
@@ -1403,6 +1423,9 @@ function setTime(action = 'next', seekIndex = 0) {
   // extrapolated, and empty on frames it has none for. The window is passed so
   // the controller knows which frames to prefetch.
   stormCells.setCursor(startDate.getTime(), start, resolution);
+  // Wind particles follow the window's newest frame to the nearest model step
+  // — a refetch once per step, never a flip mid-loop.
+  wind.setCursor(startDate.getTime(), start, resolution);
   // Traffic announcements show only where the displayed frame falls inside the
   // announcement's validity, so scrubbing back hides an incident that had not
   // happened yet at that frame. Filter only — no fetch on a cursor move.
@@ -1720,6 +1743,7 @@ function setMapLayer(maplayer) {
     pane.airspaceReservedLayer.setStyle(airspace.styleFor('reserved', airspaceTheme));
     pane.metarLayer.setStyle(light ? metar.styleLight : metar.styleDark);
   }
+  wind.setTheme(light ? 'light' : 'dark');
   applyIcaoTheme(maplayer);
   applyVesivaylatTheme(maplayer);
 }
@@ -2104,6 +2128,8 @@ function initPaneTraffic(pane) {
   pane.stormCells = stormCells.attachPane(pane.map, pane.stormCellsLayer);
   // Own position/vessel drives the same strip; only the hit-test is per-pane.
   if (ownLocation) pane.ownTelemetry = ownLocation.attachPane(pane);
+  // The particle overlay canvas goes into the viewport now that the map exists.
+  wind.attachPane(pane.map, pane.index);
 }
 
 // One crosshair ("Tähtäin") instance per pane: the reticle overlays the
@@ -2695,6 +2721,31 @@ const poiRegistry = [
     layerKeys: ['radarSiteLayer'],
   },
   {
+    // Live data like stormcells: applyPoiVisibility drives the controller
+    // (setEnabled) — the WebGL context, the frame loop and the field fetches
+    // exist only while one of the two particle rows is on. They are one layer
+    // with two sources, so they are `exclusive`: switching one on switches
+    // the other off (togglePoi / setPoiGroup), and the layer's visibility is
+    // the pair's OR, fanned out by hand in applyPoiVisibility rather than
+    // through layerKeys, where the second row's `false` would win.
+    id: 'tuuli',
+    label: wind.modelLabel,
+    icon: 'air',
+    defaultOn: false,
+    exclusive: 'particles',
+    layerKeys: [],
+  },
+  {
+    // The same particles over the radar's own motion field. Not wind — echo
+    // motion is steering flow plus propagation — hence the name (#256).
+    id: 'sateenliike',
+    label: wind.radarLabel,
+    icon: 'umbrella',
+    defaultOn: false,
+    exclusive: 'particles',
+    layerKeys: [],
+  },
+  {
     id: 'airfields',
     section: 'ilmailu',
     label: 'Lentokentät',
@@ -2905,6 +2956,11 @@ function applyPoiVisibility() {
   });
   // Storm cells poll a live API — the toggle gates fetching, not just paint.
   stormCells.setEnabled(!!POI_STATE.stormcells);
+  // The particle rows: one layer, two exclusive sources. Source first, so a
+  // switch while on refetches rather than keeping the other field flowing.
+  wind.setSource(POI_STATE.sateenliike ? 'radar' : 'model');
+  wind.setEnabled(!!POI_STATE.tuuli || !!POI_STATE.sateenliike);
+  for (const pane of panes) pane.windLayer.setVisible(!!POI_STATE.tuuli || !!POI_STATE.sateenliike);
   trafficMessages.setEnabled(!!POI_STATE.liikennetiedotteet);
   weatherCameras.setEnabled(!!POI_STATE.kelikamerat);
   gliders.setEnabled(!!POI_STATE.gliders);
@@ -2918,6 +2974,18 @@ function applyPoiVisibility() {
   // The AIS subscription lives only while the layer is on.
   rescueVessels.setEnabled(!!POI_STATE.pelastusalukset);
   metar.setEnabled(!!POI_STATE.metar);
+}
+
+// Topics sharing an `exclusive` tag are one layer with several sources (the
+// particle rows): switching one on switches its siblings off. Called after the
+// state change and before applyPoiVisibility by every gesture that can turn a
+// topic on.
+function applyPoiExclusive(id) {
+  const entry = poiRegistry.find((e) => e.id === id);
+  if (!entry || !entry.exclusive || !POI_STATE[id]) return;
+  poiRegistry.forEach((other) => {
+    if (other !== entry && other.exclusive === entry.exclusive) POI_STATE[other.id] = false;
+  });
 }
 
 // Pressing the ROW is the remembering toggle: it hides or shows a topic without
@@ -2935,6 +3003,7 @@ function togglePoi(id) {
     && children.every((c) => !POI_STATE[poiChildKey(entry, c)])) {
     children.forEach((c) => { POI_STATE[poiChildKey(entry, c)] = true; });
   }
+  applyPoiExclusive(id);
   applyPoiVisibility();
   persistPoiState();
   if (poiMenu) poiMenu.refresh();
@@ -2954,6 +3023,7 @@ function setPoiGroup(id, on) {
   const children = (entry && entry.children) || [];
   POI_STATE[id] = on;
   if (on) children.forEach((c) => { POI_STATE[poiChildKey(entry, c)] = true; });
+  applyPoiExclusive(id);
   applyPoiVisibility();
   persistPoiState();
   if (poiMenu) poiMenu.refresh();
@@ -3982,6 +4052,7 @@ function shareAttributions() {
   // condition rather than a courtesy — see the airspace line below.
   if (POI_STATE.airfields) parts.add('Lentopaikat © Fintraffic ANS / SIA / openAIP (CC BY-NC 4.0)');
   if (POI_STATE.turnpoints) parts.add('Käännöspisteet © Ilmailuliitto');
+  if (POI_STATE.tuuli || POI_STATE.sateenliike) parts.add(wind.attribution);
   // Required: openAIP is CC BY-NC, so the credit is a licence condition rather
   // than a courtesy.
   if (POI_STATE.airspace) parts.add('Ilmatilat © openAIP (CC BY-NC 4.0)');
