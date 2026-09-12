@@ -40,6 +40,7 @@ import initShare from './share';
 import initObsLayer from './obs/obsLayer';
 import initLightningLayer from './lightning/lightningLayer';
 import { createPlaceNamesLayer, placeNamesStyleLight, placeNamesStyleDark } from './placeNames';
+import { createLayerBboxLayer, layerBboxStyleLight, layerBboxStyleDark } from './layerBbox';
 import initStormCells from './stormCells';
 import initWindParticles from './particles/windParticles';
 import initTrafficMessages from './trafficMessages';
@@ -905,6 +906,7 @@ const paneDeps = {
   createTrafficLayer: trafficMessages.createPaneLayer,
   createWeatherCameraLayer: weatherCameras.createPaneLayer,
   createGliderLayer: gliders.createPaneLayer,
+  createLayerBboxLayer,
   createTrainLocationLayer: trainLocations.createPaneLayer,
   createAirspaceLayer: airspace.createPaneLayer,
   createAirfieldLayer: airfields.createPaneLayer,
@@ -1725,6 +1727,7 @@ function setMapLayer(maplayer) {
     pane.trafficLayer.setStyle(light ? trafficMessages.styleLight : trafficMessages.styleDark);
     pane.weatherCameraLayer.setStyle(light ? weatherCameras.styleLight : weatherCameras.styleDark);
     pane.gliderLayer.setStyle(light ? gliders.styleLight : gliders.styleDark);
+    pane.layerBboxLayer.setStyle(light ? layerBboxStyleLight : layerBboxStyleDark);
     pane.trainLocationLayer.setStyle(
       light ? trainLocations.styleLight : trainLocations.styleDark,
     );
@@ -1888,9 +1891,22 @@ function updateLayer(layer, wmslayer, opts = {}) {
       z: layer.getSource().getParams().ELEVATION,
     });
   }
+  if (layer === pane.layerss.radarLayer) refreshLayerBbox(pane, wmslayer);
   // Must stay after the STYLES reset above so the legend reads the post-reset
   // style; covers layer picks, nowcast and single-site transitions alike.
   if (isPane0 && radarLegend && layer === radarLayer) radarLegend.refresh();
+}
+
+// Sync a pane's radar coverage outline (src/layerBbox.js) to its currently
+// active radar product: cleared while the radar category is hidden or its
+// GetCapabilities bbox hasn't loaded yet, otherwise the advertised
+// EX_GeographicBoundingBox. `wmslayer` defaults to the product the pane's
+// radar layer is actually showing, but callers pass the canonical product
+// name explicitly where the mounted LAYERS can be a transient nowcast frame.
+function refreshLayerBbox(pane, wmslayer = pane.layerss.radarLayer.getSource().getParams().LAYERS) {
+  const info = layerInfo[wmslayer];
+  const visible = pane.layerss.radarLayer.getVisible();
+  pane.setLayerBbox(visible && info && Array.isArray(info.bbox) ? info.bbox : null);
 }
 
 // Pan/zoom the map to a layer's advertised coverage. Used by the radar
@@ -2178,6 +2194,7 @@ function onChangeVisible(event) {
     });
   }
   if (isPane0 && radarLegend && name === 'radarLayer') radarLegend.refresh();
+  if (name === 'radarLayer') refreshLayerBbox(pane, wmslayer);
   // Turning a layer on or off changes which outages are worth mentioning —
   // and any pane's visibility counts, not just pane 0's.
   if (serverStatus) serverStatus.refresh();
@@ -3319,6 +3336,7 @@ function getWMSCapabilities(wms, failCountArg = 0) {
             : olLayer.getSource().getParams().LAYERS;
           olLayer.set('info', layerInfo[infoName]);
           applyWireFormat(olLayer);
+          if (name === 'radarLayer') refreshLayerBbox(pane, infoName);
         }
         // The lightning WMS companion carries the actual EUMETSAT raster;
         // adopt webp/format for it too (the facade's applyWireFormat is a

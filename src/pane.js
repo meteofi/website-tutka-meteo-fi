@@ -115,6 +115,9 @@ export default function createPane(targetEl, sharedView, deps) {
     // Live OGN aircraft (src/gliders.js) — panes share one VectorSource; the
     // controller owns the WebSocket.
     createGliderLayer,
+    // Active radar layer coverage outline (src/layerBbox.js) — per-pane,
+    // since split panes can show different radar products.
+    createLayerBboxLayer,
     // Live train positions (src/trainLocations.js) — panes share one
     // VectorSource; the controller owns the MQTT subscription.
     createTrainLocationLayer,
@@ -429,6 +432,11 @@ export default function createPane(targetEl, sharedView, deps) {
   // what the user switched the layer on to watch.
   const gliderLayer = createGliderLayer();
 
+  // Radar coverage outline: above the radar image and the draw-tool guide
+  // layer so the dashed edge always reads, below the point markers it would
+  // otherwise visually compete with.
+  const { layer: layerBboxLayer, setBbox: setLayerBbox } = createLayerBboxLayer();
+
   // Live trains, for the same reason, and above the track network and stations
   // they run on: a train hidden under a station disc is the one thing on the
   // Rautatiet layer that is actually moving.
@@ -488,6 +496,7 @@ export default function createPane(targetEl, sharedView, deps) {
     radarLayer,
     placeNamesLayer,
     guideLayer,
+    layerBboxLayer,
     lightningWmsLayer,
     lightningLayer,
     municipalityLayer,
@@ -552,6 +561,8 @@ export default function createPane(targetEl, sharedView, deps) {
     trainLocationLayer,
     rescueVesselLayer,
     gliderLayer,
+    layerBboxLayer,
+    setLayerBbox,
     stormCellsLayer,
     municipalityLayer,
     vesivaylaAreaLayer,
