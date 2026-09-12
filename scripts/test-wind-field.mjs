@@ -16,6 +16,7 @@
 /* eslint-disable import/extensions */
 import {
   buildGridUrl, timeRangeIso, parseTemporalValues, pickFieldTime, parseGridCoverage, encodeField, decodeComponent,
+  MAX_AXIS_LEN, MAX_CELLS,
 } from '../src/particles/windField.js';
 import { buildAreaUrl } from '../src/edr/areaQuery.js';
 /* eslint-enable import/extensions */
@@ -235,9 +236,9 @@ expectCanonical('length-1 time axis is accepted', parseGridCoverage(grid({
   g.ranges['10u'].values.reverse(); g.ranges['10v'].values.reverse();
   const fd = parseGridCoverage(g, '10u', '10v');
   check('clipped edge on a descending axis', !!fd && near(fd.lat0, 60) && fd.u[0] === 0 && fd.u[9] === 3);
-  // Irregularity inside the axis is still refused — on an axis long enough
-  // to have an interior (four points give the edge rule nothing to check
-  // against, which is fine: a four-cell field is not a field).
+  // Irregularity inside the axis is still refused. Six points, so the odd
+  // diff sits strictly inside the interior rather than at an edge, which a
+  // four-point axis (one interior diff) cannot arrange.
   g.domain.axes.y.values = [60, 61, 62, 62.4, 64, 65];
   g.ranges['10u'].shape = [6, 3]; g.ranges['10v'].shape = [6, 3];
   g.ranges['10u'].values = new Array(18).fill(1); g.ranges['10v'].values = new Array(18).fill(1);
@@ -245,7 +246,100 @@ expectCanonical('length-1 time axis is accepted', parseGridCoverage(grid({
   g.domain.axes.y.values = [60, 61, 62, 63, 64, 65.8];
   check('an edge cell wider than the step is not a clipped cell', parseGridCoverage(g, '10u', '10v') === null);
   g.domain.axes.y.values = [60.3, 61, 62, 63, 64, 64.7];
-  check('both edges clipped is fine', parseGridCoverage(g, '10u', '10v') !== null);
+  const fb = parseGridCoverage(g, '10u', '10v');
+  check('both edges clipped: accepted and anchored on the interior', !!fb && near(fb.lat0, 60) && near(fb.dLat, 1) && fb.ny === 6, fb && `${fb.lat0} ${fb.dLat}`);
+  // Too short to tell a clipped edge from an irregular axis: refused.
+  const short = grid({ xs: [20, 21, 22], ys: [60, 61], axisNames: ['y', 'x'] });
+  short.domain.axes.y.values = [60.2, 61, 62];
+  short.ranges['10u'].shape = [3, 3]; short.ranges['10v'].shape = [3, 3];
+  short.ranges['10u'].values = new Array(9).fill(1); short.ranges['10v'].values = new Array(9).fill(1);
+  check('three-point axis with a clipped edge is refused', parseGridCoverage(short, '10u', '10v') === null);
+}
+
+{
+  // A garbled response: right shape, wrong number of values.
+  const g = grid({ xs: [20, 21, 22], ys: [60, 61], axisNames: ['y', 'x'] });
+  g.ranges['10u'].values = g.ranges['10u'].values.slice(0, -1);
+  check('truncated values rejected', parseGridCoverage(g, '10u', '10v') === null);
+  const g2 = grid({ xs: [20, 21, 22], ys: [60, 61], axisNames: ['y', 'x'] });
+  g2.ranges['10v'].values = g2.ranges['10v'].values.concat([0]);
+  check('overlong values rejected', parseGridCoverage(g2, '10u', '10v') === null);
+}
+
+{
+  // Quality outside 0..1 is clamped, not trusted.
+  const g = grid({ xs: [20, 21, 22], ys: [60, 61], axisNames: ['y', 'x'] });
+  g.ranges.motion_quality = { type: 'NdArray', axisNames: ['y', 'x'], shape: [2, 3], values: [2, -1, 0.5, 1, 0, 1] };
+  const f = parseGridCoverage(g, '10u', '10v', 'motion_quality');
+  const enc = encodeField(f);
+  check('quality clamped to 0..1', f && f.q[0] === 1 && f.q[1] === 0 && near(f.q[2], 0.5));
+  check('clamped quality bytes', enc.data[2] === 255 && enc.data[4 + 2] === 0 && enc.data[8 + 2] === 128);
+}
+
+{
+  // Allocation caps: a document may not make this module allocate more than
+  // a field's worth, however it phrases the axes.
+  const huge = {
+    type: 'Coverage',
+    domain: { type: 'Domain', domainType: 'Grid', axes: { x: { start: 0, stop: 1, num: 500000000 }, y: { values: [60, 61] } } },
+    ranges: {},
+  };
+  check('absurd start/stop/num axis refused before allocating', parseGridCoverage(huge, '10u', '10v') === null);
+  // The fixtures below keep the ranges CONSISTENT with the oversized axes, so
+  // the cap is the only reason a document is refused — with mismatched
+  // ranges the shape check would refuse it first and the cap could be
+  // deleted without a test noticing (it was, once).
+  const withAxes = (nx, ny) => ({
+    type: 'Coverage',
+    domain: {
+      type: 'Domain',
+      domainType: 'Grid',
+      axes: {
+        x: { values: Array.from({ length: nx }, (_, i) => -180 + i * 0.05) },
+        y: { values: Array.from({ length: ny }, (_, i) => -90 + i * 0.05) },
+      },
+    },
+    ranges: {
+      '10u': { type: 'NdArray', axisNames: ['y', 'x'], shape: [ny, nx], values: new Array(nx * ny).fill(1) },
+      '10v': { type: 'NdArray', axisNames: ['y', 'x'], shape: [ny, nx], values: new Array(nx * ny).fill(-1) },
+    },
+  });
+  check('axis at MAX_AXIS_LEN parses', parseGridCoverage(withAxes(MAX_AXIS_LEN, 2), '10u', '10v') !== null);
+  check('over-long values axis refused', parseGridCoverage(withAxes(MAX_AXIS_LEN + 1, 2), '10u', '10v') === null);
+  const side = Math.floor(Math.sqrt(MAX_CELLS));
+  check('grid at MAX_CELLS parses', parseGridCoverage(withAxes(side, side), '10u', '10v') !== null);
+  check('too many cells refused', parseGridCoverage(withAxes(side + 1, side), '10u', '10v') === null);
+}
+
+{
+  // Axis values that are not finite numbers are refused rather than coerced
+  // (null → 0 would put the grid's origin on the equator).
+  for (const [name, values] of [['null', [null, 61, 62, 63]], ['string', ['60', '61', '62', '63']], ['Infinity', [60, 61, 62, Infinity]]]) {
+    const g = grid({ xs: [20, 21, 22], ys: [60, 61], axisNames: ['y', 'x'] });
+    g.domain.axes.y.values = values;
+    g.ranges['10u'].shape = [4, 3]; g.ranges['10v'].shape = [4, 3];
+    g.ranges['10u'].values = new Array(12).fill(1); g.ranges['10v'].values = new Array(12).fill(1);
+    check(`${name} axis value refused`, parseGridCoverage(g, '10u', '10v') === null);
+  }
+  const far = grid({ xs: [20, 21, 22], ys: [60, 61], axisNames: ['y', 'x'] });
+  far.domain.axes.y.values = [1e39, 2e39];
+  check('origin beyond the globe refused', parseGridCoverage(far, '10u', '10v') === null);
+  // A component past any real speed marks its cell no-data instead of
+  // stretching the byte range until real winds vanish.
+  const fast = grid({ xs: [20, 21, 22], ys: [60, 61], axisNames: ['y', 'x'] });
+  fast.ranges['10u'].values[0] = 1e6;
+  const ff = parseGridCoverage(fast, '10u', '10v');
+  const enc = encodeField(ff);
+  check('absurd speed → cell dropped, range stays real', enc.data[3] === 0 && enc.range < 50);
+}
+
+{
+  // An NdArray without axisNames/shape is read as y-outer — the silent
+  // default a server could stop stating.
+  const g = grid({ xs: [20, 21, 22], ys: [60, 61], axisNames: ['y', 'x'] });
+  delete g.ranges['10u'].axisNames; delete g.ranges['10u'].shape;
+  delete g.ranges['10v'].axisNames; delete g.ranges['10v'].shape;
+  expectCanonical('axisNames/shape omitted → y-outer assumed', parseGridCoverage(g, '10u', '10v'));
 }
 
 if (failures > 0) {

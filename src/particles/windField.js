@@ -85,14 +85,30 @@ export function pickFieldTime(values, targetMs) {
   return best;
 }
 
+// Bounds on what a document may ask this module to allocate. The server's
+// own limit is 500k values per response, which at three parameters is
+// ~166k cells; anything beyond these is not a field, it is a hostile or
+// broken document, and it is refused before a single typed array exists.
+// The `{start, stop, num}` axis form needs the cap most: a 40-byte body can
+// ask for a billion-element axis.
+export const MAX_AXIS_LEN = 4096;
+export const MAX_CELLS = 262144;
+
 // A CoverageJSON axis in either of its forms → an explicit value array, or
-// null when it is neither.
+// null when it is neither (or absurdly long).
 function axisValues(axis) {
   if (!axis) return null;
-  if (Array.isArray(axis.values)) return axis.values;
-  if (Number.isFinite(axis.start) && Number.isFinite(axis.stop) && Number.isInteger(axis.num)) {
+  if (Array.isArray(axis.values)) {
+    // Finite numbers only: null coerces to 0 in the spacing arithmetic and a
+    // string to whatever `-` makes of it, and either would then be handed to
+    // the GPU as an origin.
+    if (axis.values.length > MAX_AXIS_LEN) return null;
+    return axis.values.every((v) => typeof v === 'number' && Number.isFinite(v)) ? axis.values : null;
+  }
+  if (typeof axis.start === 'number' && typeof axis.stop === 'number'
+    && Number.isFinite(axis.start) && Number.isFinite(axis.stop) && Number.isInteger(axis.num)) {
     const n = axis.num;
-    if (n < 1) return null;
+    if (n < 1 || n > MAX_AXIS_LEN) return null;
     if (n === 1) return [axis.start];
     const step = (axis.stop - axis.start) / (n - 1);
     const out = new Array(n);
@@ -196,8 +212,12 @@ export function parseGridCoverage(json, uName, vName, qName = null) {
   if (!ax || !ay) return null;
   const dx = ax.step;
   const dy = ay.step;
+  // Geographic sanity: anything else is not a lon/lat grid, and a value past
+  // float32 would reach the shader as Infinity and bypass its bounds test.
+  if (Math.abs(ax.origin) > 360 || Math.abs(ay.origin) > 90 || Math.abs(dx) > 180 || Math.abs(dy) > 180) return null;
   const nx = xs.length;
   const ny = ys.length;
+  if (nx * ny > MAX_CELLS) return null;
   const readU = gridReader(json.ranges && json.ranges[uName], nx, ny);
   const readV = gridReader(json.ranges && json.ranges[vName], nx, ny);
   if (!readU || !readV) return null;
@@ -257,13 +277,19 @@ export function parseGridCoverage(json, uName, vName, qName = null) {
 // floats because RGBA8 samples LINEAR on every WebGL2 device, whereas
 // half-float filtering is the driver-dependent path the interpolator already
 // has to work around.
+// Nothing on Earth moves faster than this at 10 m or in a radar echo; a
+// larger magnitude is a broken document, and the cell is treated as no
+// data rather than stretching the byte range until real winds vanish.
+export const MAX_SPEED_MS = 200;
+
 export function encodeField(field) {
   const n = field.nx * field.ny;
   let range = 1;
   for (let i = 0; i < n; i++) {
     if (field.valid[i]) {
       const m = Math.max(Math.abs(field.u[i]), Math.abs(field.v[i]));
-      if (m > range) range = m;
+      if (m > MAX_SPEED_MS) field.valid[i] = 0;
+      else if (m > range) range = m;
     }
   }
   const data = new Uint8Array(n * 4);

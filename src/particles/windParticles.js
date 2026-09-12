@@ -55,7 +55,7 @@
 // Coordinates, colour and the shaders are documented in particleGl.js; the
 // wire format and its pitfalls in windField.js.
 
-import { transformExtent } from 'ol/proj';
+import { toLonLat, transformExtent } from 'ol/proj';
 import { FRAME_STEPS } from '../constants';
 import { quantizedAreaBounds } from '../edr/areaQuery';
 import { createFetchSlot } from '../edr/seriesFetch';
@@ -147,10 +147,13 @@ const MAX_AREA_DEG2 = 4000;
 // Metadata (the advertised time steps) refreshes on this timer while the layer
 // is on — a new model run appears four times a day.
 const METADATA_REFRESH_MS = 30 * 60 * 1000;
-// A failed request (5xx, network) is retried after this; 4xx is poisoned.
-// Short, because the layer has nothing else to show while it waits and the
-// ECMWF engine does hiccup (502s for whole days have happened).
+// A failed request (5xx, network) is retried after this, doubling on each
+// consecutive failure up to the cap and resetting on success; 4xx is
+// poisoned. The first retry is short because the layer has nothing else to
+// show while it waits and the ECMWF engine does hiccup; the cap is what a
+// whole-day 502 costs (serverStatus.js backs off to the same 5 min).
 const RETRY_MS = 15 * 1000;
+const RETRY_MAX_MS = 5 * 60 * 1000;
 // Fetch after the view has stopped moving for this long (the moveend idea,
 // read off the canvasFunction's extent so no map wiring is needed).
 const VIEW_SETTLE_MS = 300;
@@ -215,13 +218,35 @@ function readSourceOverride() {
   }
 }
 
-//   radarCoverage — () => [{ x, y, radius }] in EPSG:3857 units, the discs
-//     the composite's radars actually see; read whenever a radar field is
-//     applied, so a site list that loads after the layer is switched on is
-//     picked up on the next field. [] (or absent) draws the whole field.
-export default function initWindParticles({ radarCoverage = () => [] } = {}) {
+// The radars' coverage discs in EPSG:3857 from the site features
+// (radar.js's radarSiteSource, already in the view projection). Only the
+// FMI network feeds the composite. The latitude for the Mercator stretch
+// comes from the geometry, not a property: the bundled fallback site file
+// carries no `latitude`, and a NaN radius would make the mask undefined.
+// Anything non-finite is dropped here and again in the renderer.
+export function coverageDiscs(features) {
+  return features
+    .filter((f) => /^fi/.test(f.get('nod') || '') && f.getGeometry())
+    .map((f) => {
+      const [x, y] = f.getGeometry().getCoordinates();
+      const lat = toLonLat([x, y])[1];
+      const radiusM = Number(f.get('coverage_radius_m')) || 250000;
+      return { x, y, radius: radiusM / Math.cos((lat * Math.PI) / 180) };
+    })
+    .filter((d) => Number.isFinite(d.x) && Number.isFinite(d.y) && Number.isFinite(d.radius) && d.radius > 0);
+}
+
+//   radarSites — () => the radar-site features (ol/Feature, view projection);
+//     read whenever a radar field is applied, so a site list that loads after
+//     the layer is switched on is picked up on the next field. [] (or
+//     absent) draws the whole field.
+export default function initWindParticles({ radarSites = () => [] } = {}) {
   const override = readSourceOverride();
-  const modelSource = MODEL_SOURCES[override] || MODEL_SOURCES.ecmwf;
+  // Own property only: a `?wind=constructor` must not hand back a function
+  // as the source spec. (The prototype idiom, not Object.hasOwn — this runs
+  // at boot and the app ships untranspiled to iOS Safari.)
+  const modelSource = Object.prototype.hasOwnProperty.call(MODEL_SOURCES, override)
+    ? MODEL_SOURCES[override] : MODEL_SOURCES.ecmwf;
   const forceRadar = override === 'radar';
   let source = forceRadar ? RADAR_SOURCE : modelSource;
   let areaEndpoint = `${EDR}/${source.collection}/area`;
@@ -243,6 +268,10 @@ export default function initWindParticles({ radarCoverage = () => [] } = {}) {
   let retryTimer = null;
   let metadataTimer = null;
   let currentUrl = null;
+  let inFlightUrl = null;
+  let lastFailedUrl = null;
+  let retryDelay = RETRY_MS;
+  let lastRawExtent = null;
   const fieldCache = new Map();
   const poisoned = new Set();
   const fieldSlot = createFetchSlot();
@@ -264,8 +293,9 @@ export default function initWindParticles({ radarCoverage = () => [] } = {}) {
       return;
     }
     renderer.setColor(COLORS[theme].core, COLORS[theme].halo);
-    const field = currentUrl ? fieldCache.get(currentUrl) : null;
-    if (field) renderer.setField(field);
+    // A fresh context has no mask: restore the field AND its mask, or a
+    // radar field re-shown after a toggle flows over the whole rectangle.
+    if (currentUrl && fieldCache.has(currentUrl)) applyField(currentUrl);
   }
 
   function disposeRenderer() {
@@ -286,20 +316,27 @@ export default function initWindParticles({ radarCoverage = () => [] } = {}) {
 
   function applyField(url) {
     currentUrl = url;
+    retryDelay = RETRY_MS;
     if (!renderer) return;
     renderer.setField(fieldCache.get(url));
-    renderer.setMask(source.kind === 'radar' ? radarCoverage() : []);
+    renderer.setMask(source.kind === 'radar' ? coverageDiscs(radarSites()) : []);
   }
 
+  // Returns the delay in effect, for the log line.
   function scheduleRetry() {
-    if (retryTimer) return;
-    retryTimer = setTimeout(() => {
-      retryTimer = null;
-      planFetch();
-    }, RETRY_MS);
+    const delay = retryDelay;
+    if (!retryTimer) {
+      retryDelay = Math.min(RETRY_MAX_MS, retryDelay * 2);
+      retryTimer = setTimeout(() => {
+        retryTimer = null;
+        planFetch();
+      }, delay);
+    }
+    return delay;
   }
 
   async function fetchField(url) {
+    inFlightUrl = url;
     const result = await fieldSlot.run(async (signal) => {
       const response = await fetch(url, { signal });
       if (!response.ok) {
@@ -309,23 +346,38 @@ export default function initWindParticles({ radarCoverage = () => [] } = {}) {
       }
       const json = await response.json();
       const parsed = parseGridCoverage(json, source.u, source.v, source.quality || null);
-      if (!parsed) throw new Error('unreadable grid');
-      return { ...parsed, ...encodeField(parsed) };
+      if (!parsed) {
+        const err = new Error('unreadable grid');
+        err.deterministic = true;
+        throw err;
+      }
+      // Keep only what the renderer reads: the decoded float arrays would
+      // be ~830 kB of dead heap per cached entry on a phone.
+      const {
+        nx, ny, lon0, lat0, dLon, dLat,
+      } = parsed;
+      return {
+        nx, ny, lon0, lat0, dLon, dLat, ...encodeField(parsed),
+      };
     });
+    if (inFlightUrl === url) inFlightUrl = null;
     if (result === undefined) return;
     if (!result.ok) {
-      const { status } = result.error;
-      if (status >= 400 && status < 500) {
-        // A request the server rejects is never retried verbatim — the
-        // EDR-client rule everywhere in this app.
+      const { status, deterministic } = result.error;
+      if ((status >= 400 && status < 500) || deterministic || result.error instanceof SyntaxError) {
+        // A request the server rejects, or a 200 this client cannot read,
+        // is never retried verbatim — the EDR-client rule everywhere in
+        // this app. (The poison lifts on the next metadata load.)
         poisoned.add(url);
-        warn(`${url} rejected (${status}), not retrying`);
+        warn(`${url} rejected (${status || result.error.message}), not retrying`);
       } else {
-        warn(`field fetch failed (${result.error.message}), retrying in ${RETRY_MS / 1000} s`);
-        scheduleRetry();
+        lastFailedUrl = url;
+        const delay = scheduleRetry();
+        warn(`field fetch failed (${result.error.message}), retrying in ${delay / 1000} s`);
       }
       return;
     }
+    lastFailedUrl = null;
     rememberField(url, result.data);
     if (enabled) applyField(url);
   }
@@ -367,19 +419,41 @@ export default function initWindParticles({ radarCoverage = () => [] } = {}) {
     }
     const bounds = boundsFor();
     const time = timeFor();
-    if (!bounds || !time) return;
+    if (!bounds) {
+      // The view left the radar domain: drop the field so the panes blank
+      // instead of running the whole pipeline for an all-dead frame. The
+      // bytes stay cached for the pan back.
+      fieldSlot.abort();
+      inFlightUrl = null;
+      currentUrl = null;
+      if (renderer) renderer.clearField();
+      return;
+    }
+    if (!time) return;
     const params = source.quality ? [source.u, source.v, source.quality] : [source.u, source.v];
     const url = buildGridUrl(areaEndpoint, bounds, params, time);
-    if (url === currentUrl) {
+    if (url === currentUrl && renderer.hasField()) {
       fieldSlot.abort();
+      inFlightUrl = null;
       return;
     }
     if (fieldCache.has(url)) {
       fieldSlot.abort();
+      inFlightUrl = null;
+      // Refresh its place in the LRU: the field on screen must not be the
+      // next one evicted.
+      rememberField(url, fieldCache.get(url));
       applyField(url);
       return;
     }
     if (poisoned.has(url)) return;
+    // The same URL already on its way: let it land. Restarting it — which
+    // the single slot would do — cancelled a slow ECMWF fetch on every
+    // settle of a pan inside the same quantized box, so it never landed.
+    if (url === inFlightUrl && fieldSlot.isBusy()) return;
+    // A URL that just failed waits for its backoff timer; a settle or clock
+    // move must not bypass the backoff. A genuinely new URL still goes now.
+    if (url === lastFailedUrl && retryTimer) return;
     fetchField(url);
   }
 
@@ -392,11 +466,15 @@ export default function initWindParticles({ radarCoverage = () => [] } = {}) {
     });
     if (result === undefined || !enabled) return;
     if (!result.ok || result.data.length === 0) {
-      warn(`metadata unavailable (${result.ok ? 'no time steps' : result.error.message}), retrying`);
-      scheduleRetry();
+      const delay = scheduleRetry();
+      warn(`metadata unavailable (${result.ok ? 'no time steps' : result.error.message}), retrying in ${delay / 1000} s`);
       return;
     }
     steps = result.data;
+    retryDelay = RETRY_MS;
+    // A step the server rejected earlier may exist now — the crossSection.js
+    // contract: poisoned until the next metadata refresh.
+    poisoned.clear();
     planFetch();
   }
 
@@ -404,6 +482,10 @@ export default function initWindParticles({ radarCoverage = () => [] } = {}) {
   // Debounced: a pan streams a new extent every frame, and the fetch belongs
   // after the last one.
   function noteView(extent) {
+    // Four number compares before any projection work: this runs every
+    // frame, and the view is stationary nearly all of the time.
+    if (lastRawExtent && extent.every((v, i) => v === lastRawExtent[i])) return;
+    lastRawExtent = extent.slice();
     const view = transformExtent(extent, 'EPSG:3857', 'EPSG:4326');
     const same = pendingView && view.every((v, i) => Math.abs(v - pendingView[i]) < 1e-3);
     if (same) return;
@@ -445,7 +527,10 @@ export default function initWindParticles({ radarCoverage = () => [] } = {}) {
     const now = performance.now();
     entry.lastRenderMs = now;
     if (!renderer.hasField()) {
+      // Nothing to draw, and whatever trails the GPU state holds belong to
+      // the field that was — clear them before the next one is drawn.
       blank(entry);
+      entry.extent = null;
       return;
     }
 
@@ -517,14 +602,36 @@ export default function initWindParticles({ radarCoverage = () => [] } = {}) {
         createRenderer();
       }
     }
+    if (!renderer) {
+      // Gone for good this session: nothing to draw, so no frame loop
+      // either — not a 60 Hz no-op on the device that just ran out of room.
+      for (const entry of entries) blank(entry);
+      return;
+    }
     const now = performance.now();
+    // A radar field applied before the site list loaded has no mask yet
+    // (siteCount 0 draws the whole rectangle); pick the sites up as soon as
+    // they exist. Checked only in that state, so it costs nothing after.
+    if (source.kind === 'radar' && renderer.hasField() && renderer.siteCount === 0) {
+      const discs = coverageDiscs(radarSites());
+      if (discs.length) renderer.setMask(discs);
+    }
+    // Fetching follows the live view, noted ONCE per tick from the first
+    // visible pane: the panes share a view, but their sizes can differ by a
+    // pixel (a fractional grid track), and noting each pane's own extent
+    // made the two flip-flop past the tolerance every frame — the settle
+    // timer was restarted forever and no pan ever refetched.
+    let viewNoted = false;
     for (const entry of entries) {
       // An attached, visible pane with a real size (inactive split panes
       // are display:none and report no size) gets a frame.
-      const size = entry.map && entry.visible && renderer && !renderer.contextLost ? entry.map.getSize() : null;
+      const size = entry.map && entry.visible && !renderer.contextLost ? entry.map.getSize() : null;
       if (size && size[0] > 0 && size[1] > 0) {
-        // Fetching follows the live view; drawing follows the anchor.
-        noteView(entry.map.getView().calculateExtent(size));
+        if (!viewNoted) {
+          noteView(entry.map.getView().calculateExtent(size));
+          viewNoted = true;
+        }
+        // Drawing follows the anchor.
         const anchor = anchorFor(entry, size);
         draw(entry, anchor.extent, anchor.size[0], anchor.size[1], window.devicePixelRatio || 1);
       } else {
@@ -603,7 +710,7 @@ export default function initWindParticles({ radarCoverage = () => [] } = {}) {
         pointerEvents: 'none',
         zIndex: '0',
       });
-      canvas.hidden = true;
+      canvas.style.display = 'none';
       const entry = {
         index,
         canvas,
@@ -618,7 +725,12 @@ export default function initWindParticles({ radarCoverage = () => [] } = {}) {
       return {
         setVisible(on) {
           entry.visible = !!on;
-          canvas.hidden = !on;
+          // Inline display, not the `hidden` attribute: ol.css resets every
+          // viewport canvas with `all: unset`, which beats the UA [hidden]
+          // rule. Off also means EMPTY, not merely hidden — share.js
+          // composites every canvas.ol-layer in the viewport regardless.
+          canvas.style.display = on ? '' : 'none';
+          if (!on) blank(entry);
         },
         getVisible: () => entry.visible,
       };
@@ -662,7 +774,10 @@ export default function initWindParticles({ radarCoverage = () => [] } = {}) {
       stopLoop();
       stopFetching();
       disposeRenderer();
-      for (const entry of entries) entry.extent = null;
+      for (const entry of entries) {
+        entry.extent = null;
+        blank(entry);
+      }
       // Keep currentUrl and the cache: switching the layer back on inside the
       // same step and view shows the field again without a request.
     },
@@ -680,6 +795,10 @@ export default function initWindParticles({ radarCoverage = () => [] } = {}) {
       metadataUrl = `${EDR}/${source.collection}`;
       steps = [];
       currentUrl = null;
+      inFlightUrl = null;
+      lastFailedUrl = null;
+      poisoned.clear();
+      retryDelay = RETRY_MS;
       if (enabled) {
         stopFetching();
         if (renderer) renderer.clearField();
@@ -691,7 +810,7 @@ export default function initWindParticles({ radarCoverage = () => [] } = {}) {
     // stormCells signature. The field follows the window's newest frame.
     setCursor(timeMs, startMs, stepMs) {
       const next = startMs + FRAME_STEPS * stepMs;
-      if (next === targetMs) return;
+      if (next === targetMs && startMs === windowStartMs) return;
       windowStartMs = startMs;
       targetMs = next;
       planFetch();

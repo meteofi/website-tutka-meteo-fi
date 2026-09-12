@@ -27,7 +27,7 @@ import Timeline from './timeline';
 import createPane from './pane';
 import wmsServerConfiguration, { edrLayerInfo } from './config';
 import createLongPressHandler, { longPressMenuOpener } from './longpress';
-import initPoiMenu from './ui/poiMenu';
+import initPoiMenu, { enforceExclusive } from './ui/poiMenu';
 import initTools from './tools';
 import initRangeCircle from './rangeCircle';
 import initFreehand from './freehand';
@@ -832,18 +832,9 @@ const stormCells = initStormCells({ telemetry });
 // POI rows are exclusive; applyPoiVisibility picks the source and gates the
 // fetching and the frame loop. The clock only picks the field's time.
 const wind = initWindParticles({
-  // The composite is FMI's own radars, so the radar motion field is confined
-  // to their coverage discs (the server fills the rest of the rectangle).
-  // Site geometries are already in the view projection (EPSG:3857); the
-  // radius is stretched by the Mercator factor at the site's latitude.
-  radarCoverage: () => radarSiteSource.getFeatures()
-    .filter((f) => /^fi/.test(f.get('nod') || ''))
-    .map((f) => {
-      const [x, y] = f.getGeometry().getCoordinates();
-      const lat = f.get('latitude');
-      const radiusM = f.get('coverage_radius_m') || 250000;
-      return { x, y, radius: radiusM / Math.cos((lat * Math.PI) / 180) };
-    }),
+  // The radar motion field is confined to the radars' coverage discs; the
+  // module derives them from these site features (coverageDiscs).
+  radarSites: () => radarSiteSource.getFeatures(),
 });
 
 // Departure board for a tapped railway station. Wall-clock live rather than
@@ -2941,6 +2932,9 @@ function persistPoiState() {
 }
 
 function applyPoiVisibility() {
+  // Safety net for the `exclusive` groups (persisted state, gestures that do
+  // not call applyPoiExclusive themselves).
+  enforceExclusive(poiRegistry, POI_STATE);
   poiRegistry.forEach((entry) => {
     const groupOn = !!POI_STATE[entry.id];
     // A topic is either one set of layers or several named parts, each gated by
@@ -2956,11 +2950,15 @@ function applyPoiVisibility() {
   });
   // Storm cells poll a live API — the toggle gates fetching, not just paint.
   stormCells.setEnabled(!!POI_STATE.stormcells);
-  // The particle rows: one layer, two exclusive sources. Source first, so a
-  // switch while on refetches rather than keeping the other field flowing.
+  // The particle rows: one layer, two exclusive sources. Off before the
+  // source switch (or switching the radar row off would start a model
+  // metadata fetch only to abort it a line later); on after it, so a switch
+  // while on refetches rather than keeping the other field flowing.
+  const particlesOn = !!POI_STATE.tuuli || !!POI_STATE.sateenliike;
+  if (!particlesOn) wind.setEnabled(false);
   wind.setSource(POI_STATE.sateenliike ? 'radar' : 'model');
-  wind.setEnabled(!!POI_STATE.tuuli || !!POI_STATE.sateenliike);
-  for (const pane of panes) pane.windLayer.setVisible(!!POI_STATE.tuuli || !!POI_STATE.sateenliike);
+  if (particlesOn) wind.setEnabled(true);
+  for (const pane of panes) pane.windLayer.setVisible(particlesOn);
   trafficMessages.setEnabled(!!POI_STATE.liikennetiedotteet);
   weatherCameras.setEnabled(!!POI_STATE.kelikamerat);
   gliders.setEnabled(!!POI_STATE.gliders);
@@ -2976,16 +2974,11 @@ function applyPoiVisibility() {
   metar.setEnabled(!!POI_STATE.metar);
 }
 
-// Topics sharing an `exclusive` tag are one layer with several sources (the
-// particle rows): switching one on switches its siblings off. Called after the
-// state change and before applyPoiVisibility by every gesture that can turn a
-// topic on.
+// A gesture that turned `id` on: its `exclusive` siblings go off (poiMenu.js
+// enforceExclusive). Called after the state change and before
+// applyPoiVisibility.
 function applyPoiExclusive(id) {
-  const entry = poiRegistry.find((e) => e.id === id);
-  if (!entry || !entry.exclusive || !POI_STATE[id]) return;
-  poiRegistry.forEach((other) => {
-    if (other !== entry && other.exclusive === entry.exclusive) POI_STATE[other.id] = false;
-  });
+  if (POI_STATE[id]) enforceExclusive(poiRegistry, POI_STATE, id);
 }
 
 // Pressing the ROW is the remembering toggle: it hides or shows a topic without

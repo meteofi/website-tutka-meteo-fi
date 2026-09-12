@@ -369,20 +369,30 @@ export default class ParticleRenderer {
     };
     this.canvas.addEventListener('webglcontextlost', this._onContextLost);
 
-    this.triangle = createFullscreenTriangle(gl);
-    this.updateProgram = createProgram(gl, FULLSCREEN_VS, UPDATE_FS);
-    this.updateU = uniforms(gl, this.updateProgram, [
-      ...FIELD_UNIFORMS, 'u_particles', 'u_canvasSize', 'u_speedFactor', 'u_dropRate', 'u_dropRateBump', 'u_seed',
-    ]);
-    this.updateAttrib = gl.getAttribLocation(this.updateProgram, 'a_pos');
-    this.drawProgram = createProgram(gl, DRAW_VS, DRAW_FS);
-    this.drawU = uniforms(gl, this.drawProgram, [
-      ...FIELD_UNIFORMS, 'u_particles', 'u_particlesRes', 'u_pointSize', 'u_color', 'u_halo', 'u_speedColor', 'u_ramp', 'u_rampMax',
-    ]);
-    this.rampTexture = createRgba8Texture(gl, RAMP_WIDTH, 1, buildRamp(), gl.LINEAR);
-    this.fadeProgram = createProgram(gl, FULLSCREEN_VS, FADE_FS);
-    this.fadeU = uniforms(gl, this.fadeProgram, ['u_tex', 'u_opacity']);
-    this.fadeAttrib = gl.getAttribLocation(this.fadeProgram, 'a_pos');
+    // A driver that rejects the shaders throws out of createProgram; give
+    // the context back on the way out, or every retry of the layer toggle
+    // would abandon another one against the budget this class exists for.
+    try {
+      this.triangle = createFullscreenTriangle(gl);
+      this.updateProgram = createProgram(gl, FULLSCREEN_VS, UPDATE_FS);
+      this.updateU = uniforms(gl, this.updateProgram, [
+        ...FIELD_UNIFORMS, 'u_particles', 'u_canvasSize', 'u_speedFactor', 'u_dropRate', 'u_dropRateBump', 'u_seed',
+      ]);
+      this.updateAttrib = gl.getAttribLocation(this.updateProgram, 'a_pos');
+      this.drawProgram = createProgram(gl, DRAW_VS, DRAW_FS);
+      this.drawU = uniforms(gl, this.drawProgram, [
+        ...FIELD_UNIFORMS, 'u_particles', 'u_particlesRes', 'u_pointSize', 'u_color', 'u_halo', 'u_speedColor', 'u_ramp', 'u_rampMax',
+      ]);
+      this.rampTexture = createRgba8Texture(gl, RAMP_WIDTH, 1, buildRamp(), gl.LINEAR);
+      this.fadeProgram = createProgram(gl, FULLSCREEN_VS, FADE_FS);
+      this.fadeU = uniforms(gl, this.fadeProgram, ['u_tex', 'u_opacity']);
+      this.fadeAttrib = gl.getAttribLocation(this.fadeProgram, 'a_pos');
+    } catch (err) {
+      this.canvas.removeEventListener('webglcontextlost', this._onContextLost);
+      const lose = gl.getExtension('WEBGL_lose_context');
+      if (lose) lose.loseContext();
+      throw err;
+    }
 
     this.field = null;
     this.fieldTexture = null;
@@ -415,14 +425,18 @@ export default class ParticleRenderer {
   }
 
   // Coverage discs, [{ x, y, radius }] in EPSG:3857 units; [] for no mask.
-  // Beyond MAX_SITES the rest are dropped.
+  // Beyond MAX_SITES the rest are dropped, and a disc with a non-finite or
+  // non-positive value is dropped too — a NaN in a uniform makes the
+  // shader's smoothstep undefined, which is a mask that means nothing.
   setMask(sites) {
-    this.siteCount = Math.min(MAX_SITES, sites.length);
+    const ok = sites.filter((s) => Number.isFinite(s.x) && Number.isFinite(s.y)
+      && Number.isFinite(s.radius) && s.radius > 0);
+    this.siteCount = Math.min(MAX_SITES, ok.length);
     this.sites.fill(0);
     for (let i = 0; i < this.siteCount; i++) {
-      this.sites[i * 3] = sites[i].x;
-      this.sites[i * 3 + 1] = sites[i].y;
-      this.sites[i * 3 + 2] = sites[i].radius;
+      this.sites[i * 3] = ok[i].x;
+      this.sites[i * 3 + 1] = ok[i].y;
+      this.sites[i * 3 + 2] = ok[i].radius;
     }
   }
 
@@ -433,14 +447,29 @@ export default class ParticleRenderer {
   }
 
   // The pane's simulation state, rebuilt when its size changes.
+  // The pane's simulation state. A size change (a window resize streams
+  // one per frame) rebuilds only the trails: positions are canvas fractions,
+  // size-independent by design, and re-seeding them made every particle
+  // jump to a random spot on each step of a resize drag.
   stateFor(key, width, height, count) {
+    const { gl } = this;
     let state = this.states.get(key);
-    if (state && (state.width !== width || state.height !== height)) {
+    if (state && state.res !== Math.ceil(Math.sqrt(count))) {
       state.dispose();
       state = null;
     }
+    if (state && (state.width !== width || state.height !== height)) {
+      for (const t of state.trails) gl.deleteTexture(t);
+      state.trails = [
+        createRgba8Texture(gl, width, height, null, gl.NEAREST),
+        createRgba8Texture(gl, width, height, null, gl.NEAREST),
+      ];
+      state.width = width;
+      state.height = height;
+      state.lastStepMs = 0;
+    }
     if (!state) {
-      state = createState(this.gl, width, height, count);
+      state = createState(gl, width, height, count);
       this.states.set(key, state);
     }
     return state;
@@ -546,7 +575,10 @@ export default class ParticleRenderer {
     gl.bindTexture(gl.TEXTURE_2D, this.rampTexture);
     gl.uniform1i(this.drawU.u_ramp, 2);
     gl.uniform1f(this.drawU.u_rampMax, RAMP_MAX);
+    // No attribute arrays for the gl_VertexID point draw — both fullscreen
+    // programs' `a_pos`, not just the one that happens to share location 0.
     gl.disableVertexAttribArray(this.updateAttrib);
+    gl.disableVertexAttribArray(this.fadeAttrib);
     gl.drawArrays(gl.POINTS, 0, state.count);
     gl.disable(gl.BLEND);
 
