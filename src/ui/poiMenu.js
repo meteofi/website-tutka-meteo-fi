@@ -40,6 +40,23 @@
 
 const EXPAND_ICON = 'expand_more';
 
+// Topics sharing an `exclusive` tag are one layer with several sources (the
+// particle rows): at most one of them may be on. Pure — registry + state in,
+// state mutated — so radar.js only wires it. With `changedId` (a gesture that
+// just turned that topic on) its siblings go off; without it (the safety net
+// run before every visibility fan-out, which also catches persisted state)
+// the last row on in registry order stays on, deterministically.
+export function enforceExclusive(registry, state, changedId = null) {
+  const winners = new Map();
+  registry.forEach((e) => {
+    if (!e.exclusive || !state[e.id]) return;
+    if (changedId === null || e.id === changedId || !winners.has(e.exclusive)) winners.set(e.exclusive, e.id);
+  });
+  registry.forEach((e) => {
+    if (e.exclusive && state[e.id] && winners.get(e.exclusive) !== e.id) state[e.id] = false;
+  });
+}
+
 export default function initPoiMenu({
   container,
   registry,

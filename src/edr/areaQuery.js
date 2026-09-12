@@ -98,16 +98,22 @@ export function quantizedAreaBounds(viewExtent, { coverageBbox, maxAreaDeg2 }) {
   return [w, s, e, n];
 }
 
+// WKT polygon for quantized bounds: one-decimal coords (exact — corners live
+// on the 0.5° grid), counter-clockwise from the south-west corner. Shared by
+// every EDR area URL builder so equal bounds are byte-identical everywhere.
+export function polygonWkt(bounds) {
+  const [w, s, e, n] = bounds;
+  const c = (v) => v.toFixed(1);
+  return `POLYGON((${c(w)} ${c(s)},${c(e)} ${c(s)},${c(e)} ${c(n)},${c(w)} ${c(n)},${c(w)} ${c(s)}))`;
+}
+
 // Deterministic query URL: sorted parameters, minute-aligned datetime range,
 // one-decimal polygon coords (exact — corners live on the 0.5° grid).
 export function buildAreaUrl(endpoint, bounds, params, startMs, endMs) {
-  const [w, s, e, n] = bounds;
-  const c = (v) => v.toFixed(1);
-  const poly = `POLYGON((${c(w)} ${c(s)},${c(e)} ${c(s)},${c(e)} ${c(n)},${c(w)} ${c(n)},${c(w)} ${c(s)}))`;
   const names = [...params].sort().join(',');
   const datetime = `${isoSeconds(startMs)}/${isoSeconds(endMs)}`;
   return `${endpoint}?f=CoverageJSON`
     + `&parameter-name=${encodeURIComponent(names)}`
     + `&datetime=${encodeURIComponent(datetime)}`
-    + `&coords=${encodeURIComponent(poly)}`;
+    + `&coords=${encodeURIComponent(polygonWkt(bounds))}`;
 }
