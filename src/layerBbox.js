@@ -14,21 +14,44 @@ import LineString from 'ol/geom/LineString';
 import VectorLayer from 'ol/layer/Vector';
 import VectorSource from 'ol/source/Vector';
 import { fromLonLat } from 'ol/proj';
-import { Stroke, Style } from 'ol/style';
+import {
+  Fill, Stroke, Style, Text,
+} from 'ol/style';
 
 const PALETTES = {
-  light: 'rgba(20,20,20,0.55)',
-  dark: 'rgba(220,220,220,0.55)',
+  light: { stroke: 'rgba(20,20,20,0.55)', text: 'rgba(20,20,20,0.75)' },
+  dark: { stroke: 'rgba(220,220,220,0.55)', text: 'rgba(220,220,220,0.75)' },
 };
 
-function makeStyle(theme) {
-  return new Style({
-    stroke: new Stroke({ color: PALETTES[theme], width: 1.5, lineDash: [7, 6] }),
+// Dim and dashed, repeating the product's own title along the edge — same
+// reasoning as the OGN boundary in gliders.js: at most zooms only a stretch
+// of one side is on screen, so a single label placed once would usually be
+// somewhere else entirely. The title varies per product, so this is a style
+// FUNCTION that stamps the feature's `label` property into one shared Text
+// instance (the placeNames.js / radar.js radarStyle pattern), not a static
+// Style like gliders.js's OGN boundary.
+function makeStyleFunction(theme) {
+  const palette = PALETTES[theme];
+  const style = new Style({
+    stroke: new Stroke({ color: palette.stroke, width: 1.5, lineDash: [7, 6] }),
+    text: new Text({
+      font: '600 10px Roboto, sans-serif',
+      placement: 'line',
+      repeat: 260,
+      textBaseline: 'bottom',
+      offsetY: -3,
+      fill: new Fill({ color: palette.text }),
+      declutterMode: 'none',
+    }),
   });
+  return (feature) => {
+    style.getText().setText(feature.get('label') || '');
+    return style;
+  };
 }
 
-export const layerBboxStyleLight = makeStyle('light');
-export const layerBboxStyleDark = makeStyle('dark');
+export const layerBboxStyleLight = makeStyleFunction('light');
+export const layerBboxStyleDark = makeStyleFunction('dark');
 
 // A lon/lat box maps to an exact rectangle in Web Mercator — meridians are
 // vertical and parallels horizontal — so the four corners need no densifying
@@ -53,8 +76,10 @@ export function createLayerBboxLayer() {
 
   // bbox: [minLon, minLat, maxLon, maxLat] in EPSG:4326, or null/undefined to
   // clear the outline (no product selected, product hidden, or its
-  // GetCapabilities bbox hasn't loaded yet).
-  function setBbox(bbox) {
+  // GetCapabilities bbox hasn't loaded yet). label: the product's own title
+  // (layerInfo[wmslayer].title), repeated along the dashed edge.
+  function setBbox(bbox, label) {
+    feature.set('label', label || '');
     feature.setGeometry(Array.isArray(bbox) ? rectangleFromBbox(bbox) : null);
   }
 

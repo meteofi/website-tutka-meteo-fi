@@ -1906,7 +1906,8 @@ function updateLayer(layer, wmslayer, opts = {}) {
 function refreshLayerBbox(pane, wmslayer = pane.layerss.radarLayer.getSource().getParams().LAYERS) {
   const info = layerInfo[wmslayer];
   const visible = pane.layerss.radarLayer.getVisible();
-  pane.setLayerBbox(visible && info && Array.isArray(info.bbox) ? info.bbox : null);
+  const hasBbox = visible && info && Array.isArray(info.bbox);
+  pane.setLayerBbox(hasBbox ? info.bbox : null, hasBbox ? info.title : null);
 }
 
 // Pan/zoom the map to a layer's advertised coverage. Used by the radar
