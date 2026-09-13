@@ -266,6 +266,8 @@ export default function initWindParticles({ radarSites = () => [] } = {}) {
   let pendingView = null;
   let settleTimer = null;
   let retryTimer = null;
+  let metadataRetryTimer = null;
+  let metadataRetryDelay = RETRY_MS;
   let metadataTimer = null;
   let currentUrl = null;
   let inFlightUrl = null;
@@ -308,7 +310,10 @@ export default function initWindParticles({ radarSites = () => [] } = {}) {
   //
   function rememberField(url, field) {
     fieldCache.delete(url);
-    fieldCache.set(url, field);
+    fieldCache.set(url, {
+      field,
+      expiresAt: source.kind === 'model' ? Date.now() + METADATA_REFRESH_MS : Infinity,
+    });
     while (fieldCache.size > FIELD_CACHE_SIZE) {
       fieldCache.delete(fieldCache.keys().next().value);
     }
@@ -318,7 +323,7 @@ export default function initWindParticles({ radarSites = () => [] } = {}) {
     currentUrl = url;
     retryDelay = RETRY_MS;
     if (!renderer) return;
-    renderer.setField(fieldCache.get(url));
+    renderer.setField(fieldCache.get(url).field);
     renderer.setMask(source.kind === 'radar' ? coverageDiscs(radarSites()) : []);
   }
 
@@ -338,7 +343,9 @@ export default function initWindParticles({ radarSites = () => [] } = {}) {
   async function fetchField(url) {
     inFlightUrl = url;
     const result = await fieldSlot.run(async (signal) => {
-      const response = await fetch(url, { signal });
+      // A model run can revise the same valid time. Once the decoded cache
+      // expires, revalidate the HTTP cache too, keeping the deterministic URL.
+      const response = await fetch(url, { signal, cache: source.kind === 'model' ? 'no-cache' : 'default' });
       if (!response.ok) {
         const err = new Error(`HTTP ${response.status}`);
         err.status = response.status;
@@ -360,8 +367,8 @@ export default function initWindParticles({ radarSites = () => [] } = {}) {
         nx, ny, lon0, lat0, dLon, dLat, ...encodeField(parsed),
       };
     });
-    if (inFlightUrl === url) inFlightUrl = null;
     if (result === undefined) return;
+    if (inFlightUrl === url) inFlightUrl = null;
     if (!result.ok) {
       const { status, deterministic } = result.error;
       if ((status >= 400 && status < 500) || deterministic || result.error instanceof SyntaxError) {
@@ -409,10 +416,8 @@ export default function initWindParticles({ radarSites = () => [] } = {}) {
 
   function planFetch() {
     if (!enabled || !renderer || !pendingView) return;
-    // A model with no steps yet needs its metadata before any field can be
-    // named — including after a failed metadata load, whose retry lands
-    // here through scheduleRetry. Without this a transient metadata failure
-    // left the layer empty until the 30-minute refresh.
+    // A model with no steps yet needs metadata before a field can be named.
+    // loadMetadata gates repeated calls during its own retry backoff.
     if (source.kind !== 'radar' && steps.length === 0) {
       if (!metadataSlot.isBusy()) loadMetadata();
       return;
@@ -432,17 +437,20 @@ export default function initWindParticles({ radarSites = () => [] } = {}) {
     if (!time) return;
     const params = source.quality ? [source.u, source.v, source.quality] : [source.u, source.v];
     const url = buildGridUrl(areaEndpoint, bounds, params, time);
-    if (url === currentUrl && renderer.hasField()) {
+    const cached = fieldCache.get(url);
+    const fresh = cached && cached.expiresAt > Date.now();
+    if (url === currentUrl && renderer.hasField() && fresh) {
       fieldSlot.abort();
       inFlightUrl = null;
       return;
     }
-    if (fieldCache.has(url)) {
+    if (fresh) {
       fieldSlot.abort();
       inFlightUrl = null;
       // Refresh its place in the LRU: the field on screen must not be the
       // next one evicted.
-      rememberField(url, fieldCache.get(url));
+      fieldCache.delete(url);
+      fieldCache.set(url, cached);
       applyField(url);
       return;
     }
@@ -457,7 +465,10 @@ export default function initWindParticles({ radarSites = () => [] } = {}) {
     fetchField(url);
   }
 
-  async function loadMetadata() {
+  async function loadMetadata(refreshFields = false) {
+    // Every entry point (pan, clock, periodic refresh) respects the same
+    // metadata backoff. Its timer is independent of field failures/successes.
+    if (!enabled || metadataSlot.isBusy() || metadataRetryTimer) return;
     const result = await metadataSlot.run(async (signal) => {
       // No `f=` here: the collection document takes none (crossSection.js).
       const response = await fetch(metadataUrl, { signal });
@@ -466,12 +477,30 @@ export default function initWindParticles({ radarSites = () => [] } = {}) {
     });
     if (result === undefined || !enabled) return;
     if (!result.ok || result.data.length === 0) {
-      const delay = scheduleRetry();
+      const delay = metadataRetryDelay;
+      metadataRetryDelay = Math.min(RETRY_MAX_MS, delay * 2);
+      metadataRetryTimer = setTimeout(() => {
+        metadataRetryTimer = null;
+        loadMetadata(refreshFields);
+      }, delay);
       warn(`metadata unavailable (${result.ok ? 'no time steps' : result.error.message}), retrying in ${delay / 1000} s`);
       return;
     }
+    const changed = steps.length !== result.data.length
+      || steps.some((step, i) => step.ms !== result.data[i].ms);
+    if (changed || refreshFields) {
+      // New advertised steps can mean a new run with revised values at an
+      // already cached valid time. Periodic refreshes also revalidate when
+      // the advertised steps stay identical. Keep drawing the old field
+      // until its replacement lands, but do not let it satisfy another fetch decision.
+      fieldSlot.abort();
+      inFlightUrl = null;
+      for (const [url, cached] of fieldCache) {
+        if (url.startsWith(`${areaEndpoint}?`)) cached.expiresAt = 0;
+      }
+    }
     steps = result.data;
-    retryDelay = RETRY_MS;
+    metadataRetryDelay = RETRY_MS;
     // A step the server rejected earlier may exist now — the crossSection.js
     // contract: poisoned until the next metadata refresh.
     poisoned.clear();
@@ -665,7 +694,7 @@ export default function initWindParticles({ radarSites = () => [] } = {}) {
       return;
     }
     loadMetadata();
-    metadataTimer = setInterval(loadMetadata, METADATA_REFRESH_MS);
+    metadataTimer = setInterval(() => loadMetadata(true), METADATA_REFRESH_MS);
   }
 
   function stopFetching() {
@@ -677,6 +706,8 @@ export default function initWindParticles({ radarSites = () => [] } = {}) {
     settleTimer = null;
     if (retryTimer) clearTimeout(retryTimer);
     retryTimer = null;
+    if (metadataRetryTimer) clearTimeout(metadataRetryTimer);
+    metadataRetryTimer = null;
   }
 
   //
@@ -799,6 +830,7 @@ export default function initWindParticles({ radarSites = () => [] } = {}) {
       lastFailedUrl = null;
       poisoned.clear();
       retryDelay = RETRY_MS;
+      metadataRetryDelay = RETRY_MS;
       if (enabled) {
         stopFetching();
         if (renderer) renderer.clearField();
