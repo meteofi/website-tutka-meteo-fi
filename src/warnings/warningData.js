@@ -73,6 +73,11 @@ export function normalizeWarnings(features) {
       area: text(p.areaDesc) || 'Varoitusalue',
       headline: text(p.headline) || text(p.event),
       description: typeof p.description === 'string' ? p.description : '',
+      // MeteoCore exposes the CAP impacts parameter directly. Keep repeated
+      // values and pipe-separated items in source order, without rewriting.
+      impacts: (Array.isArray(p.impacts) ? p.impacts : [p.impacts])
+        .filter((value) => typeof value === 'string')
+        .flatMap((value) => value.split('|')).filter((value) => value.trim()),
       instruction: typeof p.instruction === 'string' ? p.instruction : '',
       sender: text(p.senderName) || text(p.sender),
       language: text(p.language),

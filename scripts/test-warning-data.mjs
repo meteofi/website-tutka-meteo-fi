@@ -28,6 +28,12 @@ assert.equal(normalizeWarnings([change({ awareness_type: '10; rain' })])[0].type
 assert.equal(warning.area, 'Uusimaa');
 assert.equal(warning.description, '<script>never executable</script>');
 assert.equal(normalizeWarnings([change({ instruction: '  First|Second\n' })])[0].instruction, '  First|Second\n');
+assert.deepEqual(warning.impacts, [], 'missing impacts must not be inferred from the description');
+assert.deepEqual(normalizeWarnings([change({ impacts: 'Flooded roads' })])[0].impacts, ['Flooded roads']);
+assert.deepEqual(normalizeWarnings([change({ impacts: ['  Flooded roads|Power outages\n', 'Falling trees', '', null, 42] })])[0].impacts,
+  ['  Flooded roads', 'Power outages\n', 'Falling trees'], 'preserve every supplied impact and its wording in source order');
+assert.deepEqual(normalizeWarnings([change({ impacts: ' |\n' })])[0].impacts, []);
+assert.deepEqual(normalizeWarnings([change({ impacts: { text: 'unsupported shape' } })])[0].impacts, []);
 assert.equal(normalizeWarnings([change({ awareness_type: '13; something' })]).length, 0);
 for (const props of [
   { awareness_type: '4; fog', event: 'Thunderstorm' },

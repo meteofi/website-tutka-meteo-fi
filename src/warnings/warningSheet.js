@@ -19,6 +19,14 @@ function originalText(content) {
   return list;
 }
 
+function textSection(title, content, className = '') {
+  const section = element('section', `warning-text-section ${className}`.trim());
+  const heading = element('h4', '', `${title}:`);
+  heading.lang = 'fi';
+  section.append(heading, content);
+  return section;
+}
+
 export default function createWarningSheet({
   onWindow, onScope, onLocate, onRetry,
 }) {
@@ -78,7 +86,7 @@ export default function createWarningSheet({
   dialog.addEventListener('keydown', (event) => {
     event.stopPropagation();
     if (event.key !== 'Tab') return;
-    const controls = [...dialog.querySelectorAll('button:not([disabled]), input, summary, a[href]')]
+    const controls = [...dialog.querySelectorAll('button:not([disabled]), input, a[href]')]
       .filter((el) => el.getClientRects().length);
     const first = controls[0];
     const last = controls[controls.length - 1];
@@ -125,8 +133,6 @@ export default function createWarningSheet({
     const key = JSON.stringify([lastSuccess, loading, !!stale, warnings.map((w) => [w.id, w.start > now]), selectedIds, allAreas]);
     if (key === lastListKey) return;
     lastListKey = key;
-    const expanded = new Set([...list.querySelectorAll('details[open]')]
-      .map((details) => details.closest('article').dataset.warningId));
     list.replaceChildren();
     if (!warnings.length) {
       const empty = element('div', 'warning-empty');
@@ -147,43 +153,45 @@ export default function createWarningSheet({
       card.append(element('div', 'warning-badge', `${type.symbol} ${level.marks} · ${future ? 'Alkaa myöhemmin' : 'Voimassa nyt'}`));
       card.append(element('h3', '', `${level.colorLabel} ${type.singular}`));
       card.append(element('p', 'warning-area', warning.area));
-      card.append(element('p', 'warning-issuer', `Lähde: ${warning.sender || 'Meteoalarm'}`));
       card.append(element('p', 'warning-validity', `${warningTime(warning.start)} – ${warningTime(warning.expires)}`));
       if (warning.end < warning.expires) {
         card.append(element('p', 'warning-clock-note', `Aineiston mukainen päättyminen: ${warningTime(warning.end)}`));
       }
-      const details = element('details', 'warning-details');
-      details.open = !!selectedIds?.includes(warning.id) || expanded.has(warning.id);
-      details.append(element('summary', '', 'Varoitus ja toimintaohjeet'));
-      if (warning.language) details.append(element('p', 'warning-clock-note', `Alkuperäinen tiedote · ${warning.language}`));
       const original = element('div', 'warning-original');
       if (warning.language) original.lang = warning.language;
-      if (warning.headline) original.append(element('strong', '', warning.headline));
-      if (warning.instruction) {
-        const instruction = element('div', 'warning-instruction');
-        instruction.append(element('h4', '', 'Toimintaohje'));
-        instruction.lastChild.lang = 'fi';
-        instruction.append(originalText(warning.instruction));
-        original.append(instruction);
+      const description = warning.description.trim() ? warning.description : warning.headline;
+      if (description) original.append(textSection('Varoitusteksti', originalText(description)));
+      if (warning.impacts.length) {
+        const impacts = element('ul', 'warning-impacts');
+        warning.impacts.forEach((impact) => impacts.append(element('li', '', impact)));
+        original.append(textSection('Vaikutukset', impacts));
       }
-      if (warning.description) original.append(originalText(warning.description));
-      details.append(original);
-      details.append(element('p', 'warning-issuer', warning.sent ? `Julkaistu ${warningTime(warning.sent)}` : ''));
+      if (warning.instruction.trim()) {
+        original.append(textSection('Toimintaohje', originalText(warning.instruction), 'warning-instruction'));
+      }
+      card.append(original);
+      const attribution = element('div', 'warning-attribution');
+      attribution.append(element('p', 'warning-issuer', `Lähde: ${warning.sender || 'Meteoalarm'}`));
+      if (warning.language) attribution.append(element('p', 'warning-issuer', `Alkuperäinen tiedote · ${warning.language}`));
+      if (warning.sent) attribution.append(element('p', 'warning-issuer', `Julkaistu ${warningTime(warning.sent)}`));
       if (warning.web) {
         const link = element('a', 'warning-source-link', 'Lue viranomaisen tiedote ↗');
         link.href = warning.web;
         link.target = '_blank';
         link.rel = 'noopener noreferrer';
-        details.append(link);
+        attribution.append(link);
       }
-      card.append(details);
+      card.append(attribution);
       const locate = element('button', 'warning-locate', 'Näytä alue kartalla');
       locate.type = 'button';
       locate.addEventListener('click', () => { dialog.close(); onLocate(warning.id); });
       card.append(locate);
       list.append(card);
     });
-    if (selectedIds?.length && dialog.open) list.querySelector('details[open]')?.closest('article').scrollIntoView({ block: 'nearest' });
+    if (selectedIds?.length && dialog.open) {
+      const selectedCard = [...list.children].find((card) => selectedIds.includes(card.dataset.warningId));
+      selectedCard?.scrollIntoView({ block: 'start' });
+    }
   }
   return { update, open };
 }
