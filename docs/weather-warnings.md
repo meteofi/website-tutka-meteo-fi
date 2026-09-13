@@ -1,8 +1,8 @@
-# Wind and thunderstorm warnings
+# Wind, thunderstorm and rain warnings
 
 ## User experience
 
-Enable **Ukkosvaroitukset** and/or **Tuulivaroitukset** at the top of the three-dot menu's map overlays. The existing `POI_STATE` remembers each selection independently. Both types share one fetch and map layer; the combined summary is **Säävaroitukset**. All panes show the same warning data.
+Enable **Ukkosvaroitukset**, **Tuulivaroitukset** and/or **Sadevaroitukset** at the top of the three-dot menu's map overlays. The existing `POI_STATE` remembers each selection independently. All three types share one fetch and map layer; the combined summary is **Säävaroitukset**. All panes show the same warning data.
 
 The default **Seuraavat 24 h** view includes enabled warning types already active and those starting within the next 24 hours. **Voimassa nyt** shows only active warnings. Both use the device's current time, independent of the radar's 13-frame playback window; the sheet states this explicitly.
 
@@ -16,13 +16,13 @@ Loading, empty, failed and stale states are distinct. The UI never presents a su
 
 ## Meteoalarm style guide
 
-Presentation follows the relevant sections of the [MeteoAlarm Style Guide v1.0 (February 2026)](https://gitlab.com/meteoalarm-pm-group/documents/-/raw/master/MeteoAlarm_Style_Guide_v1.0.pdf?inline=true): explicit severity + hazard titles, visible issuer, start/end time-zone labels, exact source descriptions/instructions and pipe-delimited bullet formatting. Map fills and severity accents use #ffda22, #ff9300 and #ff0000; small text uses lighter tints where needed for contrast on dark surfaces. Wind and lightning glyphs are app symbols, not the separately distributed official Meteoalarm icon assets. CAP expires is displayed as supplied; when active_until ends applicability earlier, the sheet shows that separately and filtering honors the earlier end.
+Presentation follows the relevant sections of the [MeteoAlarm Style Guide v1.0 (February 2026)](https://gitlab.com/meteoalarm-pm-group/documents/-/raw/master/MeteoAlarm_Style_Guide_v1.0.pdf?inline=true): explicit severity + hazard titles, visible issuer, start/end time-zone labels, exact source descriptions/instructions and pipe-delimited bullet formatting. Map fills and severity accents use #ffda22, #ff9300 and #ff0000; small text uses lighter tints where needed for contrast on dark surfaces. Wind, lightning and umbrella glyphs are app symbols, not the separately distributed official Meteoalarm icon assets. CAP expires is displayed as supplied; when active_until ends applicability earlier, the sheet shows that separately and filtering honors the earlier end.
 
 ## Data and lifecycle
 
 - Endpoint: `https://meteocore.app.meteo.fi/features/collections/cap-meteoalarm-wis2/items`.
 - No server-side weather, spatial or temporal filtering is assumed. Fetch pages with `limit=1000`, follow `rel=next`, or use `numberMatched` and `offset` when needed. Reject loops, repeated pages, unexpected next-page origins/paths, malformed responses and incomplete snapshots.
-- Keep only structured awareness types **1** (wind) and **3** (thunderstorm), levels **2–4**, `Actual`, `Public`, `Alert`/`Update`, Polygon/MultiPolygon records. Never infer thunderstorm status from prose. Exclude `AllClear`; respect CAP update/cancellation references when present.
+- Keep only structured awareness types **1** (wind), **3** (thunderstorm) and **10** (rain), levels **2–4**, `Actual`, `Public`, `Alert`/`Update`, Polygon/MultiPolygon records. Never infer hazard type from prose. Rain is distinct from flooding (12) and rain-flood (13); those types remain excluded. Codes follow the [Meteoalarm collection metadata](https://api.meteoalarm.org/edr/v1/collections?f=html). Exclude `AllClear`; respect CAP update/cancellation references when present.
 - Start is onset, falling back to effective/sent. End is the earlier of expires/active_until. Require a valid positive interval. Start is inclusive, end exclusive. Filter locally before adding features to the map. Distinct CAP feature IDs preserve separate areas/info blocks, including all supplied languages. Equally ranked warnings prefer Finnish, then English; other supplied languages remain available as separate cards.
 - One in-memory snapshot, spatial index and request serve every pane. Fetch only while enabled; refresh every five minutes while visible, retry failures after one minute, catch up when the tab returns, and retry on reconnection. Requests time out after 45 seconds and abort on disable. No warning requests are made on pan, zoom, animation or pane creation.
 - Replace the source atomically only after every page and geometry has been parsed. Retain the last good snapshot on failure, label it stale, and still expire warnings locally on a 30-second tick. A hidden tab catches up on return. No persistent/offline warning cache is introduced.

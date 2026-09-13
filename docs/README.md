@@ -19,4 +19,4 @@ j     | edellinen aika-askel
 l     | seuraava aika-askel
 
 
-- [Wind and thunderstorm warnings](weather-warnings.md): mobile UX, CAP filtering, polling lifecycle and future vector tiles.
+- [Wind, thunderstorm and rain warnings](weather-warnings.md): mobile UX, CAP filtering, polling lifecycle and future vector tiles.

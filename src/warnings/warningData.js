@@ -4,6 +4,7 @@ export const WARNING_URL = 'https://meteocore.app.meteo.fi/features/collections/
 export const WARNING_TYPES = {
   1: { label: 'Tuulivaroitukset', singular: 'tuulivaroitus', symbol: '≋' },
   3: { label: 'Ukkosvaroitukset', singular: 'ukkosvaroitus', symbol: 'ϟ' },
+  10: { label: 'Sadevaroitukset', singular: 'sadevaroitus', symbol: '☂︎' },
 };
 export const DAY_MS = 24 * 60 * 60 * 1000;
 export const LEVELS = {

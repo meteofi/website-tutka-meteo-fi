@@ -2722,7 +2722,7 @@ document.querySelectorAll('#overflowMenu .chip[data-layout]').forEach((chip) => 
 // the split.
 const poiRegistry = [
   {
-    // These two filters share one layer; applyPoiVisibility combines them.
+    // These warning filters share one layer; applyPoiVisibility combines them.
     id: 'ukkosvaroitukset',
     label: 'Ukkosvaroitukset',
     icon: 'warning_amber',
@@ -2733,6 +2733,13 @@ const poiRegistry = [
     id: 'tuulivaroitukset',
     label: 'Tuulivaroitukset',
     icon: 'air',
+    defaultOn: false,
+    layerKeys: [],
+  },
+  {
+    id: 'sadevaroitukset',
+    label: 'Sadevaroitukset',
+    icon: 'water_drop',
     defaultOn: false,
     layerKeys: [],
   },
@@ -2999,8 +3006,11 @@ function applyPoiVisibility() {
   if (particlesOn) wind.setEnabled(true);
   for (const pane of panes) pane.windLayer.setVisible(particlesOn);
   trafficMessages.setEnabled(!!POI_STATE.liikennetiedotteet);
-  weatherWarnings.setTypes([POI_STATE.tuulivaroitukset && 1, POI_STATE.ukkosvaroitukset && 3].filter(Boolean));
-  for (const pane of panes) pane.weatherWarningsLayer.setVisible(!!POI_STATE.tuulivaroitukset || !!POI_STATE.ukkosvaroitukset);
+  const warningTypes = [
+    POI_STATE.tuulivaroitukset && 1, POI_STATE.ukkosvaroitukset && 3, POI_STATE.sadevaroitukset && 10,
+  ].filter(Boolean);
+  weatherWarnings.setTypes(warningTypes);
+  for (const pane of panes) pane.weatherWarningsLayer.setVisible(warningTypes.length > 0);
   weatherCameras.setEnabled(!!POI_STATE.kelikamerat);
   gliders.setEnabled(!!POI_STATE.gliders);
   // Rautatiet carries a live feed too, and it is the Junat part that holds it:
@@ -4104,7 +4114,9 @@ function shareAttributions() {
   // Tilastokeskus-derived collection, so it now needs crediting like the rest.
   if (POI_STATE.municipalities) parts.add('Kunnat © Maanmittauslaitos');
   if (POI_STATE.stormcells) parts.add('Soluntunnistus © FMI (CC BY 4.0)');
-  if (POI_STATE.ukkosvaroitukset || POI_STATE.tuulivaroitukset) parts.add('Varoitukset © Meteoalarm / kansalliset sääpalvelut');
+  if (POI_STATE.ukkosvaroitukset || POI_STATE.tuulivaroitukset || POI_STATE.sadevaroitukset) {
+    parts.add('Varoitukset © Meteoalarm / kansalliset sääpalvelut');
+  }
   return [...parts];
 }
 
