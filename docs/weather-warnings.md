@@ -14,7 +14,7 @@ Card titles follow the guide’s color + hazard format, e.g. “Keltainen tuuliv
 
 1. **Varoitusteksti:** the original CAP description (headline/event only as a fallback if description is absent).
 2. **Vaikutukset:** the supplied `impacts` as a bulleted list. MeteoCore exposes this parameter directly; a string or repeated string values are accepted, with pipe-separated items displayed separately. Missing impacts are omitted, never inferred from prose or filled with generic consequences.
-3. **Toimintaohje:** the original CAP instruction, visually accented for easy scanning. Missing instructions are omitted.
+3. **Toimintaohje:** the original CAP instruction, using the same heading, spacing and background as the description and impacts sections. Missing instructions are omitted.
 
 Issuer, original language, publication time and the source link follow the body. Original text carries its source language and is inserted as text, not HTML; Finnish section headings have their own language tag. Description/instruction pipe delimiters retain their bullet formatting. Source links accept only HTTP(S). “Näytä alue kartalla” fits the region in the current pane; the shared view moves all panes together. Users can include areas outside the viewport in the list without moving the map.
 
