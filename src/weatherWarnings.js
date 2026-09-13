@@ -20,7 +20,7 @@ export default function initWeatherWarnings() {
   let features = new Map();
   let enabled = false;
   let enabledTypes = new Set();
-  let upcoming = true;
+  let upcoming = false;
   let allAreas = false;
   let selectedIds = [];
   let currentMap = null;

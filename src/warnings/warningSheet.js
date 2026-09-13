@@ -36,8 +36,8 @@ export default function createWarningSheet({
     </header>
     <div class="warning-controls">
       <div class="warning-segments" role="group" aria-label="Varoitusten ajanjakso">
-        <button type="button" data-window="now" aria-pressed="false">Voimassa nyt</button>
-        <button type="button" data-window="day" aria-pressed="true">Seuraavat 24 h</button>
+        <button type="button" data-window="now" aria-pressed="true">Voimassa nyt</button>
+        <button type="button" data-window="day" aria-pressed="false">Seuraavat 24 h</button>
       </div>
       <p class="warning-clock-note">Nykyhetkestä eteenpäin · ei seuraa tutkan aikajanaa</p>
       <div class="warning-legend" role="group" aria-label="Varoitusvärien merkitys"></div>

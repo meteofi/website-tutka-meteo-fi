@@ -2724,6 +2724,7 @@ const poiRegistry = [
   {
     // These warning filters share one layer; applyPoiVisibility combines them.
     id: 'ukkosvaroitukset',
+    section: 'varoitukset',
     label: 'Ukkosvaroitukset',
     icon: 'warning_amber',
     defaultOn: false,
@@ -2731,6 +2732,7 @@ const poiRegistry = [
   },
   {
     id: 'tuulivaroitukset',
+    section: 'varoitukset',
     label: 'Tuulivaroitukset',
     icon: 'air',
     defaultOn: false,
@@ -2738,6 +2740,7 @@ const poiRegistry = [
   },
   {
     id: 'sadevaroitukset',
+    section: 'varoitukset',
     label: 'Sadevaroitukset',
     icon: 'water_drop',
     defaultOn: false,
@@ -2937,6 +2940,7 @@ const poiChildKey = (entry, child) => `${entry.id}.${child.id}`;
 // POI_STATE, applyPoiVisibility and every topic's own parts are untouched by it,
 // and a topic does not care whether it happens to be displayed inside one.
 const poiSections = {
+  varoitukset: { label: 'Varoitukset', icon: 'warning_amber' },
   ilmailu: { label: 'Ilmailu', icon: 'flight_takeoff' },
   vesiliikenne: { label: 'Vesiliikenne', icon: 'directions_boat' },
 };

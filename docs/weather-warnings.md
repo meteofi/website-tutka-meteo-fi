@@ -2,9 +2,9 @@
 
 ## User experience
 
-Enable **Ukkosvaroitukset**, **Tuulivaroitukset** and/or **Sadevaroitukset** at the top of the three-dot menu's map overlays. The existing `POI_STATE` remembers each selection independently. All three types share one fetch and map layer; the combined summary is **Säävaroitukset**. All panes show the same warning data.
+Open **Varoitukset** in the three-dot menu to select **Ukkosvaroitukset**, **Tuulivaroitukset** and/or **Sadevaroitukset**. The section uses the same collapsible submenu and group switch as **Ilmailu**. The existing `POI_STATE` remembers each selection independently, including selections saved before the submenu was introduced. All three types share one fetch and map layer; the combined summary is **Säävaroitukset**. All panes show the same warning data.
 
-The default **Seuraavat 24 h** view includes enabled warning types already active and those starting within the next 24 hours. **Voimassa nyt** shows only active warnings. Both use the device's current time, independent of the radar's 13-frame playback window; the sheet states this explicitly.
+The default **Voimassa nyt** view shows only active warnings. The optional **Seuraavat 24 h** view also includes enabled warning types starting within the next 24 hours. Both use the device's current time, independent of the radar's 13-frame playback window; the sheet states this explicitly.
 
 Yellow / orange / red areas use restrained translucent fills, contrasting boundaries and `!` / `!!` / `!!!` badges. The Finnish legend explains the colors as “Mahdollisesti vaarallinen” (yellow), “Vaarallinen” (orange), and “Hyvin vaarallinen” (red). Future warnings have dashed boundaries. Radar echoes, lightning and observation symbols remain visible. Regional warnings do not describe the exact footprint of a thunderstorm.
 
