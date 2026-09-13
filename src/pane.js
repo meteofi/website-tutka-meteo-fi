@@ -109,6 +109,7 @@ export default function createPane(targetEl, sharedView, deps) {
     // Traffic announcements (src/trafficMessages.js) — panes share one
     // VectorSource; the controller owns fetching and the clock filter.
     createTrafficLayer,
+    createWeatherWarningsLayer,
     // Road weather cameras (src/weatherCameras.js) — panes share one
     // VectorSource; the controller owns the station list and the image panel.
     createWeatherCameraLayer,
@@ -422,6 +423,7 @@ export default function createPane(targetEl, sharedView, deps) {
   // above the basemap context overlays, since an incident marker the user is
   // hunting for must not end up under a place-name label.
   const trafficLayer = createTrafficLayer();
+  const weatherWarningsLayer = createWeatherWarningsLayer();
 
   // Road weather cameras sit just above the traffic announcements — same road
   // context, and a camera marker is a tap target the user is hunting for, so it
@@ -494,6 +496,7 @@ export default function createPane(targetEl, sharedView, deps) {
     darkGrayBaseLayer,
     satelliteLayer,
     radarLayer,
+    weatherWarningsLayer,
     placeNamesLayer,
     guideLayer,
     layerBboxLayer,
@@ -564,6 +567,7 @@ export default function createPane(targetEl, sharedView, deps) {
     layerBboxLayer,
     setLayerBbox,
     stormCellsLayer,
+    weatherWarningsLayer,
     municipalityLayer,
     vesivaylaAreaLayer,
     vesivaylatLayer,
