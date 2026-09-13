@@ -44,6 +44,7 @@ import { createLayerBboxLayer, layerBboxStyleLight, layerBboxStyleDark } from '.
 import initStormCells from './stormCells';
 import initWindParticles from './particles/windParticles';
 import initTrafficMessages from './trafficMessages';
+import initWeatherWarnings from './weatherWarnings';
 import initWeatherCameras from './weatherCameras';
 import initTrains from './trains';
 import initGliders from './gliders';
@@ -802,6 +803,7 @@ const searchHighlight = initSearchHighlight();
 // Unlike storm cells it fetches the whole active set at once and uses the
 // cursor only to filter, so a clock move costs no network.
 const trafficMessages = initTrafficMessages();
+const weatherWarnings = initWeatherWarnings();
 
 // Kelikamerat (Fintraffic road weather cameras): markers are wall-clock static
 // fixed installations, but the image panel follows the clock — setTime routes
@@ -904,6 +906,7 @@ const paneDeps = {
   createStormCellsLayer: stormCells.createPaneLayer,
   createWindLayer: wind.createPaneLayer,
   createTrafficLayer: trafficMessages.createPaneLayer,
+  createWeatherWarningsLayer: weatherWarnings.createPaneLayer,
   createWeatherCameraLayer: weatherCameras.createPaneLayer,
   createGliderLayer: gliders.createPaneLayer,
   createLayerBboxLayer,
@@ -1149,7 +1152,8 @@ function initNewPane(pane) {
     // bigger than any marker and would otherwise swallow taps meant for the
     // aerodrome or the train underneath the storm.
     const cellHit = pane.stormCells.findAtPixel(evt.pixel);
-    if (cellHit) pane.stormCells.open(cellHit);
+    if (cellHit) { pane.stormCells.open(cellHit); return; }
+    pane.weatherWarnings.handleClick(evt.pixel);
   });
   setMapLayer(getEffectiveTheme());
   applyPoiVisibility();
@@ -1725,6 +1729,7 @@ function setMapLayer(maplayer) {
     pane.municipalityLayer.setStyle(light ? municipalityStyleLight : municipalityStyleDark);
     pane.stormCellsLayer.setStyle(light ? stormCells.styleLight : stormCells.styleDark);
     pane.trafficLayer.setStyle(light ? trafficMessages.styleLight : trafficMessages.styleDark);
+    pane.weatherWarningsLayer.setStyle(light ? weatherWarnings.styleLight : weatherWarnings.styleDark);
     pane.weatherCameraLayer.setStyle(light ? weatherCameras.styleLight : weatherCameras.styleDark);
     pane.gliderLayer.setStyle(light ? gliders.styleLight : gliders.styleDark);
     pane.layerBboxLayer.setStyle(light ? layerBboxStyleLight : layerBboxStyleDark);
@@ -2119,6 +2124,7 @@ function initPaneRadarSite(pane) {
 // controller and its VectorSource stay shared — only the Overlay is per-pane.
 function initPaneTraffic(pane) {
   pane.traffic = trafficMessages.attachPane(pane.map, pane.trafficLayer);
+  pane.weatherWarnings = weatherWarnings.attachPane(pane.map, pane.weatherWarningsLayer);
   // Cameras only need a per-pane hit-test — unlike the traffic card, the image
   // panel is a single global bottom panel, so every pane opens the same one.
   pane.cameras = weatherCameras.attachPane(pane.map, pane.weatherCameraLayer);
@@ -2716,6 +2722,21 @@ document.querySelectorAll('#overflowMenu .chip[data-layout]').forEach((chip) => 
 // the split.
 const poiRegistry = [
   {
+    // These two filters share one layer; applyPoiVisibility combines them.
+    id: 'ukkosvaroitukset',
+    label: 'Ukkosvaroitukset',
+    icon: 'warning_amber',
+    defaultOn: false,
+    layerKeys: [],
+  },
+  {
+    id: 'tuulivaroitukset',
+    label: 'Tuulivaroitukset',
+    icon: 'air',
+    defaultOn: false,
+    layerKeys: [],
+  },
+  {
     id: 'placenames',
     label: 'Nimistö',
     icon: 'label',
@@ -2978,6 +2999,8 @@ function applyPoiVisibility() {
   if (particlesOn) wind.setEnabled(true);
   for (const pane of panes) pane.windLayer.setVisible(particlesOn);
   trafficMessages.setEnabled(!!POI_STATE.liikennetiedotteet);
+  weatherWarnings.setTypes([POI_STATE.tuulivaroitukset && 1, POI_STATE.ukkosvaroitukset && 3].filter(Boolean));
+  for (const pane of panes) pane.weatherWarningsLayer.setVisible(!!POI_STATE.tuulivaroitukset || !!POI_STATE.ukkosvaroitukset);
   weatherCameras.setEnabled(!!POI_STATE.kelikamerat);
   gliders.setEnabled(!!POI_STATE.gliders);
   // Rautatiet carries a live feed too, and it is the Junat part that holds it:
@@ -3947,6 +3970,7 @@ const main = () => {
         return;
       }
     }
+    if (pane0.weatherWarnings.handleClick(evt.pixel)) return;
     displayFeatureInfo(evt.pixel);
   });
 
@@ -4080,6 +4104,7 @@ function shareAttributions() {
   // Tilastokeskus-derived collection, so it now needs crediting like the rest.
   if (POI_STATE.municipalities) parts.add('Kunnat © Maanmittauslaitos');
   if (POI_STATE.stormcells) parts.add('Soluntunnistus © FMI (CC BY 4.0)');
+  if (POI_STATE.ukkosvaroitukset || POI_STATE.tuulivaroitukset) parts.add('Varoitukset © Meteoalarm / kansalliset sääpalvelut');
   return [...parts];
 }
 
