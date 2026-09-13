@@ -40,7 +40,7 @@ export default function createWarningSheet({
         <button type="button" data-window="day" aria-pressed="true">Seuraavat 24 h</button>
       </div>
       <p class="warning-clock-note">Nykyhetkestä eteenpäin · ei seuraa tutkan aikajanaa</p>
-      <div class="warning-legend"><span data-level="2">! Kohtalainen</span><span data-level="3">!! Vakava</span><span data-level="4">!!! Äärimmäinen</span></div>
+      <div class="warning-legend" role="group" aria-label="Varoitusvärien merkitys"></div>
       <p class="warning-clock-note">Katkoviiva kartalla = varoitus alkaa myöhemmin</p>
       <div class="warning-scope"><label><input type="checkbox"> Kaikki alueet kartan ulkopuoleltakin</label></div>
       <p class="warning-feed-status" role="status"></p>
@@ -48,6 +48,13 @@ export default function createWarningSheet({
     </div>
     <div class="warning-list"></div>
     <footer>Varoitukset: Meteoalarm ja kansalliset sääpalvelut. Aineiston puuttuminen ei tarkoita vaaratonta säätä.</footer>`;
+  const legend = dialog.querySelector('.warning-legend');
+  Object.entries(LEVELS).forEach(([code, level]) => {
+    const item = element('span', '', `${level.marks} ${level.legendLabel}`);
+    item.dataset.level = code;
+    item.setAttribute('aria-label', `${level.colorLabel}: ${level.legendLabel}`);
+    legend.append(item);
+  });
   document.body.append(summary, dialog);
   const list = dialog.querySelector('.warning-list');
   const status = dialog.querySelector('.warning-feed-status');
@@ -138,7 +145,7 @@ export default function createWarningSheet({
       card.dataset.warningId = warning.id;
       const future = warning.start > now;
       card.append(element('div', 'warning-badge', `${type.symbol} ${level.marks} · ${future ? 'Alkaa myöhemmin' : 'Voimassa nyt'}`));
-      card.append(element('h3', '', `${level.label} ${type.singular}`));
+      card.append(element('h3', '', `${level.colorLabel} ${type.singular}`));
       card.append(element('p', 'warning-area', warning.area));
       card.append(element('p', 'warning-issuer', `Lähde: ${warning.sender || 'Meteoalarm'}`));
       card.append(element('p', 'warning-validity', `${warningTime(warning.start)} – ${warningTime(warning.expires)}`));

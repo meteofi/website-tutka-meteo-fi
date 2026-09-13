@@ -3556,7 +3556,7 @@ body.split-4 #placeSearchButton {
 .warning-segments button { flex: 1; min-height: 44px; border: 0; border-radius: 10px; background: transparent; }
 .warning-segments button[aria-pressed="true"] { background: #35445a; font-weight: 700; }
 .warning-clock-note { color: #b4c0d2; font-size: 12px; margin: 8px 0 14px; }
-.warning-legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; font-weight: 700; }
+.warning-legend { display: grid; gap: 6px; font-size: 12px; font-weight: 700; }
 .warning-legend span { color: var(--warning-text); }
 .warning-scope label { display: flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; }
 .warning-scope input { width: 19px; height: 19px; accent-color: #96c7ff; }

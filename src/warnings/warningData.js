@@ -9,13 +9,13 @@ export const WARNING_TYPES = {
 export const DAY_MS = 24 * 60 * 60 * 1000;
 export const LEVELS = {
   2: {
-    label: 'Kohtalainen', color: '#ffda22', ink: '#705600', marks: '!',
+    colorLabel: 'Keltainen', legendLabel: 'Mahdollisesti vaarallinen', color: '#ffda22', ink: '#705600', marks: '!',
   },
   3: {
-    label: 'Vakava', color: '#ff9300', ink: '#ad4800', marks: '!!',
+    colorLabel: 'Oranssi', legendLabel: 'Vaarallinen', color: '#ff9300', ink: '#ad4800', marks: '!!',
   },
   4: {
-    label: 'Äärimmäinen', color: '#ff0000', ink: '#bd1638', marks: '!!!',
+    colorLabel: 'Punainen', legendLabel: 'Hyvin vaarallinen', color: '#ff0000', ink: '#bd1638', marks: '!!!',
   },
 };
 const text = (value) => (typeof value === 'string' ? value.trim() : '');
