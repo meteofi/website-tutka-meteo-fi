@@ -20,6 +20,8 @@ export default function initWeatherWarnings() {
   let features = new Map();
   let enabled = false;
   let enabledTypes = new Set();
+  let loadedTypes = new Set();
+  let requestedTypes = new Set();
   let upcoming = false;
   let allAreas = false;
   let selectedIds = [];
@@ -83,7 +85,8 @@ export default function initWeatherWarnings() {
       now,
       loading: !!request,
       failed,
-      lastSuccess,
+      // A newly selected type is unknown until its filtered fetch completes.
+      lastSuccess: [...enabledTypes].every((type) => loadedTypes.has(type)) ? lastSuccess : 0,
       upcoming,
       allAreas,
       selectedIds,
@@ -93,12 +96,14 @@ export default function initWeatherWarnings() {
   async function refresh() {
     if (!enabled || request) return;
     const controller = new AbortController();
+    const types = [...enabledTypes];
+    requestedTypes = new Set(types);
     request = controller;
     lastAttempt = Date.now();
     const timeout = setTimeout(() => controller.abort(), 45000);
     render();
     try {
-      const snapshot = await fetchWarningSnapshot({ signal: controller.signal });
+      const snapshot = await fetchWarningSnapshot({ types, signal: controller.signal });
       const nextFeatures = new Map();
       snapshot.forEach((warning) => {
         const feature = format.readFeature({
@@ -119,6 +124,7 @@ export default function initWeatherWarnings() {
       });
       if (request !== controller || !enabled) return;
       records = snapshot;
+      loadedTypes = new Set(types);
       features = nextFeatures;
       selectedIds = selectedIds.filter((id) => features.has(id));
       shownKey = null;
@@ -131,6 +137,7 @@ export default function initWeatherWarnings() {
       clearTimeout(timeout);
       if (request === controller) {
         request = null;
+        requestedTypes.clear();
         render();
       }
     }
@@ -217,21 +224,29 @@ export default function initWeatherWarnings() {
       };
     },
     setTypes(types) {
-      const nextTypes = new Set(types.filter((type) => WARNING_TYPES[type]));
+      const nextTypes = new Set(types.filter((type) => WARNING_TYPES[type]).sort((a, b) => a - b));
       if ([...nextTypes].join(',') === [...enabledTypes].join(',')) return;
       enabledTypes = nextTypes;
       selectedIds = [];
       const value = enabledTypes.size > 0;
-      if (enabled === value) { render(); return; }
+      const wasEnabled = enabled;
       enabled = value;
       if (!enabled) {
         clearInterval(timer);
         request?.abort();
         request = null;
+        requestedTypes.clear();
         selectedIds = [];
       } else {
-        timer = setInterval(catchUp, 30000);
-        if (!lastSuccess || Date.now() - lastSuccess >= REFRESH_MS || failed) refresh();
+        if (!wasEnabled) timer = setInterval(catchUp, 30000);
+        // Removing a type can reuse a broader snapshot/request. Adding one
+        // must replace a narrower in-flight request; late results cannot win.
+        if (request && [...enabledTypes].some((type) => !requestedTypes.has(type))) {
+          request.abort();
+          request = null;
+        }
+        if ([...enabledTypes].some((type) => !loadedTypes.has(type))
+          || !lastSuccess || Date.now() - lastSuccess >= REFRESH_MS || failed) refresh();
       }
       render();
     },

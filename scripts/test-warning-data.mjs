@@ -61,25 +61,84 @@ assert.equal(safeWebUrl('data:text/html,hello'), '');
 assert.equal(safeWebUrl('/relative'), '');
 assert.equal(safeWebUrl('https://example.org'), 'https://example.org/');
 const response = (features, extra = {}) => ({ ok: true, json: async () => ({ type: 'FeatureCollection', features, ...extra }) });
+const filteredUrl = (type = '3; thunderstorm') => {
+  const url = new URL(WARNING_URL);
+  url.search = new URLSearchParams({ limit: '1000', status: 'Actual', scope: 'Public', awareness_type: type });
+  return url;
+};
+const thunder = (fetcher, extra = {}) => fetchWarningSnapshot({ types: [3], fetcher, ...extra });
+const lowerOnly = (fetcher) => async (url, options) => new URL(url).searchParams.get('awareness_type') === '3; thunderstorm'
+  ? fetcher(url, options) : response([]);
 let urls = [];
 let pages = [response([base], { numberMatched: 2, links: [{ rel: 'next', href: '?offset=1&limit=1' }] }), response([{ ...base, id: 'second' }])];
-let result = await fetchWarningSnapshot({ fetcher: async (url) => { urls.push(url); return pages.shift(); } });
+let result = await thunder(lowerOnly(async (url) => { urls.push(url); return pages.shift(); }));
 assert.equal(result.length, 2);
-assert.equal(urls[1], `${WARNING_URL}?offset=1&limit=1`);
+assert.equal(new URL(urls[1]).searchParams.get('offset'), '1');
+for (const url of urls) {
+  const params = new URL(url).searchParams;
+  assert.equal(params.get('awareness_type'), '3; thunderstorm', 'next links retain type filter');
+  assert.equal(params.get('status'), 'Actual');
+  assert.equal(params.get('scope'), 'Public');
+}
 urls = [];
 pages = [response([base], { numberMatched: 2 }), response([{ ...base, id: 'second' }], { numberMatched: 2 })];
-result = await fetchWarningSnapshot({ fetcher: async (url) => { urls.push(url); return pages.shift(); } });
+result = await thunder(lowerOnly(async (url) => { urls.push(url); return pages.shift(); }));
 assert.equal(result.length, 2);
-assert.equal(urls[1], `${WARNING_URL}?limit=1000&offset=1`);
-await assert.rejects(fetchWarningSnapshot({ fetcher: async () => response([base], { numberMatched: 50 }) }), /Repeated/);
-await assert.rejects(fetchWarningSnapshot({ fetcher: async () => response([], { numberMatched: 5 }) }), /Incomplete/);
-await assert.rejects(fetchWarningSnapshot({ fetcher: async () => response([base], { links: [{ rel: 'next', href: 'https://other.example/items' }] }) }), /Unexpected/);
-await assert.rejects(fetchWarningSnapshot({ fetcher: async () => response([base], { links: [{ rel: 'next', href: '?limit=1000' }] }) }), /loop/);
-await assert.rejects(fetchWarningSnapshot({ fetcher: async () => ({ ok: false, status: 503 }) }), /503/);
-await assert.rejects(fetchWarningSnapshot({ fetcher: async () => ({ ok: true, json: async () => ({}) }) }), /Invalid/);
+const fallback = filteredUrl(); fallback.searchParams.set('offset', '1');
+assert.equal(urls[1], fallback.href, 'fallback paging retains the complete filter');
+
+// Server equality is case sensitive: all selected spellings must be fetched,
+// then merged. Repeated query parameters would AND values and return nothing.
+urls = [];
+result = await fetchWarningSnapshot({ types: [3, 1, 3, 99], fetcher: async (url) => {
+  urls.push(url);
+  const params = new URL(url).searchParams;
+  assert.equal(params.get('status'), 'Actual');
+  assert.equal(params.get('scope'), 'Public');
+  const type = params.get('awareness_type');
+  if (!type) { assert.equal(params.get('msgType'), 'Cancel'); return response([]); }
+  assert.equal(params.getAll('awareness_type').length, 1);
+  return response([{ ...change({ awareness_type: type }), id: type }]);
+} });
+assert.deepEqual(result.map(w => w.type).sort(), [1, 1, 3, 3]);
+assert.deepEqual(urls.map(url => new URL(url).searchParams.get('awareness_type')), ['1; wind', '1; Wind', '3; thunderstorm', '3; Thunderstorm', null]);
+assert.deepEqual(await fetchWarningSnapshot({ types: [], fetcher: () => assert.fail('disabled warnings never fetch') }), []);
+assert.deepEqual(await fetchWarningSnapshot({ types: [99], fetcher: () => assert.fail('unsupported types never fetch') }), []);
+const rainQueries = [];
+await fetchWarningSnapshot({ types: [10], fetcher: async url => { rainQueries.push(new URL(url).searchParams.get('awareness_type')); return response([]); } });
+assert.deepEqual(rainQueries, ['10; rain', '10; Rain', null]);
+
+// Cancellations need not contain the hazard property or geometry. Apply their
+// references across the entire merged snapshot before discarding other types.
+result = await thunder(async (url) => {
+  if (new URL(url).searchParams.get('msgType') === 'Cancel') return response([{
+    type: 'Feature', id: 'cancel', geometry: null,
+    properties: { status: 'Actual', scope: 'Public', msgType: 'Cancel', references: 'issuer@example.org,alert,2026-09-13T10:00:00Z' },
+  }]);
+  return response([base]);
+});
+assert.deepEqual(result, []);
+assert.equal((await thunder(async () => response([base]))).length, 1, 'merge duplicate features once');
+
+await assert.rejects(thunder(lowerOnly(async () => response([base], { numberMatched: 50 }))), /Repeated/);
+await assert.rejects(thunder(lowerOnly(async () => response([], { numberMatched: 5 }))), /Incomplete/);
+await assert.rejects(thunder(lowerOnly(async () => response([base], { links: [{ rel: 'next', href: 'https://other.example/items' }] }))), /Unexpected/);
+await assert.rejects(thunder(lowerOnly(async () => response([base], { links: [{ rel: 'next', href: '?limit=1000' }] }))), /loop/);
+await assert.rejects(thunder(lowerOnly(async () => response([base], { links: [{ rel: 'next', href: '?awareness_type=1%3B+wind' }] }))), /Changed/);
+await assert.rejects(thunder(lowerOnly(async () => response([base], { links: [{ rel: 'next', href: '?status=Test' }] }))), /Changed/);
+await assert.rejects(thunder(async () => ({ ok: false, status: 503 })), /503/);
+await assert.rejects(thunder(async () => ({ ok: true, json: async () => ({}) })), /Invalid/);
 pages = [response([base], { numberMatched: 2 }), { ok: false, status: 503 }];
-await assert.rejects(fetchWarningSnapshot({ fetcher: async () => pages.shift() }), /503/, 'failed later page must not return partial data');
+await assert.rejects(thunder(lowerOnly(async () => pages.shift())), /503/, 'failed later page must not return partial data');
+let siblingAborted = false;
+await assert.rejects(thunder(async (url, { signal }) => {
+  if (new URL(url).searchParams.get('awareness_type') === '3; thunderstorm') return { ok: false, status: 503 };
+  return new Promise((resolve, reject) => signal.addEventListener('abort', () => {
+    siblingAborted = true; reject(new DOMException('Aborted', 'AbortError'));
+  }, { once: true }));
+}), /503/, 'a failed spelling must fail the whole snapshot');
+assert(siblingAborted, 'failed snapshots abort remaining filtered requests');
 const controller = new AbortController();
 controller.abort();
-await assert.rejects(fetchWarningSnapshot({ signal: controller.signal, fetcher: async (_, { signal }) => { signal.throwIfAborted(); } }), { name: 'AbortError' });
-console.log('ok   CAP warning filtering, validity, links, pagination, partial failures and abort');
+await assert.rejects(thunder(async (_, { signal }) => { signal.throwIfAborted(); }, { signal: controller.signal }), { name: 'AbortError' });
+console.log('ok   CAP warning filtering, selected-type requests, case variants, cancellation, filtered pagination, partial failure and abort');

@@ -6,6 +6,13 @@ export const WARNING_TYPES = {
   3: { label: 'Ukkosvaroitukset', singular: 'ukkosvaroitus', symbol: 'ϟ' },
   10: { label: 'Sadevaroitukset', singular: 'sadevaroitus', symbol: '☂︎' },
 };
+// Property filters use full, case-sensitive equality, not the numeric CAP
+// prefix. Both spellings occur in the feed; repeated query names mean AND.
+const TYPE_FILTERS = {
+  1: ['1; wind', '1; Wind'],
+  3: ['3; thunderstorm', '3; Thunderstorm'],
+  10: ['10; rain', '10; Rain'],
+};
 export const DAY_MS = 24 * 60 * 60 * 1000;
 export const LEVELS = {
   2: {
@@ -92,10 +99,11 @@ export function inWarningWindow(warning, now, upcoming) {
   return warning.end > now && (upcoming ? warning.start < now + DAY_MS : warning.start <= now);
 }
 
-// Fetch a complete snapshot, then replace atomically. A truncated/failed page
-// must never turn into an apparently successful "no warnings" state.
-export async function fetchWarningSnapshot({ signal, fetcher = fetch } = {}) {
-  let url = `${WARNING_URL}?limit=1000`;
+async function fetchFilteredPages(filters, { signal, fetcher }) {
+  const first = new URL(WARNING_URL);
+  const predicates = { status: 'Actual', scope: 'Public', ...filters };
+  first.search = new URLSearchParams({ limit: '1000', ...predicates });
+  let url = first.href;
   const seen = new Set();
   const seenPages = new Set();
   const features = [];
@@ -120,11 +128,45 @@ export async function fetchWarningSnapshot({ signal, fetcher = fetch } = {}) {
       const target = new URL(next.href, url);
       if (target.origin !== new URL(WARNING_URL).origin
         || target.pathname !== new URL(WARNING_URL).pathname) throw new Error('Unexpected warning page');
+      // Preserve the query even if a next link contains only paging fields;
+      // never silently broaden/change the filtered snapshot on later pages.
+      Object.entries(predicates).forEach(([name, value]) => {
+        if (target.searchParams.has(name)
+          && target.searchParams.getAll(name).some((entry) => entry !== value)) {
+          throw new Error('Changed warning page filter');
+        }
+        target.searchParams.set(name, value);
+      });
       url = target.href;
     } else if (matched !== null && features.length < matched) {
       if (!json.features.length) throw new Error('Incomplete warning feed');
-      url = `${WARNING_URL}?limit=1000&offset=${features.length}`;
+      const target = new URL(first);
+      target.searchParams.set('offset', String(features.length));
+      url = target.href;
     } else url = null;
   }
-  return normalizeWarnings(features);
+  return features;
+}
+
+// All selected types, spellings and cancellation pages must complete before
+// replacing the shared snapshot. A failed branch aborts its siblings too.
+export async function fetchWarningSnapshot({ types = Object.keys(WARNING_TYPES).map(Number), signal, fetcher = fetch } = {}) {
+  const selected = [...new Set(types)].filter((type) => TYPE_FILTERS[type]).sort((a, b) => a - b);
+  if (!selected.length) return [];
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  if (signal?.aborted) abort();
+  else signal?.addEventListener('abort', abort, { once: true });
+  const queries = selected.flatMap((type) => TYPE_FILTERS[type].map((value) => ({ awareness_type: value })));
+  // CAP cancellations may omit awareness_type and geometry altogether.
+  queries.push({ msgType: 'Cancel' });
+  try {
+    const pages = await Promise.all(queries.map((filters) => fetchFilteredPages(filters, { signal: controller.signal, fetcher })));
+    return normalizeWarnings(pages.flat()).filter((warning) => selected.includes(warning.type));
+  } catch (error) {
+    controller.abort();
+    throw error;
+  } finally {
+    signal?.removeEventListener('abort', abort);
+  }
 }
