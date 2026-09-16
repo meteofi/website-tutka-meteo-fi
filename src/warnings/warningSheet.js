@@ -177,7 +177,6 @@ export default function createWarningSheet({
       card.append(original);
       const attribution = element('div', 'warning-attribution');
       attribution.append(element('p', 'warning-issuer', `Lähde: ${warning.sender || 'Meteoalarm'}`));
-      if (warning.language) attribution.append(element('p', 'warning-issuer', `Alkuperäinen tiedote · ${warning.language}`));
       if (warning.sent) attribution.append(element('p', 'warning-issuer', `Julkaistu ${warningTime(warning.sent)}`));
       if (warning.web) {
         const link = element('a', 'warning-source-link', 'Lue viranomaisen tiedote ↗');
