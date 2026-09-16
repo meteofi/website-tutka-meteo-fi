@@ -34,7 +34,7 @@ export default function createWarningSheet({
   summary.type = 'button';
   summary.hidden = true;
   summary.setAttribute('aria-haspopup', 'dialog');
-  summary.innerHTML = '<span class="material-icons" aria-hidden="true">warning_amber</span><span class="warning-summary-copy"><strong>Säävaroitukset</strong><span class="warning-summary-status" aria-live="polite"></span></span><span aria-hidden="true">⌃</span>';
+  summary.innerHTML = '<span class="material-icons" aria-hidden="true">warning_amber</span><span class="warning-summary-count" aria-hidden="true"></span><span class="warning-summary-status" aria-live="polite"></span>';
   const dialog = element('dialog', 'warning-sheet');
   dialog.setAttribute('aria-labelledby', 'warning-title');
   dialog.innerHTML = `
@@ -114,7 +114,6 @@ export default function createWarningSheet({
     summary.hidden = !enabled;
     if (!enabled) { if (dialog.open) dialog.close(); return; }
     const title = enabledTypes.size === 1 ? WARNING_TYPES[[...enabledTypes][0]].label : 'Säävaroitukset';
-    summary.querySelector('strong').textContent = title;
     dialog.querySelector('h2').textContent = title;
     const stale = failed || (lastSuccess && now - lastSuccess > 10 * 60 * 1000);
     const range = upcoming ? '24 h' : 'nyt';
@@ -122,6 +121,12 @@ export default function createWarningSheet({
     if (!count) message = `Ei varoituksia kartalla · ${range}`;
     if (!lastSuccess) message = loading ? 'Haetaan varoituksia…' : 'Varoituksia ei voitu ladata';
     else if (stale) message = 'Tiedot voivat olla vanhentuneita';
+    // Keep the map control small without presenting unavailable/stale data as
+    // a fresh zero. The full status stays in its accessible name and sheet.
+    summary.querySelector('.warning-summary-count').textContent = !lastSuccess && loading ? '…'
+      : !lastSuccess || stale ? '?' : String(count);
+    summary.setAttribute('aria-label', `${title}: ${message}. Avaa varoitukset.`);
+    summary.title = `${title}: ${message}`;
     summary.querySelector('.warning-summary-status').textContent = message;
     summary.dataset.level = highestLevel || '';
     summary.classList.toggle('is-stale', !!stale);
@@ -160,7 +165,7 @@ export default function createWarningSheet({
       const original = element('div', 'warning-original');
       if (warning.language) original.lang = warning.language;
       const description = warning.description.trim() ? warning.description : warning.headline;
-      if (description) original.append(textSection('Varoitusteksti', originalText(description)));
+      if (description) original.append(textSection('Kuvaus', originalText(description)));
       if (warning.impacts.length) {
         const impacts = element('ul', 'warning-impacts');
         warning.impacts.forEach((impact) => impacts.append(element('li', '', impact)));

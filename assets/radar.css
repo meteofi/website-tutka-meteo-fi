@@ -3478,26 +3478,37 @@ body.split-4 #placeSearchButton {
   z-index: 94;
   display: flex;
   align-items: center;
-  gap: 10px;
-  max-width: calc(100vw - 80px);
-  min-height: 54px;
-  padding: 9px 14px;
+  justify-content: center;
+  gap: 6px;
+  min-width: 64px;
+  min-height: 44px;
+  padding: 0 10px;
+  box-sizing: border-box;
   border: 1px solid #ffffff30;
-  border-left: 4px solid var(--warning-color, #b8c1ce);
-  border-radius: 14px;
+  border-radius: 22px;
   background: #1a202cf2;
   color: #f7f8fc;
   box-shadow: 0 4px 20px #0005;
   cursor: pointer;
   text-align: left;
-  font: 13px/1.4 'Roboto', sans-serif;
+  font: 700 15px/1.4 'Roboto', sans-serif;
+  touch-action: manipulation;
 }
 .warning-summary[hidden], .warning-sheet [hidden] { display: none; }
-.warning-summary > .material-icons { color: var(--warning-color, #b8c1ce); }
-.warning-summary-copy { display: flex; flex-direction: column; }
-.warning-summary-copy strong { font-size: 14px; }
-.warning-summary-status { color: #d0d7e3; }
-.warning-summary.is-stale { border-left-color: #b8c1ce; }
+.warning-summary > .material-icons { color: var(--warning-color, #b8c1ce); font-size: 22px; }
+.warning-summary-count { min-width: 1ch; font-variant-numeric: tabular-nums; }
+.warning-summary-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.warning-summary.is-stale { border-style: dashed; }
+.warning-summary.is-stale > .material-icons { color: #b8c1ce; }
 .warning-summary[data-level="2"], .warning-sheet [data-level="2"] { --warning-color: #ffda22; --warning-text: #ffda22; }
 .warning-summary[data-level="3"], .warning-sheet [data-level="3"] { --warning-color: #ff9300; --warning-text: #ffb35c; }
 .warning-summary[data-level="4"], .warning-sheet [data-level="4"] { --warning-color: #ff0000; --warning-text: #ff9999; }
@@ -3588,5 +3599,5 @@ body.split-4 #placeSearchButton {
 .warning-original li { white-space: pre-line; margin: 6px 0; }
 
 @media (min-width: 1280px) {
-  .warning-summary { bottom: 24px; left: 20px; max-width: 300px; }
+  .warning-summary { bottom: 24px; left: 20px; }
 }

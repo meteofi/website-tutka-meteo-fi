@@ -8,11 +8,11 @@ The default **Voimassa nyt** view shows only active warnings. The optional **Seu
 
 Yellow / orange / red areas use restrained translucent fills, contrasting boundaries and `!` / `!!` / `!!!` badges. The Finnish legend explains the colors as “Mahdollisesti vaarallinen” (yellow), “Vaarallinen” (orange), and “Hyvin vaarallinen” (red). Future warnings have dashed boundaries. Radar echoes, lightning and observation symbols remain visible. Regional warnings do not describe the exact footprint of a thunderstorm.
 
-A floating summary reports warning areas intersecting the visible map. Tap the summary or a warning area to open a native modal bottom sheet. It has 44 px controls, safe-area padding, keyboard focus containment, Escape/close dismissal, and independent scrolling. Selected overlapping warnings appear first, scrolled below the sticky header. Existing storm cells and marker cards retain tap priority. The list otherwise orders active warnings before upcoming warnings, then by severity and start time.
+A compact map button shows a severity-colored warning triangle and the number of warning areas intersecting the visible map, with a minimum 44 px touch target. It shows “…” during the initial load and “?” for unavailable or stale data; the full status is available to screen readers, on hover and in the sheet. Tap the button or a warning area to open a native modal bottom sheet. It has 44 px controls, safe-area padding, keyboard focus containment, Escape/close dismissal, and independent scrolling. Selected overlapping warnings appear first, scrolled below the sticky header. Existing storm cells and marker cards retain tap priority. The list otherwise orders active warnings before upcoming warnings, then by severity and start time.
 
 Card titles follow the guide’s color + hazard format, e.g. “Keltainen tuulivaroitus”, “Oranssi ukkosvaroitus” and “Punainen sadevaroitus”. After the region, active/upcoming state and validity dates with explicit time zones, the warning body is always visible in this order:
 
-1. **Varoitusteksti:** the original CAP description (headline/event only as a fallback if description is absent).
+1. **Kuvaus:** the original CAP description (headline/event only as a fallback if description is absent).
 2. **Vaikutukset:** the supplied `impacts` as a bulleted list. MeteoCore exposes this parameter directly; a string or repeated string values are accepted, with pipe-separated items displayed separately. Missing impacts are omitted, never inferred from prose or filled with generic consequences.
 3. **Toimintaohje:** the original CAP instruction, using the same heading, spacing and background as the description and impacts sections. Missing instructions are omitted.
 
