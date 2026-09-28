@@ -28,7 +28,7 @@ that is a different product and has no cells.
 ## 2. Access
 
 ```
-GET https://meteocore.app.meteo.fi/features/collections/fmi-radar-nowcast/items
+GET https://meteocore.app.meteo.fi/collections/fmi-radar-nowcast/items
 ```
 
 GeoJSON `FeatureCollection`, `Point` geometry, CRS84 (`[lon, lat]`). Feature
@@ -65,7 +65,10 @@ then 31; that is fixed and the caveat can be dropped.
 **Retention** is the last ~4 h of frames (48 at 5 min) and **empties on a
 server restart** — every track then restarts at `track_age: 1` and ids restart
 from 1. Read the retained span from the collection's `extent.temporal` (or the
-MCP `retained_frames`) rather than assuming it.
+MCP `retained_frames`) rather than assuming it — at
+`/features/collections/fmi-radar-nowcast`, not the shared root: the root
+document reports the map side's extent (the raster forecast, newest analysis →
++2 h), not the retained cells.
 
 ### MCP
 
