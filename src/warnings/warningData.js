@@ -6,13 +6,6 @@ export const WARNING_TYPES = {
   3: { label: 'Ukkosvaroitukset', singular: 'ukkosvaroitus', symbol: 'ϟ' },
   10: { label: 'Sadevaroitukset', singular: 'sadevaroitus', symbol: '☂︎' },
 };
-// Property filters use full, case-sensitive equality, not the numeric CAP
-// prefix. Both spellings occur in the feed; repeated query names mean AND.
-const TYPE_FILTERS = {
-  1: ['1; wind', '1; Wind'],
-  3: ['3; thunderstorm', '3; Thunderstorm'],
-  10: ['10; rain', '10; Rain'],
-};
 export const DAY_MS = 24 * 60 * 60 * 1000;
 export const LEVELS = {
   2: {
@@ -55,7 +48,7 @@ export function normalizeWarnings(features) {
   features.forEach((feature) => {
     const p = feature.properties || {};
     if (superseded.has(`${p.sender}:${p.identifier}`)) return;
-    const type = code(p.awareness_type);
+    const type = Number.isInteger(p.awareness_type_code) ? p.awareness_type_code : code(p.awareness_type);
     const level = code(p.awareness_level);
     const responses = Array.isArray(p.responseType) ? p.responseType : [p.responseType];
     if (!WARNING_TYPES[type] || !LEVELS[level]
@@ -148,17 +141,19 @@ async function fetchFilteredPages(filters, { signal, fetcher }) {
   return features;
 }
 
-// All selected types, spellings and cancellation pages must complete before
+// All selected-type and cancellation pages must complete before
 // replacing the shared snapshot. A failed branch aborts its siblings too.
 export async function fetchWarningSnapshot({ types = Object.keys(WARNING_TYPES).map(Number), signal, fetcher = fetch } = {}) {
-  const selected = [...new Set(types)].filter((type) => TYPE_FILTERS[type]).sort((a, b) => a - b);
+  const selected = [...new Set(types)].filter((type) => Number.isInteger(type) && WARNING_TYPES[type]).sort((a, b) => a - b);
   if (!selected.length) return [];
   const controller = new AbortController();
   const abort = () => controller.abort();
   if (signal?.aborted) abort();
   else signal?.addEventListener('abort', abort, { once: true });
-  const queries = selected.flatMap((type) => TYPE_FILTERS[type].map((value) => ({ awareness_type: value })));
-  // CAP cancellations may omit awareness_type and geometry altogether.
+  // Numeric property values support comma-separated OR; the derived code is
+  // independent of the spelling/capitalization of the original CAP label.
+  const queries = [{ awareness_type_code: selected.join(',') }];
+  // CAP cancellations may omit awareness type/code and geometry altogether.
   queries.push({ msgType: 'Cancel' });
   try {
     const pages = await Promise.all(queries.map((filters) => fetchFilteredPages(filters, { signal: controller.signal, fetcher })));

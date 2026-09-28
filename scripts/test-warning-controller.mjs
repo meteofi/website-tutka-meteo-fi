@@ -45,8 +45,8 @@ try {
     setTimeout: () => 0, clearTimeout() {},
     setInterval: fn => { timers.set(++nextTimer, fn); return nextTimer; }, clearInterval: id => timers.delete(id),
     fetch: (url, { signal }) => {
-      const type = Number(new URL(url).searchParams.get('awareness_type')?.split(';')[0]);
-      const data = { type: 'FeatureCollection', features: type ? [feature(type, generation)] : [] };
+      const types = new URL(url).searchParams.get('awareness_type_code')?.split(',').map(Number) || [];
+      const data = { type: 'FeatureCollection', features: types.map(type => feature(type, generation)) };
       const response = { ok: !fail, status: fail ? 503 : 200, json: async () => data };
       let resolve;
       const pending = new Promise(r => { resolve = r; });
@@ -61,17 +61,17 @@ try {
   const layers = Array.from({ length: 4 }, () => warnings.createPaneLayer());
   assert(layers.every(layer => layer.getSource() === layers[0].getSource()));
   warnings.setTypes([3]); await settle();
-  assert.equal(requests.length, 3); assert.equal(layers[0].getSource().getFeatures().length, 1);
+  assert.equal(requests.length, 2); assert.equal(layers[0].getSource().getFeatures().length, 1);
   assert(state().lastSuccess); assert.equal(timers.size, 1);
-  warnings.setTypes([3]); assert.equal(requests.length, 3);
+  warnings.setTypes([3]); assert.equal(requests.length, 2);
 
   hold = true; generation = 1;
   warnings.setTypes([1, 3]);
-  assert.equal(requests.length, 8);
+  assert.equal(requests.length, 4);
   assert.equal(state().lastSuccess, 0, 'newly selected type is unknown while loading');
   assert(state().loading);
   assert.equal(layers[0].getSource().getFeatures().length, 1, 'existing warnings remain visible');
-  const abandoned = requests.slice(3);
+  const abandoned = requests.slice(2);
   generation = 2; hold = false;
   warnings.setTypes([10]); await settle();
   assert(abandoned.every(r => r.signal.aborted));
@@ -97,13 +97,13 @@ try {
   now += 300001;
   for (const tick of timers.values()) tick();
   await settle();
-  assert.equal(requests.length, afterAll + 3, 'polling fetches only the currently enabled type and cancellations');
+  assert.equal(requests.length, afterAll + 2, 'polling fetches only the currently enabled type and cancellations');
   fail = true;
   globalThis.warningSheetCallbacks.onRetry(); await settle();
   assert(state().failed); assert(state().lastSuccess);
   assert.equal(layers[0].getSource().getFeatures().length, 1, 'failed refresh keeps the last good snapshot');
   fail = false; hold = true;
-  warnings.setTypes([1]); const pending = requests.slice(-3);
+  warnings.setTypes([1]); const pending = requests.slice(-2);
   warnings.setTypes([]); assert(pending.every(r => r.signal.aborted));
   pending.forEach(r => r.finish()); await settle();
   assert.equal(state().enabled, false); assert.equal(timers.size, 0);
