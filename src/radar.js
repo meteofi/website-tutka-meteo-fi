@@ -712,11 +712,11 @@ const rangeStyle = new Style({
 // snapshot so markers still render. Default 'all' loading strategy → the
 // loader runs once for the world extent.
 const RADAR_SITE_COLLECTIONS = [
-  'https://meteocore.app.meteo.fi/features/collections/fi-radar-pvol/items?f=application/geo%2Bjson&limit=1000',
-  'https://meteocore.app.meteo.fi/features/collections/ee-radar-volume/items?f=application/geo%2Bjson&limit=1000',
-  'https://meteocore.app.meteo.fi/features/collections/dk-radar-volume/items?f=application/geo%2Bjson&limit=1000',
-  'https://meteocore.app.meteo.fi/features/collections/radar-nl-volume/items?f=application/geo%2Bjson&limit=1000',
-  'https://meteocore.app.meteo.fi/features/collections/radar-hr-volume/items?f=application/geo%2Bjson&limit=1000',
+  'https://meteocore.app.meteo.fi/collections/fi-radar-pvol/items?f=application/geo%2Bjson&limit=1000',
+  'https://meteocore.app.meteo.fi/collections/ee-radar-volume/items?f=application/geo%2Bjson&limit=1000',
+  'https://meteocore.app.meteo.fi/collections/dk-radar-volume/items?f=application/geo%2Bjson&limit=1000',
+  'https://meteocore.app.meteo.fi/collections/radar-nl-volume/items?f=application/geo%2Bjson&limit=1000',
+  'https://meteocore.app.meteo.fi/collections/radar-hr-volume/items?f=application/geo%2Bjson&limit=1000',
 ];
 const RADAR_SITE_FALLBACK_URL = radarSitesFallbackUrl;
 

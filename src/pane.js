@@ -384,7 +384,7 @@ export default function createPane(targetEl, sharedView, deps) {
       format: new MVT(),
       // MML Maastotietokanta `kunta` boundaries at full base-map resolution,
       // replacing the Tilastokeskus-derived fi-municipalities collection.
-      url: 'https://meteocore.app.meteo.fi/tiles/collections/mml-maastotiedot-kunta/tiles/WebMercatorQuad/{z}/{y}/{x}?f=mvt',
+      url: 'https://meteocore.app.meteo.fi/collections/mml-maastotiedot-kunta/tiles/WebMercatorQuad/{z}/{y}/{x}',
       attributions: 'Kunnat © Maanmittauslaitos',
       maxZoom: 14,
     }),
