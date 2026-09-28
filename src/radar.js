@@ -7,7 +7,6 @@ import VectorLayer from 'ol/layer/Vector';
 import GeoJSON from 'ol/format/GeoJSON';
 import Vector from 'ol/source/Vector';
 import { fromLonLat, transform, transformExtent } from 'ol/proj';
-import { intersects } from 'ol/extent';
 import sync from 'ol-hashed';
 import Feature from 'ol/Feature';
 import Polygon, { circular } from 'ol/geom/Polygon';
@@ -41,6 +40,7 @@ import initObsLayer from './obs/obsLayer';
 import initLightningLayer from './lightning/lightningLayer';
 import { createPlaceNamesLayer, placeNamesStyleLight, placeNamesStyleDark } from './placeNames';
 import { createLayerBboxLayer, layerBboxStyleLight, layerBboxStyleDark } from './layerBbox';
+import { coverageExtent, coverageOnScreen } from './coverageExtent';
 import initStormCells from './stormCells';
 import initWindParticles from './particles/windParticles';
 import initTrafficMessages from './trafficMessages';
@@ -1915,17 +1915,18 @@ function refreshLayerBbox(pane, wmslayer = pane.layerss.radarLayer.getSource().g
   pane.setLayerBbox(hasBbox ? info.bbox : null, hasBbox ? info.title : null);
 }
 
-// Pan/zoom the map to a layer's advertised coverage. Used by the radar
-// long-press menu so picking e.g. "Ruotsi" recentres on Sweden's radar
-// footprint. No-op until the layer's GetCapabilities has populated a
-// geographic bounding box, or if the transform yields a degenerate extent
-// (e.g. a full-disc box clipped at the Web Mercator poles).
+// Pan/zoom the map to a layer's advertised coverage. Used by the radar and
+// satellite long-press menus so picking e.g. "Ruotsi" recentres on Sweden's
+// radar footprint, or "GOES-West" on the eastern Pacific. No-op until the
+// layer's GetCapabilities has populated a geographic bounding box, or if the
+// transform yields a degenerate extent (e.g. a full-disc box clipped at the
+// Web Mercator poles). Antimeridian-straddling boxes: see coverageExtent.js.
 function fitToLayerExtent(wmslayer) {
   const info = layerInfo[wmslayer];
   if (!info || !Array.isArray(info.bbox)) return;
   const view = map.getView();
-  const extent = transformExtent(info.bbox, 'EPSG:4326', view.getProjection());
-  if (!extent || !extent.every(Number.isFinite)) return;
+  const extent = coverageExtent(info.bbox, view.getProjection());
+  if (!extent) return;
   // Only when the pick would otherwise leave the user looking at nothing.
   //
   // The recentre exists for the case where it is the only sensible move: you
@@ -1937,7 +1938,7 @@ function fitToLayerExtent(wmslayer) {
   // back. Any overlap at all means the answer is on screen already, so the
   // view is left exactly where the user put it.
   const view3857 = currentViewExtent();
-  if (view3857 && intersects(view3857, extent)) return;
+  if (view3857 && coverageOnScreen(view3857, extent, view.getProjection())) return;
   view.fit(extent, {
     size: map.getSize(),
     // Leave room for the top toolbar and bottom timeline so the footprint
@@ -1970,10 +1971,10 @@ const wmsByLayerName = (() => {
 // for meteocore, satellite for msg_fes, lightning for mtg_fd), but one
 // document feeds several categories. Restoring only the representative's
 // category left a stored product of any OTHER category (MTG Geo Colour on
-// mtg_fd, H60B on msg_fes) to be restored by whichever endpoint of its
-// category happened to answer AFTER its own server did — and when that one
-// answered first, the pick silently waited out a full refresh cycle (5 min
-// for the EUMETSAT endpoints).
+// mtg_fd, H60B on msg_fes, the GOES / Himawari satellites on meteocore) to be
+// restored by whichever endpoint of its category happened to answer AFTER its
+// own server did — and when that one answered first, the pick silently waited
+// out a full refresh cycle (5 min for the EUMETSAT endpoints).
 const categoriesByUrl = (() => {
   const byUrl = {};
   Object.values(wmsServerConfiguration).forEach((value) => {
@@ -2302,6 +2303,9 @@ function applySublayerToPane(pane, category, id) {
     if (pane === pane0) fitToLayerExtent(id);
   } else {
     updateLayer(pane.layerss[category], id, { source: 'longpress' });
+    // Same primary-pane-only recentre as radar: the GOES / Himawari disks lie
+    // nowhere near a view over Europe.
+    if (category === 'satelliteLayer' && pane === pane0) fitToLayerExtent(id);
   }
   const menu = document.getElementById(CATEGORY_UI[category].menu);
   if (menu) menu.style.display = 'none';
@@ -2479,7 +2483,11 @@ const satelliteMenu = createLongPressHandler(
   'satelliteLayerButton',
   'satelliteLongPressMenu',
   () => { toggleAndAnnounce(satelliteLayer, 'satelliteLayerButton', 'button'); },
-  (id) => { updateLayer(satelliteLayer, id, { source: 'longpress' }); satelliteMenu.hide(); },
+  (id) => {
+    updateLayer(satelliteLayer, id, { source: 'longpress' });
+    fitToLayerExtent(id);
+    satelliteMenu.hide();
+  },
   () => satelliteLayer.getSource().getParams().LAYERS,
   () => satelliteLayer.getVisible(),
   onLongPressDiscovered,

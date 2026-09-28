@@ -12,13 +12,14 @@
  *
  * Opacity writes the persistent `_baseOpacity` that routeLayer respects, so a
  * value chosen here survives playback (radar.js Hard rule 7 + the PR #182 fix).
- * Only radar advertises >1 style, so the style row hides itself for every other
- * category. Each open rebuilds the controls from scratch, so chip/slider
- * listeners never accumulate.
+ * The style row shows only for products advertising >1 style (radar, and the
+ * MeteoCore GOES / Himawari satellites) and hides itself otherwise. Each open
+ * rebuilds the controls from scratch, so chip/slider listeners never
+ * accumulate.
  */
 
 // Build the horizontal style-chip row. Hidden unless the active sublayer
-// advertises more than one style (today: radar only).
+// advertises more than one style (today: radar + MeteoCore satellites).
 function buildStyles(container, layer, info) {
   container.textContent = '';
   const styles = info && info.style;

@@ -182,6 +182,52 @@ const wmsServerConfiguration = {
     attribution: 'IMGW-PIB',
     disabled: false,
   },
+  // Non-European geostationary full disks, clean-IR band 13 every 10 minutes
+  // (a visible one coarsens the shared window to 10-min steps, like MTG Geo
+  // Colour). They ride the meteocore GetCapabilities fetch whose
+  // representative entry is radar — see categoriesByUrl in radar.js for why
+  // the satellite restore still runs when it answers. They go out as webp
+  // (meteocore advertises it), which keeps alpha outside the disk so the base
+  // map shows around it — never give them the satellite category's jpeg,
+  // which paints the off-disk area white. `transparent` asks for the same
+  // TRANSPARENT=TRUE the FramePool slots already send (they never carry the
+  // param, so OpenLayers' default applies), keeping primary and slot URLs
+  // byte-identical. GOES-West and Himawari straddle the antimeridian (bbox
+  // west > east — coverageExtent.js). Attribution comes from GetCapabilities
+  // (NOAA NODD, + JMA for Himawari); the strings here are only the fallback.
+  'goes-east': {
+    url: 'https://meteocore.app.meteo.fi/wms',
+    layer: 'goes19-fd/ir_10_3',
+    refresh: 60000,
+    category: 'satelliteLayer',
+    title: 'GOES-East infrapuna',
+    abstract: 'NOAA:n GOES-19-satelliitin (GOES-East, 75,2° W) infrapunakuva (10,3 µm) 10 minuutin välein. Kattaa Amerikan mantereet ja Atlantin. Kuva on samanlainen yöllä ja päivällä; oletustyylissä kylmimmät pilvenhuiput korostuvat väreinä.',
+    attribution: 'NOAA',
+    transparent: true,
+    disabled: false,
+  },
+  'goes-west': {
+    url: 'https://meteocore.app.meteo.fi/wms',
+    layer: 'goes18-fd/ir_10_3',
+    refresh: 60000,
+    category: 'satelliteLayer',
+    title: 'GOES-West infrapuna',
+    abstract: 'NOAA:n GOES-18-satelliitin (GOES-West, 137,0° W) infrapunakuva (10,3 µm) 10 minuutin välein. Kattaa Tyynenmeren itäosan, Havaijin ja Pohjois-Amerikan länsiosan. Kuva on samanlainen yöllä ja päivällä; oletustyylissä kylmimmät pilvenhuiput korostuvat väreinä.',
+    attribution: 'NOAA',
+    transparent: true,
+    disabled: false,
+  },
+  himawari: {
+    url: 'https://meteocore.app.meteo.fi/wms',
+    layer: 'himawari9-fd',
+    refresh: 60000,
+    category: 'satelliteLayer',
+    title: 'Himawari infrapuna',
+    abstract: 'Japanin ilmatieteen laitoksen (JMA) Himawari-9-satelliitin (140,7° E) infrapunakuva (10,4 µm) 10 minuutin välein. Kattaa Itä-Aasian, Australian ja läntisen Tyynenmeren. Kuva on samanlainen yöllä ja päivällä; oletustyylissä kylmimmät pilvenhuiput korostuvat väreinä.',
+    attribution: 'JMA / NOAA',
+    transparent: true,
+    disabled: false,
+  },
 };
 
 // Static layerInfo metadata for products that no longer come from any WMS
