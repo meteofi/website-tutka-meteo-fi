@@ -1965,6 +1965,25 @@ const wmsByLayerName = (() => {
   return byLayer;
 })();
 
+// Every category each endpoint serves. The capabilities loop runs once per
+// URL on a single representative entry (the first in config order — radar
+// for meteocore, satellite for msg_fes, lightning for mtg_fd), but one
+// document feeds several categories. Restoring only the representative's
+// category left a stored product of any OTHER category (MTG Geo Colour on
+// mtg_fd, H60B on msg_fes) to be restored by whichever endpoint of its
+// category happened to answer AFTER its own server did — and when that one
+// answered first, the pick silently waited out a full refresh cycle (5 min
+// for the EUMETSAT endpoints).
+const categoriesByUrl = (() => {
+  const byUrl = {};
+  Object.values(wmsServerConfiguration).forEach((value) => {
+    if (value.disabled) return;
+    if (!byUrl[value.url]) byUrl[value.url] = new Set();
+    byUrl[value.url].add(value.category);
+  });
+  return byUrl;
+})();
+
 // Re-apply the remembered style for one category. updateLayer already carries
 // it through every product switch; this covers the product NO switch touches —
 // the boot default, where the layer sits on its constructor-time product and
@@ -3385,7 +3404,9 @@ function getWMSCapabilities(wms, failCountArg = 0) {
           applyWireFormat(companion);
         }
       }
-      for (const pane of activePanes()) restoreActiveLayer(wms.category, pane, wms);
+      for (const category of categoriesByUrl[wms.url] || [wms.category]) {
+        for (const pane of activePanes()) restoreActiveLayer(category, pane, wms);
+      }
       // Hide the nowcast menu entry while the forecast product isn't
       // advertised (server down / product removed). display, not [hidden]:
       // the menu-item rules set display themselves.
