@@ -496,8 +496,9 @@ export default function createPane(targetEl, sharedView, deps) {
     darkGrayBaseLayer,
     satelliteLayer,
     radarLayer,
-    weatherWarningsLayer,
     placeNamesLayer,
+    // Keep place-name text from painting over the warning pictograms.
+    weatherWarningsLayer,
     guideLayer,
     layerBboxLayer,
     lightningWmsLayer,

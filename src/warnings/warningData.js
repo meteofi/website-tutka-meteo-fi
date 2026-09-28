@@ -2,20 +2,20 @@
 // tile source can reuse the warning model and sheet without changing radar.js.
 export const WARNING_URL = 'https://meteocore.app.meteo.fi/features/collections/cap-meteoalarm-wis2/items';
 export const WARNING_TYPES = {
-  1: { label: 'Tuulivaroitukset', singular: 'tuulivaroitus', symbol: '≋' },
-  3: { label: 'Ukkosvaroitukset', singular: 'ukkosvaroitus', symbol: 'ϟ' },
-  10: { label: 'Sadevaroitukset', singular: 'sadevaroitus', symbol: '☂︎' },
+  1: { label: 'Tuulivaroitukset', singular: 'tuulivaroitus' },
+  3: { label: 'Ukkosvaroitukset', singular: 'ukkosvaroitus' },
+  10: { label: 'Sadevaroitukset', singular: 'sadevaroitus' },
 };
 export const DAY_MS = 24 * 60 * 60 * 1000;
 export const LEVELS = {
   2: {
-    colorLabel: 'Keltainen', legendLabel: 'Mahdollisesti vaarallinen', color: '#ffda22', ink: '#705600', marks: '!',
+    colorLabel: 'Keltainen', legendLabel: 'Mahdollisesti vaarallinen', color: '#ffda22', ink: '#705600',
   },
   3: {
-    colorLabel: 'Oranssi', legendLabel: 'Vaarallinen', color: '#ff9300', ink: '#ad4800', marks: '!!',
+    colorLabel: 'Oranssi', legendLabel: 'Vaarallinen', color: '#ff9300', ink: '#ad4800',
   },
   4: {
-    colorLabel: 'Punainen', legendLabel: 'Hyvin vaarallinen', color: '#ff0000', ink: '#bd1638', marks: '!!!',
+    colorLabel: 'Punainen', legendLabel: 'Hyvin vaarallinen', color: '#ff0000', ink: '#bd1638',
   },
 };
 const text = (value) => (typeof value === 'string' ? value.trim() : '');

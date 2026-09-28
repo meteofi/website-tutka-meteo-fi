@@ -2,12 +2,13 @@ import GeoJSON from 'ol/format/GeoJSON';
 import VectorSource from 'ol/source/Vector';
 import VectorLayer from 'ol/layer/Vector';
 import {
-  Fill, Stroke, Style, Text,
+  Fill, Icon, Stroke, Style,
 } from 'ol/style';
 import {
   fetchWarningSnapshot, inWarningWindow, LEVELS, WARNING_TYPES, warningLanguageRank,
 } from './warnings/warningData';
 import createWarningSheet from './warnings/warningSheet';
+import warningSymbol from './warnings/warningSymbol';
 
 const REFRESH_MS = 5 * 60 * 1000;
 const format = new GeoJSON({ dataProjection: 'EPSG:4326', featureProjection: 'EPSG:3857' });
@@ -152,7 +153,7 @@ export default function initWeatherWarnings() {
       const selected = feature.get('selected');
       const key = `${type}:${level}:${future}:${selected}`;
       if (!cache.has(key)) {
-        const { color, ink, marks } = LEVELS[level];
+        const { color, ink } = LEVELS[level];
         const strokeColor = dark ? color : ink;
         const zIndex = level + (selected ? 10 : 0);
         cache.set(key, [
@@ -165,15 +166,7 @@ export default function initWeatherWarnings() {
           new Style({
             zIndex: zIndex + 20,
             geometry: (f) => f.get('anchor'),
-            text: new Text({
-              text: `${WARNING_TYPES[type].symbol} ${marks}`,
-              font: 'bold 13px sans-serif',
-              padding: [5, 7, 5, 7],
-              fill: new Fill({ color: '#191b22' }),
-              backgroundFill: new Fill({ color }),
-              backgroundStroke: new Stroke({ color: '#191b22', width: 1.5 }),
-              overflow: false,
-            }),
+            image: new Icon({ src: warningSymbol(type, level) }),
           }),
         ]);
       }

@@ -6,11 +6,11 @@ Open **Varoitukset** in the three-dot menu to select **Ukkosvaroitukset**, **Tuu
 
 The default **Voimassa nyt** view shows only active warnings. The optional **Seuraavat 24 h** view also includes enabled warning types starting within the next 24 hours. Both use the device's current time, independent of the radar's 13-frame playback window; the sheet states this explicitly.
 
-Yellow / orange / red areas use restrained translucent fills, contrasting boundaries and `!` / `!!` / `!!!` badges. The Finnish legend explains the colors as “Mahdollisesti vaarallinen” (yellow), “Vaarallinen” (orange), and “Hyvin vaarallinen” (red). Future warnings have dashed boundaries. Radar echoes, lightning and observation symbols remain visible. Regional warnings do not describe the exact footprint of a thunderstorm.
+Yellow / orange / red areas use restrained translucent fills, contrasting boundaries and 40 px wind/lightning/rain pictograms. A severity-colored square with dark outline and white outer edge separates each map symbol from radar and place names. The same artwork appears next to each warning title; no extra exclamation marks are added. The Finnish legend uses color swatches and explains the colors as “Mahdollisesti vaarallinen” (yellow), “Vaarallinen” (orange), and “Hyvin vaarallinen” (red). Future warnings have dashed boundaries. Radar echoes, lightning and observation symbols remain visible. Regional warnings do not describe the exact footprint of a thunderstorm.
 
 A compact map button shows a severity-colored warning triangle and the number of warning areas intersecting the visible map, with a minimum 44 px touch target. It shows “…” during the initial load and “?” for unavailable or stale data; the full status is available to screen readers, on hover and in the sheet. Tap the button or a warning area to open a native modal bottom sheet. It has 44 px controls, safe-area padding, keyboard focus containment, Escape/close dismissal, and independent scrolling. Selected overlapping warnings appear first, scrolled below the sticky header. Existing storm cells and marker cards retain tap priority. The list otherwise orders active warnings before upcoming warnings, then by severity and start time.
 
-Card titles follow the guide’s color + hazard format, e.g. “Keltainen tuulivaroitus”, “Oranssi ukkosvaroitus” and “Punainen sadevaroitus”. After the region, active/upcoming state and validity dates with explicit time zones, the warning body is always visible in this order:
+The warning list uses plain entries separated by thin rules, without colored side strips or rounded card backgrounds. Titles follow the guide’s color + hazard format, e.g. “Keltainen tuulivaroitus”, “Oranssi ukkosvaroitus” and “Punainen sadevaroitus”. After the heading with active/upcoming state, region and validity dates with explicit time zones, the warning body is always visible in this order:
 
 1. **Kuvaus:** the original CAP description (headline/event only as a fallback if description is absent).
 2. **Vaikutukset:** the supplied `impacts` as a bulleted list. MeteoCore exposes this parameter directly; a string or repeated string values are accepted, with pipe-separated items displayed separately. Missing impacts are omitted, never inferred from prose or filled with generic consequences.
@@ -22,7 +22,7 @@ Loading, empty, failed and stale states are distinct. The UI never presents a su
 
 ## Meteoalarm style guide
 
-Presentation follows the relevant sections of the [MeteoAlarm Style Guide v1.0 (February 2026)](https://gitlab.com/meteoalarm-pm-group/documents/-/raw/master/MeteoAlarm_Style_Guide_v1.0.pdf?inline=true): explicit color + hazard titles, visible issuer, start/end time-zone labels, exact source descriptions/instructions and pipe-delimited bullet formatting. Map fills and severity accents use #ffda22, #ff9300 and #ff0000; small text uses lighter tints where needed for contrast on dark surfaces. Wind, lightning and umbrella glyphs are app symbols, not the separately distributed official Meteoalarm icon assets. CAP expires is displayed as supplied; when active_until ends applicability earlier, the sheet shows that separately and filtering honors the earlier end.
+Presentation follows the relevant sections of the [MeteoAlarm Style Guide v1.0 (February 2026)](https://gitlab.com/meteoalarm-pm-group/documents/-/raw/master/MeteoAlarm_Style_Guide_v1.0.pdf?inline=true): explicit color + hazard titles, visible issuer, start/end time-zone labels, exact source descriptions/instructions and pipe-delimited bullet formatting. Map fills and severity accents use #ffda22, #ff9300 and #ff0000. Wind, lightning and rain pictograms are app SVG artwork, not the separately distributed official Meteoalarm icon assets. CAP expires is displayed as supplied; when active_until ends applicability earlier, the sheet shows that separately and filtering honors the earlier end.
 
 ## Data and lifecycle
 
@@ -38,6 +38,7 @@ Presentation follows the relevant sections of the [MeteoAlarm Style Guide v1.0 (
 - `src/warnings/warningData.js`: CAP transport, normalization and time filter, independently testable.
 - `src/weatherWarnings.js`: shared OpenLayers source, cached styles, polling and per-pane hit tests.
 - `src/warnings/warningSheet.js`: summary and accessible warning sheet.
+- `src/warnings/warningSymbol.js`: shared SVG pictograms for the map and warning headings.
 - `radar.js` / `pane.js`: import, factory, theme, toggle and click wiring only.
 
 ## Vector tiles later

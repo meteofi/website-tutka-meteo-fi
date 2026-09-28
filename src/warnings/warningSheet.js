@@ -1,4 +1,5 @@
 import { LEVELS, WARNING_TYPES } from './warningData';
+import warningSymbol from './warningSymbol';
 
 export const warningTime = (ms) => new Date(ms).toLocaleString('fi-FI', {
   day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short',
@@ -58,7 +59,7 @@ export default function createWarningSheet({
     <footer>Varoitukset: Meteoalarm ja kansalliset sääpalvelut. Aineiston puuttuminen ei tarkoita vaaratonta säätä.</footer>`;
   const legend = dialog.querySelector('.warning-legend');
   Object.entries(LEVELS).forEach(([code, level]) => {
-    const item = element('span', '', `${level.marks} ${level.legendLabel}`);
+    const item = element('span', '', level.legendLabel);
     item.dataset.level = code;
     item.setAttribute('aria-label', `${level.colorLabel}: ${level.legendLabel}`);
     legend.append(item);
@@ -155,8 +156,17 @@ export default function createWarningSheet({
       card.dataset.level = warning.level;
       card.dataset.warningId = warning.id;
       const future = warning.start > now;
-      card.append(element('div', 'warning-badge', `${type.symbol} ${level.marks} · ${future ? 'Alkaa myöhemmin' : 'Voimassa nyt'}`));
-      card.append(element('h3', '', `${level.colorLabel} ${type.singular}`));
+      const heading = element('header', 'warning-card-heading');
+      const symbol = element('img', 'warning-symbol');
+      symbol.src = warningSymbol(warning.type, warning.level);
+      symbol.alt = ''; // The adjacent title already names both color and hazard.
+      symbol.width = 36;
+      symbol.height = 36;
+      const headingText = element('div', '');
+      headingText.append(element('h3', '', `${level.colorLabel} ${type.singular}`));
+      headingText.append(element('p', 'warning-state', future ? 'Alkaa myöhemmin' : 'Voimassa nyt'));
+      heading.append(symbol, headingText);
+      card.append(heading);
       card.append(element('p', 'warning-area', warning.area));
       card.append(element('p', 'warning-validity', `${warningTime(warning.start)} – ${warningTime(warning.expires)}`));
       if (warning.end < warning.expires) {
