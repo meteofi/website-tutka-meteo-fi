@@ -1,0 +1,1116 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-10T07:06:43.689Z",
+  "build": {
+    "commit": "608d4566d1f9af7032537585c9a0be602158b710",
+    "worktreeDirty": true,
+    "sources": {
+      "src/animation/interpolation/index.js": "87d63587dfc045c2004de78a45d93ca7b70ce9497fdba44c7bbe28576e8208aa",
+      "src/animation/interpolation/flowLK.js": "0610aad305e9e1b0d0cf7723b56c997ec64e9a83ab0b5feb0cc4a069064f5652",
+      "src/animation/interpolation/warp.js": "d0df0fb66991a2d22be82dc8f5fbe855ddf9923f19390c96abd40325af6b4155",
+      "src/animation/interpolation/glUtils.js": "c5701efcfa83e378c0ccca254bf7fe0ecaf5ecd4e191708cfdce7f4ac4587bd6",
+      "src/animation/interpolation/capabilities.js": "870a660d4a579d9f909ff74bfe3b93706a2420650fec4e5d2ca73d2f27445aba"
+    },
+    "harness": {
+      "scripts/interpolation/page.js": "9d5070654b78c0ade11ca71de24e13d6b9c177d9f377599faf6f4fb38bb4e05c",
+      "scripts/interpolation/cases.js": "e346f20bc6ac1416eea05fb3873ed2478920f2655384b9fca209c6aa6b97db40",
+      "scripts/interpolation/engine.js": "9fc1c858570ae7c8cb513e944d10abbf23933926fd3088ef447ad8039f0ce15c",
+      "scripts/interpolation/metrics.mjs": "4fa2bb7abeba7d88cf6d51c1595d0c108126214c58479766daad5c91b47ae009",
+      "scripts/interpolation/index.html": "b29ef63780798f00763cc5e7c603164a6985030ecae6114634ad02d607b2617e"
+    },
+    "fixtures": "eabb00ccf0c1d14880b241ebca8acac8952ff90cb7d497b93a40593525030fe6"
+  },
+  "environment": {
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/154.0.0.0 Safari/537.36",
+    "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (LLVM 10.0.0) (0x0000C0DE)), SwiftShader driver)",
+    "flowResolution": 256,
+    "flowFilter": "NEAREST",
+    "halfFloatLinearExtension": false
+  },
+  "results": [
+    {
+      "id": "radar-default",
+      "endpoints": [
+        {
+          "mean": 0,
+          "max": 0
+        },
+        {
+          "mean": 0,
+          "max": 0
+        },
+        {
+          "mean": 0,
+          "max": 0
+        }
+      ],
+      "boundary": {
+        "mean": 0,
+        "max": 0
+      }
+    },
+    {
+      "id": "radar-fmi",
+      "endpoints": [
+        {
+          "mean": 0,
+          "max": 0
+        },
+        {
+          "mean": 0,
+          "max": 0
+        },
+        {
+          "mean": 0,
+          "max": 0
+        }
+      ],
+      "boundary": {
+        "mean": 0,
+        "max": 0
+      }
+    },
+    {
+      "id": "satellite",
+      "endpoints": [
+        {
+          "mean": 0,
+          "max": 0
+        },
+        {
+          "mean": 0,
+          "max": 0
+        },
+        {
+          "mean": 0,
+          "max": 0
+        }
+      ],
+      "boundary": {
+        "mean": 0,
+        "max": 0
+      }
+    },
+    {
+      "id": "smooth-1",
+      "endpoints": [
+        {
+          "mean": 0,
+          "max": 0
+        },
+        {
+          "mean": 0,
+          "max": 0
+        },
+        {
+          "mean": 0,
+          "max": 0
+        }
+      ],
+      "boundary": {
+        "mean": 0,
+        "max": 0
+      },
+      "flow": {
+        "samples": 1129,
+        "medianX": 1,
+        "medianY": 0,
+        "meanVectorError": 0.043102769837078794,
+        "stationaryFraction": 0
+      },
+      "intermediate": [
+        {
+          "position": 0.25,
+          "mean": 0.00492095947265625,
+          "max": 1
+        },
+        {
+          "position": 0.5,
+          "mean": 0.135345458984375,
+          "max": 128
+        },
+        {
+          "position": 0.75,
+          "mean": 0.06761550903320312,
+          "max": 64
+        },
+        {
+          "position": 1.25,
+          "mean": 0.00492095947265625,
+          "max": 1
+        },
+        {
+          "position": 1.5,
+          "mean": 0.135345458984375,
+          "max": 128
+        },
+        {
+          "position": 1.75,
+          "mean": 0.06761550903320312,
+          "max": 64
+        }
+      ]
+    },
+    {
+      "id": "smooth-4",
+      "endpoints": [
+        {
+          "mean": 0,
+          "max": 0
+        },
+        {
+          "mean": 0,
+          "max": 0
+        },
+        {
+          "mean": 0,
+          "max": 0
+        }
+      ],
+      "boundary": {
+        "mean": 0,
+        "max": 0
+      },
+      "flow": {
+        "samples": 1129,
+        "medianX": 3.849609375,
+        "medianY": 0,
+        "meanVectorError": 0.6604024315706474,
+        "stationaryFraction": 0
+      },
+      "intermediate": [
+        {
+          "position": 0.25,
+          "mean": 0.3913383483886719,
+          "max": 191
+        },
+        {
+          "position": 0.5,
+          "mean": 0.5259246826171875,
+          "max": 128
+        },
+        {
+          "position": 0.75,
+          "mean": 0.39134979248046875,
+          "max": 191
+        },
+        {
+          "position": 1.25,
+          "mean": 0.3913383483886719,
+          "max": 191
+        },
+        {
+          "position": 1.5,
+          "mean": 0.5259246826171875,
+          "max": 128
+        },
+        {
+          "position": 1.75,
+          "mean": 0.39134979248046875,
+          "max": 191
+        }
+      ]
+    },
+    {
+      "id": "smooth-8",
+      "endpoints": [
+        {
+          "mean": 0,
+          "max": 0
+        },
+        {
+          "mean": 0,
+          "max": 0
+        },
+        {
+          "mean": 0,
+          "max": 0
+        }
+      ],
+      "boundary": {
+        "mean": 0,
+        "max": 0
+      },
+      "flow": {
+        "samples": 1129,
+        "medianX": 7.03125,
+        "medianY": 0,
+        "meanVectorError": 2.5983093611219714,
+        "stationaryFraction": 0
+      },
+      "intermediate": [
+        {
+          "position": 0.25,
+          "mean": 0.7996482849121094,
+          "max": 191
+        },
+        {
+          "position": 0.5,
+          "mean": 1.06402587890625,
+          "max": 128
+        },
+        {
+          "position": 0.75,
+          "mean": 0.7986526489257812,
+          "max": 191
+        },
+        {
+          "position": 1.25,
+          "mean": 0.7996482849121094,
+          "max": 191
+        },
+        {
+          "position": 1.5,
+          "mean": 1.06402587890625,
+          "max": 128
+        },
+        {
+          "position": 1.75,
+          "mean": 0.7986526489257812,
+          "max": 191
+        }
+      ]
+    },
+    {
+      "id": "stepped-1",
+      "endpoints": [
+        {
+          "mean": 0,
+          "max": 0
+        },
+        {
+          "mean": 0,
+          "max": 0
+        },
+        {
+          "mean": 0,
+          "max": 0
+        }
+      ],
+      "boundary": {
+        "mean": 0,
+        "max": 0
+      },
+      "flow": {
+        "samples": 1129,
+        "medianX": 1,
+        "medianY": 0,
+        "meanVectorError": 0.41887420364802713,
+        "stationaryFraction": 0.15234720992028344
+      },
+      "intermediate": [
+        {
+          "position": 0.25,
+          "mean": 0.013925993676279096,
+          "max": 44.678431372549014
+        },
+        {
+          "position": 0.5,
+          "mean": 0.01784162334367341,
+          "max": 52.870588235294115
+        },
+        {
+          "position": 0.75,
+          "mean": 0.014178631352443313,
+          "max": 47.56862745098039
+        },
+        {
+          "position": 1.25,
+          "mean": 0.013925993676279096,
+          "max": 44.678431372549014
+        },
+        {
+          "position": 1.5,
+          "mean": 0.01784162334367341,
+          "max": 52.870588235294115
+        },
+        {
+          "position": 1.75,
+          "mean": 0.014178631352443313,
+          "max": 47.56862745098039
+        }
+      ]
+    },
+    {
+      "id": "stepped-4",
+      "endpoints": [
+        {
+          "mean": 0,
+          "max": 0
+        },
+        {
+          "mean": 0,
+          "max": 0
+        },
+        {
+          "mean": 0,
+          "max": 0
+        }
+      ],
+      "boundary": {
+        "mean": 0,
+        "max": 0
+      },
+      "flow": {
+        "samples": 1129,
+        "medianX": 0.69970703125,
+        "medianY": 0,
+        "meanVectorError": 3.4047950150842543,
+        "stationaryFraction": 0.141718334809566
+      },
+      "intermediate": [
+        {
+          "position": 0.25,
+          "mean": 0.24654704075233566,
+          "max": 191
+        },
+        {
+          "position": 0.5,
+          "mean": 0.31468564201803756,
+          "max": 149
+        },
+        {
+          "position": 0.75,
+          "mean": 0.24747706394569516,
+          "max": 191
+        },
+        {
+          "position": 1.25,
+          "mean": 0.24654704075233566,
+          "max": 191
+        },
+        {
+          "position": 1.5,
+          "mean": 0.31468564201803756,
+          "max": 149
+        },
+        {
+          "position": 1.75,
+          "mean": 0.24747706394569516,
+          "max": 191
+        }
+      ]
+    },
+    {
+      "id": "stepped-8",
+      "endpoints": [
+        {
+          "mean": 0,
+          "max": 0
+        },
+        {
+          "mean": 0,
+          "max": 0
+        },
+        {
+          "mean": 0,
+          "max": 0
+        }
+      ],
+      "boundary": {
+        "mean": 0,
+        "max": 0
+      },
+      "flow": {
+        "samples": 1129,
+        "medianX": 0.26171875,
+        "medianY": 0,
+        "meanVectorError": 7.683438291249161,
+        "stationaryFraction": 0.13463241806908768
+      },
+      "intermediate": [
+        {
+          "position": 0.25,
+          "mean": 0.5695765476600785,
+          "max": 210
+        },
+        {
+          "position": 0.5,
+          "mean": 0.7580856323242186,
+          "max": 204
+        },
+        {
+          "position": 0.75,
+          "mean": 0.5740098242666196,
+          "max": 224
+        },
+        {
+          "position": 1.25,
+          "mean": 0.5695765476600785,
+          "max": 210
+        },
+        {
+          "position": 1.5,
+          "mean": 0.7580856323242186,
+          "max": 204
+        },
+        {
+          "position": 1.75,
+          "mean": 0.5740098242666196,
+          "max": 224
+        }
+      ]
+    },
+    {
+      "id": "diagonal",
+      "endpoints": [
+        {
+          "mean": 0,
+          "max": 0
+        },
+        {
+          "mean": 0,
+          "max": 0
+        },
+        {
+          "mean": 0,
+          "max": 0
+        }
+      ],
+      "boundary": {
+        "mean": 0,
+        "max": 0
+      },
+      "flow": {
+        "samples": 1129,
+        "medianX": 3.849609375,
+        "medianY": -1.9267578125,
+        "meanVectorError": 0.8214318883066652,
+        "stationaryFraction": 0
+      },
+      "intermediate": [
+        {
+          "position": 0.25,
+          "mean": 0.5243072509765625,
+          "max": 191
+        },
+        {
+          "position": 0.5,
+          "mean": 0.7750587463378906,
+          "max": 128
+        },
+        {
+          "position": 0.75,
+          "mean": 0.52423095703125,
+          "max": 191
+        },
+        {
+          "position": 1.25,
+          "mean": 0.5194473266601562,
+          "max": 191
+        },
+        {
+          "position": 1.5,
+          "mean": 0.7672767639160156,
+          "max": 128
+        },
+        {
+          "position": 1.75,
+          "mean": 0.5193557739257812,
+          "max": 191
+        }
+      ]
+    },
+    {
+      "id": "default-translated",
+      "endpoints": [
+        {
+          "mean": 0,
+          "max": 0
+        },
+        {
+          "mean": 0,
+          "max": 0
+        },
+        {
+          "mean": 0,
+          "max": 0
+        }
+      ],
+      "boundary": {
+        "mean": 0,
+        "max": 0
+      },
+      "flow": {
+        "samples": 15063,
+        "medianX": 0.368408203125,
+        "medianY": 0.16650390625,
+        "meanVectorError": 3.6085489682679714,
+        "stationaryFraction": 0.009559848635729935
+      },
+      "intermediate": [
+        {
+          "position": 0.25,
+          "mean": 4.611593613966428,
+          "max": 255
+        },
+        {
+          "position": 0.5,
+          "mean": 5.885360923216582,
+          "max": 255
+        },
+        {
+          "position": 0.75,
+          "mean": 4.536792588576159,
+          "max": 255
+        },
+        {
+          "position": 1.25,
+          "mean": 4.457560590356631,
+          "max": 255
+        },
+        {
+          "position": 1.5,
+          "mean": 5.692450062868257,
+          "max": 255
+        },
+        {
+          "position": 1.75,
+          "mean": 4.386387135623573,
+          "max": 255
+        }
+      ]
+    },
+    {
+      "id": "radar_fmi-translated",
+      "endpoints": [
+        {
+          "mean": 0,
+          "max": 0
+        },
+        {
+          "mean": 0,
+          "max": 0
+        },
+        {
+          "mean": 0,
+          "max": 0
+        }
+      ],
+      "boundary": {
+        "mean": 0,
+        "max": 0
+      },
+      "flow": {
+        "samples": 9049,
+        "medianX": 0.20361328125,
+        "medianY": 0.1297607421875,
+        "meanVectorError": 3.8336374209886337,
+        "stationaryFraction": 0.010056359818764505
+      },
+      "intermediate": [
+        {
+          "position": 0.25,
+          "mean": 4.21023703980296,
+          "max": 255
+        },
+        {
+          "position": 0.5,
+          "mean": 5.300380460452504,
+          "max": 255
+        },
+        {
+          "position": 0.75,
+          "mean": 4.123752620921487,
+          "max": 255
+        },
+        {
+          "position": 1.25,
+          "mean": 4.056210775936409,
+          "max": 255
+        },
+        {
+          "position": 1.5,
+          "mean": 5.119286221772304,
+          "max": 255
+        },
+        {
+          "position": 1.75,
+          "mean": 3.976014821171058,
+          "max": 255
+        }
+      ]
+    },
+    {
+      "id": "goes19-translated",
+      "endpoints": [
+        {
+          "mean": 0,
+          "max": 0
+        },
+        {
+          "mean": 0,
+          "max": 0
+        },
+        {
+          "mean": 0,
+          "max": 0
+        }
+      ],
+      "boundary": {
+        "mean": 0,
+        "max": 0
+      },
+      "flow": {
+        "samples": 57600,
+        "medianX": 0.3642578125,
+        "medianY": 0,
+        "meanVectorError": 3.558343465257225,
+        "stationaryFraction": 0.16772569444444443
+      },
+      "intermediate": [
+        {
+          "position": 0.25,
+          "mean": 3.9357962790098746,
+          "max": 255
+        },
+        {
+          "position": 0.5,
+          "mean": 5.017068064970026,
+          "max": 255
+        },
+        {
+          "position": 0.75,
+          "mean": 3.6832685403264196,
+          "max": 255
+        },
+        {
+          "position": 1.25,
+          "mean": 3.7422357895797633,
+          "max": 255
+        },
+        {
+          "position": 1.5,
+          "mean": 4.711568581973658,
+          "max": 255
+        },
+        {
+          "position": 1.75,
+          "mean": 3.448676614200461,
+          "max": 255
+        }
+      ]
+    },
+    {
+      "id": "stationary",
+      "endpoints": [
+        {
+          "mean": 0,
+          "max": 0
+        },
+        {
+          "mean": 0,
+          "max": 0
+        },
+        {
+          "mean": 0,
+          "max": 0
+        }
+      ],
+      "boundary": {
+        "mean": 0,
+        "max": 0
+      },
+      "flow": {
+        "samples": 15063,
+        "medianX": 0,
+        "medianY": 0,
+        "meanVectorError": 0,
+        "stationaryFraction": 1
+      },
+      "intermediate": [
+        {
+          "position": 0.25,
+          "mean": 0,
+          "max": 0
+        },
+        {
+          "position": 0.5,
+          "mean": 0,
+          "max": 0
+        },
+        {
+          "position": 0.75,
+          "mean": 0,
+          "max": 0
+        },
+        {
+          "position": 1.25,
+          "mean": 0,
+          "max": 0
+        },
+        {
+          "position": 1.5,
+          "mean": 0,
+          "max": 0
+        },
+        {
+          "position": 1.75,
+          "mean": 0,
+          "max": 0
+        }
+      ]
+    },
+    {
+      "id": "transparency",
+      "endpoints": [
+        {
+          "mean": 0,
+          "max": 0
+        },
+        {
+          "mean": 0,
+          "max": 0
+        },
+        {
+          "mean": 0,
+          "max": 0
+        }
+      ],
+      "boundary": {
+        "mean": 0,
+        "max": 0
+      },
+      "intermediate": [
+        {
+          "position": 0.25,
+          "mean": 11.984313725493392,
+          "max": 47.937254901960785
+        },
+        {
+          "position": 0.5,
+          "mean": 15.937254901969915,
+          "max": 63.74901960784314
+        },
+        {
+          "position": 0.75,
+          "mean": 11.984313725493392,
+          "max": 47.937254901960785
+        },
+        {
+          "position": 1.25,
+          "mean": 11.984313725493392,
+          "max": 47.937254901960785
+        },
+        {
+          "position": 1.5,
+          "mean": 15.937254901969915,
+          "max": 63.74901960784314
+        },
+        {
+          "position": 1.75,
+          "mean": 11.984313725493392,
+          "max": 47.937254901960785
+        }
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "id": "radar-default:endpoints",
+      "kind": "correctness",
+      "value": 0,
+      "limit": 3,
+      "passed": true
+    },
+    {
+      "id": "radar-default:pair-boundary",
+      "kind": "correctness",
+      "value": 0,
+      "limit": 3,
+      "passed": true
+    },
+    {
+      "id": "radar-fmi:endpoints",
+      "kind": "correctness",
+      "value": 0,
+      "limit": 3,
+      "passed": true
+    },
+    {
+      "id": "radar-fmi:pair-boundary",
+      "kind": "correctness",
+      "value": 0,
+      "limit": 3,
+      "passed": true
+    },
+    {
+      "id": "satellite:endpoints",
+      "kind": "correctness",
+      "value": 0,
+      "limit": 3,
+      "passed": true
+    },
+    {
+      "id": "satellite:pair-boundary",
+      "kind": "correctness",
+      "value": 0,
+      "limit": 3,
+      "passed": true
+    },
+    {
+      "id": "smooth-1:endpoints",
+      "kind": "correctness",
+      "value": 0,
+      "limit": 3,
+      "passed": true
+    },
+    {
+      "id": "smooth-1:pair-boundary",
+      "kind": "correctness",
+      "value": 0,
+      "limit": 3,
+      "passed": true
+    },
+    {
+      "id": "smooth-1:motion",
+      "kind": "quality",
+      "value": 0.043102769837078794,
+      "limit": 0.5,
+      "passed": true
+    },
+    {
+      "id": "smooth-4:endpoints",
+      "kind": "correctness",
+      "value": 0,
+      "limit": 3,
+      "passed": true
+    },
+    {
+      "id": "smooth-4:pair-boundary",
+      "kind": "correctness",
+      "value": 0,
+      "limit": 3,
+      "passed": true
+    },
+    {
+      "id": "smooth-4:motion",
+      "kind": "quality",
+      "value": 0.6604024315706474,
+      "limit": 0.5,
+      "passed": false
+    },
+    {
+      "id": "smooth-8:endpoints",
+      "kind": "correctness",
+      "value": 0,
+      "limit": 3,
+      "passed": true
+    },
+    {
+      "id": "smooth-8:pair-boundary",
+      "kind": "correctness",
+      "value": 0,
+      "limit": 3,
+      "passed": true
+    },
+    {
+      "id": "smooth-8:motion",
+      "kind": "quality",
+      "value": 2.5983093611219714,
+      "limit": 0.5,
+      "passed": false
+    },
+    {
+      "id": "stepped-1:endpoints",
+      "kind": "correctness",
+      "value": 0,
+      "limit": 3,
+      "passed": true
+    },
+    {
+      "id": "stepped-1:pair-boundary",
+      "kind": "correctness",
+      "value": 0,
+      "limit": 3,
+      "passed": true
+    },
+    {
+      "id": "stepped-1:motion",
+      "kind": "quality",
+      "value": 0.41887420364802713,
+      "limit": 0.5,
+      "passed": true
+    },
+    {
+      "id": "stepped-4:endpoints",
+      "kind": "correctness",
+      "value": 0,
+      "limit": 3,
+      "passed": true
+    },
+    {
+      "id": "stepped-4:pair-boundary",
+      "kind": "correctness",
+      "value": 0,
+      "limit": 3,
+      "passed": true
+    },
+    {
+      "id": "stepped-4:motion",
+      "kind": "quality",
+      "value": 3.4047950150842543,
+      "limit": 0.5,
+      "passed": false
+    },
+    {
+      "id": "stepped-8:endpoints",
+      "kind": "correctness",
+      "value": 0,
+      "limit": 3,
+      "passed": true
+    },
+    {
+      "id": "stepped-8:pair-boundary",
+      "kind": "correctness",
+      "value": 0,
+      "limit": 3,
+      "passed": true
+    },
+    {
+      "id": "stepped-8:motion",
+      "kind": "quality",
+      "value": 7.683438291249161,
+      "limit": 0.5,
+      "passed": false
+    },
+    {
+      "id": "diagonal:endpoints",
+      "kind": "correctness",
+      "value": 0,
+      "limit": 3,
+      "passed": true
+    },
+    {
+      "id": "diagonal:pair-boundary",
+      "kind": "correctness",
+      "value": 0,
+      "limit": 3,
+      "passed": true
+    },
+    {
+      "id": "diagonal:motion",
+      "kind": "quality",
+      "value": 0.8214318883066652,
+      "limit": 0.5,
+      "passed": false
+    },
+    {
+      "id": "default-translated:endpoints",
+      "kind": "correctness",
+      "value": 0,
+      "limit": 3,
+      "passed": true
+    },
+    {
+      "id": "default-translated:pair-boundary",
+      "kind": "correctness",
+      "value": 0,
+      "limit": 3,
+      "passed": true
+    },
+    {
+      "id": "default-translated:motion",
+      "kind": "quality",
+      "value": 3.6085489682679714,
+      "limit": 0.5,
+      "passed": false
+    },
+    {
+      "id": "radar_fmi-translated:endpoints",
+      "kind": "correctness",
+      "value": 0,
+      "limit": 3,
+      "passed": true
+    },
+    {
+      "id": "radar_fmi-translated:pair-boundary",
+      "kind": "correctness",
+      "value": 0,
+      "limit": 3,
+      "passed": true
+    },
+    {
+      "id": "radar_fmi-translated:motion",
+      "kind": "quality",
+      "value": 3.8336374209886337,
+      "limit": 0.5,
+      "passed": false
+    },
+    {
+      "id": "goes19-translated:endpoints",
+      "kind": "correctness",
+      "value": 0,
+      "limit": 3,
+      "passed": true
+    },
+    {
+      "id": "goes19-translated:pair-boundary",
+      "kind": "correctness",
+      "value": 0,
+      "limit": 3,
+      "passed": true
+    },
+    {
+      "id": "goes19-translated:motion",
+      "kind": "quality",
+      "value": 3.558343465257225,
+      "limit": 0.5,
+      "passed": false
+    },
+    {
+      "id": "stationary:endpoints",
+      "kind": "correctness",
+      "value": 0,
+      "limit": 3,
+      "passed": true
+    },
+    {
+      "id": "stationary:pair-boundary",
+      "kind": "correctness",
+      "value": 0,
+      "limit": 3,
+      "passed": true
+    },
+    {
+      "id": "stationary:motion",
+      "kind": "correctness",
+      "value": 0,
+      "limit": 0.5,
+      "passed": true
+    },
+    {
+      "id": "stationary:intermediate",
+      "kind": "correctness",
+      "value": 0,
+      "limit": 3,
+      "passed": true
+    },
+    {
+      "id": "transparency:endpoints",
+      "kind": "correctness",
+      "value": 0,
+      "limit": 3,
+      "passed": true
+    },
+    {
+      "id": "transparency:pair-boundary",
+      "kind": "correctness",
+      "value": 0,
+      "limit": 3,
+      "passed": true
+    },
+    {
+      "id": "transparency:intermediate",
+      "kind": "quality",
+      "value": 63.74901960784314,
+      "limit": 3,
+      "passed": false
+    }
+  ],
+  "summary": {
+    "correctnessFailures": 0,
+    "qualityFailures": 9,
+    "unavailableMeasurements": 0
+  }
+}

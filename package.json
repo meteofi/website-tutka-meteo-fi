@@ -8,7 +8,9 @@
     "start": "webpack serve --mode development",
     "dev": "webpack serve --mode development --open",
     "lint": "eslint src/",
-    "test": "node scripts/test-all.mjs"
+    "test": "node scripts/test-all.mjs",
+    "build:interpolation-diagnostics": "webpack --config scripts/interpolation/webpack.config.cjs --mode production",
+    "diagnose:interpolation": "node scripts/interpolation/run.mjs"
   },
   "devDependencies": {
     "clean-webpack-plugin": "^4.0.0",
