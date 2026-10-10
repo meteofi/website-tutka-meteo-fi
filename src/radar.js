@@ -66,6 +66,7 @@ import initServerStatus from './ui/serverStatus';
 import createLayerPanel from './ui/layerPanel';
 import initSearchHighlight from './search/searchHighlight';
 import FramePool from './animation/framePool';
+import { setGetMapLimits } from './wms/requestShape';
 import { canInterpolate, RadarInterpolator } from './animation/interpolation';
 import {
   NOWCAST_LAYER, OBSERVED_LAYER, NOW_INDEX, FUTURE_STEPS,
@@ -3379,6 +3380,8 @@ function getWMSCapabilities(wms, failCountArg = 0) {
     const result = parser.read(text);
     if (result && result.Capability && result.Capability.Layer && result.Capability.Layer.Layer) {
       if (serverStatus) serverStatus.report(wms.url, true);
+      // Per-side GetMap limit (<MaxWidth>/<MaxHeight>) for the request shaping.
+      setGetMapLimits(wms.url, result.Service);
       // A server "supports webp" when its GetCapabilities advertises
       // image/webp as a GetMap output format (e.g. meteocore). Prefer it
       // there to shrink GetMap payloads — and let servers that don't

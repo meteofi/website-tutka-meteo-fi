@@ -72,11 +72,18 @@ const EDR = 'https://meteocore.app.meteo.fi/edr/collections';
 // different engines, which is how a renderer bug and a server outage were
 // told apart the day the ecmwf-ifs area query answered 502 on everything.
 // The menu label reads from here, so it can never drift from the source.
+//
+// MeteoCore split each GRIB model into a `-single` (surface / height-above-
+// ground fields) and a `-pressure` (isobaric levels) collection; the bare
+// `ecmwf-ifs` / `noaa-gfs` ids are gone (404). The 10 m wind components live
+// in `-single` — checked against the live collection documents 2026-10-10:
+// ecmwf-ifs-single advertises 10u/10v, noaa-gfs-single UGRD/VGRD described
+// as "10 m above ground", neither with a vertical axis.
 const MODEL_SOURCES = {
   ecmwf: {
     id: 'ecmwf',
     kind: 'model',
-    collection: 'ecmwf-ifs',
+    collection: 'ecmwf-ifs-single',
     u: '10u',
     v: '10v',
     label: 'Tuuli 10 m (ECMWF)',
@@ -85,7 +92,7 @@ const MODEL_SOURCES = {
   gfs: {
     id: 'gfs',
     kind: 'model',
-    collection: 'noaa-gfs',
+    collection: 'noaa-gfs-single',
     u: 'UGRD',
     v: 'VGRD',
     label: 'Tuuli 10 m (GFS)',

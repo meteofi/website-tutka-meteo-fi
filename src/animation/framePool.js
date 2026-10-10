@@ -3,7 +3,7 @@ import ImageState from 'ol/ImageState';
 import { containsExtent } from 'ol/extent';
 import BudgetedCanvasSource, { WARP_RATIO } from './budgetedCanvasSource';
 import StickyImageWMS from './stickyImageWMS';
-import computeRequestShape from '../wms/requestShape';
+import computeRequestShape, { getMapMaxSize } from '../wms/requestShape';
 import { FRAME_COUNT } from '../constants';
 
 const SYNC_PARAM_KEYS = ['LAYERS', 'STYLES', 'FORMAT', 'ELEVATION'];
@@ -387,13 +387,14 @@ export default class FramePool {
     if (!size || size[0] <= 0 || size[1] <= 0) return null;
     // Every load path funnels through here, so the request shape is
     // re-derived at the same debounced boundaries as the loads themselves.
-    // Its only input (pane size) is constant during an undisturbed playback
-    // loop, so the shape — and with it every frame's WIDTH/HEIGHT — stays
-    // frozen while the animation runs.
+    // Its inputs (pane size, and the server's per-side GetMap limit, which
+    // binds only for extreme aspects) are constant during an undisturbed
+    // playback loop, so the shape — and with it every frame's WIDTH/HEIGHT —
+    // stays frozen while the animation runs.
     this._applyRequestShape(computeRequestShape({
       width: size[0],
       height: size[1],
-    }));
+    }, getMapMaxSize(this.primary.getSource().getUrl())));
     const anchor = this._updateAnchor(view, size);
     return {
       extent: anchor.extent,
