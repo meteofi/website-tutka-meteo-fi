@@ -208,7 +208,7 @@ function attachInterpolators() {
         // half-initialized split.
         let interpolator = null;
         try {
-          interpolator = new RadarInterpolator({ useFlow });
+          interpolator = new RadarInterpolator({ useFlow, motionProfile: name === 'satelliteLayer' ? 'satellite' : 'radar' });
         } catch (err) {
           debug(`RadarInterpolator unavailable (pane ${pane.index} ${name}): ${err.message}`);
         }

@@ -1,13 +1,10 @@
 // Motion-compensated warp renderer. The fragment shader takes two
-// RGBA frame textures A and B plus an RG16F flow texture in
+// RGBA frame textures A and B plus a half-float flow texture (RG = motion) in
 // normalized-UV displacement units, and produces a mixed output at
 // fractional time `t ∈ [0, 1]`.
 //
-// Phase 2: flow is always zero, so the shader degenerates to a plain
-// crossfade (A at t=0, B at t=1, linear in between). This exists to
-// prove GL context plumbing, texture upload, FBO/canvas output, and
-// OpenLayers integration before Phase 3 introduces real Lucas-Kanade
-// flow.
+// Frame textures and output use premultiplied RGBA throughout. Zero flow
+// gives a crossfade, including a linear visible-colour fade at clear edges.
 //
 // Shader sources are inline strings — no webpack/raw-loader config
 // change needed.
@@ -32,6 +29,7 @@ uniform sampler2D uFrameA;
 uniform sampler2D uFrameB;
 uniform sampler2D uFlow;
 uniform float uT;
+uniform bool uGuardFlow;
 // Affine transform from output-canvas UV to stored-frame UV.
 // When canvas extent equals stored extent: uScale=(1,1), uOffset=(0,0).
 // When canvas has shifted (small pan within the loaded buffer):
@@ -58,6 +56,17 @@ vec4 sampleBounded(sampler2D tex, vec2 uv) {
 void main() {
   vec2 src = vUv * uScale + uOffset;
   vec2 flow = texture(uFlow, src).rg;
+  float confidence = 1.0;
+  if (uGuardFlow) {
+    // The Frobenius norm bounds the displacement gradient's largest singular
+    // value. Below 1 neither x-t*flow nor x+(1-t)*flow can fold for t in [0,1].
+    // Fade to the observations as that bound is approached. Blending images
+    // (not scaling vectors) avoids a new discontinuity in the displacement.
+    vec2 dx = dFdx(flow) / max(abs(dFdx(src).x), 1e-8);
+    vec2 dy = dFdy(flow) / max(abs(dFdy(src).y), 1e-8);
+    float deformation = sqrt(dot(dx,dx)+dot(dy,dy));
+    confidence = 1.0-smoothstep(0.75,1.0,deformation);
+  }
   // Forward-warp A by t*flow, backward-warp B by (1-t)*flow, blend.
   // All UVs here are in the stored frames' space so the flow texture
   // (also computed in that space) is applied consistently.
@@ -65,22 +74,21 @@ void main() {
   vec2 srcB = src + (1.0 - uT) * flow;
   vec4 a = sampleBounded(uFrameA, srcA);
   vec4 b = sampleBounded(uFrameB, srcB);
-  // Plain mix, no nodata fallback. Earlier experiments with a
-  // snap-to-full fallback and a linear-alpha fade both made
-  // non-overlapping cell regions (leading/trailing edges where the
-  // flow hasn't closed the gap) MORE visible as ghosts, which the
-  // user reads as blur. mix()'s quadratic composite keeps those
-  // ghosts at ~25% intensity instead, closer to invisible. The
-  // underlying issue that creates the ghosts is that flow isn't
-  // tracking enough of the motion; fixing that removes the need
-  // for any clever boundary treatment.
-  fragColor = mix(a, b, uT);
+  // RGB already contains coverage. Mix it with alpha; never multiply again
+  // or replace transparent samples with full-strength rain from the other frame.
+  vec4 warped = mix(a, b, uT);
+  if (confidence < 1.0) {
+    vec4 fallback = mix(sampleBounded(uFrameA,src), sampleBounded(uFrameB,src),uT);
+    warped = mix(fallback,warped,confidence);
+  }
+  fragColor = warped;
 }
 `;
 
 export default class WarpRenderer {
-  constructor(gl) {
+  constructor(gl, guardFlow = false) {
     this.gl = gl;
+    this.guardFlow = guardFlow;
     this.program = createProgram(gl, VERT, FRAG);
     this.vbo = createFullscreenTriangle(gl);
     this.aPos = gl.getAttribLocation(this.program, 'aPos');
@@ -88,6 +96,7 @@ export default class WarpRenderer {
     this.uFrameB = gl.getUniformLocation(this.program, 'uFrameB');
     this.uFlow = gl.getUniformLocation(this.program, 'uFlow');
     this.uT = gl.getUniformLocation(this.program, 'uT');
+    this.uGuardFlow = gl.getUniformLocation(this.program, 'uGuardFlow');
     this.uScale = gl.getUniformLocation(this.program, 'uScale');
     this.uOffset = gl.getUniformLocation(this.program, 'uOffset');
   }
@@ -131,6 +140,7 @@ export default class WarpRenderer {
     gl.uniform1i(this.uFlow, 2);
 
     gl.uniform1f(this.uT, t);
+    gl.uniform1i(this.uGuardFlow, this.guardFlow ? 1 : 0);
     gl.uniform2f(this.uScale, scaleX, scaleY);
     gl.uniform2f(this.uOffset, offsetX, offsetY);
 

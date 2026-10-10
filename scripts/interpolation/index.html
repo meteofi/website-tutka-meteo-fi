@@ -38,22 +38,22 @@
 </head>
 <body>
   <h1>Interpoloinnin vertailu</h1>
-  <p class="intro">Vaihe 2: liikevektorien pehmeä suodatus. Vertaa korjausta aiempaan optiseen virtaukseen tai häivytykseen.
-    Liikkeen arvioinnin ja läpinäkyvyyden korjaukset tulevat myöhemmin.
+  <p class="intro">Tutkan liikkeen ja läpinäkyvien reunojen korjaus. Suurenna rajausta nähdäksesi reunojen liikkeen karttanäkymän mittakaavassa.
+    Satelliitti käyttää aiempaa liikkeen arviointia.
     Aineisto on tallennettu 10.10.2026, joten eri laitteet näyttävät samat kuvat.</p>
   <fieldset id="controls" disabled>
     <div class="controls">
       <label class="case">Tapaus<select id="case"></select></label>
       <label>Askeleen kesto<select id="duration"><option value="0.5">0,5 s (normaali)</option><option value="1" selected>1 s</option><option value="2">2 s</option></select></label>
       <label>Tausta<select id="background"><option value="#15212b">Tumma</option><option value="#eef4f7">Vaalea</option><option value="#000000">Musta</option></select></label>
-      <label>Vertailukuva<select id="comparison-mode"><option value="nearest">Aiempi optinen virtaus</option><option value="crossfade">Häivytys ilman liikettä</option></select></label>
+      <label>Suurennus<select id="zoom"><option value="1">Koko kuva</option><option value="2" selected>2× rajaus</option><option value="4">4× rajaus</option></select></label>
     </div>
     <div class="timeline"><button id="play" type="button">Toista</button><label>Aikajana<input id="position" type="range" min="0" max="2" step="0.005" value="0"></label><output id="position-value"></output></div>
   </fieldset>
   <p id="description"></p><p id="times"></p>
   <div class="comparison">
     <figure><figcaption>Optinen virtaus (korjattu)</figcaption><div class="image"><canvas id="flow"></canvas></div></figure>
-    <figure><figcaption id="comparison-title">Aiempi optinen virtaus</figcaption><div class="image"><canvas id="comparison"></canvas></div></figure>
+    <figure><figcaption>Häivytys ilman liikettä</figcaption><div class="image"><canvas id="comparison"></canvas></div></figure>
     <figure><figcaption id="reference-title">Lähin havainto</figcaption><div class="image"><canvas id="reference"></canvas></div></figure>
   </div>
   <div class="actions"><button id="run" disabled>Mittaa kaikki tapaukset</button><button id="download" disabled>Lataa tulokset (JSON)</button></div>
@@ -61,9 +61,10 @@
   <p id="filtering"></p>
   <p>Liike ja liikevirhe ovat 256 × 256 -analyysiruudukon pikseleitä. Kuvaero mittaa näkyvää väriä ja peittävyyttä (0–255).
     Oikeaa välikuvaa ei tunneta havaintopareille. Niiden liikkeelle ei anneta onnistumisarviota.
-    Laatupuutteet näkyvät tuloksissa; ne ovat myöhempien vaiheiden korjauskohteita.</p>
+    Taittuvat solut lasketaan liikekentästä ennen tutkan vääristymissuojaa: liian voimakkaasti vääntyvässä kohdassa kuva vaihtuu häivyttämällä.
+    Avoimet laatutavoitteet näkyvät tuloksissa.</p>
   <div class="scroll"><table>
-    <thead><tr><th>Tapaus</th><th>Liike x, y</th><th>Liikevirhe</th><th>Päätekuvan ero</th><th>Parinvaihdon ero</th><th>Välikuvan ero (ka.)</th><th>Tulos</th></tr></thead>
+    <thead><tr><th>Tapaus</th><th>Liike x, y</th><th>Liikevirhe</th><th>Päätekuvan ero</th><th>Parinvaihdon ero</th><th>Rajauksen päätekuva</th><th>Taittuvat solut</th><th>Välikuvan ero (ka.)</th><th>Tulos</th></tr></thead>
     <tbody id="results"></tbody>
   </table></div>
   <footer>

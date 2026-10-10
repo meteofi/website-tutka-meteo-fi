@@ -1,5 +1,5 @@
-// Client-side single-level Lucas-Kanade optical flow + motion-compensated
-// warp for radar animation interpolation.
+// Motion-compensated interpolation. Radar uses a filtered image pyramid;
+// satellite retains the single-level Lucas-Kanade estimator.
 //
 // Instance ownership: one RadarInterpolator per interpolating pool
 // (radar, satellite). Each owns its own WebGL2 context on an offscreen
@@ -11,6 +11,7 @@
 import canInterpolate from './capabilities';
 import WarpRenderer from './warp';
 import FlowLK from './flowLK';
+import FlowRadar from './flowRadar';
 import { createRgbaTexture, createRg16fTexture } from './glUtils';
 
 export { canInterpolate };
@@ -52,8 +53,9 @@ function extentContains(stored, other) {
 }
 
 export class RadarInterpolator {
-  constructor({ flowResolution = 256, useFlow = false } = {}) {
+  constructor({ flowResolution = 256, useFlow = false, motionProfile = 'radar' } = {}) {
     this.flowResolution = flowResolution;
+    this.motionProfile = motionProfile;
     // When true, flows are computed via Lucas-Kanade; when false,
     // flows are zero-filled (interpolation degenerates to crossfade).
     // Swapped at runtime via setUseFlow.
@@ -62,17 +64,16 @@ export class RadarInterpolator {
     this.canvas = document.createElement('canvas');
     this.canvas.width = 1;
     this.canvas.height = 1;
-    // premultipliedAlpha:false — our warp shader outputs straight
-    // (non-premultiplied) RGBA by taking mix() of two non-premultiplied
-    // texture samples. With premultipliedAlpha:true the browser would
-    // re-multiply during compositing, darkening semi-transparent pixels
-    // (coastlines, radar-range edges, nodata). preserveDrawingBuffer:true
+    // Upload, filtering, blending and canvas compositing all use premultiplied
+    // RGBA. Interpolating straight RGB across clear pixels darkens rain edges
+    // twice: once in texture filtering and again in browser compositing.
+    // preserveDrawingBuffer:true
     // keeps the buffer between our gl.clear calls — OL may read the
     // canvas slightly out of phase with our draws, and without this the
     // browser can wipe the buffer between draw and composite.
     this.gl = this.canvas.getContext('webgl2', {
       alpha: true,
-      premultipliedAlpha: false,
+      premultipliedAlpha: true,
       preserveDrawingBuffer: true,
       antialias: false,
     });
@@ -81,7 +82,7 @@ export class RadarInterpolator {
     }
     // Enable either extension — canInterpolate already verified one
     // of them is available; we just need to activate it for the
-    // RG16F flow texture to be renderable later.
+    // half-float flow textures to be renderable later.
     this.gl.getExtension('EXT_color_buffer_half_float');
     this.gl.getExtension('EXT_color_buffer_float');
     // RG16F linear filtering is core in WebGL2. The WebGL1 extension
@@ -90,12 +91,13 @@ export class RadarInterpolator {
     // cell edges. Rendering into RG16F still needs the extensions above.
     this.flowFilter = this.gl.LINEAR;
 
-    this.warp = new WarpRenderer(this.gl);
-    this.flowLK = new FlowLK(this.gl, flowResolution);
+    this.warp = new WarpRenderer(this.gl, motionProfile === 'radar');
+    this.flowLK = motionProfile === 'satellite'
+      ? new FlowLK(this.gl, flowResolution) : new FlowRadar(this.gl, flowResolution);
 
     // Keyed by time ISO string. Values: { texture, width, height, extent }.
     this.frames = new Map();
-    // Keyed by `${timeA}|${timeB}`. Values: { texture }. Populated
+    // Keyed by `${timeA}|${timeB}`. Values: { texture, width, height }. Populated
     // lazily by computeFlow; hasFlow returns false for pairs not yet
     // populated, so the caller sees "not ready" until the flow (zero
     // or LK, depending on useFlow) has actually been created.
@@ -236,13 +238,15 @@ export class RadarInterpolator {
     // at different extents; hasFlow's extent check would reject
     // this pair at display time anyway.
     if (this.useFlow && !extentApproxEqual(a.extent, b.extent)) return;
-    let texture;
+    let flow;
     if (this.useFlow) {
-      texture = this.flowLK.compute(a.texture, b.texture, this.flowFilter);
+      flow = this.motionProfile === 'satellite'
+        ? { texture: this.flowLK.compute(a.texture, b.texture, this.flowFilter), width: this.flowResolution, height: this.flowResolution }
+        : this.flowLK.compute(a, b);
     } else {
-      texture = createRg16fTexture(this.gl, this.flowResolution, this.flowResolution, null, this.flowFilter);
+      flow = { texture: createRg16fTexture(this.gl, 1, 1, null, this.flowFilter), width: 1, height: 1 };
     }
-    this.flows.set(key, { texture });
+    this.flows.set(key, flow);
   }
 
   // Draw the warped image for (A, B, t) into this.canvas. Returns

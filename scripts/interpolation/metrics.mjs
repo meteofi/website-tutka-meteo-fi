@@ -40,3 +40,45 @@ export function flowError(vectors, expected) {
     stationaryFraction: stationary / vectors.length,
   };
 }
+
+// Geometry of the bilinear field, in its own grid pixels. A negative Jacobian
+// of x +/- t*flow means a warp folds a cell over itself. Test both directions
+// through the pair and all four corners of each bilinear cell.
+export function flowGeometry({ width, height, data }, mask) {
+  const vector = (x, y) => {
+    const i = 4 * (y * width + x);
+    const v = [data[i] * width, data[i + 1] * height];
+    if (!v.every(Number.isFinite)) throw new Error('Non-finite flow');
+    return v;
+  };
+  let cells = 0;
+  let foldedCells = 0;
+  let maxNeighborJump = 0;
+  for (let y = 0; y < height - 1; y++) {
+    for (let x = 0; x < width - 1; x++) {
+      if (mask && !mask[y * width + x]) continue; // eslint-disable-line no-continue
+      const a = vector(x, y);
+      const b = vector(x + 1, y);
+      const c = vector(x, y + 1);
+      const d = vector(x + 1, y + 1);
+      let folded = false;
+      for (const [left, right] of [[a, b], [c, d]]) {
+        for (const [bottom, top] of [[a, c], [b, d]]) {
+          const ux = right[0] - left[0];
+          const vx = right[1] - left[1];
+          const uy = top[0] - bottom[0];
+          const vy = top[1] - bottom[1];
+          for (const t of [-1, -0.75, -0.5, -0.25, 0.25, 0.5, 0.75, 1]) {
+            if ((1 + t * ux) * (1 + t * vy) - t * t * uy * vx <= 0) folded = true;
+          }
+          maxNeighborJump = Math.max(maxNeighborJump, Math.hypot(ux, vx), Math.hypot(uy, vy));
+        }
+      }
+      cells++;
+      if (folded) foldedCells++;
+    }
+  }
+  return {
+    width, height, cells, foldedCells, maxNeighborJump,
+  };
+}

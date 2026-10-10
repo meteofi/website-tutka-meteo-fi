@@ -1,11 +1,11 @@
 /* global DIAGNOSTIC_BUILD */
 // Import the real production pipeline. No copied shaders or corrected variant.
 import { RadarInterpolator } from '../../src/animation/interpolation';
-import { ANALYSIS_SIZE, pixels } from './cases';
-import { flowError, pixelError } from './metrics.mjs';
+import { ANALYSIS_SIZE, canvas, pixels } from './cases';
+import { flowError, flowGeometry, pixelError } from './metrics.mjs';
 
-export function createEngine(useFlow = true) {
-  return new RadarInterpolator({ useFlow, flowResolution: ANALYSIS_SIZE });
+export function createEngine(useFlow = true, motionProfile = 'radar') {
+  return new RadarInterpolator({ useFlow, flowResolution: ANALYSIS_SIZE, motionProfile });
 }
 
 export function loadEngine(engine, testCase) {
@@ -16,51 +16,93 @@ export function loadEngine(engine, testCase) {
   if (engine.gl.getError() !== engine.gl.NO_ERROR) throw new Error('WebGL error while computing flow');
 }
 
-export function render(engine, position, width, height) {
+export function render(engine, position, width, height, extent = null) {
   const last = engine.frames.size - 1;
   const pair = Math.min(Math.floor(position), last - 1);
-  const result = engine.renderAt(String(pair), String(pair + 1), position - pair, width, height);
+  const result = engine.renderAt(String(pair), String(pair + 1), position - pair, width, height, extent);
   if (!result || engine.contextLost) throw new Error('Interpolation context unavailable');
   return result;
 }
 
-function vectors(engine, testCase) {
+function measureField(engine, testCase) {
   const { gl } = engine;
-  const size = engine.flowResolution;
+  const flow = engine.flows.get('0|1');
+  const { width, height } = flow;
+  const size = ANALYSIS_SIZE;
   const fbo = gl.createFramebuffer();
   try {
     gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, engine.flows.get('0|1').texture, 0);
     if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) throw new Error('Flow readback framebuffer incomplete');
-    const data = new Float32Array(size * size * 4);
-    gl.readPixels(0, 0, size, size, gl.RGBA, gl.FLOAT, data);
+    const data = new Float32Array(width * height * 4);
+    gl.readPixels(0, 0, width, height, gl.RGBA, gl.FLOAT, data);
     if (gl.getError() !== gl.NO_ERROR) throw new Error('RGBA/FLOAT flow readback unsupported on this device');
     const source = testCase.frames[0];
     const rgba = pixels(source);
     const samples = [];
-    for (let y = 8; y < size - 8; y++) {
-      for (let x = 8; x < size - 8; x++) {
+    const mask = new Uint8Array(width * height);
+    for (let y = 8; y < height - 8; y++) {
+      for (let x = 8; x < width - 8; x++) {
         // GL rows start at the bottom, fixture rows at the top.
-        const sx = Math.floor(((x + 0.5) * source.width) / size);
-        const sy = Math.floor(((size - y - 0.5) * source.height) / size);
-        if (testCase.synthetic && Math.hypot(x - 128, size - 1 - y - 128) > 19) continue; // eslint-disable-line no-continue
+        const sx = Math.floor(((x + 0.5) * source.width) / width);
+        const sy = Math.floor(((height - y - 0.5) * source.height) / height);
         if (rgba[4 * (sy * source.width + sx) + 3] < 20) continue; // eslint-disable-line no-continue
-        const i = 4 * (y * size + x);
+        mask[y * width + x] = 1;
+        if (testCase.synthetic && Math.hypot(x - 128, size - 1 - y - 128) > 19) continue; // eslint-disable-line no-continue
+        const i = 4 * (y * width + x);
         samples.push([data[i] * size, -data[i + 1] * size]);
       }
     }
-    return samples;
+    return {
+      flow: testCase.displacement ? flowError(samples, testCase.displacement) : undefined,
+      geometry: flowGeometry({ width, height, data }, mask),
+    };
   } finally {
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.deleteFramebuffer(fbo);
   }
 }
 
+export function cropReference(frame, width, height, extent) {
+  const result = canvas(width, height);
+  result.getContext('2d').drawImage(
+    frame,
+    extent[0],
+    frame.height - extent[3],
+    extent[2] - extent[0],
+    extent[3] - extent[1],
+    0,
+    0,
+    width,
+    height,
+  );
+  return result;
+}
+
+function measureCrops(engine, testCase) {
+  const { width, height } = testCase.frames[0];
+  const outWidth = 800;
+  const outHeight = Math.round((outWidth * height) / width);
+  return [[0.25, 0.25, 0.75, 0.75], [0.17, 0.31, 0.67, 0.81]].map((crop) => {
+    const extent = crop.map((v, i) => v * (i % 2 ? height : width));
+    const compare = (position, expected) => pixelError(
+      pixels(render(engine, position, outWidth, outHeight, extent)),
+      pixels(cropReference(expected, outWidth, outHeight, extent)),
+    );
+    return {
+      extent,
+      endpoints: testCase.frames.map((frame, position) => compare(position, frame)),
+      intermediate: testCase.expected
+        ? [0.25, 0.5, 0.75, 1.25, 1.5, 1.75].map((position) => compare(position, testCase.expected(position))) : undefined,
+    };
+  });
+}
+
 // Exercise the production texture allocation and warp, independently of LK's
-// accuracy. Four flow quadrants meet at the center: their bilinear mean is 0.25
-// in each axis. At t=0.5 this samples the red/green ramp at UV (0.375, 0.375),
-// then blends it with opaque black: round((256 * 0.375 - 0.5) / 2) = 48.
-// NEAREST instead produces 32 or 64. Test both minification and magnification.
+// accuracy. Four flow quadrants meet at the center: their bilinear mean is
+// 0.25 grid pixels in each axis. At t=0.5 a red/green step samples 0.375 of
+// its bright texel, then blends with opaque black: round(255*0.375/2)=48.
+// NEAREST instead produces 32 or 64. The small displacement is safe to warp.
 function measureFlowFiltering(engine) {
   const { gl } = engine;
   const size = engine.flowResolution;
@@ -72,8 +114,8 @@ function measureFlowFiltering(engine) {
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
       const i = 4 * (y * size + x);
-      image.data[i] = x;
-      image.data[i + 1] = size - 1 - y; // GL's Y axis points up.
+      image.data[i] = x < size / 2 ? 0 : 255;
+      image.data[i + 1] = size - 1 - y < size / 2 ? 0 : 255; // GL's Y axis points up.
       image.data[i + 3] = 255;
     }
   }
@@ -83,15 +125,16 @@ function measureFlowFiltering(engine) {
   black.height = size;
   black.getContext('2d').fillRect(0, 0, size, size);
   loadEngine(engine, { frames: [ramp, black, black] });
-  const data = new Float32Array(size * size * 2);
+  const channels = engine.motionProfile === 'radar' ? 4 : 2;
+  const data = new Float32Array(size * size * channels);
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
-      data[2 * (y * size + x)] = x < size / 2 ? 0 : 0.5;
-      data[2 * (y * size + x) + 1] = y < size / 2 ? 0 : 0.5;
+      data[channels * (y * size + x)] = x < size / 2 ? 0 : 0.5 / size;
+      data[channels * (y * size + x) + 1] = y < size / 2 ? 0 : 0.5 / size;
     }
   }
   gl.bindTexture(gl.TEXTURE_2D, engine.flows.get('0|1').texture);
-  gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, size, size, gl.RG, gl.FLOAT, data);
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, size, size, channels === 4 ? gl.RGBA : gl.RG, gl.FLOAT, data);
   const expected = new Uint8Array([48, 48, 0, 255]);
   const samples = [3, size * 2 + 1].map((outputSize) => {
     const rgba = pixels(render(engine, 0.5, outputSize, outputSize));
@@ -103,8 +146,32 @@ function measureFlowFiltering(engine) {
   return samples;
 }
 
+function measureDeformationGuard(engine) {
+  // Deliberately corrupt an otherwise valid displacement field. At the center
+  // its gradient is far above 1, so the renderer must show the unwarped fade.
+  const { gl } = engine;
+  const size = engine.flowResolution;
+  const data = new Float32Array(size * size * 4);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) data[4 * (y * size + x)] = x < size / 2 ? 0 : 0.25;
+  }
+  gl.bindTexture(gl.TEXTURE_2D, engine.flows.get('0|1').texture);
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, size, size, gl.RGBA, gl.FLOAT, data);
+  const output = size * 2 + 1;
+  const center = 4 * (Math.floor(output / 2) * output + Math.floor(output / 2));
+  return [1, 2, 4].flatMap((zoom) => [0.25, 0.5, 0.75].map((position) => {
+    const lo = size * (0.5 - 0.5 / zoom);
+    const hi = size - lo;
+    const rgba = pixels(render(engine, position, output, output, [lo, lo, hi, hi]));
+    const value = Math.round(127.5 * (1 - position));
+    return { zoom, position, ...pixelError(rgba.slice(center, center + 4), [value, value, 0, 255]) };
+  }));
+}
+
 export async function measure(cases, onProgress = () => {}) {
-  const engine = createEngine();
+  const radar = createEngine();
+  const satellite = createEngine(true, 'satellite');
+  const engine = radar;
   const { gl } = engine;
   const debug = gl.getExtension('WEBGL_debug_renderer_info');
   const report = {
@@ -127,31 +194,50 @@ export async function measure(cases, onProgress = () => {}) {
   try {
     report.flowFiltering = measureFlowFiltering(engine);
     check('flow-filtering:bilinear-warp', 'correctness', Math.max(...report.flowFiltering.map((s) => s.max)), 2);
+    report.deformationGuard = measureDeformationGuard(engine);
+    check('flow-filtering:deformation-fallback', 'correctness', Math.max(...report.deformationGuard.map((s) => s.max)), 2);
     for (const c of cases) {
       onProgress(c.label);
       // Yield so mobile Safari paints progress between cases.
       await new Promise((resolve) => { setTimeout(resolve, 0); }); // eslint-disable-line no-await-in-loop
-      loadEngine(engine, c);
+      const current = c.motionProfile === 'satellite' ? satellite : radar;
+      const started = performance.now();
+      loadEngine(current, c);
+      // Diagnostics only: include completed GPU work, not just command enqueue.
+      current.gl.finish();
+      const pairMilliseconds = (performance.now() - started) / (c.frames.length - 1);
       const { width, height } = c.frames[0];
-      const endpoints = c.frames.map((frame, i) => pixelError(pixels(render(engine, i, width, height)), pixels(frame)));
-      const before = pixels(engine.renderAt('0', '1', 1, width, height));
-      const after = pixels(engine.renderAt('1', '2', 0, width, height));
+      const endpoints = c.frames.map((frame, i) => pixelError(pixels(render(current, i, width, height)), pixels(frame)));
+      const before = pixels(current.renderAt('0', '1', 1, width, height));
+      const after = pixels(current.renderAt('1', '2', 0, width, height));
       const boundary = pixelError(before, after);
-      const result = { id: c.id, endpoints, boundary };
+      const result = {
+        id: c.id, motionProfile: current.motionProfile, pairMilliseconds, endpoints, boundary,
+      };
       check(`${c.id}:endpoints`, 'correctness', Math.max(...endpoints.map((e) => e.max)), 3);
       check(`${c.id}:pair-boundary`, 'correctness', boundary.max, 3);
-      if (c.displacement) {
-        try {
-          result.flow = flowError(vectors(engine, c), c.displacement);
+      try {
+        const field = measureField(current, c);
+        result.geometry = field.geometry;
+        if (c.displacement) {
+          result.flow = field.flow;
           check(`${c.id}:motion`, c.id === 'stationary' ? 'correctness' : 'quality', result.flow.meanVectorError, 0.5);
-        } catch (error) {
-          // Some mobile drivers cannot read float targets. Never call this a pass.
-          result.flowUnavailable = error.message;
+        }
+        if (c.motionProfile !== 'satellite') check(`${c.id}:folds`, 'quality', field.geometry.foldedCells, 0);
+      } catch (error) {
+        // Some mobile drivers cannot read float targets. Never call this a pass.
+        result.flowUnavailable = error.message;
+      }
+      if (!c.synthetic || c.id === 'stepped-4') {
+        result.cropped = measureCrops(current, c);
+        check(`${c.id}:cropped-endpoints`, 'correctness', Math.max(...result.cropped.flatMap((crop) => crop.endpoints.map((e) => e.max))), 3);
+        if (c.expected && c.motionProfile !== 'satellite') {
+          check(`${c.id}:cropped-motion`, 'quality', Math.max(...result.cropped.flatMap((crop) => crop.intermediate.map((e) => e.mean))), 1);
         }
       }
       if (c.expected) {
         result.intermediate = [0.25, 0.5, 0.75, 1.25, 1.5, 1.75].map((position) => ({
-          position, ...pixelError(pixels(render(engine, position, width, height)), pixels(c.expected(position))),
+          position, ...pixelError(pixels(render(current, position, width, height)), pixels(c.expected(position))),
         }));
         if (c.id === 'transparency' || c.id === 'stationary') {
           check(
@@ -162,12 +248,14 @@ export async function measure(cases, onProgress = () => {}) {
           );
         }
       }
-      if (gl.getError() !== gl.NO_ERROR) throw new Error(`WebGL rendering error: ${c.id}`);
+      if (current.gl.getError() !== current.gl.NO_ERROR) throw new Error(`WebGL rendering error: ${c.id}`);
       report.results.push(result);
     }
   } finally {
-    engine.dispose();
-    gl.getExtension('WEBGL_lose_context')?.loseContext();
+    for (const current of [radar, satellite]) {
+      current.dispose();
+      current.gl.getExtension('WEBGL_lose_context')?.loseContext();
+    }
   }
   report.summary = {
     correctnessFailures: report.checks.filter((c) => c.kind === 'correctness' && !c.passed).length,

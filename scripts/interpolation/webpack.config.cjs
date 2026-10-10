@@ -8,7 +8,7 @@ const CopyWebpackPlugin = require('copy-webpack-plugin');
 
 const root = path.resolve(__dirname, '../..');
 const hash = (file) => createHash('sha256').update(fs.readFileSync(path.join(root, file))).digest('hex');
-const sources = ['index.js', 'flowLK.js', 'warp.js', 'glUtils.js', 'capabilities.js']
+const sources = ['index.js', 'flowLK.js', 'flowRadar.js', 'warp.js', 'glUtils.js', 'capabilities.js']
   .map((name) => `src/animation/interpolation/${name}`);
 module.exports = {
   entry: path.join(__dirname, 'page.js'),

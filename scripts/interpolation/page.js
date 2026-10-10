@@ -1,7 +1,7 @@
 /* global DIAGNOSTIC_BUILD */
 import { loadCases } from './cases';
 import {
-  createEngine, loadEngine, measure, render,
+  createEngine, cropReference, loadEngine, measure, render,
 } from './engine';
 
 const $ = (id) => document.getElementById(id);
@@ -16,9 +16,7 @@ let lastPaint = 0;
 let report;
 
 function paint(target, image) {
-  const ratio = Math.min(1, 480 / Math.max(image.width, image.height));
-  const width = Math.round(image.width * ratio);
-  const height = Math.round(image.height * ratio);
+  const { width, height } = image;
   if (target.width !== width || target.height !== height) {
     target.width = width;
     target.height = height;
@@ -31,12 +29,14 @@ function paint(target, image) {
 function draw() {
   const last = current.frames.length - 1;
   const at = Math.min(position, last);
-  const ratio = Math.min(1, 480 / Math.max(current.frames[0].width, current.frames[0].height));
-  const w = Math.round(current.frames[0].width * ratio);
-  const h = Math.round(current.frames[0].height * ratio);
-  paint($('flow'), render(flow, at, w, h));
-  paint($('comparison'), render(comparison, at, w, h));
-  paint($('reference'), current.expected ? current.expected(at) : current.frames[Math.round(at)]);
+  const { width, height } = current.frames[0];
+  const w = Math.max(1, Math.min(960, Math.round($('flow').clientWidth)));
+  const h = Math.round((w * height) / width);
+  const half = 0.5 / Number($('zoom').value);
+  const extent = [(0.5 - half) * width, (0.5 - half) * height, (0.5 + half) * width, (0.5 + half) * height];
+  paint($('flow'), render(flow, at, w, h, extent));
+  paint($('comparison'), render(comparison, at, w, h, extent));
+  paint($('reference'), cropReference(current.expected ? current.expected(at) : current.frames[Math.round(at)], w, h, extent));
   $('position').value = at;
   $('position-value').textContent = `Kuva ${(at + 1).toFixed(2)} / ${current.frames.length}`;
 }
@@ -49,10 +49,16 @@ function stop() {
 function selectCase() {
   stop();
   current = cases.find((c) => c.id === $('case').value);
+  const profile = current.motionProfile || 'radar';
+  if (!flow || flow.motionProfile !== profile) {
+    if (flow) {
+      flow.dispose();
+      flow.gl.getExtension('WEBGL_lose_context')?.loseContext();
+    }
+    flow = createEngine(true, profile);
+  }
   loadEngine(flow, current);
-  comparison.setUseFlow($('comparison-mode').value === 'nearest');
   loadEngine(comparison, current);
-  $('comparison-title').textContent = $('comparison-mode').selectedOptions[0].textContent;
   position = 0;
   $('position').max = current.frames.length - 1;
   $('description').textContent = current.description;
@@ -98,6 +104,8 @@ function showReport(result) {
       r.flow ? r.flow.meanVectorError.toFixed(2) : '—',
       Math.max(...r.endpoints.map((e) => e.max)).toFixed(2),
       r.boundary.max.toFixed(2),
+      r.cropped ? Math.max(...r.cropped.flatMap((crop) => crop.endpoints.map((e) => e.max))).toFixed(2) : '—',
+      r.geometry ? r.geometry.foldedCells : '—',
       r.intermediate ? Math.max(...r.intermediate.map((e) => e.mean)).toFixed(2) : '—',
       status,
     ];
@@ -137,11 +145,7 @@ async function run() {
 
 async function main() {
   cases = await loadCases();
-  flow = createEngine();
-  comparison = createEngine();
-  // Diagnostic-only control: reproduce the previous texture sampling while
-  // keeping the same solver, input frames, warp and playback position.
-  comparison.flowFilter = comparison.gl.NEAREST;
+  comparison = createEngine(false);
   for (const c of cases) {
     const option = document.createElement('option');
     option.value = c.id;
@@ -149,7 +153,8 @@ async function main() {
     $('case').append(option);
   }
   $('case').addEventListener('change', selectCase);
-  $('comparison-mode').addEventListener('change', selectCase);
+  $('zoom').addEventListener('change', draw);
+  window.addEventListener('resize', () => { if (current) draw(); });
   $('play').addEventListener('click', () => {
     playing = !playing;
     previousTime = performance.now();
