@@ -177,9 +177,9 @@ expectCanonical('length-1 time axis is accepted', parseGridCoverage(grid({
 }
 
 {
-  const url = buildGridUrl('https://x/edr/collections/ecmwf-ifs/area', [19.5, 59, 32, 70.5], ['10v', '10u'], '2026-09-08T09:00:00+00:00');
+  const url = buildGridUrl('https://x/edr/collections/ecmwf-ifs-single/area', [19.5, 59, 32, 70.5], ['10v', '10u'], '2026-09-08T09:00:00+00:00');
   check('grid URL: sorted params, verbatim datetime, one-decimal polygon',
-    url === 'https://x/edr/collections/ecmwf-ifs/area?f=CoverageJSON&parameter-name=10u%2C10v'
+    url === 'https://x/edr/collections/ecmwf-ifs-single/area?f=CoverageJSON&parameter-name=10u%2C10v'
       + '&datetime=2026-09-08T09%3A00%3A00%2B00%3A00'
       + '&coords=POLYGON((19.5%2059.0%2C32.0%2059.0%2C32.0%2070.5%2C19.5%2070.5%2C19.5%2059.0))', url);
   // The polygon helper was extracted from buildAreaUrl — the observation and

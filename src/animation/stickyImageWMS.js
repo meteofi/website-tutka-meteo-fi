@@ -1,6 +1,7 @@
 import ImageWMS from 'ol/source/ImageWMS';
 import ImageState from 'ol/ImageState';
 import roundUrlBbox from '../wms/deterministicUrl';
+import { fitRequestResolution, getMapMaxSize } from '../wms/requestShape';
 
 // Shared frame-blob cache across ALL sources — and therefore all split panes.
 // The GetMap URL (`src`) is deterministic from the layer params plus the
@@ -147,13 +148,20 @@ export default class StickyImageWMS extends ImageWMS {
   // shaped resolution no matter who asks — the renderer passing the map's
   // devicePixelRatio must not create a differently-keyed wrapper than the
   // pool passing 1, or slot load events get filtered as stale.
-  _shaped(resolution) {
-    return this._shapeDpr !== 1 ? resolution / this._shapeDpr : resolution;
+  //
+  // The shaped resolution is then held to the server's per-side GetMap
+  // limit and the pixel ceiling for the extent actually requested
+  // (fitRequestResolution). The renderer can ask for the anchor extent at
+  // a resolution the anchor was not computed for; uncapped, that sent
+  // GetMaps of 15360×8640 and larger, which the server rejects.
+  _shaped(extent, resolution) {
+    const shaped = this._shapeDpr !== 1 ? resolution / this._shapeDpr : resolution;
+    return fitRequestResolution(extent, shaped, this.ratio_, getMapMaxSize(this.getUrl()));
   }
 
   getImage(extent, resolution, pixelRatio, projection) {
     const ext = this._anchorExtent || extent;
-    const image = super.getImage(ext, this._shaped(resolution), 1, projection);
+    const image = super.getImage(ext, this._shaped(ext, resolution), 1, projection);
     if (!image) return this._sticky || image;
     const state = image.getState();
     if (state === ImageState.LOADED) {
@@ -185,7 +193,7 @@ export default class StickyImageWMS extends ImageWMS {
   // during a drag/zoom gesture and create dozens of requests per pan.
   triggerLoad(extent, resolution, pixelRatio, projection) {
     const ext = this._anchorExtent || extent;
-    const image = super.getImage(ext, this._shaped(resolution), 1, projection);
+    const image = super.getImage(ext, this._shaped(ext, resolution), 1, projection);
     if (image && image.getState() === ImageState.IDLE) image.load();
   }
 
@@ -239,7 +247,7 @@ export default class StickyImageWMS extends ImageWMS {
   // load it later).
   hasLoadedImageForView(extent, resolution, pixelRatio, projection) {
     const ext = this._anchorExtent || extent;
-    const image = super.getImage(ext, this._shaped(resolution), 1, projection);
+    const image = super.getImage(ext, this._shaped(ext, resolution), 1, projection);
     return !!(image && image.getState() === ImageState.LOADED);
   }
 }
