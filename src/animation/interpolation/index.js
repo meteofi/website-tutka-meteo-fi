@@ -1,11 +1,5 @@
-// Client-side pyramidal Lucas-Kanade optical flow + motion-compensated
+// Client-side single-level Lucas-Kanade optical flow + motion-compensated
 // warp for radar animation interpolation.
-//
-// Phase 2 state: frame upload, canvas output, OpenLayers integration,
-// and the warp shader all work. Flow fields are zeroed RG16F textures
-// (no LK yet), so the visual effect is a straight crossfade — but the
-// whole GPU pipeline is exercised so Phase 3 only needs to swap in
-// real flow compute.
 //
 // Instance ownership: one RadarInterpolator per interpolating pool
 // (radar, satellite). Each owns its own WebGL2 context on an offscreen
@@ -90,15 +84,11 @@ export class RadarInterpolator {
     // RG16F flow texture to be renderable later.
     this.gl.getExtension('EXT_color_buffer_half_float');
     this.gl.getExtension('EXT_color_buffer_float');
-    // Linear filtering of half-float textures needs a separate
-    // extension. Without it, sampling RG16F with LINEAR returns
-    // either NEAREST (blocky) or black/NaN on various drivers
-    // (Android Mali, some iOS Safari versions). If the extension is
-    // unavailable, fall back to NEAREST sampling on flow textures —
-    // warp gets a blockier motion field but stays correct.
-    this.flowFilter = this.gl.getExtension('OES_texture_half_float_linear')
-      ? this.gl.LINEAR
-      : this.gl.NEAREST;
+    // RG16F linear filtering is core in WebGL2. The WebGL1 extension
+    // OES_texture_half_float_linear is no longer exposed here; probing
+    // it incorrectly selects NEAREST and makes motion jump at flow-grid
+    // cell edges. Rendering into RG16F still needs the extensions above.
+    this.flowFilter = this.gl.LINEAR;
 
     this.warp = new WarpRenderer(this.gl);
     this.flowLK = new FlowLK(this.gl, flowResolution);

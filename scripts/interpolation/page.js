@@ -7,7 +7,7 @@ import {
 const $ = (id) => document.getElementById(id);
 let cases;
 let flow;
-let crossfade;
+let comparison;
 let current;
 let playing = false;
 let position = 0;
@@ -35,7 +35,7 @@ function draw() {
   const w = Math.round(current.frames[0].width * ratio);
   const h = Math.round(current.frames[0].height * ratio);
   paint($('flow'), render(flow, at, w, h));
-  paint($('crossfade'), render(crossfade, at, w, h));
+  paint($('comparison'), render(comparison, at, w, h));
   paint($('reference'), current.expected ? current.expected(at) : current.frames[Math.round(at)]);
   $('position').value = at;
   $('position-value').textContent = `Kuva ${(at + 1).toFixed(2)} / ${current.frames.length}`;
@@ -50,7 +50,9 @@ function selectCase() {
   stop();
   current = cases.find((c) => c.id === $('case').value);
   loadEngine(flow, current);
-  loadEngine(crossfade, current);
+  comparison.setUseFlow($('comparison-mode').value === 'nearest');
+  loadEngine(comparison, current);
+  $('comparison-title').textContent = $('comparison-mode').selectedOptions[0].textContent;
   position = 0;
   $('position').max = current.frames.length - 1;
   $('description').textContent = current.description;
@@ -78,6 +80,8 @@ function showReport(result) {
   $('status').textContent = `Tarkistusten virheitä: ${summary.correctnessFailures}. `
     + `Laatutavoitteita avoinna: ${summary.qualityFailures}. Mittauksia puuttuu: ${summary.unavailableMeasurements}.`;
   $('environment').textContent = `${result.environment.flowFilter} · ${result.environment.renderer}`;
+  const filtering = result.checks.find((c) => c.id === 'flow-filtering:bilinear-warp');
+  $('filtering').textContent = `Virtauksen suodatus: ${filtering.passed ? 'OK' : 'VIRHE'} (kuvaero ${filtering.value.toFixed(2)} / ${filtering.limit}).`;
   $('results').replaceChildren();
   for (const r of result.results) {
     const row = document.createElement('tr');
@@ -134,7 +138,10 @@ async function run() {
 async function main() {
   cases = await loadCases();
   flow = createEngine();
-  crossfade = createEngine(false);
+  comparison = createEngine();
+  // Diagnostic-only control: reproduce the previous texture sampling while
+  // keeping the same solver, input frames, warp and playback position.
+  comparison.flowFilter = comparison.gl.NEAREST;
   for (const c of cases) {
     const option = document.createElement('option');
     option.value = c.id;
@@ -142,6 +149,7 @@ async function main() {
     $('case').append(option);
   }
   $('case').addEventListener('change', selectCase);
+  $('comparison-mode').addEventListener('change', selectCase);
   $('play').addEventListener('click', () => {
     playing = !playing;
     previousTime = performance.now();

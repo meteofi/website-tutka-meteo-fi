@@ -56,6 +56,53 @@ function vectors(engine, testCase) {
   }
 }
 
+// Exercise the production texture allocation and warp, independently of LK's
+// accuracy. Four flow quadrants meet at the center: their bilinear mean is 0.25
+// in each axis. At t=0.5 this samples the red/green ramp at UV (0.375, 0.375),
+// then blends it with opaque black: round((256 * 0.375 - 0.5) / 2) = 48.
+// NEAREST instead produces 32 or 64. Test both minification and magnification.
+function measureFlowFiltering(engine) {
+  const { gl } = engine;
+  const size = engine.flowResolution;
+  const ramp = document.createElement('canvas');
+  ramp.width = size;
+  ramp.height = size;
+  const ctx = ramp.getContext('2d');
+  const image = ctx.createImageData(size, size);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const i = 4 * (y * size + x);
+      image.data[i] = x;
+      image.data[i + 1] = size - 1 - y; // GL's Y axis points up.
+      image.data[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(image, 0, 0);
+  const black = document.createElement('canvas');
+  black.width = size;
+  black.height = size;
+  black.getContext('2d').fillRect(0, 0, size, size);
+  loadEngine(engine, { frames: [ramp, black, black] });
+  const data = new Float32Array(size * size * 2);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      data[2 * (y * size + x)] = x < size / 2 ? 0 : 0.5;
+      data[2 * (y * size + x) + 1] = y < size / 2 ? 0 : 0.5;
+    }
+  }
+  gl.bindTexture(gl.TEXTURE_2D, engine.flows.get('0|1').texture);
+  gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, size, size, gl.RG, gl.FLOAT, data);
+  const expected = new Uint8Array([48, 48, 0, 255]);
+  const samples = [3, size * 2 + 1].map((outputSize) => {
+    const rgba = pixels(render(engine, 0.5, outputSize, outputSize));
+    const center = 4 * (Math.floor(outputSize / 2) * outputSize + Math.floor(outputSize / 2));
+    const actual = rgba.slice(center, center + 4);
+    return { outputSize, rgba: Array.from(actual), ...pixelError(actual, expected) };
+  });
+  if (gl.getError() !== gl.NO_ERROR) throw new Error('WebGL error while measuring flow filtering');
+  return samples;
+}
+
 export async function measure(cases, onProgress = () => {}) {
   const engine = createEngine();
   const { gl } = engine;
@@ -78,6 +125,8 @@ export async function measure(cases, onProgress = () => {}) {
     id, kind, value, limit, passed: value <= limit,
   });
   try {
+    report.flowFiltering = measureFlowFiltering(engine);
+    check('flow-filtering:bilinear-warp', 'correctness', Math.max(...report.flowFiltering.map((s) => s.max)), 2);
     for (const c of cases) {
       onProgress(c.label);
       // Yield so mobile Safari paints progress between cases.

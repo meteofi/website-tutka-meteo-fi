@@ -50,12 +50,10 @@ export function createRgbaTexture(gl, width, height, source = null) {
 }
 
 // RG16F render-target storage for flow fields. `data` must be either
-// null (zero-filled, Phase 2) or a Uint16Array of half-floats. `filter`
-// controls min/mag filter — LINEAR is desirable for smooth flow
-// across the 256²→display upscale but requires
-// OES_texture_half_float_linear; callers on devices without that
-// extension should pass gl.NEAREST to avoid silent black/blocky
-// sampling.
+// null (zero-filled) or a Uint16Array of half-floats. `filter` controls
+// min/mag filtering; LINEAR is core for RG16F in WebGL2 and smoothly
+// interpolates motion between flow-grid cells. Color-buffer extensions
+// are separately required to render into this texture.
 export function createRg16fTexture(gl, width, height, data, filter) {
   const tex = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, tex);

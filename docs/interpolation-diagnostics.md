@@ -1,9 +1,10 @@
-# Interpolation diagnostics — phase 1
+# Interpolation diagnostics
 
-This phase establishes a repeatable baseline before changing optical flow.
+Phase 1 established a repeatable baseline before changing optical flow.
 The page imports `RadarInterpolator` and its production shaders directly;
-it does not contain a copied solver or a corrected rendering variant.
-No application rendering, caching, playback, or interpolation code changes.
+it does not contain a copied solver. Phase 2 enables linear filtering of the
+production RG16F flow textures. The comparison panel can reproduce the previous
+nearest-neighbor filtering, using the same solver and warp.
 
 ## Try the Firebase preview
 
@@ -16,7 +17,8 @@ precache. The normal radar application remains at `/`.
 On both desktop and phone:
 
 1. Select the Finnish default or FMI radar sequence and press **Toista**.
-   Compare **Optinen virtaus** with **Häivytys ilman liikettä**. The third image
+   Compare **Optinen virtaus (korjattu)** with **Aiempi optinen virtaus**.
+   **Vertailukuva** also offers **Häivytys ilman liikettä**. The third image
    is the nearest real observation; it is **not** ground truth between frames.
 2. Switch to the GOES infrared sequence. All three sequences contain consecutive
    observations and exercise the A→B / B→C boundary. The timeline can stop at
@@ -33,7 +35,7 @@ On both desktop and phone:
    fixture hashes, measurements, limits, and all failed targets. It stays local
    unless you choose to share the downloaded file.
 
-The phone layout keeps flow and crossfade side by side, with the reference below.
+The phone layout keeps the two renderers side by side, with the reference below.
 The preview scales display canvases to at most 480 pixels on the longest side;
 measurements render at each fixture's native size. This keeps viewing inexpensive
 without silently changing the measurement resolution.
@@ -95,6 +97,12 @@ retention may make it impossible to fetch the same historical time later.
 between the two ways of rendering shared frame B, and stationary-image stability.
 The visible colour/alpha tolerance is 3 on a 0–255 scale to allow canvas/half-float
 rounding. Stationary motion must have mean vector error ≤0.5 analysis pixels.
+An additional rendered check writes a known four-quadrant displacement field into
+the production flow texture and warps a red/green ramp toward opaque black. The
+center pixel must be `[48, 48, 0, 255]` within two levels for both a 3×3 output
+(minification) and 513×513 output (magnification). This checks actual bilinear
+sampling in both axes, not just the configured filter enum. The report includes
+these pixels under `flowFiltering`; a GL error fails the run.
 
 **Quality targets** require mean vector error ≤0.5 analysis pixels for known
 translations and visible colour/alpha error ≤3 for the transparency ramp. These
@@ -119,13 +127,55 @@ outer boundary; use the interior vector metric to assess motion independently
 of that boundary. Real consecutive images have no known intermediate truth and
 receive no motion-accuracy score.
 
-The recorded [software baseline](../scripts/interpolation/baseline.json) has
+The recorded [phase-one software baseline](../scripts/interpolation/baseline.json) has
 zero correctness failures, nine unmet quality targets, and no unavailable
 measurements. For a known horizontal shift of 4 analysis pixels, the median
 estimate is about 3.85 for the smooth synthetic cell, 0.70 for the stepped cell,
 0.37 for the default radar style, and 0.20 for the FMI style. The halfway
 transparency case has about 64 levels of visible red error. Results can vary
 slightly across GPUs; use the report's environment and hashes when comparing.
+
+## Phase 2: flow filtering
+
+`OES_texture_half_float_linear` functionality is
+[core in WebGL2](https://registry.khronos.org/webgl/specs/latest/2.0/#EXTENSIONS),
+and the WebGL1 extension is no longer exposed there. The former extension probe
+therefore selected NEAREST even though RG16F supports LINEAR. Production now uses
+LINEAR; color-buffer extension activation and renderability probes remain intact.
+This blends motion between neighboring analysis cells. It does not blur the
+source images or change the computed vectors.
+
+On Chrome 154 / SwiftShader, the new rendered regression failed before the fix:
+both output sizes produced `[32, 32, 0, 255]` (16 levels of error). After the fix,
+both produce the exact expected pixel. All 44 checks run: zero correctness
+failures, nine unmet quality targets, and no unavailable measurements. Raw motion
+measurements are identical before and after; the historical baseline is retained.
+
+Mean visible image error, averaged across the six intermediate positions:
+
+| Known 4-pixel translation | Before (NEAREST) | After (LINEAR) |
+| --- | ---: | ---: |
+| Default radar | 4.92836 | 4.92709 |
+| FMI radar | 4.46431 | 4.45954 |
+| GOES infrared | 4.08977 | 4.08081 |
+
+The improvement is small. The synthetic cases render at the analysis resolution,
+where texel centers already align, so their image metrics do not change. The
+dominant radar motion underestimation and transparency fade remain for later
+phases; this correction alone does not resolve the reported blur or pulsation.
+
+Validation also passed on Chrome's Apple M2 Max / Metal renderer (zero correctness
+failures, nine unmet targets, filtering pixel error zero). App playback was
+checked with flow enabled in one, two, and four panes without browser errors.
+The comparison controls were checked at a 390×844 viewport; this is a layout
+check, not a physical iPhone/Safari test.
+
+Window-edge trace: index 0 uses the first pair; t=0 samples its first source
+unchanged. The last index uses the previous pair at t=1, reproducing its second
+source without estimating flow back to the beginning. Non-default WMS styles
+still invalidate sticky images, and the resulting bitmap upload invalidates
+referencing flow textures; layer/URL/elevation changes also clear the flow cache.
+Both newly computed and zero-flow textures receive the selected filter.
 
 `npm test` verifies the measurement helpers against known errors and checks
 fixture hashes, PNG dimensions, URL identity, and consecutive timestamps. It
@@ -140,5 +190,5 @@ and adjacent-pair rendering. Its small playback controller is for inspection,
 not a reproduction of the application's RAF clock or FramePool. It does not
 validate loading races, pan/zoom, the full window's wrap, user layer opacity,
 2/4-pane integration, or Safari GPU performance. Those checks remain necessary
-when later phases modify the application. No flow filtering, alpha, solver,
-or clock fix is included in phase 1.
+when phases modify the application. Phase 2 changes flow filtering only; alpha,
+solver, and clock changes remain separate work.
