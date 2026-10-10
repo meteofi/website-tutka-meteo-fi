@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { pixelError, flowError } from './interpolation/metrics.mjs';
+import { pixelError, flowError, flowGeometry } from './interpolation/metrics.mjs';
 
 assert.deepEqual(pixelError([255, 0, 0, 0], [0, 255, 255, 0]), { mean: 0, max: 0 }, 'hidden RGB is irrelevant');
 assert.equal(pixelError([128, 0, 0, 128], [255, 0, 0, 128]).max, (127 * 128) / 255, 'detect quadratic darkening');
@@ -15,6 +15,13 @@ assert.equal(flowError([[4, 2]], [4, -2]).meanVectorError, 4, 'wrong vertical si
 assert.equal(flowError([[0, 0]], [4, 0]).meanVectorError, 4, 'zero flow is not success');
 assert.throws(() => flowError([[NaN, 0]], [0, 0]));
 assert.throws(() => flowError([], [0, 0]));
+
+const field = (vectors) => ({ width: 2, height: 2, data: vectors.flatMap(([x, y]) => [x / 2, y / 2, 0, 1]) });
+assert.equal(flowGeometry(field([[4, 2], [4, 2], [4, 2], [4, 2]])).foldedCells, 0, 'translation never folds');
+assert.equal(flowGeometry(field([[0, 0], [3, 0], [0, 0], [3, 0]])).foldedCells, 1, 'large horizontal expansion folds the opposite warp');
+assert.equal(flowGeometry(field([[0, 0], [0, 0], [0, -3], [0, -3]])).foldedCells, 1, 'detect vertical collapse');
+assert.equal(flowGeometry(field([[0, 0], [0, 0], [0, 0], [0, 3]])).foldedCells, 1, 'corner-only folding must not be missed by center sampling');
+assert.throws(() => flowGeometry(field([[NaN, 0], [0, 0], [0, 0], [0, 0]])));
 
 const root = new URL('./interpolation/fixtures/', import.meta.url);
 const manifest = JSON.parse(await readFile(new URL('manifest.json', root), 'utf8'));

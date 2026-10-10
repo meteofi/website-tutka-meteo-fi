@@ -47,6 +47,7 @@ function translated(id, label, image, displacement, synthetic = false) {
   };
   return {
     id,
+    motionProfile: id.startsWith('goes19') || id === 'satellite' ? 'satellite' : 'radar',
     label,
     frames: [frame(0), frame(1), frame(2)],
     expected: frame,
@@ -78,6 +79,7 @@ export async function loadCases() {
     ['satellite', 'Satelliitti — GOES-19 infrapuna', 'goes19'],
   ].map(([id, label, prefix]) => ({
     id,
+    motionProfile: id.startsWith('goes19') || id === 'satellite' ? 'satellite' : 'radar',
     label,
     frames: [0, 1, 2].map((i) => images.get(`${prefix}-${i}.png`)),
     times: [0, 1, 2].map((i) => manifest.frames.find((f) => f.file === `${prefix}-${i}.png`).time),
@@ -98,6 +100,11 @@ export async function loadCases() {
   for (const [prefix, label] of [['default', 'Tutka, oletus'], ['radar_fmi', 'Tutka, FMI'], ['goes19', 'Satelliitti']]) {
     cases.push(translated(`${prefix}-translated`, `${label} — tunnettu 4 px siirto`, images.get(`${prefix}-0.png`), [4, 0]));
   }
+  // Exercise the app's wide buffered-image shape and upload/downsampling cost.
+  // This is a resized fixture, not additional meteorological detail.
+  const wide = canvas(1920, 1080);
+  wide.getContext('2d').drawImage(images.get('default-0.png'), 0, 0, wide.width, wide.height);
+  cases.push(translated('radar-wide', 'Tutka — leveä 1920 × 1080 kuva, 4 px siirto', wide, [4, 0]));
   cases.push(translated('stationary', 'Tutka — paikallaan', images.get('default-0.png'), [0, 0]));
   const fade = (position) => {
     const c = canvas(ANALYSIS_SIZE);

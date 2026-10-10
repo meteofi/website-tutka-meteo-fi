@@ -119,8 +119,7 @@ export default class FlowLK {
   // Compute flow from A to B. Returns a fresh RG16F texture of
   // resolution² holding UV displacements. The caller owns the
   // returned texture and must gl.deleteTexture it when done.
-  // `filter` lets the caller downgrade to NEAREST when the device
-  // lacks OES_texture_half_float_linear.
+  // `filter` controls sampling of the result, not the LK solve.
   compute(texA, texB, filter) {
     const { gl } = this;
     const flowTex = createRg16fTexture(gl, this.resolution, this.resolution, null, filter);

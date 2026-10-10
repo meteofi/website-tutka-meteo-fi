@@ -1,42 +1,44 @@
-# Interpolation diagnostics — phase 1
+# Interpolation diagnostics
 
-This phase establishes a repeatable baseline before changing optical flow.
-The page imports `RadarInterpolator` and its production shaders directly;
-it does not contain a copied solver or a corrected rendering variant.
-No application rendering, caching, playback, or interpolation code changes.
+The page imports `RadarInterpolator` and its production shaders directly. It
+compares optical flow with a zero-motion crossfade and a reference image. Radar
+uses a filtered image pyramid, confidence-weighted refinement, and a deformation
+safeguard. Satellite retains its single-level solver. Both use linear flow
+filtering and premultiplied RGBA for transparent edges.
 
 ## Try the Firebase preview
 
 Open **`/diagnostics/interpolation/` on the PR's Firebase preview URL**.
-The Firebase and CI workflows build this page after the app on pull requests.
-It is absent from ordinary `npm run build` and production deployments. The
-diagnostic bundle has a content hash and is not added to the app's service-worker
-precache. The normal radar application remains at `/`.
+Firebase and CI build this page after the app on pull requests. It is absent
+from ordinary `npm run build` and production deployments. Its bundle has a
+content hash and is not in the app's service-worker precache. The normal app
+remains at `/`; `/?interp=flow` enables optical flow in the actual map.
 
 On both desktop and phone:
 
 1. Select the Finnish default or FMI radar sequence and press **Toista**.
-   Compare **Optinen virtaus** with **Häivytys ilman liikettä**. The third image
-   is the nearest real observation; it is **not** ground truth between frames.
-2. Switch to the GOES infrared sequence. All three sequences contain consecutive
-   observations and exercise the A→B / B→C boundary. The timeline can stop at
-   endpoints or fractional times. The last observation is held before restarting;
-   there is no flow estimate connecting the end back to the beginning.
-3. Try **Porrastettu solu — 4 px** and a radar **tunnettu 4 px siirto** case.
-   Here the third panel *is* known ground truth: the same source is translated
-   by a specified amount, without meteorological growth or decay.
+   Compare **Optinen virtaus (korjattu)** with **Häivytys ilman liikettä**.
+   The third image is the nearest real observation, **not** ground truth between
+   observations. This page no longer reproduces the old solver.
+2. Change **Suurennus** between the whole image and 2×/4× crops. Inspect uneven
+   rain/clear boundaries at the enlarged scale; the initial view is a 2× crop.
+3. Try **Porrastettu solu — 4 px**, a radar **tunnettu 4 px siirto** case, and
+   the **1920 × 1080** case. Here the third panel *is* known ground truth: a
+   specified translation without meteorological growth or decay.
 4. Try **Tutka — paikallaan** and **Läpinäkyvyys — häviäminen ja ilmestyminen**.
-   Change **Tausta** between dark, light, and black. In the transparency case,
-   the reference remains red as its opacity changes; the current renderer dims it.
-5. Press **Mittaa kaikki tapaukset**, then **Lataa tulokset (JSON)** to preserve
-   the device's results. The report includes browser/GPU information, source and
-   fixture hashes, measurements, limits, and all failed targets. It stays local
-   unless you choose to share the downloaded file.
+   Change **Tausta** between dark, light, and black. The transparency reference
+   stays red as coverage changes; the renderer should match that visible colour.
+5. Switch to GOES infrared to check satellite behavior. Natural sequences
+   exercise A→B / B→C. The timeline can stop at endpoints or fractional times.
+   The last observation is held before restarting; no flow connects end to start.
+6. Press **Mittaa kaikki tapaukset**, then **Lataa tulokset (JSON)**. Reports
+   include browser/GPU information, source/fixture hashes, measurements, limits,
+   and unmet targets. They stay local unless you share them.
 
-The phone layout keeps flow and crossfade side by side, with the reference below.
-The preview scales display canvases to at most 480 pixels on the longest side;
-measurements render at each fixture's native size. This keeps viewing inexpensive
-without silently changing the measurement resolution.
+On phones, both renderers stay side by side with the reference below. Display
+canvases follow their CSS width, capped at 960 pixels. Measurements independently
+use native fixture size plus 800-pixel-wide crops. Also test playback, zoom/pan,
+opacity, and 1/2/4 panes in the **actual map**.
 
 ## Local runs
 
@@ -50,95 +52,157 @@ npm run diagnose:interpolation -- --headless --software --output /tmp/interpolat
 npm run diagnose:interpolation -- --headless --software --strict
 ```
 
-`CHROME_BIN` can select a Chrome/Chromium executable. Headless runs use a fresh
-temporary profile, a loopback server, and a two-minute timeout; they close the
-browser and remove the profile after reporting. `--software` selects SwiftShader
-for repeatable software rendering. Those runs are **not mobile performance
-benchmarks**. GPU readback and pixel comparisons deliberately synchronize work.
+`CHROME_BIN` selects Chrome/Chromium. Headless runs use a fresh temporary profile,
+a loopback server, and a two-minute timeout, then close the browser and remove
+its profile. `--software` selects SwiftShader. These runs are **not mobile
+performance benchmarks**. `pairMilliseconds` reports average texture upload and
+completed GPU flow computation per pair, excluding fixture loading/decoding.
+Shader compilation, warmup, and other GPU work affect timing. Readbacks and
+`gl.finish()` are diagnostic-only.
 
-Without `--headless`, the command remains running until interrupted. To produce
-static files without starting a server:
+Without `--headless`, the server stays running until interrupted. For static
+files:
 
 ```sh
 npm run build
 npm run build:interpolation-diagnostics
 ```
 
-The order matters: the app build cleans `dist/`; the diagnostic build cleans
-only `dist/diagnostics/interpolation/`.
+Order matters: the app build cleans `dist/`; diagnostics clean only their own
+subdirectory.
 
 ## Fixtures and cases
 
-Nine original PNG responses, about 1 MB total, are checked in under
-`scripts/interpolation/fixtures/`. No requests to live weather services are made
-while running the diagnostics. `manifest.json` records each explicit WMS URL,
-timestamp, style, CRS, extent, size, SHA-256, and attribution.
+Nine original PNG responses, about 1 MB total, live under
+`scripts/interpolation/fixtures/`. Diagnostics make no live weather requests.
+`manifest.json` records explicit WMS URLs, timestamps, styles, CRS, extents,
+dimensions, SHA-256, and attribution.
 
 - Finnish composite: 2026-10-10 06:20, 06:25, 06:30 UTC, default and FMI styles,
   640×768, southern/central Finland. FMI, CC BY 4.0; served by MeteoCore.
 - GOES-19 10.3 μm infrared: 2026-10-10 06:00, 06:10, 06:20 UTC, grayscale style,
   640×640, eastern North America / western Atlantic. NOAA; served by MeteoCore.
-- Synthetic smooth and stepped cells: 1, 4, and 8 analysis-pixel translations;
-  a diagonal translation checks the vertical sign convention.
+- Smooth and stepped cells: 1, 4, and 8 analysis-pixel translations, plus a
+  diagonal translation checking the vertical sign convention.
 - Known 4-pixel translations of each real source, stationary radar, and a
   red→transparent→red sequence with a known opacity ramp.
+- A resized 1920×1080 radar source with known translation, exercising large
+  uploads, antialiasing, and rectangular flow grids. Resizing adds no weather
+  detail; this is a controlled case, not a new observation.
 
-These are 15 small cases, each with three images, not the application's 13-frame
-window. Keep existing fixture files immutable. A new snapshot should get new
-filenames and manifest entries so both comparisons and Firebase's immutable PNG
-cache remain meaningful. The original request URL documents provenance; upstream
-retention may make it impossible to fetch the same historical time later.
+These are 16 cases of three images each, not the app's 13-frame window. Keep
+fixtures immutable. New snapshots need new filenames and manifest entries so
+comparisons and Firebase's immutable PNG cache stay meaningful. Upstream
+retention may prevent fetching the historical request later.
 
 ## Measurements and interpretation
 
-**Correctness checks** require native-size endpoint reproduction, agreement
-between the two ways of rendering shared frame B, and stationary-image stability.
-The visible colour/alpha tolerance is 3 on a 0–255 scale to allow canvas/half-float
-rounding. Stationary motion must have mean vector error ≤0.5 analysis pixels.
+**Correctness checks** require endpoint reproduction at native size and in
+centered/offset half-image crops, agreement at shared frame B, and stationary
+image stability. Visible colour/alpha tolerance is 3 on a 0–255 scale for canvas
+rounding. Stationary mean vector error must be ≤0.5 analysis pixels.
+
+Two rendered regressions exercise the production warp independently of solver
+accuracy:
+
+- Four flow quadrants meet at the center of a red/green step. Their bilinear
+  mean is 0.25 analysis pixels in each axis. Halfway to opaque black, the center
+  must be `[48, 48, 0, 255]` within two levels at both 3×3 and 513×513 output.
+  Nearest-neighbor flow sampling instead gives 32 or 64 in red/green.
+- An intentionally corrupted field has a displacement gradient far above 1.
+  Its center must match the unwarped fade at quarter, half, and three-quarter
+  times in whole-image, 2×, and 4× views. This checks deformation protection
+  in source coordinates as the map magnifies the image.
+
+Reports store these under `flowFiltering` and `deformationGuard`. GL errors fail
+the run.
 
 **Quality targets** require mean vector error ≤0.5 analysis pixels for known
-translations and visible colour/alpha error ≤3 for the transparency ramp. These
-are initial improvement targets, not assertions that the current algorithm meets
-them. The default command fails on correctness failures, missing measurements,
-or browser/GL errors. `--strict` also fails on unmet quality targets. Never tighten
-tests around the current incorrect flow numbers to make a future fix fail.
+translations, visible colour/alpha error ≤3 for transparency, and mean image
+error ≤1 for known radar motion in enlarged crops. Radar fields also target
+zero folded cells. Unmet targets stay visible. The default command fails on
+correctness failures, unavailable measurements, or browser/GL errors;
+`--strict` additionally fails on unmet quality targets.
 
-Flow comes from the actual RG16F texture. Components are converted from UV to
-256×256 analysis pixels, with +x right and +y **down**. For real textures, sampling
-excludes an eight-analysis-pixel border and source alpha below 20/255. Synthetic
-cells are sampled within radius 19 of their initial centre. The report records
-median components, mean Euclidean vector error, zero-flow fraction, and sample
-count. A driver that cannot read the float target reports the measurement as
-unavailable, never as zero motion or a successful test.
+Motion comes from the actual half-float texture. Radar preserves source aspect
+ratio with a longest grid side of 256; satellite keeps a 256×256 grid. To compare
+with the baseline, UV components are converted to a **normalized 256×256 analysis
+grid**, +x right and +y down. Samples exclude an eight-cell border and source
+alpha below 20/255; synthetic cells use radius 19 around their initial center.
+Reports include median components, mean vector error, zero-flow fraction, and
+sample count. Failed float readback is unavailable, never zero motion or a pass.
+
+Geometry uses the field's own dimensions. At each bilinear cell's corners it
+checks the determinant of the warped coordinate gradient at eight fractions
+spanning both sampling directions, including interval limits. `foldedCells`
+counts raw cells with non-positive determinants; `maxNeighborJump` is in that
+field's pixels. This is **before the rendering safeguard**, exposing unstable
+estimates even when the renderer suppresses their warp. The safeguard uses a
+conservative gradient bound, blending toward a crossfade between 0.75 and 1,
+fully selecting it above 1. It blends images rather than scaling vectors,
+avoiding a new displacement discontinuity at the transition.
 
 Image errors compare **premultiplied visible RGB and alpha**, ignoring hidden
-RGB in fully transparent pixels. Both the mean over channels/pixels and maximum
-channel error are recorded. Known intermediate images are sampled at quarters of
-both frame pairs. These full-image differences include the translated image's
-outer boundary; use the interior vector metric to assess motion independently
-of that boundary. Real consecutive images have no known intermediate truth and
-receive no motion-accuracy score.
+colour in transparent pixels. Both mean and maximum error are recorded. Known
+intermediates are sampled at quarters of both pairs. Full-image errors include
+outer boundaries; interior vector metrics isolate motion from them. Real
+observations have no known intermediate truth and no motion-accuracy score.
 
-The recorded [software baseline](../scripts/interpolation/baseline.json) has
-zero correctness failures, nine unmet quality targets, and no unavailable
-measurements. For a known horizontal shift of 4 analysis pixels, the median
-estimate is about 3.85 for the smooth synthetic cell, 0.70 for the stepped cell,
-0.37 for the default radar style, and 0.20 for the FMI style. The halfway
-transparency case has about 64 levels of visible red error. Results can vary
-slightly across GPUs; use the report's environment and hashes when comparing.
+## Changes and recorded results
 
-`npm test` verifies the measurement helpers against known errors and checks
-fixture hashes, PNG dimensions, URL identity, and consecutive timestamps. It
-does not pretend to run WebGL in Node. The real browser suite is the separate
-`diagnose:interpolation` command. CI runs the Node tests and builds the preview;
-GPU measurements remain explicit.
+The immutable [phase-one baseline](../scripts/interpolation/baseline.json) has
+zero correctness failures and nine unmet quality targets. For a known four-pixel
+shift, medians were about 3.85 (smooth cell), 0.70 (stepped cell), 0.37 (default
+radar), and 0.20 (FMI radar). Halfway transparency lost about 64 visible-red levels.
 
-## Scope of this baseline
+The original filtering fix remains: `OES_texture_half_float_linear` is
+[core functionality in WebGL2](https://registry.khronos.org/webgl/specs/latest/2.0/#EXTENSIONS),
+so the obsolete WebGL1 extension probe incorrectly selected NEAREST. Half-float
+flow now uses LINEAR; color-buffer extension activation and renderability checks
+remain. Filtering alone barely improved radar image error because motion
+estimation and alpha handling still dominated.
 
-The harness exercises production texture upload, flow computation, warping,
-and adjacent-pair rendering. Its small playback controller is for inspection,
-not a reproduction of the application's RAF clock or FramePool. It does not
-validate loading races, pan/zoom, the full window's wrap, user layer opacity,
-2/4-pane integration, or Safari GPU performance. Those checks remain necessary
-when later phases modify the application. No flow filtering, alpha, solver,
-or clock fix is included in phase 1.
+Radar now uses prefiltered, aspect-preserving images, up to four pyramid levels,
+four refinements per level, conditioned local solves, confidence-weighted outlier
+handling, and final velocity smoothing. That smoothing does not blur source
+colours. Premultiplied upload, sampling, blending, and canvas output avoid
+multiply-darkened transparent boundaries. Excessive deformation falls back to a
+fade. Satellite keeps its existing solver; common alpha corrections also apply
+to its transparent boundaries.
+
+Chrome 154 on Apple M2 Max / Metal and SwiftShader both report zero correctness
+failures and no unavailable measurements across 78 checks. All known radar
+motion and transparency targets pass. Four-pixel radar translations have mean
+vector error about 0.03–0.04; the wide case is about 0.02. Cropped endpoints stay
+within two visible colour/alpha levels. Two quality targets remain open:
+
+- Natural default radar has 14–15 raw folded cells out of 12,354 measured cells,
+  before the rendering safeguard. FMI has zero.
+- The unchanged satellite solver still misses the known large translation
+  (mean vector error about 3.56).
+
+Values vary by GPU; compare environments and hashes. The raw-field target stays
+open rather than being relaxed around today's result; the rendered safeguard is
+checked separately. Rain growth/decay and pair-to-pair velocity changes can still
+produce fading. These tests do not establish meteorological truth between frames.
+
+Window-edge trace: index 0 uses the first pair at t=0; the last index uses the
+previous pair at t=1. Both warped and fallback paths reproduce those endpoints,
+without estimating flow back to the start. Non-default WMS styles still
+invalidate sticky images; replacement uploads invalidate referencing flows.
+Layer/URL/elevation changes also clear flow caches. FramePool, opacity ownership,
+and playback clock behavior are unchanged.
+
+`npm test` validates measurement helpers (including horizontal, vertical, and
+corner-only folds), fixture hashes, PNG dimensions, URL identity, and consecutive
+timestamps. It does not run WebGL in Node. CI runs these tests and builds the
+preview; GPU measurements remain explicit.
+
+## Scope
+
+The harness covers production upload, flow computation, warping, enlarged crops,
+and adjacent pairs. Its small controller does not reproduce the app's RAF clock
+or FramePool. Loading races, pan/zoom integration, full-window wrap, layer opacity,
+2/4 panes, and Safari performance require the actual app. Desktop Chrome and a
+narrow viewport do not substitute for a physical iPhone test; use Firebase on
+the target devices before merging.
