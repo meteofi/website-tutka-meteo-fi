@@ -1,0 +1,173 @@
+{
+  "description": "Fixed WMS snapshots for optical-flow diagnostics. Original PNG responses, no image editing.",
+  "captured": "2026-10-10",
+  "sources": [
+    {
+      "layer": "fmi-radar-composite-dbz",
+      "attribution": "Tutka \u00a9 FMI (CC BY 4.0)",
+      "license": "https://creativecommons.org/licenses/by/4.0/",
+      "service": "https://meteocore.app.meteo.fi/wms"
+    },
+    {
+      "layer": "goes19-fd/ir_10_3",
+      "attribution": "GOES-19 infrared: NOAA, served by MeteoCore",
+      "license": "https://www.noaa.gov/information-technology/open-data-dissemination",
+      "service": "https://meteocore.app.meteo.fi/wms"
+    }
+  ],
+  "frames": [
+    {
+      "file": "default-0.png",
+      "sha256": "920f919bb5acf689ef8442111534320652d9e2fa7e046028049766c12c6e20aa",
+      "url": "https://meteocore.app.meteo.fi/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=fmi-radar-composite-dbz&STYLES=default&FORMAT=image%2Fpng&TRANSPARENT=TRUE&CRS=EPSG%3A3857&BBOX=2226389.816%2C8180386.886%2C3562223.705%2C10156058.723&WIDTH=640&HEIGHT=768&TIME=2026-10-10T06%3A20%3A00%2B00%3A00",
+      "time": "2026-10-10T06:20:00+00:00",
+      "layer": "fmi-radar-composite-dbz",
+      "style": "default",
+      "width": 640,
+      "height": 768,
+      "crs": "EPSG:3857",
+      "bbox": [
+        2226389.816,
+        8180386.886,
+        3562223.705,
+        10156058.723
+      ]
+    },
+    {
+      "file": "default-1.png",
+      "sha256": "a5dbc38addf566afda2b937f1def4c6f0fde5b8cb5b991f8f3ba87cbe28e723e",
+      "url": "https://meteocore.app.meteo.fi/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=fmi-radar-composite-dbz&STYLES=default&FORMAT=image%2Fpng&TRANSPARENT=TRUE&CRS=EPSG%3A3857&BBOX=2226389.816%2C8180386.886%2C3562223.705%2C10156058.723&WIDTH=640&HEIGHT=768&TIME=2026-10-10T06%3A25%3A00%2B00%3A00",
+      "time": "2026-10-10T06:25:00+00:00",
+      "layer": "fmi-radar-composite-dbz",
+      "style": "default",
+      "width": 640,
+      "height": 768,
+      "crs": "EPSG:3857",
+      "bbox": [
+        2226389.816,
+        8180386.886,
+        3562223.705,
+        10156058.723
+      ]
+    },
+    {
+      "file": "radar_fmi-0.png",
+      "sha256": "1356e5454a0a2d64b820bdd68e77d4de1f61bfc57d658a8781ec34d94a03f61f",
+      "url": "https://meteocore.app.meteo.fi/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=fmi-radar-composite-dbz&STYLES=radar_fmi&FORMAT=image%2Fpng&TRANSPARENT=TRUE&CRS=EPSG%3A3857&BBOX=2226389.816%2C8180386.886%2C3562223.705%2C10156058.723&WIDTH=640&HEIGHT=768&TIME=2026-10-10T06%3A20%3A00%2B00%3A00",
+      "time": "2026-10-10T06:20:00+00:00",
+      "layer": "fmi-radar-composite-dbz",
+      "style": "radar_fmi",
+      "width": 640,
+      "height": 768,
+      "crs": "EPSG:3857",
+      "bbox": [
+        2226389.816,
+        8180386.886,
+        3562223.705,
+        10156058.723
+      ]
+    },
+    {
+      "file": "radar_fmi-1.png",
+      "sha256": "1e2a9f3fcbe0b3268f1b6ce4644802c90a5f1ff6d81aa53462b60270707b09b3",
+      "url": "https://meteocore.app.meteo.fi/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=fmi-radar-composite-dbz&STYLES=radar_fmi&FORMAT=image%2Fpng&TRANSPARENT=TRUE&CRS=EPSG%3A3857&BBOX=2226389.816%2C8180386.886%2C3562223.705%2C10156058.723&WIDTH=640&HEIGHT=768&TIME=2026-10-10T06%3A25%3A00%2B00%3A00",
+      "time": "2026-10-10T06:25:00+00:00",
+      "layer": "fmi-radar-composite-dbz",
+      "style": "radar_fmi",
+      "width": 640,
+      "height": 768,
+      "crs": "EPSG:3857",
+      "bbox": [
+        2226389.816,
+        8180386.886,
+        3562223.705,
+        10156058.723
+      ]
+    },
+    {
+      "file": "default-2.png",
+      "sha256": "0323d7bf7e6711097b7afc06a9bc31279ad3ba2ba3c1de92cd58f0ee19112448",
+      "url": "https://meteocore.app.meteo.fi/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=fmi-radar-composite-dbz&STYLES=default&FORMAT=image%2Fpng&TRANSPARENT=TRUE&CRS=EPSG%3A3857&BBOX=2226389.816%2C8180386.886%2C3562223.705%2C10156058.723&WIDTH=640&HEIGHT=768&TIME=2026-10-10T06%3A30%3A00%2B00%3A00",
+      "time": "2026-10-10T06:30:00+00:00",
+      "layer": "fmi-radar-composite-dbz",
+      "style": "default",
+      "width": 640,
+      "height": 768,
+      "crs": "EPSG:3857",
+      "bbox": [
+        2226389.816,
+        8180386.886,
+        3562223.705,
+        10156058.723
+      ]
+    },
+    {
+      "file": "radar_fmi-2.png",
+      "sha256": "6923dda6fac2739d1570fae9c61afbcae22278a779cb1ddc31d38ffbf200f12f",
+      "url": "https://meteocore.app.meteo.fi/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=fmi-radar-composite-dbz&STYLES=radar_fmi&FORMAT=image%2Fpng&TRANSPARENT=TRUE&CRS=EPSG%3A3857&BBOX=2226389.816%2C8180386.886%2C3562223.705%2C10156058.723&WIDTH=640&HEIGHT=768&TIME=2026-10-10T06%3A30%3A00%2B00%3A00",
+      "time": "2026-10-10T06:30:00+00:00",
+      "layer": "fmi-radar-composite-dbz",
+      "style": "radar_fmi",
+      "width": 640,
+      "height": 768,
+      "crs": "EPSG:3857",
+      "bbox": [
+        2226389.816,
+        8180386.886,
+        3562223.705,
+        10156058.723
+      ]
+    },
+    {
+      "file": "goes19-0.png",
+      "sha256": "2e905a7e0e574f813db91786f3f2417ed866677e516e8f93b09148a69a13f5ae",
+      "url": "https://meteocore.app.meteo.fi/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=goes19-fd%2Fir_10_3&STYLES=ir-grey&FORMAT=image%2Fpng&TRANSPARENT=TRUE&CRS=EPSG%3A3857&BBOX=-10575351.625%2C2273030.927%2C-7235766.902%2C5621521.486&WIDTH=640&HEIGHT=640&TIME=2026-10-10T06%3A00%3A00%2B00%3A00",
+      "time": "2026-10-10T06:00:00+00:00",
+      "layer": "goes19-fd/ir_10_3",
+      "style": "ir-grey",
+      "width": 640,
+      "height": 640,
+      "crs": "EPSG:3857",
+      "bbox": [
+        -10575351.625,
+        2273030.927,
+        -7235766.902,
+        5621521.486
+      ]
+    },
+    {
+      "file": "goes19-1.png",
+      "sha256": "28df0537c50e27aeae37d6d862fcf5a838b9fa1768c31647982ddda248e9e651",
+      "url": "https://meteocore.app.meteo.fi/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=goes19-fd%2Fir_10_3&STYLES=ir-grey&FORMAT=image%2Fpng&TRANSPARENT=TRUE&CRS=EPSG%3A3857&BBOX=-10575351.625%2C2273030.927%2C-7235766.902%2C5621521.486&WIDTH=640&HEIGHT=640&TIME=2026-10-10T06%3A10%3A00%2B00%3A00",
+      "time": "2026-10-10T06:10:00+00:00",
+      "layer": "goes19-fd/ir_10_3",
+      "style": "ir-grey",
+      "width": 640,
+      "height": 640,
+      "crs": "EPSG:3857",
+      "bbox": [
+        -10575351.625,
+        2273030.927,
+        -7235766.902,
+        5621521.486
+      ]
+    },
+    {
+      "file": "goes19-2.png",
+      "sha256": "ccd5434c4217a67cba4f0bb48c287fd2b1ad676c8a89286266ff5281f3fdef12",
+      "url": "https://meteocore.app.meteo.fi/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=goes19-fd%2Fir_10_3&STYLES=ir-grey&FORMAT=image%2Fpng&TRANSPARENT=TRUE&CRS=EPSG%3A3857&BBOX=-10575351.625%2C2273030.927%2C-7235766.902%2C5621521.486&WIDTH=640&HEIGHT=640&TIME=2026-10-10T06%3A20%3A00%2B00%3A00",
+      "time": "2026-10-10T06:20:00+00:00",
+      "layer": "goes19-fd/ir_10_3",
+      "style": "ir-grey",
+      "width": 640,
+      "height": 640,
+      "crs": "EPSG:3857",
+      "bbox": [
+        -10575351.625,
+        2273030.927,
+        -7235766.902,
+        5621521.486
+      ]
+    }
+  ]
+}

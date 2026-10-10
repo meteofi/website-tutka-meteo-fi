@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="fi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Interpoloinnin vertailu — Tutka</title>
+  <style>
+    :root { color-scheme: light dark; font: 15px/1.5 system-ui, sans-serif; }
+    body { margin: 0 auto; max-width: 1200px; padding: 20px; }
+    h1 { font-size: 1.7rem; margin-bottom: 4px; } h2 { font-size: 1rem; }
+    .intro { max-width: 78ch; margin-top: 4px; }
+    fieldset { border: 0; padding: 0; margin: 20px 0; }
+    .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+    label { display: flex; flex-direction: column; gap: 4px; }
+    button, select { font: inherit; padding: 9px 12px; min-height: 44px; max-width: 100%; }
+    select { min-width: 140px; } .case { flex: 1; min-width: min(100%, 280px); }
+    .timeline { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
+    .timeline label { flex: 1; } input[type=range] { width: 100%; min-height: 32px; }
+    output { white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .comparison { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    figure { margin: 0; } figcaption { font-weight: 600; margin-bottom: 8px; }
+    .image { background: #15212b; border: 1px solid #75838c; }
+    canvas { display: block; width: 100%; height: auto; }
+    #times, footer, #environment { font-size: .85rem; overflow-wrap: anywhere; }
+    #description { margin-bottom: 4px; } #times { margin-top: 0; }
+    .scroll { overflow-x: auto; } table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    th, td { border-bottom: 1px solid #75838c; padding: 8px; text-align: left; }
+    td:not(:first-child) { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 24px; }
+    footer { margin-top: 28px; } a { color: inherit; }
+    @media (max-width: 700px) {
+      body { padding: 12px; } .comparison { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+      figure:last-child { width: 65%; grid-column: 1 / -1; justify-self: center; }
+      figcaption { font-size: .9rem; min-height: 3em; } .timeline { flex-wrap: wrap; }
+    }
+  </style>
+</head>
+<body>
+  <h1>Interpoloinnin vertailu</h1>
+  <p class="intro">Vaihe 1: nykyisen toiminnan vertailuaineisto. Kuvankäsittelyä ei ole vielä korjattu.
+    Aineisto on tallennettu 10.10.2026, joten eri laitteet näyttävät samat kuvat.</p>
+  <fieldset id="controls" disabled>
+    <div class="controls">
+      <label class="case">Tapaus<select id="case"></select></label>
+      <label>Askeleen kesto<select id="duration"><option value="0.5">0,5 s (normaali)</option><option value="1" selected>1 s</option><option value="2">2 s</option></select></label>
+      <label>Tausta<select id="background"><option value="#15212b">Tumma</option><option value="#eef4f7">Vaalea</option><option value="#000000">Musta</option></select></label>
+    </div>
+    <div class="timeline"><button id="play" type="button">Toista</button><label>Aikajana<input id="position" type="range" min="0" max="2" step="0.005" value="0"></label><output id="position-value"></output></div>
+  </fieldset>
+  <p id="description"></p><p id="times"></p>
+  <div class="comparison">
+    <figure><figcaption>Optinen virtaus (nykyinen)</figcaption><div class="image"><canvas id="flow"></canvas></div></figure>
+    <figure><figcaption>Häivytys ilman liikettä</figcaption><div class="image"><canvas id="crossfade"></canvas></div></figure>
+    <figure><figcaption id="reference-title">Lähin havainto</figcaption><div class="image"><canvas id="reference"></canvas></div></figure>
+  </div>
+  <div class="actions"><button id="run" disabled>Mittaa kaikki tapaukset</button><button id="download" disabled>Lataa tulokset (JSON)</button></div>
+  <p id="status" role="status">Ladataan vertailuaineistoa…</p><p id="environment"></p>
+  <p>Liike ja liikevirhe ovat 256 × 256 -analyysiruudukon pikseleitä. Kuvaero mittaa näkyvää väriä ja peittävyyttä (0–255).
+    Oikeaa välikuvaa ei tunneta havaintopareille. Niiden liikkeelle ei anneta onnistumisarviota.
+    Laatupuutteet näkyvät tuloksissa; ne ovat myöhempien vaiheiden korjauskohteita.</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Tapaus</th><th>Liike x, y</th><th>Liikevirhe</th><th>Päätekuvan ero</th><th>Parinvaihdon ero</th><th>Välikuvan ero (ka.)</th><th>Tulos</th></tr></thead>
+    <tbody id="results"></tbody>
+  </table></div>
+  <footer>
+    <p>Tutka © FMI (<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>).
+      GOES-19 infrapuna: NOAA. Kuvapalvelu: MeteoCore.
+      <a href="fixtures/manifest.json">Aineiston ajat, rajaukset ja alkuperä</a> · <span id="build"></span></p>
+    <p>Vertailu ajaa tuotannon interpolointimoduulia. Kartan latausjono, toistokello ja moniruutunäkymä eivät kuulu tähän mittaukseen.</p>
+    <a href="/">Avaa tutkakartta</a>
+  </footer>
+</body>
+</html>

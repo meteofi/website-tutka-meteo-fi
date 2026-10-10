@@ -24,6 +24,10 @@ jobs:
         env:
           NODE_ENV: production
 
+      - name: Build interpolation diagnostics for preview
+        if: github.event_name == 'pull_request'
+        run: npm run build:interpolation-diagnostics
+
       # Deploy preview on PR (dev project).
       #
       # Skipped for Dependabot: GitHub withholds repository secrets from
