@@ -66,6 +66,7 @@ import initServerStatus from './ui/serverStatus';
 import createLayerPanel from './ui/layerPanel';
 import initSearchHighlight from './search/searchHighlight';
 import FramePool from './animation/framePool';
+import playbackPhase from './animation/playbackPhase';
 import { setGetMapLimits } from './wms/requestShape';
 import { canInterpolate, RadarInterpolator } from './animation/interpolation';
 import {
@@ -1569,20 +1570,9 @@ function anyPoolZooming() {
   return false;
 }
 
-// Playback loop. Split into two cadences so interpolation can layer on
-// top cleanly in later phases:
-//   - Advance (slow): bump the discrete timestep by a full frame when
-//     wall-clock elapsed exceeds stepDuration. This is today's setTime
-//     call. stepDuration is read from options.frameRate on every tick
-//     so the speed button takes effect without restart.
-//   - Render (fast): every RAF, ask each visible pool to render at the
-//     current fractional `t` between the last advance and the next.
-//     Phase 1's showInterpolated is a no-op, so playback is visually
-//     identical to the previous setInterval-based loop.
-//
-// isInteracting gates both cadences — OL won't redraw during pan/zoom
-// and advancing the clock while the image is frozen would desync the
-// timeline from what's on screen.
+// One clock owns the discrete observations and fractional warp. Advance and
+// paint the new pair together; leaving its old warp visible for another RAF
+// creates a repeated hesitation at every observation boundary.
 const renderTick = function (now) {
   animationId = window.requestAnimationFrame(renderTick);
   // Skip both advance and warp render while the user is mid-drag,
@@ -1595,27 +1585,21 @@ const renderTick = function (now) {
   // _prefetchAroundCurrent → 3-6 WMS fetches per visible pool.
   if (isInteracting || map.getView().getAnimating() || anyPoolZooming()) return;
 
-  const stepDuration = 1000 / options.frameRate;
-  if (now - lastAdvance >= stepDuration) {
-    lastAdvance = now;
-    setTime();
-    return;
-  }
+  const phase = playbackPhase(now, lastAdvance, 1000 / options.frameRate);
+  lastAdvance = phase.startedAt;
+  if (phase.advance) setTime();
 
-  // Throttle warp updates to ~30 Hz. Crossfade is visually smooth
-  // at 30 fps and halves the number of full OL renders we trigger
-  // (each showInterpolated call bumps the warp source's revision,
-  // which schedules an OL layer re-render).
-  if (now - lastWarpTick < 33) return;
+  // Keep the ~30 Hz render budget between boundaries. A new observation must
+  // bypass the throttle so the timeline and rendered pair change together.
+  if (!phase.advance && now - lastWarpTick < 33) return;
   lastWarpTick = now;
 
-  const t = (now - lastAdvance) / stepDuration;
   for (const pane of activePanes()) {
     for (const name of Object.keys(pane.framePools)) {
       if (!pane.VISIBLE.has(name)) continue; // eslint-disable-line no-continue
       if (pane.LAYER_IN_RANGE[name] === false) continue; // eslint-disable-line no-continue
       const pool = pane.framePools[name];
-      if (pool) pool.showInterpolated(t);
+      if (pool) pool.showInterpolated(phase.t);
     }
   }
 };

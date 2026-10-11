@@ -198,6 +198,40 @@ corner-only folds), fixture hashes, PNG dimensions, URL identity, and consecutiv
 timestamps. It does not run WebGL in Node. CI runs these tests and builds the
 preview; GPU measurements remain explicit.
 
+## Playback boundary timing
+
+The app's RAF loop previously advanced the observation and returned before
+updating the warp. The timeline could move to B while the screen still held the
+end of A→B until a later RAF. Resetting the clock to that callback's timestamp
+also discarded short overruns, so repeated late callbacks slowed playback.
+
+`playbackPhase` now preserves that remainder, and the RAF paints the new pair
+in the same tick as `setTime`, bypassing the normal 33 ms throttle at boundaries.
+The shared clock stays in radar.js. If at least two observation-step durations
+have elapsed (for example after tab suspension), it advances only once and
+restarts at that observation rather than catching up through many frame changes.
+
+`scripts/test-playback.mjs` evaluates the actual app clock/control functions and
+FramePool's pair selection with mocked scheduling and output. The boundary test
+fails on the former early-return path: its last draw remains at 480 ms instead
+of updating at 500 ms. Simulated 60/120/144 Hz displays at every playback speed
+now stay within their normal 33–35 ms drawing interval, including boundaries;
+the former loop could stretch an interval to 50 ms. Non-aligned start times also
+check that fractional position follows elapsed time without accumulating drift.
+These are deterministic scheduling checks, not measurements of GPU frame rate.
+
+The regression covers 1/2/4 panes, interaction gates, a long suspension, missing
+flow, opacity restoration, discrete stepping, and first/last frames. The last
+observation still holds the previous pair at t=1; wrapping paints the first pair
+without estimating motion from the last observation to the first. Non-default
+style/elevation parameters remain attached to their sources.
+
+Test this change in the **actual radar app**: the recorded comparison page has
+its own playback controller and does not exercise the app's RAF loop. Check all
+three speed settings, pause/step/resume, zoom/pan, and pane changes. Motion fields
+and shaders are unchanged, so this corrects timing hesitations rather than
+removing genuine rain growth/decay or changes in estimated velocity between pairs.
+
 ## Scope
 
 The harness covers production upload, flow computation, warping, enlarged crops,
