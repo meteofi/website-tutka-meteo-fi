@@ -4,6 +4,7 @@ import { RadarInterpolator } from '../../src/animation/interpolation';
 import { ANALYSIS_SIZE, canvas, pixels } from './cases';
 import { flowError, flowGeometry, pixelError } from './metrics.mjs';
 import { measureEdgeVelocities, measureTrajectoryContracts, measureRenderCost } from './trajectoryMeasurements';
+import measureDisplaySampling from './displayMeasurements';
 
 export function createEngine(useFlow = true, motionProfile = 'radar') {
   return new RadarInterpolator({ useFlow, flowResolution: ANALYSIS_SIZE, motionProfile });
@@ -214,6 +215,7 @@ export async function measure(cases, onProgress = () => {}) {
     report.deformationGuard = measureDeformationGuard(engine);
     check('flow-filtering:deformation-fallback', 'correctness', Math.max(...report.deformationGuard.map((s) => s.max)), 2);
     report.trajectoryContracts = measureTrajectoryContracts(engine, cases.find((c) => c.id === 'turning-motion'), loadEngine, render, check);
+    report.displaySampling = measureDisplaySampling(engine, cases.find((c) => c.id === 'default-translated'), loadEngine, render, cropReference, check);
     for (const c of cases) {
       onProgress(c.label);
       // Yield so mobile Safari paints progress between cases.

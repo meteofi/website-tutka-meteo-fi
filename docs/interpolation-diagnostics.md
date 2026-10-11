@@ -294,10 +294,34 @@ frame textures and referencing flows through the existing sticky invalidation;
 layer, elevation and URL changes also clear trajectories. No WMS request or
 FramePool opacity/timing behavior changes.
 
+## High-DPI display sharpness
+
+The CSS-sized warp canvas introduced an extra bilinear resampling step on
+high-DPI displays: original WMS pixels were first sampled onto that canvas,
+then enlarged by OpenLayers. Pausing displays the original WMS image directly,
+so even an exact observation looked softer during playback. The motion shader
+alone did not reveal this, because the earlier checks omitted the enlargement.
+
+Radar now renders at up to 2x CSS size within the existing 4-million-pixel
+canvas budget. The viewport-only extent, WMS request density, motion estimator,
+trajectories, and satellite canvas density remain unchanged. Large displays
+still reduce the canvas density to fit the budget, and DPR-3 devices stop at 2x.
+This reduces display blur; it does not eliminate blending of changing rain.
+
+The GPU report includes `displaySampling`: a recorded radar image translated
+by an exact field, passed through the production `BudgetedCanvasSource` and
+enlarged with OpenLayers' device/image pixel-ratio relationship. At DPR 2 the
+revised output matches the direct display reference at observations and
+midpoints; the previous canvas gives mean visible-channel errors of 0.98–1.10
+and fails all five checks. The 129-check suite passes all correctness checks
+on Metal and SwiftShader, retaining the two existing quality flags above.
+`test-warp-display.mjs` covers phone/desktop/split-screen sizes, DPR 1–3,
+world placement, canvas invalidation, and the hard allocation budget.
+
 ## Scope
 
 The harness covers production upload, flow computation, warping, enlarged crops,
-and adjacent pairs. Its small controller does not reproduce the app's RAF clock
+display sampling, and adjacent pairs. Its small controller does not reproduce the app's RAF clock
 or FramePool. Loading races, pan/zoom integration, full-window wrap, layer opacity,
 2/4 panes, and Safari performance require the actual app. Desktop Chrome and a
 narrow viewport do not substitute for a physical iPhone test; use Firebase on
