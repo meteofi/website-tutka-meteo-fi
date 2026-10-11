@@ -2,8 +2,8 @@
 
 The page imports `RadarInterpolator` and its production shaders directly. It
 compares optical flow with a zero-motion crossfade and a reference image. Radar
-uses a filtered image pyramid, confidence-weighted refinement, and a deformation
-safeguard. Satellite retains its single-level solver. Both use linear flow
+uses a filtered image pyramid, confidence-weighted refinement, shared boundary
+velocities, inverse trajectory sampling, and deformation safeguards. Satellite retains its single-level solver. Both use linear flow
 filtering and premultiplied RGBA for transparent edges.
 
 ## Try the Firebase preview
@@ -16,7 +16,8 @@ remains at `/`; `/?interp=flow` enables optical flow in the actual map.
 
 On both desktop and phone:
 
-1. Select the Finnish default or FMI radar sequence and press **Toista**.
+1. Select the Finnish default or FMI radar sequence (including the **työpöytä
+   2400 × 1350** captures) and press **Toista**.
    Compare **Optinen virtaus (korjattu)** with **Häivytys ilman liikettä**.
    The third image is the nearest real observation, **not** ground truth between
    observations. This page no longer reproduces the old solver.
@@ -24,7 +25,9 @@ On both desktop and phone:
    rain/clear boundaries at the enlarged scale; the initial view is a 2× crop.
 3. Try **Porrastettu solu — 4 px**, a radar **tunnettu 4 px siirto** case, and
    the **1920 × 1080** case. Here the third panel *is* known ground truth: a
-   specified translation without meteorological growth or decay.
+   specified translation without meteorological growth or decay. The **Tarkka
+   liike** cases also cover expansion, shear, contraction, and changing direction;
+   they provide exact fields to isolate the warp from estimation errors.
 4. Try **Tutka — paikallaan** and **Läpinäkyvyys — häviäminen ja ilmestyminen**.
    Change **Tausta** between dark, light, and black. The transparency reference
    stays red as coverage changes; the renderer should match that visible colour.
@@ -55,8 +58,11 @@ npm run diagnose:interpolation -- --headless --software --strict
 `CHROME_BIN` selects Chrome/Chromium. Headless runs use a fresh temporary profile,
 a loopback server, and a two-minute timeout, then close the browser and remove
 its profile. `--software` selects SwiftShader. These runs are **not mobile
-performance benchmarks**. `pairMilliseconds` reports average texture upload and
-completed GPU flow computation per pair, excluding fixture loading/decoding.
+performance benchmarks**. `pairMilliseconds` reports average upload/flow command
+submission with `gl.finish()`, excluding fixture loading/decoding; browsers may
+return before the GPU process completes. `renderCost` forces completion with a
+one-pixel readback and therefore includes that overhead. It measures phone-size,
+1080p and approximately 4-Mpx canvases on the reported GPU, not on three devices.
 Shader compilation, warmup, and other GPU work affect timing. Readbacks and
 `gl.finish()` are diagnostic-only.
 
@@ -73,13 +79,15 @@ subdirectory.
 
 ## Fixtures and cases
 
-Nine original PNG responses, about 1 MB total, live under
+Fifteen original PNG responses, about 3.7 MB total, live under
 `scripts/interpolation/fixtures/`. Diagnostics make no live weather requests.
 `manifest.json` records explicit WMS URLs, timestamps, styles, CRS, extents,
 dimensions, SHA-256, and attribution.
 
 - Finnish composite: 2026-10-10 06:20, 06:25, 06:30 UTC, default and FMI styles,
   640×768, southern/central Finland. FMI, CC BY 4.0; served by MeteoCore.
+- Desktop Finnish composite: 2026-10-11 05:20, 05:25, 05:30 UTC, both palettes,
+  2400×1350, southern Finland. Original WMS images, not resized copies.
 - GOES-19 10.3 μm infrared: 2026-10-10 06:00, 06:10, 06:20 UTC, grayscale style,
   640×640, eastern North America / western Atlantic. NOAA; served by MeteoCore.
 - Smooth and stepped cells: 1, 4, and 8 analysis-pixel translations, plus a
@@ -90,7 +98,8 @@ dimensions, SHA-256, and attribution.
   uploads, antialiasing, and rectangular flow grids. Resizing adds no weather
   detail; this is a controlled case, not a new observation.
 
-These are 16 cases of three images each, not the app's 13-frame window. Keep
+Four additional analytic cases supply exact fields for expanding, shearing,
+contracting, and turning shapes. These are 22 cases of three images each, not the app's 13-frame window. Keep
 fixtures immutable. New snapshots need new filenames and manifest entries so
 comparisons and Firebase's immutable PNG cache stay meaningful. Upstream
 retention may prevent fetching the historical request later.
@@ -107,8 +116,10 @@ accuracy:
 
 - Four flow quadrants meet at the center of a red/green step. Their bilinear
   mean is 0.25 analysis pixels in each axis. Halfway to opaque black, the center
-  must be `[48, 48, 0, 255]` within two levels at both 3×3 and 513×513 output.
-  Nearest-neighbor flow sampling instead gives 32 or 64 in red/green.
+  must be `[51, 51, 0, 255]` within two levels at both 3×3 and 513×513 output.
+  Inverse sampling solves `f = 0.25 - 0.25*f`, so the source displacement is
+  0.2 and the bright-texel weight is 0.4. The previous output-coordinate warp
+  produced 48; nearest-neighbor sampling fails both expectations.
 - An intentionally corrupted field has a displacement gradient far above 1.
   Its center must match the unwarped fade at quarter, half, and three-quarter
   times in whole-image, 2×, and 4× views. This checks deformation protection
@@ -228,9 +239,60 @@ style/elevation parameters remain attached to their sources.
 
 Test this change in the **actual radar app**: the recorded comparison page has
 its own playback controller and does not exercise the app's RAF loop. Check all
-three speed settings, pause/step/resume, zoom/pan, and pane changes. Motion fields
-and shaders are unchanged, so this corrects timing hesitations rather than
-removing genuine rain growth/decay or changes in estimated velocity between pairs.
+three speed settings, pause/step/resume, zoom/pan, and pane changes. That timing
+change left the motion fields and shaders unchanged; the following correction
+addresses the separate spatial and velocity discontinuities.
+
+## Desktop edge trajectories
+
+The former warp sampled a source-defined forward field at the output pixel.
+This is exact for translation but misaligns the two observations during spatially
+varying motion, producing double contours even with a perfect field. Radar now
+inverts its forward path with eight bounded fixed-point iterations. The exact
+observation is returned at either endpoint. Residuals above a quarter display
+pixel begin fading to the unwarped observations; a full pixel selects that fade.
+The actual sampling Jacobians also guard against folds. Satellite keeps its
+previous warp and estimator, and zero-flow crossfades retain linear coverage.
+
+`RadarTrajectories` builds one small RGBA16F coefficient texture per radar pair.
+Incoming motion is transported into the shared observation's coordinates before
+combining it with outgoing motion. Confidence-weighted, limited harmonic slopes
+join compatible motion and reduce opposing components to zero at the turn,
+preventing cubic overshoot. Cubic Hermite paths preserve both observations;
+constant translation stays constant. Source colours are not filtered again.
+If a neighbouring field is absent, the available one-sided velocity is used.
+Paths stay fixed while their pair plays, so a late neighbour is picked up on the
+next visit instead of changing the image's position halfway through an interval.
+Replacing a pair's own flow invalidates its path immediately. Identity/mode
+changes, disposal and context loss release the coefficient cache.
+
+New GPU contracts measure the **rendered** arrival/departure velocity of a cell
+whose direction and speed change, compare exact deformations to an independent
+analytic image, and check missing/late neighbours and cache invalidation. The
+revised field-filtering expected value follows the inverse lookup above; its
+tolerance was not widened. Default/FMI desktop sequences report arrival versus
+departure differences at the same advected precipitation-edge locations, before
+and after the trajectory correction. These path statistics exclude the final
+fallback blend and are continuity checks, not physical motion accuracy.
+
+On the initial M2 Max / Metal run, the desktop 95th-percentile difference fell
+from 1.406 to 0.020 native analysis pixels per interval (default) and from 1.062
+to 0.016 (FMI). The analytic deformation mean image errors stayed below 0.25 on
+the 0–255 scale. Hardware and SwiftShader runs cover 124 checks with zero correctness failures
+and no unavailable measurements; the two pre-existing raw-field/satellite quality targets remain open. Locally
+ambiguous edges can still fade as precipitation grows or disappears. The
+readback-synchronized 1080p render median was 0.7 ms and the 4-Mpx median was
+1.0 ms on this desktop GPU (20 samples each, including readback overhead).
+Software render timing is explicitly skipped; neither result predicts iPhone
+performance. Substituting the former warp makes the new rendered-velocity and
+affine-expansion correctness regressions fail.
+
+Window/identity trace: the first pair has no incoming neighbour; the last has
+no outgoing neighbour, and the last observation remains the same t=1 hold.
+No trajectory connects the end back to the start. Non-default styles replace
+frame textures and referencing flows through the existing sticky invalidation;
+layer, elevation and URL changes also clear trajectories. No WMS request or
+FramePool opacity/timing behavior changes.
 
 ## Scope
 

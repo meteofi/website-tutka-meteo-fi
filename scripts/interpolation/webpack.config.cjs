@@ -8,7 +8,7 @@ const CopyWebpackPlugin = require('copy-webpack-plugin');
 
 const root = path.resolve(__dirname, '../..');
 const hash = (file) => createHash('sha256').update(fs.readFileSync(path.join(root, file))).digest('hex');
-const sources = ['index.js', 'flowLK.js', 'flowRadar.js', 'warp.js', 'glUtils.js', 'capabilities.js']
+const sources = ['index.js', 'flowLK.js', 'flowRadar.js', 'warp.js', 'trajectories.js', 'glUtils.js', 'capabilities.js']
   .map((name) => `src/animation/interpolation/${name}`);
 module.exports = {
   entry: path.join(__dirname, 'page.js'),
@@ -25,7 +25,7 @@ module.exports = {
         commit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(),
         worktreeDirty: !!execFileSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' }).trim(),
         sources: Object.fromEntries(sources.map((file) => [file, hash(file)])),
-        harness: Object.fromEntries(['page.js', 'cases.js', 'engine.js', 'metrics.mjs', 'index.html']
+        harness: Object.fromEntries(['page.js', 'cases.js', 'trajectoryCases.js', 'trajectoryMeasurements.js', 'engine.js', 'metrics.mjs', 'index.html']
           .map((name) => [`scripts/interpolation/${name}`, hash(`scripts/interpolation/${name}`)])),
         fixtures: hash('scripts/interpolation/fixtures/manifest.json'),
       }),

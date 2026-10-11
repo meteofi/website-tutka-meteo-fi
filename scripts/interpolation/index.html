@@ -40,7 +40,7 @@
   <h1>Interpoloinnin vertailu</h1>
   <p class="intro">Tutkan liikkeen ja läpinäkyvien reunojen korjaus. Suurenna rajausta nähdäksesi reunojen liikkeen karttanäkymän mittakaavassa.
     Satelliitti käyttää aiempaa liikkeen arviointia.
-    Aineisto on tallennettu 10.10.2026, joten eri laitteet näyttävät samat kuvat.</p>
+    Aineisto on tallennettu 10.–11.10.2026, joten eri laitteet näyttävät samat kuvat.</p>
   <fieldset id="controls" disabled>
     <div class="controls">
       <label class="case">Tapaus<select id="case"></select></label>
@@ -62,9 +62,11 @@
   <p>Liike ja liikevirhe ovat 256 × 256 -analyysiruudukon pikseleitä. Kuvaero mittaa näkyvää väriä ja peittävyyttä (0–255).
     Oikeaa välikuvaa ei tunneta havaintopareille. Niiden liikkeelle ei anneta onnistumisarviota.
     Taittuvat solut lasketaan liikekentästä ennen tutkan vääristymissuojaa: liian voimakkaasti vääntyvässä kohdassa kuva vaihtuu häivyttämällä.
+    Reunanopeuden muutos vertaa saman sadealueen saapumis- ja lähtönopeutta yhteisen havainnon kohdalla (95. prosenttipiste, oman analyysiruudukon pikseliä/askel).
+    Taulukossa näkyvät alkuperäinen arvio ja korjatun liikeradan arvo. Se ei mittaa sään todellista liikettä.
     Avoimet laatutavoitteet näkyvät tuloksissa.</p>
   <div class="scroll"><table>
-    <thead><tr><th>Tapaus</th><th>Liike x, y</th><th>Liikevirhe</th><th>Päätekuvan ero</th><th>Parinvaihdon ero</th><th>Rajauksen päätekuva</th><th>Taittuvat solut</th><th>Välikuvan ero (ka.)</th><th>Tulos</th></tr></thead>
+    <thead><tr><th>Tapaus</th><th>Liike x, y</th><th>Liikevirhe</th><th>Päätekuvan ero</th><th>Parinvaihdon ero</th><th>Rajauksen päätekuva</th><th>Taittuvat solut</th><th>Välikuvan ero (ka.)</th><th>Reunanopeuden muutos</th><th>Tulos</th></tr></thead>
     <tbody id="results"></tbody>
   </table></div>
   <footer>
