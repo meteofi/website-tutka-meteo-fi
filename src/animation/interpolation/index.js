@@ -11,7 +11,7 @@
 import canInterpolate from './capabilities';
 import WarpRenderer from './warp';
 import FlowLK from './flowLK';
-import FlowRadar from './flowRadar';
+import FlowRadar, { RADAR_FLOW_RESOLUTION } from './flowRadar';
 import RadarTrajectories from './trajectories';
 import { createRgbaTexture, createRg16fTexture } from './glUtils';
 
@@ -54,7 +54,11 @@ function extentContains(stored, other) {
 }
 
 export class RadarInterpolator {
-  constructor({ flowResolution = 256, useFlow = false, motionProfile = 'radar' } = {}) {
+  constructor({
+    useFlow = false,
+    motionProfile = 'radar',
+    flowResolution = motionProfile === 'radar' ? RADAR_FLOW_RESOLUTION : 256,
+  } = {}) {
     this.flowResolution = flowResolution;
     this.motionProfile = motionProfile;
     // When true, flows are computed via Lucas-Kanade; when false,

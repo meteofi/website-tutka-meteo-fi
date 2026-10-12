@@ -103,6 +103,17 @@ export async function loadCases() {
   for (const [prefix, label] of [['default', 'Tutka, oletus'], ['radar_fmi', 'Tutka, FMI'], ['goes19', 'Satelliitti']]) {
     cases.push(translated(`${prefix}-translated`, `${label} — tunnettu 4 px siirto`, images.get(`${prefix}-0.png`), [4, 0]));
   }
+  // Native desktop detail, with integer source-pixel motion and no weather
+  // evolution. This exposes ghosting hidden by the smaller translation cases.
+  for (const [prefix, label] of [['default', 'oletus'], ['radar_fmi', 'FMI']]) {
+    const source = images.get(`desktop-${prefix}-0.png`);
+    cases.push(translated(
+      `desktop-${prefix}-detail`,
+      `Tutkan yksityiskohdat — työpöytä, ${label}, 16 / −8 px`,
+      source,
+      [(16 * ANALYSIS_SIZE) / source.width, (-8 * ANALYSIS_SIZE) / source.height],
+    ));
+  }
   // Exercise the app's wide buffered-image shape and upload/downsampling cost.
   // This is a resized fixture, not additional meteorological detail.
   const wide = canvas(1920, 1080);

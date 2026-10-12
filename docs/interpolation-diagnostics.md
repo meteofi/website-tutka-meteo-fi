@@ -56,7 +56,8 @@ npm run diagnose:interpolation -- --headless --software --strict
 ```
 
 `CHROME_BIN` selects Chrome/Chromium. Headless runs use a fresh temporary profile,
-a loopback server, and a two-minute timeout, then close the browser and remove
+a loopback server, and a two-minute timeout (five minutes for the explicit
+software-rendering suite), then close the browser and remove
 its profile. `--software` selects SwiftShader. These runs are **not mobile
 performance benchmarks**. `pairMilliseconds` reports average upload/flow command
 submission with `gl.finish()`, excluding fixture loading/decoding; browsers may
@@ -99,7 +100,9 @@ dimensions, SHA-256, and attribution.
   detail; this is a controlled case, not a new observation.
 
 Four additional analytic cases supply exact fields for expanding, shearing,
-contracting, and turning shapes. These are 22 cases of three images each, not the app's 13-frame window. Keep
+contracting, and turning shapes. Two desktop-detail cases translate the original
+2400×1350 captures by 16 / −8 source pixels per interval without resizing or
+weather evolution. These are 24 cases of three images each, not the app's 13-frame window. Keep
 fixtures immutable. New snapshots need new filenames and manifest entries so
 comparisons and Firebase's immutable PNG cache stay meaningful. Upstream
 retention may prevent fetching the historical request later.
@@ -136,7 +139,7 @@ correctness failures, unavailable measurements, or browser/GL errors;
 `--strict` additionally fails on unmet quality targets.
 
 Motion comes from the actual half-float texture. Radar preserves source aspect
-ratio with a longest grid side of 256; satellite keeps a 256×256 grid. To compare
+ratio with a longest grid side of 384; satellite keeps a 256×256 grid. To compare
 with the baseline, UV components are converted to a **normalized 256×256 analysis
 grid**, +x right and +y down. Samples exclude an eight-cell border and source
 alpha below 20/255; synthetic cells use radius 19 around their initial center.
@@ -317,6 +320,39 @@ and fails all five checks. The 129-check suite passes all correctness checks
 on Metal and SwiftShader, retaining the two existing quality flags above.
 `test-warp-display.mjs` covers phone/desktop/split-screen sizes, DPR 1–3,
 world placement, canvas invalidation, and the hard allocation budget.
+
+## Finer radar correspondence
+
+Radar now estimates motion on a grid with a longest side of 384, while satellite
+retains 256. This improves the alignment of fine precipitation details before
+the observations are blended. Merely increasing density also made the accepted
+velocity smoothing cover less of the source image, bringing back unstable local
+deformations in experiments. The number of binomial coherence passes therefore
+scales with the square of the grid density: 27 passes at 384, versus 12 at 256.
+Their spatial variance in source-image coordinates stays approximately constant.
+Images at 256 pixels or smaller retain the previous estimator settings.
+
+The two new native desktop-detail translations check intermediate alignment in
+centered and offset crops. Their maximum mean visible-channel error must be
+at most 0.2 on the 0–255 scale. On Metal, the default palette improves from 0.139
+to 0.082 and FMI from 0.207 to 0.130. Substituting the merged 256-grid renderer
+fails the FMI detail target. These controlled translations do not establish
+accuracy when real rain grows or disappears. The four recorded radar sequences
+now have zero raw folded cells; the old default-palette case previously had 14.
+Vector-error units remain normalized to a 256×256 reference for comparisons;
+geometry and boundary-velocity statistics use the reported native grid size.
+
+The 24-case suite completes 145 checks on both Metal and SwiftShader, with no
+correctness failures or unavailable measurements. All radar quality targets
+pass; the existing GOES-19 translation target remains the sole quality warning.
+
+A separate M2 Max measurement forced completion by reading a pixel of the final
+flow texture. Median pair computation increased from 12.7 to 16.7 ms across ten
+warmed samples, excluding image upload and shader compilation but including
+readback overhead. Flow is computed once per loaded pair, not per animation
+frame. This is a desktop measurement; phone loading and playback still need the
+Firebase preview check. Trajectory interpolation, colour sampling, high-DPI
+display budgets, window endpoints, and WMS identity handling are unchanged.
 
 ## Scope
 
