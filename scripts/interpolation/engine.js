@@ -3,6 +3,8 @@
 import { RadarInterpolator } from '../../src/animation/interpolation';
 import { ANALYSIS_SIZE, canvas, pixels } from './cases';
 import { flowError, flowGeometry, pixelError } from './metrics.mjs';
+import { measureEdgeVelocities, measureTrajectoryContracts, measureRenderCost } from './trajectoryMeasurements';
+import measureDisplaySampling from './displayMeasurements';
 
 export function createEngine(useFlow = true, motionProfile = 'radar') {
   return new RadarInterpolator({ useFlow, flowResolution: ANALYSIS_SIZE, motionProfile });
@@ -13,6 +15,20 @@ export function loadEngine(engine, testCase) {
   const { width, height } = testCase.frames[0];
   testCase.frames.forEach((image, i) => engine.onSlotLoaded({ time: String(i) }, image, [0, 0, width, height]));
   for (let i = 0; i < testCase.frames.length - 1; i++) engine.computeFlow(String(i), String(i + 1));
+  if (testCase.knownFlow && engine.useFlow) {
+    const { gl } = engine;
+    for (let pair = 0; pair < testCase.frames.length - 1; pair++) {
+      const f = engine.flows.get(`${pair}|${pair + 1}`);
+      const data = new Float32Array(f.width * f.height * 4);
+      for (let y = 0; y < f.height; y++) {
+        for (let x = 0; x < f.width; x++) {
+          data.set([...testCase.knownFlow(pair, (x + 0.5) / f.width, (y + 0.5) / f.height), 1, 1], 4 * (y * f.width + x));
+        }
+      }
+      gl.bindTexture(gl.TEXTURE_2D, f.texture);
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, f.width, f.height, gl.RGBA, gl.FLOAT, data);
+    }
+  }
   if (engine.gl.getError() !== engine.gl.NO_ERROR) throw new Error('WebGL error while computing flow');
 }
 
@@ -100,9 +116,10 @@ function measureCrops(engine, testCase) {
 
 // Exercise the production texture allocation and warp, independently of LK's
 // accuracy. Four flow quadrants meet at the center: their bilinear mean is
-// 0.25 grid pixels in each axis. At t=0.5 a red/green step samples 0.375 of
-// its bright texel, then blends with opaque black: round(255*0.375/2)=48.
-// NEAREST instead produces 32 or 64. The small displacement is safe to warp.
+// 0.25 grid pixels in each axis at the output. The radar inverse solves
+// f=0.25-0.25*f, hence f=0.2. At t=0.5 the red/green step samples 0.4 of
+// its bright texel and blends with black: round(255*0.4/2)=51. The satellite
+// warp retains its output-space lookup, giving 48. NEAREST fails either case.
 function measureFlowFiltering(engine) {
   const { gl } = engine;
   const size = engine.flowResolution;
@@ -124,7 +141,7 @@ function measureFlowFiltering(engine) {
   black.width = size;
   black.height = size;
   black.getContext('2d').fillRect(0, 0, size, size);
-  loadEngine(engine, { frames: [ramp, black, black] });
+  loadEngine(engine, { frames: [ramp, black] });
   const channels = engine.motionProfile === 'radar' ? 4 : 2;
   const data = new Float32Array(size * size * channels);
   for (let y = 0; y < size; y++) {
@@ -135,7 +152,8 @@ function measureFlowFiltering(engine) {
   }
   gl.bindTexture(gl.TEXTURE_2D, engine.flows.get('0|1').texture);
   gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, size, size, channels === 4 ? gl.RGBA : gl.RG, gl.FLOAT, data);
-  const expected = new Uint8Array([48, 48, 0, 255]);
+  const value = engine.motionProfile === 'radar' ? 51 : 48;
+  const expected = new Uint8Array([value, value, 0, 255]);
   const samples = [3, size * 2 + 1].map((outputSize) => {
     const rgba = pixels(render(engine, 0.5, outputSize, outputSize));
     const center = 4 * (Math.floor(outputSize / 2) * outputSize + Math.floor(outputSize / 2));
@@ -196,6 +214,8 @@ export async function measure(cases, onProgress = () => {}) {
     check('flow-filtering:bilinear-warp', 'correctness', Math.max(...report.flowFiltering.map((s) => s.max)), 2);
     report.deformationGuard = measureDeformationGuard(engine);
     check('flow-filtering:deformation-fallback', 'correctness', Math.max(...report.deformationGuard.map((s) => s.max)), 2);
+    report.trajectoryContracts = measureTrajectoryContracts(engine, cases.find((c) => c.id === 'turning-motion'), loadEngine, render, check);
+    report.displaySampling = measureDisplaySampling(engine, cases.find((c) => c.id === 'default-translated'), loadEngine, render, cropReference, check);
     for (const c of cases) {
       onProgress(c.label);
       // Yield so mobile Safari paints progress between cases.
@@ -224,11 +244,15 @@ export async function measure(cases, onProgress = () => {}) {
           check(`${c.id}:motion`, c.id === 'stationary' ? 'correctness' : 'quality', result.flow.meanVectorError, 0.5);
         }
         if (c.motionProfile !== 'satellite') check(`${c.id}:folds`, 'quality', field.geometry.foldedCells, 0);
+        if (c.id.startsWith('radar-') || c.id.startsWith('desktop-') || c.id === 'turning-motion') {
+          result.edgeVelocities = measureEdgeVelocities(current, c);
+          check(`${c.id}:shared-edge-velocity`, 'quality', result.edgeVelocities.curved.p95, 0.1);
+        }
       } catch (error) {
         // Some mobile drivers cannot read float targets. Never call this a pass.
         result.flowUnavailable = error.message;
       }
-      if (!c.synthetic || c.id === 'stepped-4') {
+      if (!c.synthetic || c.id === 'stepped-4' || c.knownFlow) {
         result.cropped = measureCrops(current, c);
         check(`${c.id}:cropped-endpoints`, 'correctness', Math.max(...result.cropped.flatMap((crop) => crop.endpoints.map((e) => e.max))), 3);
         if (c.expected && c.motionProfile !== 'satellite') {
@@ -247,9 +271,18 @@ export async function measure(cases, onProgress = () => {}) {
             3,
           );
         }
+        if (c.knownFlow) {
+          check(`${c.id}:known-warp`, 'correctness', Math.max(...result.intermediate.map((e) => e.mean)), 1);
+        }
       }
       if (current.gl.getError() !== current.gl.NO_ERROR) throw new Error(`WebGL rendering error: ${c.id}`);
       report.results.push(result);
+    }
+    if (/swiftshader|llvmpipe|software/i.test(report.environment.renderer)) {
+      report.renderCostSkipped = 'Software rendering is not a device GPU performance measurement.';
+    } else {
+      loadEngine(engine, cases.find((c) => c.id === 'desktop-default'));
+      report.renderCost = measureRenderCost(engine, render);
     }
   } finally {
     for (const current of [radar, satellite]) {

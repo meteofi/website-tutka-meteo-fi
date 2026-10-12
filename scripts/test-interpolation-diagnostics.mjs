@@ -25,7 +25,7 @@ assert.throws(() => flowGeometry(field([[NaN, 0], [0, 0], [0, 0], [0, 0]])));
 
 const root = new URL('./interpolation/fixtures/', import.meta.url);
 const manifest = JSON.parse(await readFile(new URL('manifest.json', root), 'utf8'));
-assert.equal(manifest.frames.length, 9);
+assert.equal(manifest.frames.length, 15);
 const sequences = new Map();
 for (const entry of manifest.frames) {
   const data = await readFile(new URL(entry.file, root)); // eslint-disable-line no-await-in-loop
@@ -39,12 +39,12 @@ for (const entry of manifest.frames) {
   })) {
     assert.equal(params.get(key), value);
   }
-  const key = `${entry.layer}:${entry.style}`;
+  const key = `${entry.layer}:${entry.style}:${entry.width}x${entry.height}`;
   const sequence = sequences.get(key) || [];
   sequence.push(entry);
   sequences.set(key, sequence);
 }
-assert.equal(sequences.size, 3);
+assert.equal(sequences.size, 5);
 for (const sequence of sequences.values()) {
   sequence.sort((a, b) => Date.parse(a.time) - Date.parse(b.time));
   assert.equal(sequence.length, 3);
@@ -56,4 +56,4 @@ for (const sequence of sequences.values()) {
     assert.equal(sequence[i].height, sequence[0].height);
   }
 }
-console.log('Interpolation diagnostics: metric checks and 9 fixture identities passed. GPU suite: npm run diagnose:interpolation -- --headless');
+console.log('Interpolation diagnostics: metric checks and 15 fixture identities passed. GPU suite: npm run diagnose:interpolation -- --headless');

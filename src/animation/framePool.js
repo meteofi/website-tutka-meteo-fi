@@ -694,9 +694,9 @@ export default class FramePool {
     this._emptyCanvas.height = 1;
 
     // canvasFunction is given the size to render, in canvas pixels:
-    // the view's CSS size at most (BudgetedCanvasSource caps it — the
-    // slot bitmaps are DPR 1, so anything larger only upscales), and
-    // smaller still under the pixel budget. The canvas covers the
+    // up to 2x CSS size for radar, subject to BudgetedCanvasSource's
+    // pixel budget. This avoids filtering the warped edges again when
+    // enlarging to a high-DPI screen. The canvas covers the
     // requested extent at that size; the layer renderer scales it onto
     // the screen through the image pixel ratio the source reports.
     const canvasFunction = (extent, resolution, pixelRatio, size) => {
@@ -728,7 +728,11 @@ export default class FramePool {
       // The view alone, under a pixel budget — see WARP_RATIO and
       // WARP_PIXEL_BUDGET. The slot images keep their own 1.5× fetch
       // ratio (this.ratio); renderAt maps the view onto them.
-      source: new BudgetedCanvasSource({ canvasFunction, ratio: WARP_RATIO }),
+      source: new BudgetedCanvasSource({
+        canvasFunction,
+        ratio: WARP_RATIO,
+        maxPixelRatio: interpolator.motionProfile === 'radar' ? 2 : 1,
+      }),
     });
 
     this._primaryVisListener = () => {

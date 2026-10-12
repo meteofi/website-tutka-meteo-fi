@@ -28,6 +28,8 @@ precision highp float;
 uniform sampler2D uFrameA;
 uniform sampler2D uFrameB;
 uniform sampler2D uFlow;
+uniform sampler2D uTrajectory;
+uniform bool uHasTrajectory;
 uniform float uT;
 uniform bool uGuardFlow;
 // Affine transform from output-canvas UV to stored-frame UV.
@@ -53,25 +55,55 @@ vec4 sampleBounded(sampler2D tex, vec2 uv) {
   return texture(tex, uv);
 }
 
+vec2 displacement(vec2 p) {
+  vec2 d=uT*texture(uFlow,p).rg;
+  if (uHasTrajectory) {
+    vec4 curve=texture(uTrajectory,p);
+    d+=uT*(1.0-uT)*mix(curve.rg,curve.ba,uT);
+  }
+  return d;
+}
+
 void main() {
   vec2 src = vUv * uScale + uOffset;
   vec2 flow = texture(uFlow, src).rg;
+  vec2 srcA = src - uT * flow;
+  vec2 srcB = src + (1.0 - uT) * flow;
   float confidence = 1.0;
   if (uGuardFlow) {
-    // The Frobenius norm bounds the displacement gradient's largest singular
-    // value. Below 1 neither x-t*flow nor x+(1-t)*flow can fold for t in [0,1].
-    // Fade to the observations as that bound is approached. Blending images
-    // (not scaling vectors) avoids a new discontinuity in the displacement.
+    // Keep the spatial safeguard around strongly deforming estimates. The
+    // Frobenius norm bounds the field gradient's largest singular value;
+    // the inverse/curved sampling maps receive their own checks below.
+    // Blend images, not vectors, to avoid adding a displacement discontinuity.
     vec2 dx = dFdx(flow) / max(abs(dFdx(src).x), 1e-8);
     vec2 dy = dFdy(flow) / max(abs(dFdy(src).y), 1e-8);
     float deformation = sqrt(dot(dx,dx)+dot(dy,dy));
     confidence = 1.0-smoothstep(0.75,1.0,deformation);
+
+    // Forward flow is defined at A's source pixel. Sampling it at the output
+    // pixel only works for constant translation and doubles deforming edges.
+    // Invert the forward trajectory with a bounded number of GPU-only steps.
+    vec2 origin=srcA;
+    for (int i=0;i<8;i++) origin=src-displacement(origin);
+    vec2 shift=displacement(origin);
+    flow=texture(uFlow,origin).rg;
+    srcA=src-shift;
+    srcB=src+flow-shift;
+    // Exact observations are important even if inversion failed locally.
+    if (uT==0.0) srcA=src;
+    if (uT==1.0) srcB=src;
+
+    // Guard the actual sampling maps, including the curved trajectory. Fade
+    // where they fold or the inverse has not converged within a display pixel.
+    vec2 pixelStep=max(vec2(abs(dFdx(src).x),abs(dFdy(src).y)),vec2(1e-8));
+    float residual=length((origin+shift-src)/pixelStep);
+    vec2 ax=dFdx(srcA)/pixelStep.x, ay=dFdy(srcA)/pixelStep.y;
+    vec2 bx=dFdx(srcB)/pixelStep.x, by=dFdy(srcB)/pixelStep.y;
+    float determinant=min(ax.x*ay.y-ax.y*ay.x,bx.x*by.y-bx.y*by.x);
+    confidence*=smoothstep(0.0,0.2,determinant)*(1.0-smoothstep(0.25,1.0,residual));
   }
-  // Forward-warp A by t*flow, backward-warp B by (1-t)*flow, blend.
-  // All UVs here are in the stored frames' space so the flow texture
-  // (also computed in that space) is applied consistently.
-  vec2 srcA = src - uT * flow;
-  vec2 srcB = src + (1.0 - uT) * flow;
+  // Both samples follow the same A-to-B correspondence. All UVs remain in
+  // stored-frame space, including when the map displays a shifted crop.
   vec4 a = sampleBounded(uFrameA, srcA);
   vec4 b = sampleBounded(uFrameB, srcB);
   // RGB already contains coverage. Mix it with alpha; never multiply again
@@ -95,6 +127,8 @@ export default class WarpRenderer {
     this.uFrameA = gl.getUniformLocation(this.program, 'uFrameA');
     this.uFrameB = gl.getUniformLocation(this.program, 'uFrameB');
     this.uFlow = gl.getUniformLocation(this.program, 'uFlow');
+    this.uTrajectory = gl.getUniformLocation(this.program, 'uTrajectory');
+    this.uHasTrajectory = gl.getUniformLocation(this.program, 'uHasTrajectory');
     this.uT = gl.getUniformLocation(this.program, 'uT');
     this.uGuardFlow = gl.getUniformLocation(this.program, 'uGuardFlow');
     this.uScale = gl.getUniformLocation(this.program, 'uScale');
@@ -118,6 +152,7 @@ export default class WarpRenderer {
     scaleY = 1,
     offsetX = 0,
     offsetY = 0,
+    trajectoryTex = null,
   ) {
     const { gl } = this;
     // Ensure the draw fully overwrites the cleared buffer rather
@@ -138,6 +173,11 @@ export default class WarpRenderer {
     gl.activeTexture(gl.TEXTURE2);
     gl.bindTexture(gl.TEXTURE_2D, flowTex);
     gl.uniform1i(this.uFlow, 2);
+
+    gl.activeTexture(gl.TEXTURE3);
+    gl.bindTexture(gl.TEXTURE_2D, trajectoryTex || flowTex);
+    gl.uniform1i(this.uTrajectory, 3);
+    gl.uniform1i(this.uHasTrajectory, trajectoryTex ? 1 : 0);
 
     gl.uniform1f(this.uT, t);
     gl.uniform1i(this.uGuardFlow, this.guardFlow ? 1 : 0);

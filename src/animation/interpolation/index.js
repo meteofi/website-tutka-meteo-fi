@@ -12,6 +12,7 @@ import canInterpolate from './capabilities';
 import WarpRenderer from './warp';
 import FlowLK from './flowLK';
 import FlowRadar from './flowRadar';
+import RadarTrajectories from './trajectories';
 import { createRgbaTexture, createRg16fTexture } from './glUtils';
 
 export { canInterpolate };
@@ -92,6 +93,7 @@ export class RadarInterpolator {
     this.flowFilter = this.gl.LINEAR;
 
     this.warp = new WarpRenderer(this.gl, motionProfile === 'radar');
+    this.trajectories = motionProfile === 'radar' ? new RadarTrajectories(this.gl) : null;
     this.flowLK = motionProfile === 'satellite'
       ? new FlowLK(this.gl, flowResolution) : new FlowRadar(this.gl, flowResolution);
 
@@ -119,6 +121,7 @@ export class RadarInterpolator {
       this.contextLost = true;
       this.frames.clear();
       this.flows.clear();
+      if (this.trajectories) this.trajectories.clear();
     };
     this.canvas.addEventListener('webglcontextlost', this._onContextLost);
   }
@@ -131,6 +134,7 @@ export class RadarInterpolator {
     this.useFlow = useFlow;
     for (const f of this.flows.values()) this.gl.deleteTexture(f.texture);
     this.flows.clear();
+    if (this.trajectories) this.trajectories.clear();
   }
 
   // Called from FramePool on imageloadend once a slot's bitmap is
@@ -171,6 +175,7 @@ export class RadarInterpolator {
     if (!flowInvariant) {
       for (const f of this.flows.values()) this.gl.deleteTexture(f.texture);
       this.flows.clear();
+      if (this.trajectories) this.trajectories.clear();
     }
     // Frame textures are always replaced on new bitmaps, so we don't
     // pre-emptively delete them here — doing so would leave a window
@@ -298,6 +303,8 @@ export class RadarInterpolator {
     }
 
     const { gl } = this;
+    const trajectory = this.useFlow && this.trajectories
+      ? this.trajectories.get(`${timeA}|${timeB}`, this.flows, t) : null;
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
@@ -312,6 +319,7 @@ export class RadarInterpolator {
       scaleY,
       offsetX,
       offsetY,
+      trajectory,
     );
     // Flush pending draw commands so the compositor reads fully-
     // drawn pixels when it pulls the canvas — iOS Safari otherwise
@@ -333,6 +341,7 @@ export class RadarInterpolator {
     this.frames.clear();
     this.flows.clear();
     this.warp.dispose();
+    if (this.trajectories) this.trajectories.dispose();
     this.flowLK.dispose();
   }
 }

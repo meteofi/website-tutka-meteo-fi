@@ -2,16 +2,17 @@
 // the warp for the view alone, under a pixel budget, and tells the layer
 // renderer so through the image's pixel ratio.
 //
-// WHY. The frames being warped are DPR-1 bitmaps (hidpi: false on every
-// slot), so a warp canvas above the view's CSS size only upscales —
-// bilinear, exactly what the compositor does for free — and it used to be
+// WHY. An unbounded canvas used to be
 // asked for at viewSize × 1.5 (the fetch buffer) × devicePixelRatio: a 4K
 // desktop at DPR 1 rendered and copied 18.7 Mpx per frame per pool at 60 Hz
 // playback and the whole page stalled; a 2× laptop 11.7 Mpx for a 1.3 Mpx
 // view. Now: the view (WARP_RATIO 1 — the shader samples the stored,
 // buffered frames through renderAt's UV transform, so the buffer is still
-// there for the flow to read, it just is not painted), at CSS size or
-// less, never above WARP_PIXEL_BUDGET.
+// there for the flow to read, it just is not painted), never above
+// WARP_PIXEL_BUDGET. Radar may use up to 2x display sampling within that
+// budget: warping DPR-1 bitmaps onto a CSS-sized canvas then enlarging it
+// filters their edges twice. Sampling directly at display resolution avoids
+// that extra blur; it does not request higher-resolution WMS images.
 //
 // HOW. The canvas renderer sizes a drawn image as
 //   width × (pixelRatio · resolution) / (viewResolution · imagePixelRatio)
@@ -33,6 +34,7 @@ export default class BudgetedCanvasSource extends ImageCanvasSource {
     super(options);
     this.canvasFunction_ = options.canvasFunction;
     this.ratio_ = options.ratio !== undefined ? options.ratio : WARP_RATIO;
+    this.maxPixelRatio = options.maxPixelRatio ?? 1;
   }
 
   getImageInternal(extent, resolution, pixelRatio, projection) {
@@ -41,9 +43,7 @@ export default class BudgetedCanvasSource extends ImageCanvasSource {
     scaleFromCenter(paddedExtent, this.ratio_);
     const width = getWidth(paddedExtent) / res;
     const height = getHeight(paddedExtent) / res;
-    // No DPR upscale of DPR-1 frames, and never above the budget.
-    const k = Math.min(1, 1 / pixelRatio, Math.sqrt(WARP_PIXEL_BUDGET / (width * height * pixelRatio * pixelRatio)));
-    const imagePixelRatio = pixelRatio * k;
+    const imagePixelRatio = Math.min(pixelRatio, this.maxPixelRatio, Math.sqrt(WARP_PIXEL_BUDGET / (width * height)));
     let canvas = this.canvas_;
     if (canvas && this.renderedRevision_ === this.getRevision()
       && canvas.getResolution() === res
@@ -51,7 +51,12 @@ export default class BudgetedCanvasSource extends ImageCanvasSource {
       && containsExtent(canvas.getExtent(), extent)) {
       return canvas;
     }
-    const size = [Math.round(width * imagePixelRatio), Math.round(height * imagePixelRatio)];
+    const size = [Math.max(1, Math.round(width * imagePixelRatio)), Math.max(1, Math.round(height * imagePixelRatio))];
+    // Whole-pixel rounding must not exceed the area budget.
+    if (size[0] * size[1] > WARP_PIXEL_BUDGET) {
+      size[0] = Math.max(1, Math.floor(width * imagePixelRatio));
+      size[1] = Math.max(1, Math.floor(height * imagePixelRatio));
+    }
     const canvasElement = this.canvasFunction_.call(this, paddedExtent, res, pixelRatio, size, projection);
     if (canvasElement) {
       canvas = new ImageCanvas(paddedExtent, res, imagePixelRatio, canvasElement);

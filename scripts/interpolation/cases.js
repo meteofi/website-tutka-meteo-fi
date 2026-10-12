@@ -1,4 +1,5 @@
 import manifest from './fixtures/manifest.json';
+import trajectoryCases from './trajectoryCases';
 
 export const ANALYSIS_SIZE = 256;
 
@@ -76,6 +77,8 @@ export async function loadCases() {
   const cases = [
     ['radar-default', 'Tutka — Suomi, oletustyyli', 'default'],
     ['radar-fmi', 'Tutka — Suomi, FMI-tyyli', 'radar_fmi'],
+    ['desktop-default', 'Tutka — työpöytä 2400 × 1350, oletus', 'desktop-default'],
+    ['desktop-fmi', 'Tutka — työpöytä 2400 × 1350, FMI', 'desktop-radar_fmi'],
     ['satellite', 'Satelliitti — GOES-19 infrapuna', 'goes19'],
   ].map(([id, label, prefix]) => ({
     id,
@@ -120,5 +123,5 @@ export async function loadCases() {
     expected: fade,
     description: 'Punainen pinta häviää ja ilmestyy. Puolivälissä peittävyys on 50 %, värin tulee säilyä punaisena.',
   });
-  return cases;
+  return [...cases, ...trajectoryCases()];
 }

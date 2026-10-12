@@ -107,6 +107,7 @@ function showReport(result) {
       r.cropped ? Math.max(...r.cropped.flatMap((crop) => crop.endpoints.map((e) => e.max))).toFixed(2) : '—',
       r.geometry ? r.geometry.foldedCells : '—',
       r.intermediate ? Math.max(...r.intermediate.map((e) => e.mean)).toFixed(2) : '—',
+      r.edgeVelocities ? `${r.edgeVelocities.raw.p95.toFixed(3)} → ${r.edgeVelocities.curved.p95.toFixed(3)}` : '—',
       status,
     ];
     for (const value of fields) {
