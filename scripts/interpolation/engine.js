@@ -7,7 +7,7 @@ import { measureEdgeVelocities, measureTrajectoryContracts, measureRenderCost } 
 import measureDisplaySampling from './displayMeasurements';
 
 export function createEngine(useFlow = true, motionProfile = 'radar') {
-  return new RadarInterpolator({ useFlow, flowResolution: ANALYSIS_SIZE, motionProfile });
+  return new RadarInterpolator({ useFlow, motionProfile });
 }
 
 export function loadEngine(engine, testCase) {
@@ -257,6 +257,9 @@ export async function measure(cases, onProgress = () => {}) {
         check(`${c.id}:cropped-endpoints`, 'correctness', Math.max(...result.cropped.flatMap((crop) => crop.endpoints.map((e) => e.max))), 3);
         if (c.expected && c.motionProfile !== 'satellite') {
           check(`${c.id}:cropped-motion`, 'quality', Math.max(...result.cropped.flatMap((crop) => crop.intermediate.map((e) => e.mean))), 1);
+          if (c.id.endsWith('-detail')) {
+            check(`${c.id}:detail-alignment`, 'quality', Math.max(...result.cropped.flatMap((crop) => crop.intermediate.map((e) => e.mean))), 0.2);
+          }
         }
       }
       if (c.expected) {

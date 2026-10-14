@@ -4,6 +4,8 @@
 // turning an ill-conditioned local solve into a large displacement.
 import { createProgram, createFullscreenTriangle, drawFullscreen } from './glUtils';
 
+export const RADAR_FLOW_RESOLUTION = 384;
+
 const VERT = `#version 300 es
 in vec2 aPos;
 out vec2 vUv;
@@ -134,7 +136,7 @@ void main() {
 }`;
 
 export default class FlowRadar {
-  constructor(gl, resolution = 256) {
+  constructor(gl, resolution = RADAR_FLOW_RESOLUTION) {
     this.gl = gl;
     this.resolution = resolution;
     this.fbo = gl.createFramebuffer();
@@ -238,8 +240,13 @@ export default class FlowRadar {
       // Local rain growth/decay can still give neighbouring patches different
       // answers. Smooth the velocity field before magnifying it onto the map;
       // constant translation is preserved and the source colours stay sharp.
+      // Each binomial pass adds a fixed variance in grid pixels. Increasing
+      // the analysis density must preserve its footprint in image coordinates,
+      // otherwise finer estimates bring back the small edge distortions.
+      const density = Math.max(1, Math.max(width, height) / 256);
+      const coherencePasses = Math.ceil(12 * density * density);
       const smooth = [allocate(width, height, true), allocate(width, height, true)];
-      for (let i = 0; i < 12; i++) {
+      for (let i = 0; i < coherencePasses; i++) {
         const next = smooth[i % 2];
         this.draw(this.passes[3], next, [null, null, null, flow], [1 / width, 1 / height]);
         flow = next;

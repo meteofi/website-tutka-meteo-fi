@@ -32,6 +32,9 @@ if (args.includes('--help')) {
 }
 const value = (name, fallback) => (args.includes(name) ? args[args.indexOf(name) + 1] : fallback);
 const headless = args.includes('--headless');
+// The full fixture suite is much slower without a GPU. Keep the normal device
+// timeout, but allow the explicit CPU-rendering correctness run to finish.
+const timeoutMs = args.includes('--software') ? 300000 : 120000;
 const port = Number(value('--port', headless ? '0' : '9011'));
 if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('Invalid port');
 const output = resolve(value('--output', join(tmpdir(), 'tutka-interpolation-results.json')));
@@ -106,7 +109,7 @@ if (headless) {
     const failed = new Promise((_, reject) => {
       browser.once('error', reject);
       browser.once('exit', (code) => reject(new Error(`Browser exited before reporting (${code})\n${log}`)));
-      timeout = setTimeout(() => reject(new Error(`Browser timed out after 120 seconds\n${log}`)), 120000);
+      timeout = setTimeout(() => reject(new Error(`Browser timed out after ${timeoutMs / 1000} seconds\n${log}`)), timeoutMs);
     });
     const report = await Promise.race([received, failed]);
     if (report.error) throw new Error(report.error);
