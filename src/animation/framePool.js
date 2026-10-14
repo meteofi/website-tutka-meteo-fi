@@ -761,18 +761,36 @@ export default class FramePool {
       mapLayers.push(this.warpLayer);
     }
 
-    // Retroactively upload already-loaded slot bitmaps so hasFlow
-    // returns true on the first showInterpolated call after a delayed
-    // attach (canInterpolate is async; some slots may already be
-    // loaded by the time we get here). Pass extent along so hasFlow's
-    // extent check isn't permanently stuck on a null stored extent.
+    interpolator.onContextChange = () => {
+      if (this.interpolator !== interpolator) return;
+      // Loss can happen while playback is suspended, so restore primary now,
+      // without waiting for the RAF clock. Clear OL's cached warp as well.
+      this._setPrimaryTransparent(false);
+      this._warpState.timeA = null;
+      this._warpState.timeB = null;
+      this.warpLayer.getSource().changed();
+      if (!interpolator.contextLost) {
+        this._uploadInterpolationFrames();
+        this.refreshFlows();
+      } else {
+        this._notifyAllFlowState();
+      }
+      this.map.render();
+    };
+    this._uploadInterpolationFrames();
+  }
+
+  // Used on initial attachment and GPU restoration. The pool remains the
+  // authority for images loaded during loss, window slides and identity changes.
+  // Never restore a saved GPU-era snapshot of slots or trigger new WMS requests.
+  _uploadInterpolationFrames() {
     for (const slot of this.slots) {
-      if (!slot.loaded || !slot.time) continue; // eslint-disable-line no-continue
+      if (!slot.loaded || slot.skipped || !slot.time) continue; // eslint-disable-line no-continue
       const wrapper = slot.source._sticky;
       if (!wrapper) continue; // eslint-disable-line no-continue
       const img = wrapper.getImage();
       if (img && img.complete && img.naturalWidth) {
-        interpolator.onSlotLoaded(slot, img, wrapper.getExtent());
+        this.interpolator.onSlotLoaded(slot, img, wrapper.getExtent());
       }
     }
   }
