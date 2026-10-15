@@ -52,7 +52,7 @@ const first = cache.get(frames[0]);
 cache.get(frames[1]); cache.get(frames[2]); cache.get(frames[3]);
 assert.equal(cache.get(frames[0]), first, 'recent use retains the same GPU object');
 cache.get(frames[4]);
-assert.equal(cache.entries.has(frames[1]), false, 'evict least recently used, not the active pair');
+assert.equal(cache.entries.has(frames[1]), false, 'evict least recently used when no pair is displayed');
 assert.equal(cache.entries.has(frames[0]), true);
 for (const frame of frames) cache.get(frame);
 assert.equal(peak, 4, 'evict before allocating a fifth full-resolution texture');
@@ -81,10 +81,56 @@ const afterLoss = cache.get(frames[0]);
 assert.notEqual(afterLoss, restored);
 cache.dispose();
 
+// Loaded images can finish background flow work between two display callbacks.
+// The displayed pair must survive even after other accesses make it the oldest.
+cache.setActive(frames[0], frames[1]);
+const displayed = [cache.get(frames[0]), cache.get(frames[1])];
+for (let i = 2; i < FRAME_STEPS; i++) {
+  const a = cache.get(frames[i]);
+  const b = cache.get(frames[i + 1]);
+  assert.ok(allocated.has(a) && allocated.has(b), 'both background inputs fit alongside the displayed pair');
+  cache.prefetch([frames[2], frames[3]]);
+  tick(); tick();
+  assert.deepEqual(
+    [cache.entries.get(frames[0]), cache.entries.get(frames[1])],
+    displayed,
+    'background flow and prefetch cannot evict either displayed image',
+  );
+  assert.equal(allocated.size, 4, 'protection stays inside the existing texture budget');
+}
+const afterBackfill = uploads;
+assert.deepEqual([cache.get(frames[0]), cache.get(frames[1])], displayed);
+assert.equal(uploads, afterBackfill, 'the next display callback performs no upload');
+cache.setActive(frames[FRAME_STEPS - 1], frames[FRAME_STEPS]);
+const last = [cache.get(frames[FRAME_STEPS - 1]), cache.get(frames[FRAME_STEPS])];
+cache.prefetch([frames[0], frames[1]]);
+tick(); tick();
+assert.deepEqual(
+  [cache.entries.get(frames[FRAME_STEPS - 1]), cache.entries.get(frames[FRAME_STEPS])],
+  last,
+  'the held final observation survives preparing the first pair',
+);
+cache.setActive(frames[0], frames[1]);
+const beforeWrap = uploads;
+cache.get(frames[0]); cache.get(frames[1]);
+assert.equal(uploads, beforeWrap, 'the first pair is still warm at wrap');
+cache.get(frames[2]); cache.get(frames[3]);
+assert.equal(allocated.has(last[0]) || allocated.has(last[1]), false, 'previous pair becomes evictable');
+cache.setActive();
+for (let i = 4; i < 8; i++) cache.get(frames[i]);
+assert.equal(cache.entries.has(frames[0]) || cache.entries.has(frames[1]), false, 'pause releases protection');
+cache.setActive(frames[4], frames[5]);
+cache.delete(frames[4]);
+assert.equal(cache.active.has(frames[4]), false, 'invalidation releases the old image identity');
+cache.dispose();
+assert.equal(cache.active.size, 0, 'disposal releases protected image references');
+assert.equal(allocated.size, 0);
+
 // Four panes share one upload per animation frame. Upcoming frames are ready
 // before the pair changes; repeatedly requesting them must not re-upload them.
 const panes = Array.from({ length: 4 }, () => new FrameTextures(gl));
 for (const pane of panes) {
+  pane.setActive(frames[0], frames[1]);
   pane.get(frames[0]); pane.get(frames[1]);
   pane.prefetch([frames[2], frames[3]]);
 }
@@ -100,6 +146,7 @@ for (let i = 0; i < 8; i++) {
 assert.equal(callbacks.size, 0);
 const warm = uploads;
 for (const pane of panes) {
+  pane.setActive(frames[1], frames[2]);
   pane.get(frames[1]); pane.get(frames[2]);
   assert.equal(pane.entries.size, 4);
 }
@@ -111,6 +158,7 @@ for (let i = 1; i < FRAME_COUNT * 2; i++) {
   const beforeTransition = uploads;
   let missing = 0;
   for (const pane of panes) {
+    pane.setActive(frames[b - 1], frames[b]);
     pane.get(frames[b - 1]); pane.get(frames[b]);
     missing += upcoming.filter((frame) => !pane.entries.has(frame)).length;
     pane.prefetch(upcoming);
@@ -142,4 +190,4 @@ tick();
 assert.equal(cache.entries.size, 0, 'loss before its event prevents pending upload');
 assert.equal(callbacks.size, 0);
 gl.lost = false;
-console.log('Frame textures: bounded allocations, reuse, eviction, prefetch, invalidation and context loss passed.');
+console.log('Frame textures: bounded allocations, displayed-pair protection, reuse, eviction, prefetch, invalidation and context loss passed.');

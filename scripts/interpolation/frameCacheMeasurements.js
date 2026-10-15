@@ -21,6 +21,13 @@ export default function measureFrameCache(engine, testCase, check) {
     engine.computeFlow(String(i - 1), String(i));
   }
   const resident = engine.frameTextures.entries;
+  check('frame-cache:displayed-pair-retained', 'correctness', Number(resident.get(first) !== oldTexture || !engine.gl.isTexture(oldTexture)), 0);
+  const backfillErrors = [0, 0.5, 1].map((t, i) => pixelError(sample(t), before[i]).max);
+  check('frame-cache:pixels-after-backfill', 'correctness', Math.max(...backfillErrors), 0);
+  // Pausing releases the displayed pair. Backfill can then evict its GPU
+  // copies, while the same flow and original decoded images remain usable.
+  engine.prefetch([]);
+  for (let i = 2; i < FRAME_COUNT; i++) engine.frameTextures.get(engine.frames.get(String(i)));
   check('frame-cache:evicted-first-pair', 'correctness', Number(resident.has(first) || engine.gl.isTexture(oldTexture)), 0);
   check('frame-cache:four-texture-limit', 'correctness', resident.size, 4);
   check('frame-cache:whole-window-retained', 'correctness', Math.abs(engine.frames.size - FRAME_COUNT), 0);
