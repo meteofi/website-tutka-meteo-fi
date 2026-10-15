@@ -5,30 +5,41 @@ import { RadarInterpolator } from './index';
 export default function createInterpolationController({
   getMode, getPanes, getActivePanes, isPlaying, debug,
 }) {
+  const visibilityListeners = new Map();
+
+  function attachPool(pane, name, pool) {
+    if (getMode() === 'off' || !pool.primary.getVisible() || pool.interpolator) return;
+    // A hidden product needs neither a context nor compiled shaders. Read mode
+    // and playback now: either may have changed since the pool was registered.
+    let interpolator = null;
+    try {
+      interpolator = new RadarInterpolator({
+        useFlow: getMode() === 'flow', motionProfile: name === 'satelliteLayer' ? 'satellite' : 'radar',
+      });
+    } catch (err) {
+      // Leave ordinary frames available if GPU setup fails. A later explicit
+      // visibility/layout change may retry; never spin on an unavailable GPU.
+      debug(`RadarInterpolator unavailable (pane ${pane.index} ${name}): ${err.message}`);
+    }
+    if (interpolator) {
+      pool.setInterpolator(interpolator);
+      pool.refreshFlows();
+      pool.setInterpActive(isPlaying());
+    }
+  }
+
   function attachInterpolators() {
     if (getMode() === 'off') return;
-    const playing = isPlaying();
-    const useFlow = getMode() === 'flow';
     for (const pane of getActivePanes()) {
       for (const name of ['radarLayer', 'satelliteLayer']) {
         const pool = pane.framePools[name];
-        if (pool && !pool.interpolator) {
-          // WebGL2 context creation can fail even though the boot probe
-          // passed: browsers cap live contexts (~8-16) and 4-up with radar +
-          // satellite wants up to 8. Leave this pool on discrete frames
-          // instead of letting the throw abort the caller mid-layout with a
-          // half-initialized split.
-          let interpolator = null;
-          try {
-            interpolator = new RadarInterpolator({ useFlow, motionProfile: name === 'satelliteLayer' ? 'satellite' : 'radar' });
-          } catch (err) {
-            debug(`RadarInterpolator unavailable (pane ${pane.index} ${name}): ${err.message}`);
+        if (pool) {
+          if (!visibilityListeners.has(pool)) {
+            const onVisible = () => attachPool(pane, name, pool);
+            visibilityListeners.set(pool, onVisible);
+            pool.primary.on('change:visible', onVisible);
           }
-          if (interpolator) {
-            pool.setInterpolator(interpolator);
-            pool.refreshFlows();
-            if (playing) pool.setInterpActive(true);
-          }
+          attachPool(pane, name, pool);
         }
       }
     }
@@ -39,6 +50,10 @@ export default function createInterpolationController({
   function detachPaneInterpolators(pane) {
     for (const name of ['radarLayer', 'satelliteLayer']) {
       const pool = pane.framePools[name];
+      if (pool && visibilityListeners.has(pool)) {
+        pool.primary.un('change:visible', visibilityListeners.get(pool));
+        visibilityListeners.delete(pool);
+      }
       if (pool && pool.interpolator) {
         pool.setInterpActive(false);
         pool.setInterpolator(null);
