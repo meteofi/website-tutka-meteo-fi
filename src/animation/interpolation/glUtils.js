@@ -2,6 +2,12 @@
 // to compile shaders, upload textures, and draw a fullscreen triangle —
 // no full rendergraph framework here.
 
+// Terminal cleanup only: a hidden or temporarily lost renderer may still be
+// reused. Explicit release avoids waiting for GC to reclaim a context slot.
+export function releaseContext(gl) {
+  if (!gl.isContextLost()) gl.getExtension('WEBGL_lose_context')?.loseContext();
+}
+
 export function createProgram(gl, vertSrc, fragSrc) {
   const compile = (type, src) => {
     const s = gl.createShader(type);
