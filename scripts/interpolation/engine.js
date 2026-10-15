@@ -6,6 +6,7 @@ import { flowError, flowGeometry, pixelError } from './metrics.mjs';
 import { measureEdgeVelocities, measureTrajectoryContracts, measureRenderCost } from './trajectoryMeasurements';
 import measureDisplaySampling from './displayMeasurements';
 import measureContextRecovery from './contextRecoveryMeasurements';
+import measureFrameCache from './frameCacheMeasurements';
 
 export function createEngine(useFlow = true, motionProfile = 'radar') {
   return new RadarInterpolator({ useFlow, motionProfile });
@@ -212,6 +213,7 @@ export async function measure(cases, onProgress = () => {}) {
   });
   try {
     report.contextRecovery = await measureContextRecovery(check);
+    report.frameCache = measureFrameCache(engine, cases.find((c) => c.id === 'desktop-default'), check);
     report.flowFiltering = measureFlowFiltering(engine);
     check('flow-filtering:bilinear-warp', 'correctness', Math.max(...report.flowFiltering.map((s) => s.max)), 2);
     report.deformationGuard = measureDeformationGuard(engine);

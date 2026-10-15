@@ -83,6 +83,9 @@ class Canvas extends EventTarget {
 }
 const originalDocument = globalThis.document;
 globalThis.document = { createElement: () => new Canvas() };
+// Upload scheduling is exercised separately by test-frame-textures.mjs.
+globalThis.requestAnimationFrame = () => 1;
+globalThis.cancelAnimationFrame = () => {};
 const extent = [-32, -32, 32, 32];
 const times = Array.from({ length: FRAME_COUNT + 1 }, (_, i) => new Date(Date.UTC(2026, 9, 14, 12, i * 5)).toISOString());
 

@@ -837,7 +837,10 @@ export default class FramePool {
   setInterpActive(active) {
     if (this.interpActive === active) return;
     this.interpActive = active;
-    if (!active) this._setPrimaryTransparent(false);
+    if (!active) {
+      this._setPrimaryTransparent(false);
+      if (this.interpolator) this.interpolator.prefetch([]);
+    }
     if (this.warpLayer) {
       this.warpLayer.setVisible(active && this.primary.getVisible());
       this.warpLayer.getSource().changed();
@@ -891,6 +894,7 @@ export default class FramePool {
     this._setPrimaryTransparent(hasFlow);
 
     if (!hasFlow) {
+      this.interpolator.prefetch([]);
       // Clear _warpState so canvasFunction's own hasFlow check sees
       // a null pair and returns _emptyCanvas. Without this the
       // closure in canvasFunction reads the PREVIOUS pair's
@@ -909,6 +913,14 @@ export default class FramePool {
     this._warpState.timeA = timeA;
     this._warpState.timeB = timeB;
     this._warpState.t = effectiveT;
+
+    // Warm the two images after B before the next pair transition. Loop-end
+    // prefetch prepares the first pair but never computes a last-to-first flow.
+    const nextIdx = Math.min(curIdx + 1, this.size - 1) + 1;
+    this.interpolator.prefetch([
+      this.windowTimes[nextIdx % this.size],
+      this.windowTimes[(nextIdx + 1) % this.size],
+    ]);
 
     this.warpLayer.getSource().changed();
   }
