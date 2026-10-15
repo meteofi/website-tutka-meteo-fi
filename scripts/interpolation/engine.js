@@ -5,6 +5,7 @@ import { ANALYSIS_SIZE, canvas, pixels } from './cases';
 import { flowError, flowGeometry, pixelError } from './metrics.mjs';
 import { measureEdgeVelocities, measureTrajectoryContracts, measureRenderCost } from './trajectoryMeasurements';
 import measureDisplaySampling from './displayMeasurements';
+import measureContextRecovery from './contextRecoveryMeasurements';
 
 export function createEngine(useFlow = true, motionProfile = 'radar') {
   return new RadarInterpolator({ useFlow, motionProfile });
@@ -210,6 +211,7 @@ export async function measure(cases, onProgress = () => {}) {
     id, kind, value, limit, passed: value <= limit,
   });
   try {
+    report.contextRecovery = await measureContextRecovery(check);
     report.flowFiltering = measureFlowFiltering(engine);
     check('flow-filtering:bilinear-warp', 'correctness', Math.max(...report.flowFiltering.map((s) => s.max)), 2);
     report.deformationGuard = measureDeformationGuard(engine);

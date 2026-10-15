@@ -85,49 +85,75 @@ export class RadarInterpolator {
     if (!this.gl) {
       throw new Error('RadarInterpolator: WebGL2 unavailable');
     }
-    // Enable either extension — canInterpolate already verified one
-    // of them is available; we just need to activate it for the
-    // half-float flow textures to be renderable later.
-    this.gl.getExtension('EXT_color_buffer_half_float');
-    this.gl.getExtension('EXT_color_buffer_float');
-    // RG16F linear filtering is core in WebGL2. The WebGL1 extension
-    // OES_texture_half_float_linear is no longer exposed here; probing
-    // it incorrectly selects NEAREST and makes motion jump at flow-grid
-    // cell edges. Rendering into RG16F still needs the extensions above.
-    this.flowFilter = this.gl.LINEAR;
-
-    this.warp = new WarpRenderer(this.gl, motionProfile === 'radar');
-    this.trajectories = motionProfile === 'radar' ? new RadarTrajectories(this.gl) : null;
-    this.flowLK = motionProfile === 'satellite'
-      ? new FlowLK(this.gl, flowResolution) : new FlowRadar(this.gl, flowResolution);
-
-    // Keyed by time ISO string. Values: { texture, width, height, extent }.
+    // ISO time → uploaded frame; adjacent time pair → computed flow texture.
     this.frames = new Map();
-    // Keyed by `${timeA}|${timeB}`. Values: { texture, width, height }. Populated
-    // lazily by computeFlow; hasFlow returns false for pairs not yet
-    // populated, so the caller sees "not ready" until the flow (zero
-    // or LK, depending on useFlow) has actually been created.
     this.flows = new Map();
-
-    // iOS Safari can evict WebGL2 contexts when the tab goes
-    // background or under memory pressure. When it happens all GPU
-    // handles we're holding are invalid — we can't even dispose
-    // them cleanly — and any subsequent draw silently fails. Mark
-    // ourselves unusable on loss; hasFlow returns false afterwards
-    // so the pool keeps the primary layer visible and the warp
-    // stays blank. preventDefault allows the restore event, but we
-    // don't attempt a live rebuild — the cheapest path back is for
-    // the user to toggle interp off and on via the menu, which
-    // constructs a fresh interpolator.
     this.contextLost = false;
+    this.disposed = false;
+    // FramePool owns the decoded images and current WMS identities. It replays
+    // its valid slots after restoration; the renderer keeps no extra bitmaps.
+    this.onContextChange = null;
+    try {
+      this._createResources();
+    } catch (error) {
+      this._releaseResources();
+      throw error;
+    }
+
     this._onContextLost = (e) => {
       e.preventDefault();
+      if (this.disposed) return;
       this.contextLost = true;
-      this.frames.clear();
-      this.flows.clear();
-      if (this.trajectories) this.trajectories.clear();
+      this._releaseResources();
+      if (this.onContextChange) this.onContextChange();
+    };
+    this._onContextRestored = () => {
+      if (this.disposed || !this.contextLost) return;
+      try {
+        this._createResources();
+        this.contextLost = false;
+        if (this.onContextChange) this.onContextChange();
+      } catch (error) {
+        // A failed rebuild must leave the ordinary WMS image visible. Do not
+        // retry in a loop while the browser may still be under memory pressure.
+        this.contextLost = true;
+        this._releaseResources();
+        if (this.onContextChange) this.onContextChange();
+        // eslint-disable-next-line no-console
+        console.warn('Interpolation context recovery failed', error);
+      }
     };
     this.canvas.addEventListener('webglcontextlost', this._onContextLost);
+    this.canvas.addEventListener('webglcontextrestored', this._onContextRestored);
+  }
+
+  _createResources() {
+    // Extensions and every GPU handle must be reacquired after restoration.
+    const halfFloat = this.gl.getExtension('EXT_color_buffer_half_float');
+    const float = this.gl.getExtension('EXT_color_buffer_float');
+    if (!halfFloat && !float) throw new Error('Interpolation float render targets unavailable');
+    // RG16F linear filtering is core in WebGL2, independent of these extensions.
+    this.flowFilter = this.gl.LINEAR;
+    this.warp = new WarpRenderer(this.gl, this.motionProfile === 'radar');
+    this.trajectories = this.motionProfile === 'radar' ? new RadarTrajectories(this.gl) : null;
+    this.flowLK = this.motionProfile === 'satellite'
+      ? new FlowLK(this.gl, this.flowResolution) : new FlowRadar(this.gl, this.flowResolution);
+  }
+
+  _releaseResources() {
+    // Lost-context handles are already invalid. Never reuse them on restore.
+    if (!this.gl.isContextLost()) {
+      for (const f of this.frames.values()) this.gl.deleteTexture(f.texture);
+      for (const f of this.flows.values()) this.gl.deleteTexture(f.texture);
+      if (this.warp) this.warp.dispose();
+      if (this.trajectories) this.trajectories.dispose();
+      if (this.flowLK) this.flowLK.dispose();
+    }
+    this.frames.clear();
+    this.flows.clear();
+    this.warp = null;
+    this.trajectories = null;
+    this.flowLK = null;
   }
 
   // Flip between zero-flow (crossfade) and LK flow. Clears any
@@ -148,7 +174,7 @@ export class RadarInterpolator {
   // (happens during zoom/pan before the new bitmaps land — without
   // this the warp draws old-extent pixels at the new extent).
   onSlotLoaded(slot, image, extent) {
-    if (this.contextLost) return;
+    if (this.disposed || this.contextLost || this.gl.isContextLost()) return;
     if (!slot || !slot.time || !image) return;
     const w = image.naturalWidth || image.width;
     const h = image.naturalHeight || image.height;
@@ -217,7 +243,7 @@ export class RadarInterpolator {
   // returns true and renderAt builds a UV offset to place content
   // at the correct world position in the output canvas.
   hasFlow(timeA, timeB, extent = null) {
-    if (this.contextLost) return false;
+    if (this.disposed || this.contextLost || this.gl.isContextLost()) return false;
     const a = this.frames.get(timeA);
     const b = this.frames.get(timeB);
     if (!a || !b) return false;
@@ -234,7 +260,7 @@ export class RadarInterpolator {
   // replaced in onSlotLoaded; a new compute is triggered then by
   // having that call invalidate the flow first).
   computeFlow(timeA, timeB) {
-    if (this.contextLost) return;
+    if (this.disposed || this.contextLost || this.gl.isContextLost()) return;
     const key = `${timeA}|${timeB}`;
     if (this.flows.has(key)) return;
     const a = this.frames.get(timeA);
@@ -248,13 +274,21 @@ export class RadarInterpolator {
     // this pair at display time anyway.
     if (this.useFlow && !extentApproxEqual(a.extent, b.extent)) return;
     let flow;
-    if (this.useFlow) {
-      flow = this.motionProfile === 'satellite'
-        ? { texture: this.flowLK.compute(a.texture, b.texture, this.flowFilter), width: this.flowResolution, height: this.flowResolution }
-        : this.flowLK.compute(a, b);
-    } else {
-      flow = { texture: createRg16fTexture(this.gl, 1, 1, null, this.flowFilter), width: 1, height: 1 };
+    try {
+      if (this.useFlow) {
+        flow = this.motionProfile === 'satellite'
+          ? { texture: this.flowLK.compute(a.texture, b.texture, this.flowFilter), width: this.flowResolution, height: this.flowResolution }
+          : this.flowLK.compute(a, b);
+      } else {
+        flow = { texture: createRg16fTexture(this.gl, 1, 1, null, this.flowFilter), width: 1, height: 1 };
+      }
+    } catch (error) {
+      // Loss may precede the queued DOM event, including halfway through a
+      // framebuffer pass. Let FramePool's imageloadend finish pumping loads.
+      if (this.gl.isContextLost()) return;
+      throw error;
     }
+    if (this.gl.isContextLost()) return;
     this.flows.set(key, flow);
   }
 
@@ -267,7 +301,7 @@ export class RadarInterpolator {
   // retina (source images are fetched with hidpi:false, so A's
   // native size is half of what OL wants on 2× displays).
   renderAt(timeA, timeB, t, targetW = 0, targetH = 0, canvasExtent = null) {
-    if (this.contextLost) return null;
+    if (this.disposed || this.contextLost || this.gl.isContextLost()) return null;
     const a = this.frames.get(timeA);
     const b = this.frames.get(timeB);
     const flow = this.flows.get(`${timeA}|${timeB}`);
@@ -307,8 +341,15 @@ export class RadarInterpolator {
     }
 
     const { gl } = this;
-    const trajectory = this.useFlow && this.trajectories
-      ? this.trajectories.get(`${timeA}|${timeB}`, this.flows, t) : null;
+    let trajectory = null;
+    try {
+      if (this.useFlow && this.trajectories) {
+        trajectory = this.trajectories.get(`${timeA}|${timeB}`, this.flows, t);
+      }
+    } catch (error) {
+      if (gl.isContextLost()) return null;
+      throw error;
+    }
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
@@ -334,18 +375,11 @@ export class RadarInterpolator {
   }
 
   dispose() {
-    if (this._onContextLost) {
-      this.canvas.removeEventListener('webglcontextlost', this._onContextLost);
-      this._onContextLost = null;
-    }
-    // If the context is already lost, deleteTexture calls are no-ops
-    // — safe to run either way.
-    for (const f of this.frames.values()) this.gl.deleteTexture(f.texture);
-    for (const f of this.flows.values()) this.gl.deleteTexture(f.texture);
-    this.frames.clear();
-    this.flows.clear();
-    this.warp.dispose();
-    if (this.trajectories) this.trajectories.dispose();
-    this.flowLK.dispose();
+    if (this.disposed) return;
+    this.disposed = true;
+    this.onContextChange = null;
+    this.canvas.removeEventListener('webglcontextlost', this._onContextLost);
+    this.canvas.removeEventListener('webglcontextrestored', this._onContextRestored);
+    this._releaseResources();
   }
 }

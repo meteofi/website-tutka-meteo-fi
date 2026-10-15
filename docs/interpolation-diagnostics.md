@@ -354,6 +354,51 @@ frame. This is a desktop measurement; phone loading and playback still need the
 Firebase preview check. Trajectory interpolation, colour sampling, high-DPI
 display budgets, window endpoints, and WMS identity handling are unchanged.
 
+## GPU context recovery
+
+The interpolator now handles both `webglcontextlost` and `webglcontextrestored`.
+On loss, FramePool immediately restores the ordinary layer at the user's opacity
+and invalidates its cached warp, even if the animation clock is suspended. Once
+the browser restores the context, the renderer reacquires float-render-target
+extensions and recreates shaders, buffers, framebuffers and trajectories. This
+follows the [WebGL context-loss contract](https://wikis.khronos.org/webgl/HandlingContextLost).
+
+FramePool uploads only its currently loaded, non-skipped sticky images and
+recomputes adjacent pairs. Images arriving during loss are included; invalidated
+products, styles, elevations, times and pan buffers are not resurrected. Recovery
+neither retains an extra bitmap cache nor requests WMS images. Playback/paused
+state, current mode and user opacity are preserved. Detaching a pane or switching
+interpolation off removes both event listeners. A failed rebuild leaves ordinary
+frames visible without a retry loop; recovery depends on the browser restoring
+the context, and cannot recover a tab that the operating system has terminated.
+
+`scripts/test-interpolation-recovery.mjs` exercises the real FramePool and
+interpolator lifecycle with controlled GPU and network completion: repeated
+loss, first/last pairs, window rollover, arrivals during loss, product/style/
+elevation changes, stale completions, pan invalidation, pause/mode/opacity
+changes, multiple panes, disposal and failed restoration. Loss during a GPU pass
+must not abort the load queue; unrelated GPU errors still propagate.
+
+`contextRecoveryMeasurements.js` uses the real `WEBGL_lose_context` extension
+on radar flow, satellite flow and crossfade. It checks fresh GPU resources,
+rendered endpoints/midpoints, replacement images and disposal before restore.
+The complete suite now runs 178 checks on Metal and SwiftShader with no
+correctness failures or unavailable measurements. Restored images match the
+pre-loss images exactly in both backends. All radar quality targets pass; the
+existing GOES-19 translation target remains the sole quality warning.
+
+An isolated Chrome check also forced loss in all active radar contexts of the
+actual live-data app at 1, 2 and 4 panes. Ordinary radar remained visible during
+loss, and each pane recreated its programs and resumed drawing with no WebGL
+errors or uncaught exceptions.
+
+For the phone preview, let the actual map play, switch to another app or lock the
+screen, then return. Repeat with split panes and with playback paused. The map
+should keep its opacity/mode and resume motion without toggling interpolation.
+Tab switching alone does not guarantee a context loss; the forced browser tests
+cover that event deterministically. Physical iOS lifecycle behaviour still needs
+the device check.
+
 ## Scope
 
 The harness covers production upload, flow computation, warping, enlarged crops,
