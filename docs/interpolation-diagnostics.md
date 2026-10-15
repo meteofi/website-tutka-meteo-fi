@@ -655,6 +655,49 @@ the first time, both playing and paused. Repeat in two/four panes, hide/show
 the products, and try **Pois → Häivytys → Virtaus** while they are hidden.
 The first activation should respect the current mode and playback state.
 
+## Deferring motion shader setup
+
+Crossfade now creates only the warp shader. Flow and radar-trajectory resources
+are initialized when the first valid motion pair runs in FramePool's shared
+queue. Switching to flow does not compile them inside the mode-switch handler;
+setup is spread over separate animation frames across panes. Once built, the
+resources stay available for warm crossfade/flow changes. Context restoration
+starts with only the warp shader too, so hidden layers do not rebuild motion
+resources until shown with a usable pair.
+
+A deferred constructor failure releases the whole context, including handles
+allocated before the constructor threw. FramePool detaches that renderer,
+restores ordinary WMS at the user's opacity, cancels its pending work and logs
+the failure once. Other panes continue. Explicit reattachment can retry using
+decoded images. Context loss during setup remains recoverable; unrelated
+computation errors still propagate.
+
+An isolated Chrome live-app comparison at 1508×863, DPR 2 measured cold
+radar-only crossfade program counts falling from 6/12/24 to 1/2/4 in 1/2/4
+panes. First flow activation added five programs per pane in four distinct
+queued callbacks, with none compiled in the mode handler. Warm mode changes
+compiled none; off/re-enable returned crossfade to one program per pane.
+These are avoided setup counts, not total-memory or steady-state speed claims.
+The first flow pair now pays its motion setup cost when it runs.
+
+All 17 Node test files, lint and the production build pass. Lifecycle coverage
+includes crossfade endpoints, rapid/hidden mode changes, queued setup across
+panes, warm reuse, restoration, partial setup failure and explicit retry.
+First/last-frame and non-default product/style/elevation identity checks pass.
+Both Metal and SwiftShader completed all 193 GPU checks with zero correctness
+failures or unavailable measurements; the existing GOES-19 large-translation
+quality warning remains. Repeated recovery reproduced pixels exactly.
+
+The live app passes first activation of both products while paused, then flow
+playback in 1/2/4 panes, with no WebGL errors or uncaught exceptions. Hidden
+pan/zoom and forced context recovery rebuild only one shader per hidden pane,
+draw nothing while hidden, and resume motion when shown.
+
+For the preview, start with **Häivytys**, try **Virtaus** for the first time,
+then switch back and forth, pause/resume and repeat in two/four panes. Check
+first-use responsiveness and that precipitation edges retain their appearance
+on both phone and desktop.
+
 ## Scope
 
 The harness covers production upload, flow computation, warping, enlarged crops,

@@ -30,7 +30,8 @@ const hooks = registerHooks({
       export const RADAR_FLOW_RESOLUTION = 384;
       export default class Resource {
         constructor(gl) {
-          if (gl.failBuild) throw new Error('Injected build failure');
+          if (gl.failBuild || gl.failResource === '${url}') throw new Error('Injected build failure');
+          if (gl.loseDuringBuild === '${url}') { gl.lost = true; throw new Error('Lost during build'); }
           this.gl = gl; this.generation = gl.generation; gl.builds++;
         }
         compute() {
@@ -111,7 +112,7 @@ const flushWork = () => {
 const extent = [-32, -32, 32, 32];
 const times = Array.from({ length: FRAME_COUNT + 1 }, (_, i) => new Date(Date.UTC(2026, 9, 14, 12, i * 5)).toISOString());
 
-function harness(profile = 'radar', defer = false) {
+function harness(profile = 'radar', defer = false, useFlow = true) {
   const layers = new Collection();
   const view = new View({ center: [0, 0], resolution: 1 });
   const primary = new ImageLayer({
@@ -152,7 +153,7 @@ function harness(profile = 'radar', defer = false) {
   pool.setWindow(times.slice(0, FRAME_COUNT));
   pool.showTime(times[0]); // Establish the real request anchor before completions.
   for (const time of pool.windowTimes) complete(time);
-  const engine = new RadarInterpolator({ useFlow: true, motionProfile: profile });
+  const engine = new RadarInterpolator({ useFlow, motionProfile: profile });
   pool.setInterpolator(engine);
   pool.refreshFlows();
   if (!defer) flushWork();
@@ -186,6 +187,90 @@ function harness(profile = 'radar', defer = false) {
 }
 
 try {
+  for (const profile of ['radar', 'satellite']) {
+    const h = harness(profile, false, false); const { pool, engine, primary } = h;
+    for (const index of [0, FRAME_STEPS]) {
+      pool.showTime(times[index]); pool.showInterpolated(0.4);
+      const { timeA, timeB, t } = pool._warpState;
+      assert.ok(engine.renderAt(timeA, timeB, t));
+    }
+    assert.equal(engine.gl.builds, 1, 'crossfade renders the whole window with only the warp shader');
+    engine.setUseFlow(true); pool.refreshFlows();
+    assert.equal(engine.gl.builds, 1, 'mode changes must not compile motion shaders inline');
+    engine.setUseFlow(false); pool.refreshFlows(); flushWork();
+    assert.equal(engine.gl.builds, 1, 'superseded flow requests must not initialize motion');
+    primary.setVisible(false);
+    engine.setUseFlow(true); pool.refreshFlows(); flushWork();
+    assert.equal(engine.gl.builds, 1, 'hidden mode changes must not initialize motion');
+    primary.setVisible(true);
+    assert.equal(engine.gl.builds, 1, 'showing the layer must queue motion setup');
+    flushFrame();
+    const warmBuilds = profile === 'radar' ? 3 : 2;
+    assert.equal(engine.gl.builds, warmBuilds);
+    assert.equal(engine.flows.size, 1, 'first motion setup shares the first pair job');
+    flushWork();
+    assert.equal(engine.flows.size, FRAME_STEPS);
+    const warmFlow = engine.flowLK; const warmTrajectories = engine.trajectories;
+    for (const useFlow of [false, true]) {
+      engine.setUseFlow(useFlow); pool.refreshFlows(); flushWork();
+      assert.equal(engine.flowLK, warmFlow, 'warm mode changes reuse motion resources');
+      assert.equal(engine.trajectories, warmTrajectories);
+      assert.equal(engine.gl.builds, warmBuilds);
+    }
+    h.lose(); engine.setUseFlow(false); h.restore();
+    assert.equal(engine.gl.builds, warmBuilds + 1, 'crossfade recovery rebuilds only the warp shader');
+    assert.equal(engine.flowLK, null); assert.equal(engine.trajectories, null);
+    h.lose(); engine.setUseFlow(true); h.restore(false);
+    assert.equal(engine.flowLK, null, 'motion recovery also waits for the queued pair');
+    flushFrame(); assert.equal(engine.flows.size, 1);
+    flushWork(); assert.equal(engine.flows.size, FRAME_STEPS);
+    pool.setInterpolator(null);
+  }
+  for (const count of [2, 4]) {
+    const panes = Array.from({ length: count }, () => harness('radar', true));
+    assert.ok(panes.every(({ engine }) => engine.flowLK === null));
+    for (let frame = 1; frame <= count; frame++) {
+      flushFrame();
+      assert.equal(panes.filter(({ engine }) => engine.flowLK !== null).length, frame,
+        'motion setup must be spread over separate animation frames across panes');
+    }
+    for (const { pool } of panes) pool.setInterpolator(null);
+  }
+  console.log('ok deferred motion setup, crossfade endpoints, warm reuse and recovery');
+
+  for (const [profile, resource] of [['radar', 'trajectories'], ['radar', 'flowRadar'], ['satellite', 'flowLK']]) {
+    const h = harness(profile, false, false); const { engine, pool, primary } = h;
+    engine.gl.failResource = `test:${resource}`;
+    engine.setUseFlow(true); pool.refreshFlows();
+    const neighbour = harness(profile, true);
+    const originalWarn = console.warn; const warnings = [];
+    console.warn = (...args) => warnings.push(args);
+    try { flushWork(); } finally { console.warn = originalWarn; }
+    assert.equal(warnings.length, 1, 'failed setup must not retry for every queued pair');
+    assert.equal(engine.disposed, true);
+    assert.equal(engine.gl.contextReleases, 1, 'partial construction releases its entire context');
+    assert.equal(pool.interpolator, null); assert.equal(pool.warpLayer, null);
+    assert.equal(primary.getOpacity(), 0.37, 'failed setup restores the user opacity');
+    assert.equal(primary.get('_interpHiding'), undefined);
+    assert.equal(neighbour.engine.flows.size, FRAME_STEPS, 'other panes finish queued work');
+    const replacement = new RadarInterpolator({ motionProfile: profile, useFlow: true });
+    const requestCount = h.requests.length;
+    pool.setInterpolator(replacement); pool.refreshFlows(); flushWork();
+    assert.equal(replacement.flows.size, FRAME_STEPS, 'explicit reattachment can retry setup');
+    assert.equal(h.requests.length, requestCount, 'retry reuses decoded WMS images');
+    pool.setInterpolator(null); neighbour.pool.setInterpolator(null);
+  }
+  {
+    const h = harness('radar', true); const { engine, pool } = h;
+    engine.gl.loseDuringBuild = 'test:flowRadar';
+    assert.doesNotThrow(flushWork);
+    assert.equal(engine.disposed, false, 'context loss during setup remains recoverable');
+    h.lose(); engine.gl.loseDuringBuild = null; h.restore();
+    assert.equal(engine.flows.size, FRAME_STEPS);
+    pool.setInterpolator(null);
+  }
+  console.log('ok deferred setup failure, independent panes, explicit retry and loss during setup');
+
   for (const profile of ['radar', 'satellite']) {
     const h = harness(profile, true); const { pool, engine, primary } = h;
     const neighbour = harness(profile);

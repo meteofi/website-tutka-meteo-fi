@@ -71,7 +71,7 @@ export default async function measureContextRecovery(check) {
         check(`recovery:${name}-${cycle}:resources`, 'correctness', Number(
           !engine.hasFlow('0', '1') || engine.warp === oldWarp
           || engine.flows.get('0|1')?.texture === oldFlow
-          || (profile === 'radar' && engine.trajectories === oldTrajectory),
+          || (profile === 'radar' && useFlow && engine.trajectories === oldTrajectory),
         ), 0);
         const errors = [0, 0.5, 1].map((t, i) => pixelError(pixels(engine.renderAt('0', '1', t)), samples[i]).max);
         check(`recovery:${name}-${cycle}:pixels`, 'correctness', Math.max(...errors), 1);
