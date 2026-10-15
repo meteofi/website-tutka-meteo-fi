@@ -168,11 +168,82 @@ function harness(profile = 'radar', defer = false) {
     if (drain) flushWork();
   };
   return {
-    pool, engine, primary, view, complete, lose, restore, layers,
+    pool, engine, primary, view, complete, lose, restore, layers, requests,
   };
 }
 
 try {
+  for (const profile of ['radar', 'satellite']) {
+    const h = harness(profile, true); const { pool, engine, primary } = h;
+    flushFrame();
+    pool.showInterpolated(0.4);
+    engine.renderAt(times[0], times[1], 0.4);
+    const firstFlow = engine.flows.get(`${times[0]}|${times[1]}`);
+    primary.setVisible(false);
+    assert.equal(pool.warpLayer.getVisible(), false);
+    assert.equal(engine.frameTextures.active.size, 0, 'hidden layers release displayed-image protection');
+    assert.equal(engine.frameTextures.pending.length, 0, 'hidden layers cancel upcoming uploads');
+    flushWork();
+    assert.equal(engine.flows.size, 1, 'hidden layers cancel queued motion backfill');
+    assert.equal(engine.flows.get(`${times[0]}|${times[1]}`), firstFlow, 'keep already computed motion');
+    h.complete(times[1], 'arrived while hidden');
+    flushWork();
+    assert.equal(engine.flows.size, 0, 'hidden image arrivals invalidate old flow without computing more');
+    assert.equal(engine.frames.get(times[1]).image.color, 'arrived while hidden');
+    engine.setUseFlow(false); pool.refreshFlows(); flushWork();
+    engine.setUseFlow(true); pool.refreshFlows(); flushWork();
+    assert.equal(engine.flows.size, 0, 'mode changes cannot schedule hidden motion');
+    h.lose(); h.restore();
+    assert.equal(engine.flows.size, 0, 'hidden context recovery waits for visibility');
+    pool.showTime(times[FRAME_STEPS]);
+    primary.setVisible(true);
+    assert.equal(engine.flows.size, 0, 'showing a layer queues work instead of computing inline');
+    flushFrame();
+    assert.equal(engine.hasFlow(times[FRAME_STEPS - 1], times[FRAME_STEPS]), true, 'resume with the displayed final pair');
+    assert.equal(engine.hasFlow(times[FRAME_STEPS], times[0]), false);
+    flushWork();
+    assert.equal(engine.flows.size, FRAME_STEPS);
+    pool.setInterpolator(null);
+  }
+  console.log('ok hidden radar/satellite cancellation, late arrivals, mode changes and recovery');
+
+  {
+    const h = harness(); const { pool, engine, primary } = h;
+    const flows = new Map(engine.flows); const requests = h.requests.length;
+    pool.setInterpActive(false);
+    primary.setVisible(false); flushWork();
+    primary.setVisible(true); flushWork();
+    assert.equal(engine.flows.size, flows.size);
+    assert.ok([...flows].every(([key, flow]) => engine.flows.get(key) === flow), 'a warm layer reuses its completed motion');
+    assert.equal(h.requests.length, requests, 'showing a warm layer does not refetch WMS images');
+    assert.equal(pool.interpActive, false, 'visibility must not restart paused playback');
+    assert.equal(pool.warpLayer.getVisible(), false);
+    pool.setInterpolator(null);
+  }
+  {
+    const h = harness('radar', true); const { pool, engine, primary } = h;
+    primary.setVisible(false);
+    primary.getSource().updateParams({ LAYERS: 'replacement', STYLES: 'radar_fmi', ELEVATION: '1000' });
+    h.complete(times[0], 'replacement'); h.complete(times[1], 'replacement');
+    flushWork();
+    assert.equal(engine.flows.size, 0);
+    primary.setVisible(true); flushWork();
+    assert.deepEqual([...engine.flows.keys()], [`${times[0]}|${times[1]}`], 'resume only current loaded identities');
+    assert.equal(engine.frames.get(times[0]).image.color, 'replacement');
+    pool.setInterpolator(null);
+  }
+  {
+    const panes = Array.from({ length: 4 }, () => harness('radar', true));
+    for (const h of panes.slice(0, 2)) h.primary.setVisible(false);
+    flushWork();
+    assert.deepEqual(panes.map((h) => h.engine.flows.size), [0, 0, FRAME_STEPS, FRAME_STEPS]);
+    for (const h of panes.slice(0, 2)) h.primary.setVisible(true);
+    flushWork();
+    assert.ok(panes.every((h) => h.engine.flows.size === FRAME_STEPS));
+    for (const h of panes) h.pool.setInterpolator(null);
+  }
+  console.log('ok warm/paused visibility, hidden identity changes and independent panes');
+
   for (const profile of ['radar', 'satellite']) {
     const h = harness(profile, true); const { pool, engine } = h;
     flushFrame();

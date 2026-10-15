@@ -742,7 +742,17 @@ export default class FramePool {
     });
 
     this._primaryVisListener = () => {
-      this.warpLayer.setVisible(this.interpActive && this.primary.getVisible());
+      const visible = this.primary.getVisible();
+      this.warpLayer.setVisible(this.interpActive && visible);
+      if (visible) {
+        // Loaded images and completed flows survive hiding. Queue only missing
+        // pairs, using the current window and displayed-time priority.
+        this.refreshFlows();
+      } else {
+        // Hidden layers must not compete with visible panes for GPU work.
+        this._flowQueue.clear();
+        interpolator.prefetch([]);
+      }
     };
     // Opacity listener is guarded so our own transparent/restore
     // writes don't get captured as "the user's chosen opacity".
@@ -1026,6 +1036,7 @@ export default class FramePool {
 
   _queueFlowCompute(timeA, timeB) {
     const { interpolator } = this;
+    if (!this.primary.getVisible()) return;
     if (!interpolator || interpolator.contextLost || interpolator.hasFlow(timeA, timeB)) return;
     const a = this.slots.find((slot) => slot.time === timeA);
     const b = this.slots.find((slot) => slot.time === timeB);
@@ -1037,7 +1048,8 @@ export default class FramePool {
       // Loaded wrappers are identity tokens, not copied bitmaps. A newer load
       // requeues the pair; obsolete images must never run after a view/product
       // change, even before every slot's loaded flag has caught up.
-      if (this.interpolator !== interpolator || interpolator.contextLost) return;
+      if (this.interpolator !== interpolator || interpolator.contextLost
+        || !this.primary.getVisible()) return;
       const index = this.windowTimes.indexOf(timeA);
       if (index < 0 || this.windowTimes[index + 1] !== timeB) return;
       if (a.time !== timeA || b.time !== timeB || !a.loaded || !b.loaded) return;
