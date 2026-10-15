@@ -1,5 +1,6 @@
 // Real browser/GPU lifecycle check, complementary to the FramePool race tests.
-// WEBGL_lose_context is used only by this preview diagnostic, never by the app.
+// The app uses WEBGL_lose_context for terminal cleanup; only this diagnostic
+// deliberately loses and restores a live renderer.
 import { RadarInterpolator } from '../../src/animation/interpolation';
 import { canvas, pixels } from './cases';
 import { pixelError } from './metrics.mjs';
@@ -97,10 +98,28 @@ export default async function measureContextRecovery(check) {
       // eslint-disable-next-line no-await-in-loop
       await eventAfter(engine.canvas, 'webglcontextrestored', () => extension.restoreContext());
       check(`recovery:${name}:disposed`, 'correctness', Number(
-        engine.warp !== null || engine.frames.size !== 0 || restores !== 3,
+        engine.warp !== null || engine.frames.size !== 0 || restores !== 3 || !gl.isContextLost(),
       ), 0);
     } finally {
       engine.dispose();
+    }
+    const terminal = new RadarInterpolator({ motionProfile: profile, useFlow, flowResolution: 32 });
+    try {
+      let notifications = 0;
+      terminal.onContextChange = () => { notifications++; };
+      terminal.onSlotLoaded({ time: '0' }, frame(0), [0, 0, 32, 32]);
+      terminal.onSlotLoaded({ time: '1' }, frame(1), [0, 0, 32, 32]);
+      terminal.computeFlow('0', '1');
+      terminal.renderAt('0', '1', 0.5);
+      // eslint-disable-next-line no-await-in-loop
+      await eventAfter(terminal.canvas, 'webglcontextlost', () => terminal.dispose());
+      terminal.dispose();
+      check(`recovery:${name}:released`, 'correctness', Number(
+        !terminal.gl.isContextLost() || terminal.warp !== null
+        || terminal.frames.size !== 0 || terminal.flows.size !== 0 || notifications !== 0,
+      ), 0);
+    } finally {
+      terminal.dispose();
     }
   }
   return results;

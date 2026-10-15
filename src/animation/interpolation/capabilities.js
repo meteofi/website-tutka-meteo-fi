@@ -14,6 +14,8 @@
 // Phase 1 stops here. Phase 4 adds the LK micro-benchmark and a
 // localStorage-cached verdict with a 7-day TTL.
 
+import { releaseContext } from './glUtils';
+
 function readOverride() {
   const params = new URLSearchParams(window.location.search);
   const v = params.get('interp');
@@ -48,17 +50,22 @@ export default async function canInterpolate() {
   const gl = canvas.getContext('webgl2');
   if (!gl) return false;
 
-  const hasHalf = !!gl.getExtension('EXT_color_buffer_half_float');
-  const hasFull = !!gl.getExtension('EXT_color_buffer_float');
-  if (!hasHalf && !hasFull) return false;
+  try {
+    const hasHalf = !!gl.getExtension('EXT_color_buffer_half_float');
+    const hasFull = !!gl.getExtension('EXT_color_buffer_float');
+    if (!hasHalf && !hasFull) return false;
 
-  if (!probeRg16fFboComplete(gl)) return false;
+    if (!probeRg16fFboComplete(gl)) return false;
 
-  // navigator.deviceMemory is undefined on Safari; only fail when we
-  // have a concrete low-memory reading.
-  if (navigator.deviceMemory !== undefined && navigator.deviceMemory < 3) {
-    return false;
+    // navigator.deviceMemory is undefined on Safari; only fail when we
+    // have a concrete low-memory reading.
+    if (navigator.deviceMemory !== undefined && navigator.deviceMemory < 3) {
+      return false;
+    }
+
+    return true;
+  } finally {
+    // The probe's context is never used for rendering, even on success.
+    releaseContext(gl);
   }
-
-  return true;
 }

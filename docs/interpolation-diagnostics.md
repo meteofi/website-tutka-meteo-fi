@@ -578,6 +578,45 @@ For the preview, hide radar in one pane while another keeps playing, switch
 restore it, both playing and paused. Ready motion should return immediately;
 missing motion should fill in without blocking the other visible panes.
 
+## Releasing discarded GPU contexts
+
+Switching interpolation off or removing panes now explicitly releases their
+WebGL contexts after detaching recovery listeners and deleting GPU objects.
+Failed construction also releases its context. The capability probe releases
+its throwaway context on success, rejection or exception. If a context was
+already lost when disposed, a one-time listener releases any late restoration
+without rebuilding the renderer. Missing `WEBGL_lose_context` remains supported
+through ordinary resource cleanup and browser reclamation. This uses the
+[Khronos terminal-release mechanism](https://registry.khronos.org/webgl/extensions/WEBGL_lose_context/).
+Hidden/paused layers retain their reusable contexts; motion shaders, display
+sampling and source image requests are unchanged.
+
+An isolated Chrome check at 1508×863, DPR 2 repeated 1/2/4-pane changes and
+off/flow/crossfade switches, creating 31 contexts in total. The instrumentation
+deliberately retained context references to test cleanup independently of garbage
+collection. Before this change, live contexts rose to Chrome's limit of 16,
+producing 15 context-limit warnings and leaving 16 live after switching off.
+Afterwards, live counts followed the active layout (2/4/8, including the hidden
+satellite renderer), with zero when off, no context-limit warnings, no WebGL
+errors and no uncaught exceptions. This demonstrates deterministic release,
+not a permanent production leak or a physical-phone memory measurement.
+
+All 16 Node test files, source/changed-test lint and the production build pass.
+Probe checks cover all capability exits, overrides and unavailable extensions;
+renderer checks cover independent panes, queued work, idempotent disposal,
+failed construction, late restoration and re-enabling without WMS refetches.
+Both Metal and SwiftShader complete 193 checks with no correctness failures or
+unavailable measurements. Restored frames have zero pixel error; the existing
+GOES-19 translation quality warning remains. The live app also passes hidden
+pan/zoom and forced context recovery in 1/2/4 panes, with no hidden draws and
+every pane resuming when shown. Manual checks cover pause, stepping, re-enable
+and layout switches. First/last-frame and non-default WMS identity handling
+remain covered by the lifecycle harness.
+
+For the preview, repeatedly switch **Pois → Virtaus**, change between one and
+four panes, and pause/resume. Radar should return normally each time. Repeat
+on a physical phone and desktop before merging.
+
 ## Scope
 
 The harness covers production upload, flow computation, warping, enlarged crops,

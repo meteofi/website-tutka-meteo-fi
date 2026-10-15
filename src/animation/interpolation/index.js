@@ -12,7 +12,7 @@ import WarpRenderer from './warp';
 import FlowLK from './flowLK';
 import FlowRadar, { RADAR_FLOW_RESOLUTION } from './flowRadar';
 import RadarTrajectories from './trajectories';
-import { createRg16fTexture } from './glUtils';
+import { createRg16fTexture, releaseContext } from './glUtils';
 import FrameTextures from './frameTextures';
 
 export { canInterpolate };
@@ -97,6 +97,7 @@ export class RadarInterpolator {
       this._createResources();
     } catch (error) {
       this._releaseResources();
+      releaseContext(this.gl);
       throw error;
     }
 
@@ -396,5 +397,11 @@ export class RadarInterpolator {
     this.canvas.removeEventListener('webglcontextlost', this._onContextLost);
     this.canvas.removeEventListener('webglcontextrestored', this._onContextRestored);
     this._releaseResources();
+    // A loss already acknowledged by the live renderer may still be restored
+    // after detachment. Release that context too, without rebuilding resources.
+    if (this.gl.isContextLost()) {
+      this.canvas.addEventListener('webglcontextrestored', () => releaseContext(this.gl), { once: true });
+    }
+    releaseContext(this.gl);
   }
 }

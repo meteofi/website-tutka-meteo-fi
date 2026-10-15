@@ -64,7 +64,20 @@ class Canvas extends EventTarget {
       releases: 0,
       lost: false,
       extensions: 0,
-      getExtension() { this.extensions++; return {}; },
+      contextReleases: 0,
+      getExtension(name) {
+        if (name === 'WEBGL_lose_context') {
+          if (this.noReleaseExtension) return null;
+          return {
+            loseContext: () => {
+              assert.equal(this.lost, false, 'do not release an already lost context');
+              this.contextReleases++;
+              this.lost = true;
+            },
+          };
+        }
+        this.extensions++; return {};
+      },
       isContextLost() { return this.lost; },
       createTexture() { return { generation: this.generation }; },
       deleteTexture() {},
@@ -173,6 +186,49 @@ function harness(profile = 'radar', defer = false) {
 }
 
 try {
+  for (const profile of ['radar', 'satellite']) {
+    const h = harness(profile, true); const { pool, engine, primary } = h;
+    const neighbour = harness(profile);
+    pool.setInterpolator(null);
+    assert.equal(engine.gl.isContextLost(), true, 'detaching releases the context before GC');
+    assert.equal(engine.gl.contextReleases, 1);
+    assert.equal(primary.getOpacity(), 0.37);
+    const event = new Event('webglcontextlost', { cancelable: true });
+    engine.canvas.dispatchEvent(event);
+    assert.equal(event.defaultPrevented, false, 'terminal loss must not request recovery');
+    engine.canvas.dispatchEvent(new Event('webglcontextrestored'));
+    flushWork();
+    assert.equal(engine.warp, null);
+    assert.equal(engine.frames.size, 0);
+    assert.equal(engine.flows.size, 0);
+    engine.dispose();
+    assert.equal(engine.gl.contextReleases, 1, 'disposal is idempotent');
+    assert.equal(neighbour.engine.gl.isContextLost(), false, 'other panes keep their context');
+    const requestCount = h.requests.length;
+    const replacement = new RadarInterpolator({ motionProfile: profile, useFlow: true });
+    pool.setInterpolator(replacement); pool.refreshFlows(); flushWork();
+    pool.setInterpActive(true); pool.showInterpolated(0.4);
+    assert.equal(primary.getOpacity(), 0);
+    assert.equal(h.requests.length, requestCount, 're-enabling reuses decoded WMS frames');
+    pool.setInterpolator(null); neighbour.pool.setInterpolator(null);
+  }
+  {
+    const h = harness(); h.lose(); h.pool.setInterpolator(null);
+    assert.equal(h.engine.gl.contextReleases, 0, 'disposal during loss does not lose twice');
+    const fallback = harness(); fallback.engine.gl.noReleaseExtension = true;
+    assert.doesNotThrow(() => fallback.pool.setInterpolator(null));
+    assert.equal(fallback.engine.warp, null, 'ordinary cleanup works without the extension');
+  }
+  {
+    const failedCanvas = new Canvas(); failedCanvas.gl.failBuild = true;
+    globalThis.document.createElement = () => failedCanvas;
+    try {
+      assert.throws(() => new RadarInterpolator(), /Injected build failure/);
+      assert.equal(failedCanvas.gl.contextReleases, 1, 'failed construction releases its context');
+    } finally { globalThis.document.createElement = () => new Canvas(); }
+  }
+  console.log('ok terminal cleanup, independent panes, re-enable and failed construction');
+
   for (const profile of ['radar', 'satellite']) {
     const h = harness(profile, true); const { pool, engine, primary } = h;
     flushFrame();
@@ -441,6 +497,8 @@ try {
     const count = layers.getLength(); const { builds } = engine.gl;
     h.restore();
     assert.equal(pool.interpolator, null);
+    assert.equal(engine.gl.isContextLost(), true, 'late restoration releases the detached context again');
+    assert.equal(engine.gl.contextReleases, 1);
     assert.equal(layers.getLength(), count);
     assert.equal(engine.gl.builds, builds, 'detached renderer must not rebuild');
     assert.equal(engine.onContextChange, null);
