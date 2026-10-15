@@ -68,7 +68,8 @@ import initSearchHighlight from './search/searchHighlight';
 import FramePool from './animation/framePool';
 import playbackPhase from './animation/playbackPhase';
 import { setGetMapLimits } from './wms/requestShape';
-import { canInterpolate, RadarInterpolator } from './animation/interpolation';
+import { canInterpolate } from './animation/interpolation';
+import createInterpolationController from './animation/interpolation/poolController';
 import {
   NOWCAST_LAYER, OBSERVED_LAYER, NOW_INDEX, FUTURE_STEPS,
   parseReferenceTimes, newestReferenceMs, timeLayerFor, edrLayerFor,
@@ -182,6 +183,16 @@ function readInitialInterpMode() {
   return DEFAULT_INTERP_MODE;
 }
 
+const {
+  attachInterpolators, detachPaneInterpolators, detachInterpolators, setUseFlow,
+} = createInterpolationController({
+  getMode: () => interpMode,
+  getPanes: () => panes,
+  getActivePanes: activePanes,
+  isPlaying: () => animationId !== null,
+  debug,
+});
+
 canInterpolate().then((ok) => {
   interpCapable = ok;
   interpMode = ok ? readInitialInterpMode() : DEFAULT_INTERP_MODE;
@@ -193,53 +204,6 @@ canInterpolate().then((ok) => {
   debug(`[tutka] INTERP probe failed: ${err && err.message}`);
   trackBoot({ capable: false, mode: DEFAULT_INTERP_MODE, error: true });
 });
-
-function attachInterpolators() {
-  if (interpMode === 'off') return;
-  const playing = animationId !== null;
-  const useFlow = interpMode === 'flow';
-  for (const pane of activePanes()) {
-    for (const name of ['radarLayer', 'satelliteLayer']) {
-      const pool = pane.framePools[name];
-      if (pool && !pool.interpolator) {
-        // WebGL2 context creation can fail even though the boot probe
-        // passed: browsers cap live contexts (~8-16) and 4-up with radar +
-        // satellite wants up to 8. Leave this pool on discrete frames
-        // instead of letting the throw abort the caller mid-layout with a
-        // half-initialized split.
-        let interpolator = null;
-        try {
-          interpolator = new RadarInterpolator({ useFlow, motionProfile: name === 'satelliteLayer' ? 'satellite' : 'radar' });
-        } catch (err) {
-          debug(`RadarInterpolator unavailable (pane ${pane.index} ${name}): ${err.message}`);
-        }
-        if (interpolator) {
-          pool.setInterpolator(interpolator);
-          pool.refreshFlows();
-          if (playing) pool.setInterpActive(true);
-        }
-      }
-    }
-  }
-}
-
-// Tear down one pane's interpolators, releasing their GL resources. Used both
-// when interp is switched off and when a pane drops out of the active set.
-function detachPaneInterpolators(pane) {
-  for (const name of ['radarLayer', 'satelliteLayer']) {
-    const pool = pane.framePools[name];
-    if (pool && pool.interpolator) {
-      pool.setInterpActive(false);
-      pool.setInterpolator(null);
-    }
-  }
-}
-
-function detachInterpolators() {
-  // Detach from ALL panes (including inactive ones) so toggling interp off
-  // fully releases GPU resources regardless of the current layout.
-  for (const pane of panes) detachPaneInterpolators(pane);
-}
 
 function setInterpMode(mode) {
   if (!VALID_INTERP_MODES.includes(mode)) return;
@@ -256,15 +220,7 @@ function setInterpMode(mode) {
     // Swap between crossfade and flow on existing interpolators —
     // cheaper than rebuilding the whole pipeline.
     const useFlow = mode === 'flow';
-    for (const pane of activePanes()) {
-      for (const name of ['radarLayer', 'satelliteLayer']) {
-        const pool = pane.framePools[name];
-        if (pool && pool.interpolator) {
-          pool.interpolator.setUseFlow(useFlow);
-          pool.refreshFlows();
-        }
-      }
-    }
+    setUseFlow(useFlow);
   }
   updateInterpChipsState();
   track('interp-mode', { mode });
