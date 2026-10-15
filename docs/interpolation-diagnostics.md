@@ -399,6 +399,63 @@ Tab switching alone does not guarantee a context loss; the forced browser tests
 cover that event deterministically. Physical iOS lifecycle behaviour still needs
 the device check.
 
+## Bounded source-image textures
+
+Each interpolating pool now retains at most four full-resolution source-image
+textures, independently of its complete observation window and computed motion
+fields. Eviction releases the GPU copy, not the existing decoded image owned by
+FramePool. Reloading uses the same dimensions, premultiplied upload and filtering.
+There is no extra decoded bitmap copy, image downsampling or change to flow,
+trajectories, display density, WMS requests or layer opacity.
+
+FramePool prepares the two images after the current pair. A queue shared across
+panes and products uploads at most one upcoming image per animation frame; the
+current pair can still upload synchronously if loading or a jump makes it miss
+the cache. At the last observation, prefetch prepares the first pair without
+computing a last-to-first motion field. Pause, invalidation, context loss and
+disposal cancel pending uploads. The four-texture cap is enforced before each
+allocation, including cold flow computation.
+
+The following live-app Chrome measurements count requested source-texture bytes
+(`width × height × 4`), summed across the active radar pools. They exclude CPU
+decoded images, motion/working textures, default framebuffers and driver overhead;
+the 69% reduction applies to source-image GPU storage, not total application RAM.
+
+| View | Previous source textures | Bounded source textures |
+| --- | ---: | ---: |
+| 390×844, DPR 3, one pane | 65.3 MiB | 20.1 MiB |
+| 1508×863, DPR 2, one pane | 198.4 MiB | 61.0 MiB |
+| Same desktop, two panes | 258.1 MiB | 79.4 MiB |
+| Same desktop, expanded from two to four panes | 387.1 MiB | 119.1 MiB |
+
+The last row includes larger still-valid sticky buffers retained by the first two
+panes after the layout change; it is not a fresh four-pane baseline. Requested
+texture dimensions and the count change from the whole window to four were
+observed by instrumenting WebGL uploads/deletions in an isolated Chrome session.
+
+Re-uploading adds work during playback. An initial on-demand-only cache produced
+50 ms RAF timestamp gaps in four panes. With upcoming uploads spread across
+frames, two final ten-second samples had four-pane maximum RAF timestamp gaps
+of 16.8 and 33.2 ms; their 95th percentile remained 16.8 ms. A second probe using
+callback arrival times measured a four-pane 95th percentile of 17.5 ms and a
+33.2 ms maximum. Individual upload calls still cost up to about 21 ms at the
+desktop single-pane size. These short M2 Max headless measurements
+are scheduling proxies, not presentation or physical-phone benchmarks; phone
+and desktop preview checks remain necessary, especially at fast playback speeds.
+
+`test-frame-textures.mjs` checks the allocation peak, image reuse, LRU eviction,
+shared upload scheduling, two complete loops without redundant uploads, pending
+identity invalidation and cancellation on disposal/loss. Playback tests check
+first/last-pair prefetch and pause. `frameCacheMeasurements.js` evicts the first
+pair from a full window and checks unchanged motion fields and pixel-identical
+endpoints/midpoints after re-upload, plus the final observation and GL errors.
+The complete 188-check suite passes all correctness checks on Metal and
+SwiftShader, with zero pixel difference after eviction. All radar quality
+targets pass; the existing GOES-19 translation warning is unchanged.
+The final live-data app also passed forced GPU loss/restoration in 1/2/4 panes
+with no WebGL errors or uncaught exceptions, plus manual split-pane, pause,
+pan/zoom and resume checks.
+
 ## Scope
 
 The harness covers production upload, flow computation, warping, enlarged crops,

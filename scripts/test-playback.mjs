@@ -66,7 +66,10 @@ function harness({
       interpActive: false,
       _userOpacity: 0.6,
       _warpState: { timeA: null, timeB: null, t: 0 },
-      interpolator: { hasFlow: () => state.ready },
+      interpolator: {
+        hasFlow: () => state.ready,
+        prefetch(upcoming) { state.prefetched = upcoming; },
+      },
       warpLayer: { getSource: () => warpSource, setVisible() {} },
       _viewExtent: () => [0, 0, 100, 100],
       _pumpLoads() {},
@@ -120,6 +123,7 @@ function harness({
 for (const paneCount of [1, 2, 4]) {
   const h = harness({ paneCount });
   h.frame(480);
+  assert.deepEqual(h.state.prefetched, [times[2], times[3]], 'first pair prepares its successors');
   h.frame(500); // only 20 ms since last warp: the boundary must bypass throttling
   assert.equal(h.advances.length, 1);
   for (let i = 0; i < paneCount; i++) {
@@ -202,6 +206,7 @@ for (const mode of ['hidden', 'out-of-range', 'no-interpolator']) {
   assert.equal(h.draws.at(-1).timeA, times[FRAME_STEPS - 1]);
   assert.equal(h.draws.at(-1).timeB, times[FRAME_STEPS]);
   assert.equal(h.draws.at(-1).t, 1, 'last frame holds the previous pair at its endpoint');
+  assert.deepEqual(h.state.prefetched, [times[0], times[1]], 'last pair prepares loop start without a wrap flow');
   h.frame(1000);
   assert.equal(h.draws.at(-1).timeA, times[0]);
   assert.equal(h.draws.at(-1).timeB, times[1]);
@@ -222,6 +227,7 @@ for (const mode of ['hidden', 'out-of-range', 'no-interpolator']) {
   assert.equal(h.draws.at(-1).timeA, times[1]);
   assert.equal(pool.primary.getOpacity(), 0);
   h.context.controls.stop();
+  assert.deepEqual(h.state.prefetched, [], 'pause cancels pending uploads');
   assert.equal(pool.primary.getOpacity(), 0.6, 'pause restores the discrete frame');
   const count = h.advances.length;
   h.frame(2000);

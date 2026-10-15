@@ -5,15 +5,15 @@
 // (radar, satellite). Each owns its own WebGL2 context on an offscreen
 // canvas; that canvas is what the pool's warp layer displays via an
 // ol/source/ImageCanvas. Sharing a single GL context across pools is a
-// Phase 4 optimization — per-pool GL is simpler and, with only two
-// interpolating pools, the memory cost is tolerable.
+// separate optimization. Full-resolution GPU copies are bounded per pool.
 
 import canInterpolate from './capabilities';
 import WarpRenderer from './warp';
 import FlowLK from './flowLK';
 import FlowRadar, { RADAR_FLOW_RESOLUTION } from './flowRadar';
 import RadarTrajectories from './trajectories';
-import { createRgbaTexture, createRg16fTexture } from './glUtils';
+import { createRg16fTexture } from './glUtils';
+import FrameTextures from './frameTextures';
 
 export { canInterpolate };
 
@@ -85,13 +85,13 @@ export class RadarInterpolator {
     if (!this.gl) {
       throw new Error('RadarInterpolator: WebGL2 unavailable');
     }
-    // ISO time → uploaded frame; adjacent time pair → computed flow texture.
+    // ISO time → decoded frame metadata; adjacent time pair → computed flow texture.
     this.frames = new Map();
     this.flows = new Map();
     this.contextLost = false;
     this.disposed = false;
     // FramePool owns the decoded images and current WMS identities. It replays
-    // its valid slots after restoration; the renderer keeps no extra bitmaps.
+    // its valid slots after restoration; the renderer keeps no extra bitmap copies.
     this.onContextChange = null;
     try {
       this._createResources();
@@ -134,6 +134,7 @@ export class RadarInterpolator {
     if (!halfFloat && !float) throw new Error('Interpolation float render targets unavailable');
     // RG16F linear filtering is core in WebGL2, independent of these extensions.
     this.flowFilter = this.gl.LINEAR;
+    this.frameTextures = new FrameTextures(this.gl);
     this.warp = new WarpRenderer(this.gl, this.motionProfile === 'radar');
     this.trajectories = this.motionProfile === 'radar' ? new RadarTrajectories(this.gl) : null;
     this.flowLK = this.motionProfile === 'satellite'
@@ -142,8 +143,8 @@ export class RadarInterpolator {
 
   _releaseResources() {
     // Lost-context handles are already invalid. Never reuse them on restore.
+    if (this.frameTextures) this.frameTextures.dispose();
     if (!this.gl.isContextLost()) {
-      for (const f of this.frames.values()) this.gl.deleteTexture(f.texture);
       for (const f of this.flows.values()) this.gl.deleteTexture(f.texture);
       if (this.warp) this.warp.dispose();
       if (this.trajectories) this.trajectories.dispose();
@@ -151,6 +152,7 @@ export class RadarInterpolator {
     }
     this.frames.clear();
     this.flows.clear();
+    this.frameTextures = null;
     this.warp = null;
     this.trajectories = null;
     this.flowLK = null;
@@ -168,8 +170,9 @@ export class RadarInterpolator {
   }
 
   // Called from FramePool on imageloadend once a slot's bitmap is
-  // usable. Uploads the image to a GL texture keyed by the slot's
-  // TIME. The caller-provided `extent` is stored so hasFlow can
+  // usable. Retains the existing decoded image under the slot's TIME; GPU
+  // copies are uploaded on demand and bounded independently of the window.
+  // The caller-provided `extent` is stored so hasFlow can
   // later detect a stale pair whose content is for a different view
   // (happens during zoom/pan before the new bitmaps land — without
   // this the warp draws old-extent pixels at the new extent).
@@ -180,10 +183,9 @@ export class RadarInterpolator {
     const h = image.naturalHeight || image.height;
     if (!w || !h) return;
     const existing = this.frames.get(slot.time);
-    if (existing) this.gl.deleteTexture(existing.texture);
-    const texture = createRgbaTexture(this.gl, w, h, image);
+    if (existing) this.frameTextures.delete(existing);
     this.frames.set(slot.time, {
-      texture, width: w, height: h, extent: extent ? extent.slice() : null,
+      image, width: w, height: h, extent: extent ? extent.slice() : null,
     });
     // The new bitmap invalidates any flow pairs that referenced the
     // previous bitmap for this time — drop them so the next
@@ -220,7 +222,7 @@ export class RadarInterpolator {
     if (!time) return;
     const f = this.frames.get(time);
     if (f) {
-      this.gl.deleteTexture(f.texture);
+      this.frameTextures.delete(f);
       this.frames.delete(time);
     }
     for (const [key, flow] of this.flows) {
@@ -233,7 +235,7 @@ export class RadarInterpolator {
 
   // Is there enough data to render (A, B, t) covering the given
   // view extent? Requires:
-  //   - both frame textures uploaded,
+  //   - both decoded images available for upload,
   //   - a flow texture computed for the pair (via computeFlow),
   //   - A and B fetched at approximately the same stored extent so
   //     they share a UV coordinate system for the flow,
@@ -276,9 +278,11 @@ export class RadarInterpolator {
     let flow;
     try {
       if (this.useFlow) {
+        const textureA = this.frameTextures.get(a);
+        const textureB = this.frameTextures.get(b);
         flow = this.motionProfile === 'satellite'
-          ? { texture: this.flowLK.compute(a.texture, b.texture, this.flowFilter), width: this.flowResolution, height: this.flowResolution }
-          : this.flowLK.compute(a, b);
+          ? { texture: this.flowLK.compute(textureA, textureB, this.flowFilter), width: this.flowResolution, height: this.flowResolution }
+          : this.flowLK.compute({ ...a, texture: textureA }, { ...b, texture: textureB });
       } else {
         flow = { texture: createRg16fTexture(this.gl, 1, 1, null, this.flowFilter), width: 1, height: 1 };
       }
@@ -290,6 +294,12 @@ export class RadarInterpolator {
     }
     if (this.gl.isContextLost()) return;
     this.flows.set(key, flow);
+  }
+
+  // Prepare upcoming images without changing any pair's flow readiness.
+  prefetch(times) {
+    if (this.disposed || this.contextLost || this.gl.isContextLost()) return;
+    this.frameTextures.prefetch(times.map((time) => this.frames.get(time)).filter(Boolean));
   }
 
   // Draw the warped image for (A, B, t) into this.canvas. Returns
@@ -341,6 +351,8 @@ export class RadarInterpolator {
     }
 
     const { gl } = this;
+    const textureA = this.frameTextures.get(a);
+    const textureB = this.frameTextures.get(b);
     let trajectory = null;
     try {
       if (this.useFlow && this.trajectories) {
@@ -354,8 +366,8 @@ export class RadarInterpolator {
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
     this.warp.render(
-      a.texture,
-      b.texture,
+      textureA,
+      textureB,
       flow.texture,
       t,
       w,
