@@ -456,6 +456,57 @@ The final live-data app also passed forced GPU loss/restoration in 1/2/4 panes
 with no WebGL errors or uncaught exceptions, plus manual split-pane, pause,
 pan/zoom and resume checks.
 
+## Yielding between motion computations
+
+FramePool now queues motion work instead of computing complete windows inside
+image-load events, mode changes and context-restoration handlers. A shared queue
+processes at most one pair per animation frame across all pools. Displayed pairs
+take priority in every pane; backfill rotates between pools. Seeking changes
+that priority, including the preceding pair held at the last observation.
+The timeline is notified after each completion. Ordinary WMS frames remain the
+fallback while a displayed pair is pending.
+
+Pending work is deduplicated by adjacent times and bounded to the current window.
+Mode/product changes, context loss and detachment cancel it. Before execution,
+FramePool verifies the interpolator, window adjacency, loaded slots and exact
+sticky-image wrapper identities. A replacement image queues a fresh job; a stale
+wrapper or mismatched extent must not resurrect old content or trigger a retry
+loop. The queue changes scheduling, not the flow estimator, warp, display
+density, source-texture budget, WMS request policy or playback clock.
+
+An isolated Chrome/M2 Max live-app probe switched from crossfade to flow three
+times at each layout, after loading the observation window (1508×863, DPR 2).
+Before this change the synchronous mode-switch handler took 208–244 ms with one
+pane, 314–370 ms with two, and 532–580 ms with four. The final queued probe
+reduced the handler to 0.5–0.9 ms across those layouts. Four panes produced one
+52 ms main-thread task across the three two-second post-switch samples, and
+two panes produced none over 50 ms. The single-pane samples still contained
+tasks of 50–67 ms: one pair's uploads/computation and other rendering
+remain synchronous. This is not a per-frame time guarantee or a phone benchmark.
+Spreading the work can increase the time until the entire window is ready, while
+letting the browser process input and paint between pairs.
+
+`test-flow-queue.mjs` covers cross-pane priority/fairness, one-pair callbacks,
+deduplication, cancellation, bounded retained work, and errors that must not
+strand other pools. The real FramePool/interpolator lifecycle tests also cover
+seeking during backfill, first/last pairs, timeline completion, product/style/
+elevation changes, image replacement, window slides, unmatched extents, rapid
+mode changes and restoration/detachment with unfinished work.
+All 15 Node test files and the production build pass. The 188-check suite on
+Metal and SwiftShader has no correctness failures or unavailable measurements;
+all radar quality targets pass and the existing GOES-19 translation warning is
+unchanged. The complete visible timeline was flow-ready after each live-app
+sample (except the last cell, which has no forward pair), with no GL errors or
+uncaught exceptions.
+Forced loss/restoration resumed drawing in all active contexts at 1/2/4 panes.
+Manual checks also covered mode off/on, split layouts, discrete stepping,
+pause/resume and pan/zoom with no browser errors.
+
+For the preview, switch **Häivytys → Virtaus**, seek and pan while frames load,
+and repeat with two/four panes. Check that controls stay responsive and motion
+becomes available as the timeline fills. Also pause/resume and return from
+another app to exercise queued recovery.
+
 ## Scope
 
 The harness covers production upload, flow computation, warping, enlarged crops,

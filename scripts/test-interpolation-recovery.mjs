@@ -83,13 +83,22 @@ class Canvas extends EventTarget {
 }
 const originalDocument = globalThis.document;
 globalThis.document = { createElement: () => new Canvas() };
-// Upload scheduling is exercised separately by test-frame-textures.mjs.
-globalThis.requestAnimationFrame = () => 1;
-globalThis.cancelAnimationFrame = () => {};
+const callbacks = new Map();
+let nextRequest = 0;
+globalThis.requestAnimationFrame = (run) => { callbacks.set(++nextRequest, run); return nextRequest; };
+globalThis.cancelAnimationFrame = (id) => callbacks.delete(id);
+const flushFrame = () => {
+  const batch = [...callbacks.values()]; callbacks.clear();
+  for (const run of batch) run();
+};
+const flushWork = () => {
+  for (let i = 0; callbacks.size && i < 200; i++) flushFrame();
+  assert.equal(callbacks.size, 0, 'queued work must settle without retrying uncomputable pairs');
+};
 const extent = [-32, -32, 32, 32];
 const times = Array.from({ length: FRAME_COUNT + 1 }, (_, i) => new Date(Date.UTC(2026, 9, 14, 12, i * 5)).toISOString());
 
-function harness(profile = 'radar') {
+function harness(profile = 'radar', defer = false) {
   const layers = new Collection();
   const view = new View({ center: [0, 0], resolution: 1 });
   const primary = new ImageLayer({
@@ -133,9 +142,11 @@ function harness(profile = 'radar') {
   const engine = new RadarInterpolator({ useFlow: true, motionProfile: profile });
   pool.setInterpolator(engine);
   pool.refreshFlows();
+  if (!defer) flushWork();
   pool.setInterpActive(true);
   pool.showInterpolated(0.4);
-  assert.equal(primary.getOpacity(), 0);
+  assert.equal(primary.getOpacity(), defer ? 0.37 : 0);
+  if (!defer) flushWork();
   const lose = () => {
     engine.gl.lost = true;
     // Calls before the asynchronous loss event must not use dead handles.
@@ -148,12 +159,13 @@ function harness(profile = 'radar') {
     assert.equal(engine.frames.size, 0);
     assert.equal(engine.flows.size, 0);
   };
-  const restore = () => {
+  const restore = (drain = true) => {
     const before = requests.length;
     engine.gl.generation++;
     engine.gl.lost = false;
     engine.canvas.dispatchEvent(new Event('webglcontextrestored'));
     assert.equal(requests.length, before, 'restoration must not refetch WMS images');
+    if (drain) flushWork();
   };
   return {
     pool, engine, primary, view, complete, lose, restore, layers,
@@ -161,6 +173,79 @@ function harness(profile = 'radar') {
 }
 
 try {
+  {
+    const h = harness('radar', true); const { pool, engine, primary } = h;
+    assert.equal(engine.frames.size, FRAME_COUNT);
+    assert.equal(engine.flows.size, 0, 'a complete loaded window is queued, not computed inline');
+    const ready = [];
+    pool.onFlowStateChange = (i, value) => { ready[i] = value; };
+    pool.showTime(times[6]);
+    flushFrame();
+    assert.deepEqual([...engine.flows.keys()], [`${times[6]}|${times[7]}`], 'seek reprioritizes the displayed pair');
+    assert.equal(ready[6], true, 'completion updates the timeline');
+    pool.showInterpolated(0.4);
+    assert.equal(primary.getOpacity(), 0);
+    pool.showTime(times[FRAME_STEPS]);
+    flushFrame();
+    assert.equal(engine.flows.size, 2, 'one pair per callback');
+    assert.equal(engine.hasFlow(times[FRAME_STEPS - 1], times[FRAME_STEPS]), true);
+    assert.equal(engine.hasFlow(times[FRAME_STEPS], times[0]), false);
+    pool.setInterpolator(null);
+    flushWork();
+    assert.equal(engine.flows.size, 0, 'detachment cancels unfinished backfill');
+  }
+  console.log('ok queued windows, current/last-pair priority, timeline completion and detachment');
+
+  {
+    const h = harness('radar', true); const { pool, engine, primary } = h;
+    primary.getSource().updateParams({ LAYERS: 'replacement', STYLES: 'default', ELEVATION: '1000' });
+    flushFrame();
+    assert.equal(engine.flows.size, 0, 'queued old identities must not compute');
+    h.complete(times[0], 'replacement'); h.complete(times[1], 'replacement');
+    flushWork();
+    assert.equal(engine.flows.size, 1);
+    assert.equal(engine.frames.get(times[0]).image.color, 'replacement');
+    pool.setInterpolator(null);
+  }
+  {
+    const h = harness('radar', true); const { pool, engine } = h;
+    pool.setWindow(times.slice(1));
+    h.complete(times[FRAME_COUNT]); pool.showTime(times[FRAME_COUNT]);
+    flushFrame();
+    assert.deepEqual([...engine.flows.keys()], [`${times[FRAME_STEPS]}|${times[FRAME_COUNT]}`]);
+    flushWork();
+    assert.equal(engine.flows.size, FRAME_STEPS);
+    assert.equal(engine.frames.has(times[0]), false);
+    assert.equal(engine.hasFlow(times[0], times[1]), false, 'dropped window pair cannot resurrect');
+    pool.setInterpolator(null);
+  }
+  console.log('ok identity changes and window slides while motion work is pending');
+
+  {
+    const h = harness('radar', true); const { pool, engine } = h;
+    h.complete(times[1], 'different extent', [0, 0, 64, 64]);
+    flushWork();
+    assert.equal(engine.hasFlow(times[0], times[1]), false, 'mismatched extents are not retried forever');
+    h.complete(times[1]); flushWork();
+    assert.equal(engine.flows.size, FRAME_STEPS, 'a fresh image queues its missing adjacent pairs');
+    engine.setUseFlow(false); pool.refreshFlows();
+    engine.setUseFlow(true); pool.refreshFlows();
+    flushFrame();
+    engine.setUseFlow(false); pool.refreshFlows(); flushWork();
+    assert.ok([...engine.flows.values()].every((f) => f.width === 1), 'rapid mode changes cannot restore stale flow');
+    pool.setInterpolator(null);
+  }
+  {
+    const h = harness('radar', true); const { pool, engine } = h;
+    h.lose(); flushWork();
+    assert.equal(engine.frames.size, 0);
+    h.restore(false);
+    assert.equal(engine.flows.size, 0, 'restoration also yields instead of rebuilding inline');
+    pool.setInterpolator(null); flushWork();
+    assert.equal(engine.flows.size, 0);
+  }
+  console.log('ok uncomputable pairs, rapid mode changes and loss during queued backfill');
+
   for (const profile of ['radar', 'satellite']) {
     const h = harness(profile);
     const { pool, engine, primary } = h;
@@ -227,6 +312,7 @@ try {
     assert.equal(engine.flows.size, 1);
     assert.equal(slot.source._sticky.getImage().color, 'replacement');
     h.complete(times[2], 'late replacement');
+    flushWork();
     assert.equal(engine.flows.size, 2, 'normal loading resumes after restoration');
     pool.setInterpolator(null);
   }
@@ -290,6 +376,7 @@ try {
     engine.invalidateSlot(times[1]);
     engine.gl.loseDuringCompute = true;
     assert.doesNotThrow(() => h.complete(times[1]));
+    assert.doesNotThrow(flushWork);
     assert.equal(engine.gl.isContextLost(), true);
     h.lose(); engine.gl.loseDuringCompute = false; h.restore();
     engine.gl.loseDuringDraw = true;
@@ -297,7 +384,8 @@ try {
     h.lose(); engine.gl.loseDuringDraw = false; h.restore();
     engine.invalidateSlot(times[1]);
     engine.gl.failCompute = true;
-    assert.throws(() => h.complete(times[1]), /Injected compute failure/, 'do not suppress unrelated errors');
+    h.complete(times[1]);
+    assert.throws(flushWork, /Injected compute failure/, 'do not suppress unrelated errors');
     pool.setInterpolator(null);
   }
   console.log('ok loss during a GPU pass does not abort loading or rendering');

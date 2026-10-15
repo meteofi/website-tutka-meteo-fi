@@ -66,6 +66,7 @@ function harness({
       interpActive: false,
       _userOpacity: 0.6,
       _warpState: { timeA: null, timeB: null, t: 0 },
+      _flowQueue: { prioritize() {} },
       interpolator: {
         hasFlow: () => state.ready,
         prefetch(upcoming) { state.prefetched = upcoming; },

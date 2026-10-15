@@ -3,6 +3,7 @@ import ImageState from 'ol/ImageState';
 import { containsExtent } from 'ol/extent';
 import BudgetedCanvasSource, { WARP_RATIO } from './budgetedCanvasSource';
 import StickyImageWMS from './stickyImageWMS';
+import FlowQueue from './flowQueue';
 import computeRequestShape, { getMapMaxSize } from '../wms/requestShape';
 import { FRAME_COUNT } from '../constants';
 
@@ -63,6 +64,7 @@ export default class FramePool {
     // drives the interpolator's warp shader and a separate warp layer
     // displays the interpolated canvas.
     this.interpolator = interpolator;
+    this._flowQueue = new FlowQueue();
     this.warpLayer = null;
     this.interpActive = false;
     // Updated each RAF so the warp source's canvasFunction can read
@@ -336,6 +338,7 @@ export default class FramePool {
   }
 
   _resyncAllParams(prev, now) {
+    this._flowQueue.clear();
     const p = this.primary.getSource();
     for (const slot of this.slots) {
       const o = this._overrideFor(slot.time);
@@ -580,6 +583,7 @@ export default class FramePool {
       throw new Error(`FramePool.setWindow: expected ${this.size} times, got ${times.length}`);
     }
     this.windowTimes = times.slice();
+    this._flowQueue.retain(new Set(times.slice(0, -1).map((time, i) => `${time}|${times[i + 1]}`)));
     const desired = new Set(times);
     const assigned = new Set();
     const needAssign = [];
@@ -649,6 +653,7 @@ export default class FramePool {
     const slot = this.slots.find((s) => s.time === time);
     if (!slot) return false;
     this.currentTime = time;
+    this._prioritizeFlow();
     if (this.primary.getSource() !== slot.source) {
       this.primary.setSource(slot.source);
     }
@@ -666,6 +671,7 @@ export default class FramePool {
   // attempt and the double-exposure artifact of naive overlay.
   setInterpolator(interpolator) {
     if (this.interpolator === interpolator) return;
+    this._flowQueue.clear();
     this._teardownWarpLayer();
     // Release the old interpolator's GPU resources before dropping
     // the reference, otherwise textures / programs / FBOs leak.
@@ -763,6 +769,7 @@ export default class FramePool {
 
     interpolator.onContextChange = () => {
       if (this.interpolator !== interpolator) return;
+      this._flowQueue.clear();
       // Loss can happen while playback is suspended, so restore primary now,
       // without waiting for the RAF clock. Clear OL's cached warp as well.
       this._setPrimaryTransparent(false);
@@ -983,8 +990,8 @@ export default class FramePool {
     this._notifyAllFlowState();
   }
 
-  // Called from imageloadend after a slot's bitmap is uploaded to
-  // the interpolator. Triggers computeFlow for the (prev, this) and
+  // Called from imageloadend after a slot's bitmap is registered with
+  // the interpolator. Queues computeFlow for the (prev, this) and
   // (this, next) pairs when both endpoints are loaded. No-op if the
   // interpolator isn't attached or the time isn't in the current
   // window. Non-wrapping: the last window slot doesn't pair with
@@ -996,32 +1003,67 @@ export default class FramePool {
     if (idx > 0) {
       const prevTime = this.windowTimes[idx - 1];
       if (this.isTimeLoaded(prevTime)) {
-        this.interpolator.computeFlow(prevTime, time);
+        this._queueFlowCompute(prevTime, time);
       }
     }
     if (idx < this.windowTimes.length - 1) {
       const nextTime = this.windowTimes[idx + 1];
       if (this.isTimeLoaded(nextTime)) {
-        this.interpolator.computeFlow(time, nextTime);
+        this._queueFlowCompute(time, nextTime);
       }
     }
+    this._prioritizeFlow();
     this._notifyAllFlowState();
   }
 
-  // Re-compute flow for every pair in the current window whose
+  _prioritizeFlow() {
+    if (!this.windowTimes) return;
+    const index = this.windowTimes.indexOf(this.currentTime);
+    const start = Math.min(index, this.windowTimes.length - 2);
+    this._flowQueue.prioritize(start < 0 ? null
+      : `${this.windowTimes[start]}|${this.windowTimes[start + 1]}`);
+  }
+
+  _queueFlowCompute(timeA, timeB) {
+    const { interpolator } = this;
+    if (!interpolator || interpolator.contextLost || interpolator.hasFlow(timeA, timeB)) return;
+    const a = this.slots.find((slot) => slot.time === timeA);
+    const b = this.slots.find((slot) => slot.time === timeB);
+    if (!a || !b || !a.loaded || !b.loaded || a.skipped || b.skipped) return;
+    const imageA = a.source._sticky;
+    const imageB = b.source._sticky;
+    if (!imageA || !imageB) return;
+    this._flowQueue.add(`${timeA}|${timeB}`, () => {
+      // Loaded wrappers are identity tokens, not copied bitmaps. A newer load
+      // requeues the pair; obsolete images must never run after a view/product
+      // change, even before every slot's loaded flag has caught up.
+      if (this.interpolator !== interpolator || interpolator.contextLost) return;
+      const index = this.windowTimes.indexOf(timeA);
+      if (index < 0 || this.windowTimes[index + 1] !== timeB) return;
+      if (a.time !== timeA || b.time !== timeB || !a.loaded || !b.loaded) return;
+      if (a.source._sticky !== imageA || b.source._sticky !== imageB) return;
+      interpolator.computeFlow(timeA, timeB);
+      this._notifyAllFlowState();
+      this.map.render();
+    });
+  }
+
+  // Queue flow for every pair in the current window whose
   // both endpoints are loaded. Called from radar.js after a mode
   // switch (crossfade ↔ flow) — the interpolator cleared its flow
   // cache, so without this the warp layer would stay blank until
   // the next frame arrived via prefetch.
   refreshFlows() {
     if (!this.interpolator || !this.windowTimes) return;
+    this._flowQueue.clear();
     for (let i = 0; i < this.windowTimes.length - 1; i++) {
       const tA = this.windowTimes[i];
       const tB = this.windowTimes[i + 1];
       if (this.isTimeLoaded(tA) && this.isTimeLoaded(tB)) {
-        this.interpolator.computeFlow(tA, tB);
+        this._queueFlowCompute(tA, tB);
       }
     }
+    this._prioritizeFlow();
     this._notifyAllFlowState();
   }
 
