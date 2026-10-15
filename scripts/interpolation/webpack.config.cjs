@@ -10,7 +10,7 @@ const root = path.resolve(__dirname, '../..');
 const hash = (file) => createHash('sha256').update(fs.readFileSync(path.join(root, file))).digest('hex');
 const sources = ['index.js', 'flowLK.js', 'flowRadar.js', 'warp.js', 'trajectories.js', 'glUtils.js', 'capabilities.js', 'frameTextures.js']
   .map((name) => `src/animation/interpolation/${name}`)
-  .concat(['src/animation/budgetedCanvasSource.js', 'src/animation/framePool.js']);
+  .concat(['src/animation/budgetedCanvasSource.js', 'src/animation/framePool.js', 'src/animation/flowQueue.js']);
 module.exports = {
   entry: path.join(__dirname, 'page.js'),
   output: {
