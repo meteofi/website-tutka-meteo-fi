@@ -299,6 +299,8 @@ export class RadarInterpolator {
   // Prepare upcoming images without changing any pair's flow readiness.
   prefetch(times) {
     if (this.disposed || this.contextLost || this.gl.isContextLost()) return;
+    // Pause or ordinary-frame fallback releases the displayed pair too.
+    if (!times.length) this.frameTextures.setActive();
     this.frameTextures.prefetch(times.map((time) => this.frames.get(time)).filter(Boolean));
   }
 
@@ -351,6 +353,7 @@ export class RadarInterpolator {
     }
 
     const { gl } = this;
+    this.frameTextures.setActive(a, b);
     const textureA = this.frameTextures.get(a);
     const textureB = this.frameTextures.get(b);
     let trajectory = null;

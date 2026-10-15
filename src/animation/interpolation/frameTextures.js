@@ -24,6 +24,14 @@ export default class FrameTextures {
     this.gl = gl;
     this.entries = new Map();
     this.pending = [];
+    this.active = new Set();
+  }
+
+  // Background flow computation and upcoming uploads share this cache with
+  // playback. Recency alone cannot protect the pair between display callbacks.
+  // At most two frames are pinned, leaving two slots for any background pair.
+  setActive(a = null, b = null) {
+    this.active = new Set([a, b].filter(Boolean));
   }
 
   prefetch(frames) {
@@ -56,7 +64,7 @@ export default class FrameTextures {
     } else {
       // Evict before allocating, so a miss cannot temporarily exceed the cap.
       if (this.entries.size >= FRAME_TEXTURE_LIMIT) {
-        this.delete(this.entries.keys().next().value);
+        this.delete([...this.entries.keys()].find((entry) => !this.active.has(entry)));
       }
       texture = createRgbaTexture(this.gl, frame.width, frame.height, frame.image);
     }
@@ -68,11 +76,13 @@ export default class FrameTextures {
     const texture = this.entries.get(frame);
     if (texture && !this.gl.isContextLost()) this.gl.deleteTexture(texture);
     this.entries.delete(frame);
+    this.active.delete(frame);
     this.prefetch(this.pending.filter((item) => item !== frame));
   }
 
   dispose() {
     this.prefetch([]);
+    this.setActive();
     for (const frame of this.entries.keys()) this.delete(frame);
   }
 }

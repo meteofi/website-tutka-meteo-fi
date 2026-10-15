@@ -507,6 +507,45 @@ and repeat with two/four panes. Check that controls stay responsive and motion
 becomes available as the timeline fills. Also pause/resume and return from
 another app to exercise queued recovery.
 
+## Keeping the displayed images resident
+
+Queued background motion work and upcoming-image uploads share the same
+four-texture cache as playback. Recency alone was insufficient: between two
+render callbacks, background work could evict both displayed images, making the
+next playback callback upload them again. The cache now protects the two images
+selected by `renderAt`, leaving two slots for any background pair. The previous
+pair becomes evictable when playback selects another pair. Pause, ordinary-frame
+fallback, image invalidation, context loss and disposal release protection.
+The four-texture allocation limit, original image dimensions and motion/warp
+algorithms are unchanged.
+
+An isolated Chrome/M2 Max probe at 1508×863, DPR 2 counted source-image uploads
+in three two-second samples after switching a loaded radar window from crossfade
+to flow. Single-pane samples fell from 28–33 uploads to 20–21; two panes from
+67–71 to 48–55; four panes from 130–151 to 99–105. Single-pane samples previously
+had 2–4 main-thread tasks of 53–72 ms each; the protected-pair samples had none
+over 50 ms. Two panes also had none, and four panes had one 50 ms task across
+three samples. These are short live-data desktop observations, not a frame-time
+guarantee or a phone benchmark. Individual uploads and pair computations remain
+synchronous, and a seek can still need missing images immediately.
+
+The Node cache test interleaves background pairs, queued uploads and playback,
+checks both displayed GPU identities, and verifies the cap, pause, invalidation,
+final-observation hold and wrap. The real FramePool lifecycle test exercises
+queued backfill and image replacement for both radar and satellite. The GPU
+cache diagnostic checks the displayed image survives backfill and endpoints/
+midpoints remain pixel-identical, then releases protection and verifies eviction
+and re-upload still work. All 15 Node test files and the build pass. Both Metal
+and SwiftShader complete 190 checks with no correctness failures or unavailable
+measurements; all radar targets pass and the existing GOES-19 translation quality
+warning remains. Cache checks have zero pixel error in both backends.
+
+The live app passed pan/zoom and forced context loss/restoration in 1/2/4 panes
+without WebGL errors or uncaught exceptions. Manual checks also covered mode
+changes, pause, stepping and resume. On the phone/desktop preview, switch to
+**Virtaus** or pan/zoom while playing, especially with four panes, and watch for
+loading-related hitches while the timeline fills.
+
 ## Scope
 
 The harness covers production upload, flow computation, warping, enlarged crops,

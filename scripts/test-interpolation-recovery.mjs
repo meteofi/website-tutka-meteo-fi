@@ -173,6 +173,36 @@ function harness(profile = 'radar', defer = false) {
 }
 
 try {
+  for (const profile of ['radar', 'satellite']) {
+    const h = harness(profile, true); const { pool, engine } = h;
+    flushFrame();
+    pool.showInterpolated(0.4);
+    engine.renderAt(times[0], times[1], 0.4);
+    const frames = [engine.frames.get(times[0]), engine.frames.get(times[1])];
+    const textures = frames.map((frame) => engine.frameTextures.entries.get(frame));
+    flushWork();
+    assert.equal(engine.flows.size, FRAME_STEPS, 'background pairs finish while playback is active');
+    assert.deepEqual(
+      frames.map((frame) => engine.frameTextures.entries.get(frame)),
+      textures,
+      'queued flow and upcoming uploads retain both displayed GPU images',
+    );
+    assert.equal(engine.frameTextures.entries.size, 4);
+    h.complete(times[1], 'replacement');
+    assert.equal(engine.frameTextures.active.has(frames[1]), false, 'replacement drops the protected old identity');
+    pool.showInterpolated(0.5);
+    assert.equal(engine.frameTextures.active.size, 0, 'ordinary-frame fallback releases protection');
+    flushWork();
+    pool.showInterpolated(0.6);
+    engine.renderAt(times[0], times[1], 0.6);
+    const cache = engine.frameTextures;
+    h.lose();
+    assert.equal(cache.active.size, 0, 'context loss releases protected decoded-image references');
+    h.restore();
+    pool.setInterpolator(null);
+  }
+  console.log('ok displayed radar/satellite pairs survive queued backfill within the texture budget');
+
   {
     const h = harness('radar', true); const { pool, engine, primary } = h;
     assert.equal(engine.frames.size, FRAME_COUNT);
@@ -270,6 +300,7 @@ try {
       assert.equal(engine.hasFlow(times[FRAME_STEPS], times[0]), false, 'never bridge loop end');
     }
     pool.setInterpActive(false);
+    assert.equal(engine.frameTextures.active.size, 0, 'pause releases the last displayed pair');
     h.lose();
     primary.setOpacity(0.61);
     engine.setUseFlow(false);
