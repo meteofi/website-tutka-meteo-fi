@@ -617,6 +617,44 @@ For the preview, repeatedly switch **Pois → Virtaus**, change between one and
 four panes, and pause/resume. Radar should return normally each time. Repeat
 on a physical phone and desktop before merging.
 
+## Deferring unused renderers
+
+Interpolation now creates a pool's renderer when its layer is first visible.
+Enabling flow with radar alone no longer creates contexts or compiles programs
+for hidden satellite layers. First activation reads the current mode and playback
+state, including changes made while hidden. A previously used renderer stays
+available across hide/show cycles. Switching interpolation off or removing a
+pane removes both its renderer and its deferred visibility listener.
+
+Pool ownership moved from `radar.js` to `interpolation/poolController.js` in a
+separate behavior-preserving commit before the visibility change. The app still
+owns mode persistence, the clock and pane-0 state. Renderer construction failures
+leave ordinary frames available and can retry on a later explicit show/layout
+change. Rendering algorithms, source loading and GPU recovery are unchanged.
+
+An isolated Chrome live-app check at 1508×863, DPR 2 repeated layout and mode
+changes with only radar visible. Live contexts fell from 2/4/8 to 1/2/4 for
+1/2/4 panes. Compiled programs in those contexts fell from 8/16/32 to 6/12/24:
+half the contexts and 25% fewer programs. Switching off still leaves zero live
+contexts. These are counts of avoided setup, not timing or total-memory claims.
+The first show of a previously unused product now pays its setup cost then;
+warm visibility changes retain the existing renderer.
+
+All 17 Node test files, lint, app build and diagnostic build pass. Controller
+tests cover delayed radar/satellite setup, latest mode and paused/playing state,
+warm reuse, repeated layouts, listener removal for never-opened layers,
+independent GPU setup failures and explicit retries. Existing lifecycle tests
+retain first/last-frame and non-default WMS identity coverage. The live app
+passes first activation of both products while paused, then resumes both in
+1/2/4 panes, with no extra contexts on warm hide/show, no WebGL errors and no
+uncaught exceptions. Hidden pan/zoom plus forced GPU loss/restoration also pass
+at every layout, with no hidden draws and all panes resuming when shown.
+
+For the preview, enable **Virtaus** with radar alone, then open satellite for
+the first time, both playing and paused. Repeat in two/four panes, hide/show
+the products, and try **Pois → Häivytys → Virtaus** while they are hidden.
+The first activation should respect the current mode and playback state.
+
 ## Scope
 
 The harness covers production upload, flow computation, warping, enlarged crops,
