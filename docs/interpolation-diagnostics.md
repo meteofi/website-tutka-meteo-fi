@@ -546,6 +546,38 @@ changes, pause, stepping and resume. On the phone/desktop preview, switch to
 **Virtaus** or pan/zoom while playing, especially with four panes, and watch for
 loading-related hitches while the timeline fills.
 
+## Suspending work for hidden layers
+
+Hiding radar or satellite now cancels its queued motion computations and
+upcoming-image uploads, including protection of the formerly displayed pair.
+Image arrivals, mode changes and context restoration cannot schedule motion
+while the primary layer is hidden. Existing decoded images and completed motion
+fields remain available. Showing the layer queues only missing pairs, with the
+current pair first, and retains the user's playback/paused state. This changes
+FramePool scheduling only; interpolation shaders, display sampling, GPU cache
+limits and WMS loading policy are unchanged. GPU contexts are still retained.
+
+An isolated Chrome live-app check loaded a radar window, hid all radar panes,
+then switched from crossfade to flow. Previously each hidden pane performed
+828–852 motion draw passes and 11 full-resolution image uploads during the
+following 1.5 seconds. The same check now records zero draws and zero uploads
+in 1/2/4-pane layouts. These counts demonstrate eliminated hidden work, not a
+battery-life or physical-phone performance measurement.
+
+`test-interpolation-recovery.mjs` covers hidden radar/satellite backfill, late
+images, mode changes, context restoration, warm-cache reuse without refetching,
+paused reappearance, non-default product/style/elevation identities and independent
+panes. All 15 Node test files, source/changed-test lint and the production build
+pass. The actual app also passed pan/zoom and forced GPU loss/restoration while
+hidden at 1/2/4 panes: no hidden motion draws, and every pane resumed drawing when
+shown, without WebGL errors or uncaught exceptions. Manual checks covered
+independent pane visibility, mode changes, pause, stepping and resume.
+
+For the preview, hide radar in one pane while another keeps playing, switch
+**Häivytys → Virtaus**, then show it again. Also hide a layer, pan/zoom and
+restore it, both playing and paused. Ready motion should return immediately;
+missing motion should fill in without blocking the other visible panes.
+
 ## Scope
 
 The harness covers production upload, flow computation, warping, enlarged crops,
