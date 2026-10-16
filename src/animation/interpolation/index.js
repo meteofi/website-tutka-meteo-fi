@@ -396,6 +396,7 @@ export class RadarInterpolator {
       offsetX,
       offsetY,
       trajectory,
+      this.useFlow,
     );
     // Flush pending draw commands so the compositor reads fully-
     // drawn pixels when it pulls the canvas — iOS Safari otherwise

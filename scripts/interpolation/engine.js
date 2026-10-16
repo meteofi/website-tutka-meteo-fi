@@ -7,6 +7,7 @@ import { measureEdgeVelocities, measureTrajectoryContracts, measureRenderCost } 
 import measureDisplaySampling from './displayMeasurements';
 import measureContextRecovery from './contextRecoveryMeasurements';
 import measureFrameCache from './frameCacheMeasurements';
+import measureCrossfade from './crossfadeMeasurements';
 
 export function createEngine(useFlow = true, motionProfile = 'radar') {
   return new RadarInterpolator({ useFlow, motionProfile });
@@ -213,6 +214,7 @@ export async function measure(cases, onProgress = () => {}) {
   });
   try {
     report.contextRecovery = await measureContextRecovery(check);
+    report.crossfadeRendering = measureCrossfade(check);
     report.frameCache = measureFrameCache(engine, cases.find((c) => c.id === 'desktop-default'), check);
     report.flowFiltering = measureFlowFiltering(engine);
     check('flow-filtering:bilinear-warp', 'correctness', Math.max(...report.flowFiltering.map((s) => s.max)), 2);
@@ -290,6 +292,12 @@ export async function measure(cases, onProgress = () => {}) {
     } else {
       loadEngine(engine, cases.find((c) => c.id === 'desktop-default'));
       report.renderCost = measureRenderCost(engine, render);
+      report.observationRenderCost = [0, 2].map((position) => ({
+        position, sizes: measureRenderCost(engine, render, position),
+      }));
+      engine.setUseFlow(false);
+      loadEngine(engine, cases.find((c) => c.id === 'desktop-default'));
+      report.crossfadeRenderCost = measureRenderCost(engine, render);
     }
   } finally {
     for (const current of [radar, satellite]) {
