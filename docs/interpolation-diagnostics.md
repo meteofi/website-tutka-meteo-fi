@@ -737,6 +737,76 @@ For the preview, compare **Häivytys** and **Virtaus**, watch the final observat
 hold and loop restart, then pause/step/resume in one/two/four panes. Check that
 precipitation boundaries and transparency look consistent on phone and desktop.
 
+## Satellite motion capture and cloud deformation
+
+The satellite warning was a capture-range failure in the single-pass local
+Lucas–Kanade solve. It followed a one-analysis-pixel shift reasonably, but
+missed most motion at two or more pixels. The expanded baseline has six
+translation quality failures; the stationary case is exact. These tests use
+the same recorded GOES-19 image with known shifts, so weather evolution cannot
+explain the error.
+
+Satellite analysis now uses a filtered four-level luminance pyramid, four
+bounded local refinements per level, rejection of isolated vectors and a final
+velocity-field smoothing pass sequence. Weakly textured regions retain their
+coarser estimate. Both source luminances share RG16F analysis storage; the final
+flow remains a 256×256 RG16F UV field. Original RGB/alpha textures still supply
+every displayed pixel. Intermediate textures are released after each pair,
+including on errors; source texture budgets and deferred setup remain intact.
+
+The coarse-to-fine formulation follows the approach described in
+[Bouguet's pyramidal Lucas–Kanade note](https://robots.stanford.edu/cs223b04/algo_tracking.pdf).
+Smoothing the velocity is necessary here: a pyramid-only experiment fixed
+translation but increased folded cells in the real cloud sequence from 348 to
+1,177. Local outlier rejection alone still left 654. The final field has zero
+detected folds in that sequence and in all known-motion cases. This is a
+geometric check, not ground truth for evolving clouds.
+
+Apple M2 Max / Chrome Metal mean vector errors, in 256-grid analysis pixels:
+
+| Known motion | Previous estimator | Satellite pyramid + regularization |
+|---|---:|---:|
+| 1 px right | 0.299 | 0.042 |
+| 2 px right | 1.365 | 0.028 |
+| 4 px right (original warning) | 3.558 | 0.014 |
+| 8 px right | 7.662 | 0.019 |
+| (4, −2) px | 3.995 | 0.034 |
+| (−4, 2) px | 3.987 | 0.034 |
+| Wide 1280×720, (4, −2) px | 3.984 | 0.031 |
+| Stationary | 0 | 0 |
+
+The diagnostic also derives an explicitly synthetic colour variant with curved
+transparent coverage from GOES-19, both moving and stationary. It is not an
+additional satellite product or real RGB observation. Its motion error is
+0.075 pixels; stationary pixels are exact. All satellite cases now have the
+same zero-fold and enlarged-image alignment targets as radar, alongside the
+existing 0.5-pixel translation target. The worst enlarged intermediate mean
+visible RGBA error is 0.67/255; observation endpoints remain exact.
+
+The tradeoff is pair computation: this desktop run measured roughly 4–8 ms per
+already-initialized satellite pair versus 0.4–0.7 ms before. These diagnostic
+timings include upload and completed GPU work, and are not phone benchmarks.
+Motion is computed once per cached pair; the display shader and its per-frame
+work are unchanged. First use now compiles four satellite analysis programs
+instead of one, still inside the shared queued job.
+
+Live radar/EUMETSAT RGB activation, pause/resume, mode changes and hidden/warm
+reuse pass in 1/2/4 panes without WebGL errors or uncaught exceptions. The
+first frame uses pair 0→1 at t=0; the final observation holds the last adjacent
+pair at t=1, with no last→first motion. Product/style/elevation identity and
+context recovery tests continue to pass. The Node resource test additionally
+checks repeated pair ownership and cleanup after framebuffer/draw failures.
+All 18 Node test files, lint and the production build pass (the build retains
+its two existing size warnings). Metal and SwiftShader each complete all 316
+GPU checks with zero correctness failures, quality failures or unavailable
+measurements; repeated satellite context recovery reproduces pixels exactly.
+
+For the preview, enable **Satelliitti** and **Virtaus**, watch small cloud
+details and curved coverage edges, then pause/resume and compare **Häivytys**.
+Check first-use responsiveness in two/four panes on a physical phone as well
+as desktop. Known translations and one recorded real cloud sequence do not
+establish accuracy for every satellite product or illumination change.
+
 ## Scope
 
 The harness covers production upload, flow computation, warping, enlarged crops,

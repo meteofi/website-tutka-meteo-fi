@@ -1,5 +1,5 @@
 // Motion-compensated interpolation. Radar uses a filtered image pyramid;
-// satellite retains the single-level Lucas-Kanade estimator.
+// satellite uses its own coarse-to-fine Lucas-Kanade estimator.
 //
 // Instance ownership: one RadarInterpolator per interpolating pool
 // (radar, satellite). Each owns its own WebGL2 context on an offscreen
@@ -297,7 +297,11 @@ export class RadarInterpolator {
         const textureA = this.frameTextures.get(a);
         const textureB = this.frameTextures.get(b);
         flow = this.motionProfile === 'satellite'
-          ? { texture: this.flowLK.compute(textureA, textureB, this.flowFilter), width: this.flowResolution, height: this.flowResolution }
+          ? {
+            texture: this.flowLK.compute({ ...a, texture: textureA }, { ...b, texture: textureB }, this.flowFilter),
+            width: this.flowResolution,
+            height: this.flowResolution,
+          }
           : this.flowLK.compute({ ...a, texture: textureA }, { ...b, texture: textureB });
       } else {
         flow = { texture: createRg16fTexture(this.gl, 1, 1, null, this.flowFilter), width: 1, height: 1 };
