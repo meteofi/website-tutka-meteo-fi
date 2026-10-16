@@ -223,6 +223,7 @@ export async function measure(cases, onProgress = () => {}) {
     report.trajectoryContracts = measureTrajectoryContracts(engine, cases.find((c) => c.id === 'turning-motion'), loadEngine, render, check);
     report.displaySampling = measureDisplaySampling(engine, cases.find((c) => c.id === 'default-translated'), loadEngine, render, cropReference, check);
     for (const c of cases) {
+      const stationary = c.displacement?.every((value) => value === 0);
       onProgress(c.label);
       // Yield so mobile Safari paints progress between cases.
       await new Promise((resolve) => { setTimeout(resolve, 0); }); // eslint-disable-line no-await-in-loop
@@ -247,9 +248,9 @@ export async function measure(cases, onProgress = () => {}) {
         result.geometry = field.geometry;
         if (c.displacement) {
           result.flow = field.flow;
-          check(`${c.id}:motion`, c.id === 'stationary' ? 'correctness' : 'quality', result.flow.meanVectorError, 0.5);
+          check(`${c.id}:motion`, stationary ? 'correctness' : 'quality', result.flow.meanVectorError, 0.5);
         }
-        if (c.motionProfile !== 'satellite') check(`${c.id}:folds`, 'quality', field.geometry.foldedCells, 0);
+        check(`${c.id}:folds`, 'quality', field.geometry.foldedCells, 0);
         if (c.id.startsWith('radar-') || c.id.startsWith('desktop-') || c.id === 'turning-motion') {
           result.edgeVelocities = measureEdgeVelocities(current, c);
           check(`${c.id}:shared-edge-velocity`, 'quality', result.edgeVelocities.curved.p95, 0.1);
@@ -261,7 +262,7 @@ export async function measure(cases, onProgress = () => {}) {
       if (!c.synthetic || c.id === 'stepped-4' || c.knownFlow) {
         result.cropped = measureCrops(current, c);
         check(`${c.id}:cropped-endpoints`, 'correctness', Math.max(...result.cropped.flatMap((crop) => crop.endpoints.map((e) => e.max))), 3);
-        if (c.expected && c.motionProfile !== 'satellite') {
+        if (c.expected) {
           check(`${c.id}:cropped-motion`, 'quality', Math.max(...result.cropped.flatMap((crop) => crop.intermediate.map((e) => e.mean))), 1);
           if (c.id.endsWith('-detail')) {
             check(`${c.id}:detail-alignment`, 'quality', Math.max(...result.cropped.flatMap((crop) => crop.intermediate.map((e) => e.mean))), 0.2);
@@ -272,10 +273,10 @@ export async function measure(cases, onProgress = () => {}) {
         result.intermediate = [0.25, 0.5, 0.75, 1.25, 1.5, 1.75].map((position) => ({
           position, ...pixelError(pixels(render(current, position, width, height)), pixels(c.expected(position))),
         }));
-        if (c.id === 'transparency' || c.id === 'stationary') {
+        if (c.id === 'transparency' || stationary) {
           check(
             `${c.id}:intermediate`,
-            c.id === 'stationary' ? 'correctness' : 'quality',
+            stationary ? 'correctness' : 'quality',
             Math.max(...result.intermediate.map((e) => e.max)),
             3,
           );

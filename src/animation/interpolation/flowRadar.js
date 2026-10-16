@@ -1,5 +1,4 @@
-// Radar has hard palette/coverage edges and larger displacements than the
-// single-pass satellite estimator can follow. Solve coarse to fine on filtered
+// Radar has hard palette/coverage edges. Solve coarse to fine on filtered
 // images; carry coarse motion through weakly constrained edges instead of
 // turning an ill-conditioned local solve into a large displacement.
 import { createProgram, createFullscreenTriangle, drawFullscreen } from './glUtils';

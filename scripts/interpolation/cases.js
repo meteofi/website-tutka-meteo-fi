@@ -103,6 +103,37 @@ export async function loadCases() {
   for (const [prefix, label] of [['default', 'Tutka, oletus'], ['radar_fmi', 'Tutka, FMI'], ['goes19', 'Satelliitti']]) {
     cases.push(translated(`${prefix}-translated`, `${label} — tunnettu 4 px siirto`, images.get(`${prefix}-0.png`), [4, 0]));
   }
+  // Keep the original 4 px satellite warning, and test its capture range and
+  // direction independently of real cloud evolution.
+  for (const [name, displacement] of [
+    ['stationary', [0, 0]], ['1', [1, 0]], ['2', [2, 0]], ['8', [8, 0]],
+    ['diagonal', [4, -2]], ['reverse', [-4, 2]],
+  ]) {
+    cases.push(translated(
+      `goes19-${name}`, `Satelliitti — (${displacement.join(', ')}) px`,
+      images.get('goes19-0.png'), displacement,
+    ));
+  }
+  const satelliteWide = canvas(1280, 720);
+  satelliteWide.getContext('2d').drawImage(images.get('goes19-0.png'), 0, 0, satelliteWide.width, satelliteWide.height);
+  cases.push(translated('goes19-wide', 'Satelliitti — leveä 1280 × 720 kuva, vino liike', satelliteWide, [4, -2]));
+  // An explicitly synthetic colour/coverage variant checks that analysis
+  // luminance never replaces the original RGB or transparency in the output.
+  const colour = canvas(640);
+  const colourContext = colour.getContext('2d');
+  colourContext.drawImage(images.get('goes19-0.png'), 0, 0);
+  const rgba = colourContext.getImageData(0, 0, colour.width, colour.height);
+  for (let i = 0; i < rgba.data.length; i += 4) {
+    rgba.data[i + 1] = Math.round(rgba.data[i] * 0.4);
+    rgba.data[i + 2] = 255 - rgba.data[i];
+  }
+  colourContext.putImageData(rgba, 0, 0);
+  colourContext.globalCompositeOperation = 'destination-in';
+  colourContext.beginPath();
+  colourContext.ellipse(320, 320, 260, 240, 0, 0, Math.PI * 2);
+  colourContext.fill();
+  cases.push(translated('goes19-colour', 'Satelliitti — keinotekoinen väritys ja kaareva peittoalue', colour, [4, -2]));
+  cases.push(translated('goes19-colour-stationary', 'Satelliitti — väritys ja peittoalue paikallaan', colour, [0, 0]));
   // Native desktop detail, with integer source-pixel motion and no weather
   // evolution. This exposes ghosting hidden by the smaller translation cases.
   for (const [prefix, label] of [['default', 'oletus'], ['radar_fmi', 'FMI']]) {
