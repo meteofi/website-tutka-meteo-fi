@@ -698,6 +698,45 @@ then switch back and forth, pause/resume and repeat in two/four panes. Check
 first-use responsiveness and that precipitation edges retain their appearance
 on both phone and desktop.
 
+## Direct rendering for crossfade and observations
+
+The warp shader now samples the original image directly at exact endpoints and
+blends the two original images directly in crossfade mode. These draws skip
+motion-field lookups, inverse trajectory iterations and deformation checks.
+The mode and endpoint branches are uniform across the draw, preserving the
+derivative calculations used by intermediate motion frames. Bounded UV sampling
+and premultiplied colour/alpha blending still apply to every path.
+
+The diagnostic report now includes `crossfadeRenderCost` and
+`observationRenderCost`, alongside the existing intermediate-flow timing. An
+Apple M2 Max / Chrome Metal comparison using the recorded desktop radar pair
+measured these warmed median draw times (20 samples, including one-pixel
+readback overhead; excluding upload and shader compilation):
+
+| Output | Crossfade before → after | First observation | Last observation hold |
+|---|---:|---:|---:|
+| 1920×1080 | 1.0 → 0.4 ms | 0.8 → 0.4 ms | 0.9 → 0.4 ms |
+| 2666×1500 | 1.4 → 0.5 ms | 1.3 → 0.4 ms | 1.5 → 0.4 ms |
+
+These are desktop per-draw measurements, not phone benchmarks or whole-app
+frame-rate guarantees. The ordinary flow path still runs its motion solver
+and safeguards; source density, display budgets and playback timing are intact.
+
+All 17 Node test files, lint and the production build pass. Metal and SwiftShader
+complete 257 GPU checks with zero correctness failures or unavailable
+measurements; the existing GOES-19 translation quality warning remains. New
+crossfade checks compare against additive premultiplied Canvas references in
+native, enlarged and partly out-of-bounds views, before and after using flow,
+for both profiles. Their maximum visible colour/alpha error is 1.34 on the
+0–255 scale. Existing endpoint, edge continuity, sharpness, recovery and
+first/last-frame/non-default WMS identity checks pass. Live radar/satellite
+mode changes and paused activation/resume pass in 1/2/4 panes without WebGL
+errors or uncaught exceptions.
+
+For the preview, compare **Häivytys** and **Virtaus**, watch the final observation
+hold and loop restart, then pause/step/resume in one/two/four panes. Check that
+precipitation boundaries and transparency look consistent on phone and desktop.
+
 ## Scope
 
 The harness covers production upload, flow computation, warping, enlarged crops,

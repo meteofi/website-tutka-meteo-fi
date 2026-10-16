@@ -30,6 +30,7 @@ uniform sampler2D uFrameB;
 uniform sampler2D uFlow;
 uniform sampler2D uTrajectory;
 uniform bool uHasTrajectory;
+uniform bool uUseFlow;
 uniform float uT;
 uniform bool uGuardFlow;
 // Affine transform from output-canvas UV to stored-frame UV.
@@ -66,6 +67,15 @@ vec2 displacement(vec2 p) {
 
 void main() {
   vec2 src = vUv * uScale + uOffset;
+  // Exact observations and crossfade need only the original colour samples.
+  // These conditions are uniform across the draw, so later motion derivatives
+  // still run in uniform control flow on every fragment of an intermediate.
+  if (uT==0.0) { fragColor=sampleBounded(uFrameA,src); return; }
+  if (uT==1.0) { fragColor=sampleBounded(uFrameB,src); return; }
+  if (!uUseFlow) {
+    fragColor=mix(sampleBounded(uFrameA,src),sampleBounded(uFrameB,src),uT);
+    return;
+  }
   vec2 flow = texture(uFlow, src).rg;
   vec2 srcA = src - uT * flow;
   vec2 srcB = src + (1.0 - uT) * flow;
@@ -89,10 +99,6 @@ void main() {
     flow=texture(uFlow,origin).rg;
     srcA=src-shift;
     srcB=src+flow-shift;
-    // Exact observations are important even if inversion failed locally.
-    if (uT==0.0) srcA=src;
-    if (uT==1.0) srcB=src;
-
     // Guard the actual sampling maps, including the curved trajectory. Fade
     // where they fold or the inverse has not converged within a display pixel.
     vec2 pixelStep=max(vec2(abs(dFdx(src).x),abs(dFdy(src).y)),vec2(1e-8));
@@ -129,6 +135,7 @@ export default class WarpRenderer {
     this.uFlow = gl.getUniformLocation(this.program, 'uFlow');
     this.uTrajectory = gl.getUniformLocation(this.program, 'uTrajectory');
     this.uHasTrajectory = gl.getUniformLocation(this.program, 'uHasTrajectory');
+    this.uUseFlow = gl.getUniformLocation(this.program, 'uUseFlow');
     this.uT = gl.getUniformLocation(this.program, 'uT');
     this.uGuardFlow = gl.getUniformLocation(this.program, 'uGuardFlow');
     this.uScale = gl.getUniformLocation(this.program, 'uScale');
@@ -153,6 +160,7 @@ export default class WarpRenderer {
     offsetX = 0,
     offsetY = 0,
     trajectoryTex = null,
+    useFlow = true,
   ) {
     const { gl } = this;
     // Ensure the draw fully overwrites the cleared buffer rather
@@ -178,6 +186,7 @@ export default class WarpRenderer {
     gl.bindTexture(gl.TEXTURE_2D, trajectoryTex || flowTex);
     gl.uniform1i(this.uTrajectory, 3);
     gl.uniform1i(this.uHasTrajectory, trajectoryTex ? 1 : 0);
+    gl.uniform1i(this.uUseFlow, useFlow ? 1 : 0);
 
     gl.uniform1f(this.uT, t);
     gl.uniform1i(this.uGuardFlow, this.guardFlow ? 1 : 0);

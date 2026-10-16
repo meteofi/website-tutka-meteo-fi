@@ -132,7 +132,7 @@ export function measureTrajectoryContracts(engine, testCase, load, render, check
   return { arrival, departure };
 }
 
-export function measureRenderCost(engine, render) {
+export function measureRenderCost(engine, render, position = null) {
   const { gl } = engine;
   const pixel = new Uint8Array(4);
   return [[390, 844], [1920, 1080], [2666, 1500]].map(([width, height]) => {
@@ -140,12 +140,12 @@ export function measureRenderCost(engine, render) {
     // finish() alone can measure only command submission on Chrome. This
     // includes readback overhead and is never used by production playback.
     const complete = () => gl.readPixels(Math.floor(width / 2), Math.floor(height / 2), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
-    for (let i = 0; i < 5; i++) render(engine, 0.5, width, height);
+    for (let i = 0; i < 5; i++) render(engine, position ?? 0.5, width, height);
     complete();
     const times = [];
     for (let i = 0; i < 20; i++) {
       const start = performance.now();
-      render(engine, 0.2 + i / 50, width, height);
+      render(engine, position ?? (0.2 + i / 50), width, height);
       complete();
       times.push(performance.now() - start);
     }

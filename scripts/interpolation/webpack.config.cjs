@@ -26,7 +26,7 @@ module.exports = {
         commit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim(),
         worktreeDirty: !!execFileSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' }).trim(),
         sources: Object.fromEntries(sources.map((file) => [file, hash(file)])),
-        harness: Object.fromEntries(['page.js', 'cases.js', 'trajectoryCases.js', 'trajectoryMeasurements.js', 'displayMeasurements.js', 'contextRecoveryMeasurements.js', 'frameCacheMeasurements.js', 'engine.js', 'metrics.mjs', 'index.html']
+        harness: Object.fromEntries(['page.js', 'cases.js', 'trajectoryCases.js', 'trajectoryMeasurements.js', 'displayMeasurements.js', 'contextRecoveryMeasurements.js', 'crossfadeMeasurements.js', 'frameCacheMeasurements.js', 'engine.js', 'metrics.mjs', 'index.html']
           .map((name) => [`scripts/interpolation/${name}`, hash(`scripts/interpolation/${name}`)])),
         fixtures: hash('scripts/interpolation/fixtures/manifest.json'),
       }),
