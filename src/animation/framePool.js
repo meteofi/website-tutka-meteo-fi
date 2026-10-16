@@ -1054,7 +1054,17 @@ export default class FramePool {
       if (index < 0 || this.windowTimes[index + 1] !== timeB) return;
       if (a.time !== timeA || b.time !== timeB || !a.loaded || !b.loaded) return;
       if (a.source._sticky !== imageA || b.source._sticky !== imageB) return;
-      interpolator.computeFlow(timeA, timeB);
+      try {
+        interpolator.computeFlow(timeA, timeB);
+      } catch (error) {
+        // Deferred setup disposes a failed renderer before throwing. Restore
+        // ordinary WMS and cancel this pool's remaining jobs, as with failure
+        // during initial attachment. Unrelated compute errors still surface.
+        if (!interpolator.disposed) throw error;
+        this.setInterpolator(null);
+        // eslint-disable-next-line no-console
+        console.warn('Interpolation motion setup failed', error);
+      }
       this._notifyAllFlowState();
       this.map.render();
     });

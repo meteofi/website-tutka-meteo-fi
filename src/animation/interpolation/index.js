@@ -137,9 +137,8 @@ export class RadarInterpolator {
     this.flowFilter = this.gl.LINEAR;
     this.frameTextures = new FrameTextures(this.gl);
     this.warp = new WarpRenderer(this.gl, this.motionProfile === 'radar');
-    this.trajectories = this.motionProfile === 'radar' ? new RadarTrajectories(this.gl) : null;
-    this.flowLK = this.motionProfile === 'satellite'
-      ? new FlowLK(this.gl, this.flowResolution) : new FlowRadar(this.gl, this.flowResolution);
+    this.trajectories = null;
+    this.flowLK = null;
   }
 
   _releaseResources() {
@@ -257,8 +256,8 @@ export class RadarInterpolator {
   }
 
   // Produce the flow texture for (A, B) — LK-computed if useFlow is
-  // true, zero-filled otherwise. Framepool calls this from
-  // imageloadend when both frames of a pair become available. No-op
+  // true, zero-filled otherwise. FramePool queues this when both
+  // frames of a pair become available. No-op
   // if the pair already has a flow (the frames themselves are
   // replaced in onSlotLoaded; a new compute is triggered then by
   // having that call invalidate the flow first).
@@ -276,6 +275,22 @@ export class RadarInterpolator {
     // at different extents; hasFlow's extent check would reject
     // this pair at display time anyway.
     if (this.useFlow && !extentApproxEqual(a.extent, b.extent)) return;
+    if (this.useFlow && !this.flowLK) {
+      // Crossfade needs only the warp shader. Build motion resources in the
+      // queued pair job, never in the mode-switch handler. Keep them for warm
+      // mode changes; context restoration starts with only the warp again.
+      try {
+        this.trajectories = this.motionProfile === 'radar' ? new RadarTrajectories(this.gl) : null;
+        this.flowLK = this.motionProfile === 'satellite'
+          ? new FlowLK(this.gl, this.flowResolution) : new FlowRadar(this.gl, this.flowResolution);
+      } catch (error) {
+        if (this.gl.isContextLost()) return;
+        // A constructor may have allocated handles before throwing. Release
+        // the whole context; the owner must detach this terminal renderer.
+        this.dispose();
+        throw error;
+      }
+    }
     let flow;
     try {
       if (this.useFlow) {
