@@ -122,9 +122,15 @@ import {
 } from 'ol/style';
 import { FRAME_COUNT } from './constants';
 
-const COLLECTION_URL = 'https://meteocore.app.meteo.fi/features/collections/fmi-radar-nowcast';
-const ITEMS_URL = `${COLLECTION_URL}/items?f=application/geo%2Bjson&limit=1000`;
-const META_URL = COLLECTION_URL;
+const ITEMS_URL = 'https://meteocore.app.meteo.fi/collections/fmi-radar-nowcast/items?f=application/geo%2Bjson&limit=1000';
+// The retention poll stays on the legacy /features root. The shared-root
+// collection document merges this id's map and feature sides and reports the
+// MAP extent — the raster forecast, newest analysis → +2 h (measured
+// 2026-09-28 22:05Z: 21:55→23:55 at the root against 17:30→21:55 here). Read
+// as the retained span, isRetained() would drop every past frame but the
+// newest, silently. Move it to the root once that document carries the cells'
+// retained span.
+const META_URL = 'https://meteocore.app.meteo.fi/features/collections/fmi-radar-nowcast';
 
 // Per-frame fetches in flight. The window is 13 frames of ~13 kB gzipped; a
 // small cap keeps the displayed frame's request from queueing behind a dozen

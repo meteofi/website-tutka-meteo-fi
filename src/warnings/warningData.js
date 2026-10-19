@@ -1,6 +1,6 @@
 // CAP transport/normalization is independent of OpenLayers so a future vector
 // tile source can reuse the warning model and sheet without changing radar.js.
-export const WARNING_URL = 'https://meteocore.app.meteo.fi/features/collections/cap-meteoalarm-wis2/items';
+export const WARNING_URL = 'https://meteocore.app.meteo.fi/collections/cap-meteoalarm-wis2/items';
 export const WARNING_TYPES = {
   1: { label: 'Tuulivaroitukset', singular: 'tuulivaroitus' },
   3: { label: 'Ukkosvaroitukset', singular: 'ukkosvaroitus' },

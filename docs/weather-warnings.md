@@ -26,7 +26,7 @@ Presentation follows the relevant sections of the [MeteoAlarm Style Guide v1.0 (
 
 ## Data and lifecycle
 
-- Endpoint: `https://meteocore.app.meteo.fi/features/collections/cap-meteoalarm-wis2/items`.
+- Endpoint: `https://meteocore.app.meteo.fi/collections/cap-meteoalarm-wis2/items`.
 - Filter on the server with the integer `awareness_type_code` property, derived from the original Meteoalarm `code; label` value. Numeric filters support comma-separated OR: `awareness_type_code=1,3,10` fetches wind, thunderstorm and rain in one query, independent of label capitalization. Codes are deduplicated and sorted for stable URLs. Combine `status=Actual` and `scope=Public` with AND. The original string property `awareness_type` uses exact case-sensitive equality and literal commas; it is not used as a request filter.
 - Include one `msgType=Cancel` query with the same status/scope filters, because cancellations may omit awareness type and geometry. Merge all selected-type and cancellation results before applying CAP references and local validation. Do not filter by severity or language on the server: updates to green/all-clear warnings and all supplied languages must remain available. A refresh normally needs two queries regardless of the number of enabled types: one combined numeric type query and one cancellation query, with additional pages only when needed.
 - Fetch pages with `limit=1000`, follow `rel=next`, or use `numberMatched` and `offset` when needed. Preserve the original property predicates in next links and fallback pages; reject changed predicates, loops, repeated pages, unexpected next-page origins/paths, malformed responses and incomplete snapshots. A failed query or page rejects the entire replacement snapshot and aborts its remaining requests.
